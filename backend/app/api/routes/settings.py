@@ -77,6 +77,11 @@ class SettingsUpdate(BaseModel):
     llm_area_of_law_model: str | None = None
     llm_synthetic_provider: str | None = None
     llm_synthetic_model: str | None = None
+    # Ollama tier models
+    ollama_auto_manage: bool | None = None
+    ollama_model_simple: str | None = None
+    ollama_model_medium: str | None = None
+    ollama_model_complex: str | None = None
 
 
 _TASK_LLM_FIELDS = (
@@ -110,6 +115,11 @@ async def get_settings() -> dict:
         if provider or model:
             task_overrides[task] = {"provider": provider, "model": model}
     result["task_llm_overrides"] = task_overrides
+    # Ollama tier config
+    result["ollama_auto_manage"] = settings.ollama_auto_manage
+    result["ollama_model_simple"] = settings.ollama_model_simple
+    result["ollama_model_medium"] = settings.ollama_model_medium
+    result["ollama_model_complex"] = settings.ollama_model_complex
     return result
 
 
@@ -141,6 +151,13 @@ async def update_settings(update: SettingsUpdate) -> dict:
             val = getattr(update, attr, None)
             if val is not None:
                 setattr(settings, attr, val)
+    # Update Ollama tier settings
+    if update.ollama_auto_manage is not None:
+        settings.ollama_auto_manage = update.ollama_auto_manage
+    for tier in ("simple", "medium", "complex"):
+        val = getattr(update, f"ollama_model_{tier}", None)
+        if val is not None:
+            setattr(settings, f"ollama_model_{tier}", val)
     return {"status": "ok", "message": "Settings updated"}
 
 

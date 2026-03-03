@@ -87,6 +87,11 @@ class TestTaskLLMs:
                 attr = f"llm_{task}_{suffix}"
                 originals[attr] = getattr(settings, attr)
                 setattr(settings, attr, "")
+        # Also force non-ollama provider to prevent adaptive tier selection
+        originals["llm_provider"] = settings.llm_provider
+        originals["llm_model"] = settings.llm_model
+        settings.llm_provider = "google"
+        settings.llm_model = "test-model"
         try:
             t = TaskLLMs.from_settings(fallback=fallback)
             assert t.classifier is fallback
@@ -238,5 +243,5 @@ class TestConfigPerTaskSettings:
         s = Settings()
         assert s.llm_concept_provider == "google"
         assert s.llm_concept_model == "gemini-2.5-flash"
-        # Global unchanged
-        assert s.llm_provider == "google"
+        # Global unchanged (default is now "ollama")
+        assert s.llm_provider == "ollama"

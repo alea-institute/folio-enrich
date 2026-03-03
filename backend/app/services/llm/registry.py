@@ -131,8 +131,15 @@ KNOWN_MODELS: dict[LLMProviderType, list[ModelInfo]] = {
         ModelInfo(id="openai/gpt-4o", name="OpenAI GPT-4o", context_window=128000),
         ModelInfo(id="mistral-ai/mistral-large-2411", name="Mistral Large", context_window=128000),
     ],
-    # Local providers: no known models (user-dependent)
-    LLMProviderType.ollama: [],
+    LLMProviderType.ollama: [
+        ModelInfo(id="qwen3:4b", name="Qwen3 4B (Simple tasks)", context_window=32768),
+        ModelInfo(id="qwen3:8b", name="Qwen3 8B (Balanced)", context_window=131072),
+        ModelInfo(id="qwen3:14b", name="Qwen3 14B (Complex tasks)", context_window=131072),
+        ModelInfo(id="qwen3:32b", name="Qwen3 32B (High quality)", context_window=131072),
+        ModelInfo(id="llama3.3:8b", name="Llama 3.3 8B", context_window=131072),
+        ModelInfo(id="phi4:14b", name="Phi-4 14B", context_window=16384),
+        ModelInfo(id="mistral:7b", name="Mistral 7B", context_window=32768),
+    ],
     LLMProviderType.lmstudio: [],
     LLMProviderType.custom: [],
     LLMProviderType.llamafile: [],

@@ -90,19 +90,36 @@ def _check_llm() -> dict:
         attr = _KEY_ATTRS.get(provider)
         has_key = bool(getattr(settings, attr, "")) if attr else False
 
+    result: dict
     if has_key:
-        return {
+        result = {
             "status": "configured",
             "provider": provider,
             "model": model,
         }
     else:
-        return {
+        result = {
             "status": "no_api_key",
             "provider": provider,
             "model": model,
             "message": f"No API key set for {provider}",
         }
+
+    # Add Ollama-specific info when provider is ollama
+    if provider == "ollama":
+        try:
+            from app.services.ollama.manager import OllamaManager
+            import asyncio
+            manager = OllamaManager.get_instance()
+            # Sync context — use cached info from manager
+            required = manager.get_required_models()
+            result["ollama_auto_manage"] = settings.ollama_auto_manage
+            result["ollama_required_models"] = sorted(required)
+            result["ollama_tier_config"] = manager.get_tier_config()
+        except Exception as e:
+            result["ollama_info_error"] = str(e)
+
+    return result
 
 
 def _check_spacy() -> dict:

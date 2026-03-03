@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import concepts, enrich, export, feedback, health, settings, synthetic
+from app.api.routes import concepts, enrich, export, feedback, health, ollama, settings, synthetic
 from app.config import settings as app_settings
 from app.middleware.error_handler import register_error_handlers
 from app.middleware.rate_limit import RateLimitMiddleware
@@ -62,8 +62,48 @@ async def _periodic_job_cleanup() -> None:
         await asyncio.sleep(3600)  # Every hour
 
 
+async def _manage_ollama() -> None:
+    """Detect and optionally start Ollama at startup."""
+    if not (app_settings.ollama_auto_manage and app_settings.llm_provider == "ollama"):
+        return
+
+    try:
+        from app.services.ollama.manager import OllamaManager
+        manager = OllamaManager.get_instance()
+        info = await manager.detect()
+
+        if info.status.value == "running":
+            logger.info("Ollama already running (v%s) with %d model(s)", info.version, len(info.models))
+        elif info.status.value == "installed":
+            logger.info("Ollama installed — starting server...")
+            started = await manager.start()
+            if started:
+                logger.info("Ollama server started")
+            else:
+                logger.warning("Failed to start Ollama server — run setup via Settings")
+        else:
+            logger.warning("Ollama not installed — run setup via Settings or POST /ollama/setup")
+    except Exception:
+        logger.warning("Ollama auto-management failed", exc_info=True)
+
+
+async def _stop_ollama() -> None:
+    """Stop managed Ollama process on shutdown."""
+    if not (app_settings.ollama_auto_manage and app_settings.llm_provider == "ollama"):
+        return
+    try:
+        from app.services.ollama.manager import OllamaManager
+        manager = OllamaManager.get_instance()
+        await manager.stop()
+    except Exception:
+        logger.warning("Failed to stop Ollama", exc_info=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Startup: detect/start Ollama if configured
+    await _manage_ollama()
+
     # Startup: eager-load FOLIO ontology and embedding index before accepting requests
     logger.info("Loading FOLIO ontology and building embedding index...")
     await _index_folio_embeddings()
@@ -71,6 +111,7 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown
     cleanup_task.cancel()
+    await _stop_ollama()
 
 
 app = FastAPI(title=app_settings.app_name, version="0.2.0", lifespan=lifespan)
@@ -101,6 +142,7 @@ app.include_router(synthetic.router)
 app.include_router(concepts.router)
 app.include_router(feedback.router)
 app.include_router(settings.router)
+app.include_router(ollama.router)
 
 # Serve frontend
 _frontend_dir = Path(__file__).resolve().parent.parent.parent / "frontend"
