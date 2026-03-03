@@ -26,8 +26,8 @@ class Settings(BaseSettings):
     chunk_overlap_chars: int = 200
 
     # LLM — global defaults (used when per-task overrides are not set)
-    llm_provider: str = "google"
-    llm_model: str = "gemini-3-flash-preview"
+    llm_provider: str = "ollama"
+    llm_model: str = ""  # empty = adaptive tier selection for Ollama
     openai_api_key: str = ""
     anthropic_api_key: str = ""
     google_api_key: str = ""
@@ -53,6 +53,13 @@ class Settings(BaseSettings):
     llm_synthetic_model: str = ""
     llm_document_type_provider: str = ""
     llm_document_type_model: str = ""
+
+    # Ollama auto-management
+    ollama_auto_manage: bool = True
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model_simple: str = "qwen3:4b"     # ~2.5GB — classification, area_of_law
+    ollama_model_medium: str = "qwen3:8b"     # ~5GB — concept, branch_judge, synthetic
+    ollama_model_complex: str = "qwen3:14b"   # ~9GB — metadata extraction, individual, property
 
     # Embedding
     embedding_provider: str = "local"  # local, ollama, openai

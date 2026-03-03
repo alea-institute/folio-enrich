@@ -286,7 +286,15 @@ def _try_get_llm() -> LLMProvider | None:
     """Try to create an LLM provider from global settings. Returns None if no API key."""
     try:
         from app.config import settings
-        return _make_llm(settings.llm_provider, settings.llm_model)
+
+        model = settings.llm_model
+        # Adaptive tier: when provider is ollama and model is empty, use medium tier
+        if settings.llm_provider == "ollama" and not model:
+            from app.services.ollama.manager import OllamaManager
+            manager = OllamaManager.get_instance()
+            model = manager.get_model_for_task("concept")  # medium tier as fallback
+
+        return _make_llm(settings.llm_provider, model)
     except Exception:
         logger.warning("Failed to create LLM provider — LLM stages will be skipped", exc_info=True)
         return None
@@ -296,23 +304,38 @@ def _try_get_task_llm(task: str, fallback: LLMProvider | None) -> LLMProvider | 
     """Get a task-specific LLM, falling back to *fallback* (the global default).
 
     Reads ``llm_{task}_provider`` and ``llm_{task}_model`` from settings.
-    If neither is set, returns *fallback* unchanged.
+    If neither is set, returns *fallback* unchanged.  When the global provider
+    is ``ollama`` with an empty model (tier mode), selects the tier-appropriate
+    model for the task automatically.
     """
     from app.config import settings
 
     task_provider = getattr(settings, f"llm_{task}_provider", "")
     task_model = getattr(settings, f"llm_{task}_model", "")
 
-    if not task_provider:
+    # Per-task override takes precedence
+    if task_provider:
+        try:
+            llm = _make_llm(task_provider, task_model)
+            if llm is not None:
+                logger.info("Using task-specific LLM for %s: %s/%s", task, task_provider, task_model)
+                return llm
+        except Exception:
+            logger.warning("Failed to create task-specific LLM for %s — using global default", task, exc_info=True)
         return fallback
 
-    try:
-        llm = _make_llm(task_provider, task_model)
-        if llm is not None:
-            logger.info("Using task-specific LLM for %s: %s/%s", task, task_provider, task_model)
-            return llm
-    except Exception:
-        logger.warning("Failed to create task-specific LLM for %s — using global default", task, exc_info=True)
+    # Adaptive tier selection: ollama with empty global model
+    if settings.llm_provider == "ollama" and not settings.llm_model:
+        try:
+            from app.services.ollama.manager import OllamaManager
+            manager = OllamaManager.get_instance()
+            tier_model = manager.get_model_for_task(task)
+            llm = _make_llm("ollama", tier_model)
+            if llm is not None:
+                logger.info("Using Ollama tier model for %s: %s", task, tier_model)
+                return llm
+        except Exception:
+            logger.warning("Failed to create Ollama tier LLM for %s — using global default", task, exc_info=True)
 
     return fallback
 

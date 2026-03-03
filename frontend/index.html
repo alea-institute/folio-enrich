@@ -1831,6 +1831,87 @@
   .btn-test-sm:hover { background: #e0e0e8; }
 
   /* Settings modal header */
+  /* Ollama Setup Wizard */
+  .wizard-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 12px;
+  }
+  .wizard-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #f5f5f8;
+    border: 1px solid #e0e0e8;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .wizard-step.active { background: #eef1ff; border-color: #3b64e0; }
+  .wizard-step.done { background: #eef8ef; border-color: #4caf7c; }
+  .wizard-step.error { background: #ffeef0; border-color: #e05555; }
+  .wizard-step-icon {
+    width: 24px; height: 24px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; flex-shrink: 0;
+    background: #d0d0da; color: #fff;
+  }
+  .wizard-step.active .wizard-step-icon { background: #3b64e0; }
+  .wizard-step.done .wizard-step-icon { background: #4caf7c; }
+  .wizard-step.error .wizard-step-icon { background: #e05555; }
+  .wizard-step-body { flex: 1; min-width: 0; }
+  .wizard-step-title { font-weight: 600; font-size: 13px; color: #1a1a2e; }
+  .wizard-step-detail { font-size: 12px; color: #6b6b80; margin-top: 3px; }
+
+  .wizard-progress-bar {
+    width: 100%; height: 6px;
+    background: #e0e0e8; border-radius: 3px;
+    margin-top: 8px; overflow: hidden;
+  }
+  .wizard-progress-fill {
+    height: 100%; background: #3b64e0;
+    border-radius: 3px; transition: width 0.3s;
+    width: 0%;
+  }
+
+  /* Ollama settings section in settings modal */
+  .ollama-status-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 12px;
+    font-size: 11px; font-weight: 600;
+  }
+  .ollama-status-badge.running { background: rgba(76,175,124,0.12); color: #4caf7c; }
+  .ollama-status-badge.needs-setup { background: rgba(232,165,76,0.12); color: #e8a54c; }
+  .ollama-status-badge.error { background: rgba(224,85,85,0.12); color: #e05555; }
+
+  .ollama-section {
+    background: #f5f5f8; border: 1px solid #e0e0e8;
+    border-radius: 8px; padding: 14px; margin-bottom: 14px;
+  }
+  .ollama-section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .ollama-section-header h4 { margin: 0; font-size: 14px; color: #1a1a2e; }
+  .ollama-tier-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 6px; font-size: 12px;
+  }
+  .ollama-tier-label {
+    width: 70px; text-align: right; color: #6b6b80;
+    font-weight: 500; flex-shrink: 0;
+  }
+  .ollama-tier-model {
+    flex: 1; font-size: 12px; padding: 4px 8px;
+    background: #fff; border: 1px solid #c0c0cc; border-radius: 4px;
+    color: #1a1a2e;
+  }
+  .ollama-tier-tasks {
+    font-size: 10px; color: #6b6b80; margin-left: 4px;
+    white-space: nowrap;
+  }
+
   .settings-header {
     display: flex;
     align-items: center;
@@ -1990,7 +2071,7 @@
       <span class="chip-label">spaCy</span>
       <span class="chip-detail" id="chipSpacyDetail">...</span>
     </div>
-    <div class="status-chip clickable" id="chipLLM" data-tooltip="Click to configure LLM provider" onclick="openSettings()">
+    <div class="status-chip clickable" id="chipLLM" data-tooltip="Click to configure LLM provider" onclick="onLLMChipClick()">
       <span class="chip-dot gray"></span>
       <span class="chip-label">LLM</span>
       <span class="chip-detail" id="chipLLMDetail">...</span>
@@ -2232,6 +2313,50 @@
 <!-- Tooltip -->
 <div class="concept-tooltip" id="tooltip"></div>
 
+<!-- Ollama Setup Wizard Modal -->
+<div class="modal-overlay" id="ollamaWizardModal">
+  <div class="modal" style="max-width:480px">
+    <div class="settings-header">
+      <h3>Set Up Local LLM</h3>
+      <div class="settings-header-actions">
+        <button class="btn-cancel" onclick="closeOllamaWizard()">Close</button>
+      </div>
+    </div>
+    <p style="font-size:12px;color:#6b6b80;margin-bottom:14px">
+      FOLIO Enrich uses Ollama to run AI models locally — no cloud API key needed.
+    </p>
+    <div class="wizard-steps" id="wizardSteps">
+      <div class="wizard-step" id="wizStep1">
+        <div class="wizard-step-icon">1</div>
+        <div class="wizard-step-body">
+          <div class="wizard-step-title">Detect Ollama</div>
+          <div class="wizard-step-detail" id="wizDetail1">Checking...</div>
+        </div>
+      </div>
+      <div class="wizard-step" id="wizStep2">
+        <div class="wizard-step-icon">2</div>
+        <div class="wizard-step-body">
+          <div class="wizard-step-title">Start Server</div>
+          <div class="wizard-step-detail" id="wizDetail2">Waiting...</div>
+        </div>
+      </div>
+      <div class="wizard-step" id="wizStep3">
+        <div class="wizard-step-icon">3</div>
+        <div class="wizard-step-body">
+          <div class="wizard-step-title">Download Models</div>
+          <div class="wizard-step-detail" id="wizDetail3">Waiting...</div>
+          <div class="wizard-progress-bar" id="wizProgressBar" style="display:none">
+            <div class="wizard-progress-fill" id="wizProgressFill"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="primary" id="wizardStartBtn" onclick="startOllamaWizard()">Start Setup</button>
+    </div>
+  </div>
+</div>
+
 <!-- Settings Modal -->
 <div class="modal-overlay" id="settingsModal">
   <div class="modal" style="max-width:560px">
@@ -2242,6 +2367,7 @@
         <button class="btn-save" onclick="saveSettings()">Save &amp; Close</button>
       </div>
     </div>
+    <div id="ollamaSettingsSection"></div>
     <div class="settings-section-label">Cloud Providers</div>
     <div id="settingsProviderCards"></div>
   </div>
@@ -2624,17 +2750,22 @@ async function checkHealth() {
 
     // LLM
     const l = d.llm || {};
-    const modelShort = (l.model || '').split('/').pop();
-    if (l.status === 'configured') {
-      setChip('chipLLM', 'green',
-        modelShort,
-        `LLM: ${l.provider} / ${l.model} — API key configured`);
-    } else if (l.status === 'no_api_key') {
-      setChip('chipLLM', 'orange',
-        modelShort,
-        `LLM: ${l.provider} / ${l.model} — No API key set. EntityRuler-only mode.`);
+    if (l.provider === 'ollama') {
+      // Ollama-specific chip — delegate to dedicated updater
+      await updateOllamaChip();
     } else {
-      setChip('chipLLM', 'red', 'Error', l.message || 'LLM error');
+      const modelShort = (l.model || '').split('/').pop();
+      if (l.status === 'configured') {
+        setChip('chipLLM', 'green',
+          modelShort,
+          `LLM: ${l.provider} / ${l.model} — API key configured`);
+      } else if (l.status === 'no_api_key') {
+        setChip('chipLLM', 'orange',
+          modelShort,
+          `LLM: ${l.provider} / ${l.model} — No API key set. EntityRuler-only mode.`);
+      } else {
+        setChip('chipLLM', 'red', 'Error', l.message || 'LLM error');
+      }
     }
 
     // spaCy
@@ -2803,6 +2934,7 @@ function _providerKeyField(provider) {
 
 function openSettings() {
   document.getElementById('settingsModal').classList.add('visible');
+  populateOllamaSettings();
   populateSettingsCards();
 }
 
@@ -2952,6 +3084,14 @@ async function saveSettings() {
   try {
     const body = { llm_provider: provider, llm_model: model };
 
+    // Collect Ollama tier models if present
+    const tierSimple = document.getElementById('ollamaTierSimple');
+    const tierMedium = document.getElementById('ollamaTierMedium');
+    const tierComplex = document.getElementById('ollamaTierComplex');
+    if (tierSimple) body.ollama_model_simple = tierSimple.value;
+    if (tierMedium) body.ollama_model_medium = tierMedium.value;
+    if (tierComplex) body.ollama_model_complex = tierComplex.value;
+
     // Collect API keys from all provider cards
     const cloudProviders = Object.entries(providersData).filter(([_, m]) => m.requires_api_key !== false);
     for (const [name] of cloudProviders) {
@@ -2986,6 +3126,273 @@ async function saveSettings() {
     closeSettings();
   } catch (e) {
     alert('Failed to save settings: ' + e.message);
+  }
+}
+
+// ==============================================
+// Ollama Setup Wizard & Management
+// ==============================================
+
+let ollamaStatus = null;  // cached ollama status
+
+async function checkOllamaStatus() {
+  try {
+    const r = await fetch(`${API}/ollama/status`);
+    if (r.ok) ollamaStatus = await r.json();
+  } catch { ollamaStatus = null; }
+  return ollamaStatus;
+}
+
+function openOllamaWizard() {
+  document.getElementById('ollamaWizardModal').classList.add('visible');
+  // Reset wizard steps
+  for (let i = 1; i <= 3; i++) {
+    const step = document.getElementById(`wizStep${i}`);
+    step.className = 'wizard-step';
+    document.getElementById(`wizDetail${i}`).textContent = 'Waiting...';
+  }
+  document.getElementById('wizProgressBar').style.display = 'none';
+  document.getElementById('wizProgressFill').style.width = '0%';
+  document.getElementById('wizardStartBtn').disabled = false;
+  document.getElementById('wizardStartBtn').textContent = 'Start Setup';
+}
+
+function closeOllamaWizard() {
+  document.getElementById('ollamaWizardModal').classList.remove('visible');
+  checkHealth();
+}
+
+function setWizardStep(num, state, detail) {
+  const step = document.getElementById(`wizStep${num}`);
+  step.className = 'wizard-step ' + state;
+  document.getElementById(`wizDetail${num}`).textContent = detail;
+}
+
+async function startOllamaWizard() {
+  const btn = document.getElementById('wizardStartBtn');
+  btn.disabled = true;
+  btn.textContent = 'Setting up...';
+
+  // Step 1: Detect
+  setWizardStep(1, 'active', 'Checking for Ollama...');
+  const status = await checkOllamaStatus();
+
+  if (status && status.status === 'running') {
+    setWizardStep(1, 'done', `Ollama running (v${status.version})`);
+    setWizardStep(2, 'done', 'Server already running');
+    // Check for missing models
+    if (status.missing_models && status.missing_models.length > 0) {
+      await wizardPullModels(status.missing_models);
+    } else {
+      setWizardStep(3, 'done', `All models ready (${status.models.length} installed)`);
+    }
+    btn.textContent = 'Done';
+    return;
+  }
+
+  // Use SSE setup endpoint
+  setWizardStep(1, 'active', 'Running auto-setup...');
+  try {
+    const evtSource = new EventSource(`${API}/ollama/setup`);
+    await new Promise((resolve, reject) => {
+      evtSource.addEventListener('status', e => {
+        const d = JSON.parse(e.data);
+        if (d.step === 'detect') setWizardStep(1, 'active', d.message);
+        if (d.step === 'install') { setWizardStep(1, 'done', 'Detected'); setWizardStep(2, 'active', d.message); }
+        if (d.step === 'start') { setWizardStep(1, 'done', 'Detected'); setWizardStep(2, 'active', d.message); }
+        if (d.step === 'pull') { setWizardStep(2, 'done', 'Server running'); setWizardStep(3, 'active', d.message); }
+      });
+      evtSource.addEventListener('install', e => {
+        const d = JSON.parse(e.data);
+        setWizardStep(1, 'active', d.message);
+      });
+      evtSource.addEventListener('pull_start', e => {
+        const d = JSON.parse(e.data);
+        document.getElementById('wizProgressBar').style.display = '';
+        setWizardStep(3, 'active', `Downloading ${d.model}...`);
+      });
+      evtSource.addEventListener('pull_progress', e => {
+        const d = JSON.parse(e.data);
+        document.getElementById('wizProgressFill').style.width = d.percent + '%';
+        const mb = d.completed_bytes ? `${(d.completed_bytes / 1e9).toFixed(1)}/${(d.total_bytes / 1e9).toFixed(1)} GB` : '';
+        setWizardStep(3, 'active', `${d.model}: ${d.status} ${mb}`);
+      });
+      evtSource.addEventListener('pull_error', e => {
+        const d = JSON.parse(e.data);
+        setWizardStep(3, 'error', `Failed: ${d.model} — ${d.error}`);
+      });
+      evtSource.addEventListener('error_event', e => {
+        const d = JSON.parse(e.data);
+        setWizardStep(2, 'error', d.message);
+        evtSource.close();
+        reject(new Error(d.message));
+      });
+      evtSource.addEventListener('complete', e => {
+        evtSource.close();
+        setWizardStep(1, 'done', 'Installed');
+        setWizardStep(2, 'done', 'Server running');
+        setWizardStep(3, 'done', 'All models ready');
+        document.getElementById('wizProgressBar').style.display = 'none';
+        resolve();
+      });
+      evtSource.onerror = () => {
+        evtSource.close();
+        reject(new Error('Connection lost'));
+      };
+    });
+  } catch (err) {
+    console.error('Wizard error:', err);
+  }
+  btn.textContent = 'Done';
+}
+
+async function wizardPullModels(models) {
+  setWizardStep(3, 'active', `Downloading ${models.length} model(s)...`);
+  document.getElementById('wizProgressBar').style.display = '';
+
+  try {
+    const evtSource = new EventSource(`${API}/ollama/pull`);
+    // POST pull won't work via EventSource; use fetch-based SSE
+    const r = await fetch(`${API}/ollama/pull`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    const reader = r.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const d = JSON.parse(line.slice(6));
+            if (d.percent !== undefined) {
+              document.getElementById('wizProgressFill').style.width = d.percent + '%';
+              const mb = d.completed_bytes ? `${(d.completed_bytes / 1e9).toFixed(1)}/${(d.total_bytes / 1e9).toFixed(1)} GB` : '';
+              setWizardStep(3, 'active', `${d.model}: ${d.status} ${mb}`);
+            }
+          } catch {}
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Pull error:', err);
+  }
+  setWizardStep(3, 'done', 'All models ready');
+  document.getElementById('wizProgressBar').style.display = 'none';
+}
+
+async function populateOllamaSettings() {
+  const container = document.getElementById('ollamaSettingsSection');
+  const status = await checkOllamaStatus();
+  const provider = document.getElementById('providerSelect').value;
+
+  if (provider !== 'ollama') {
+    container.innerHTML = '';
+    return;
+  }
+
+  const statusClass = status && status.status === 'running' ? 'running' : 'needs-setup';
+  const statusText = status && status.status === 'running'
+    ? `Running (v${status.version})`
+    : status && status.status === 'installed' ? 'Installed — Not Running' : 'Not Installed';
+
+  let modelsHtml = '';
+  if (status && status.models && status.models.length > 0) {
+    modelsHtml = `<div style="font-size:11px;color:#6b6b80;margin-top:8px">
+      Installed: ${status.models.join(', ')}
+    </div>`;
+  }
+
+  let tierHtml = '';
+  try {
+    const r = await fetch(`${API}/ollama/tier-config`);
+    if (r.ok) {
+      const data = await r.json();
+      const tiers = { simple: [], medium: [], complex: [] };
+      for (const [task, info] of Object.entries(data.tasks || {})) {
+        tiers[info.tier] = tiers[info.tier] || [];
+        tiers[info.tier].push(task);
+      }
+      const settingsR = await fetch(`${API}/settings`);
+      const settingsData = settingsR.ok ? await settingsR.json() : {};
+
+      tierHtml = `
+        <div class="ollama-tier-row">
+          <span class="ollama-tier-label">Simple</span>
+          <input class="ollama-tier-model" id="ollamaTierSimple" value="${escapeAttr(settingsData.ollama_model_simple || 'qwen3:4b')}">
+          <span class="ollama-tier-tasks">${tiers.simple.join(', ')}</span>
+        </div>
+        <div class="ollama-tier-row">
+          <span class="ollama-tier-label">Medium</span>
+          <input class="ollama-tier-model" id="ollamaTierMedium" value="${escapeAttr(settingsData.ollama_model_medium || 'qwen3:8b')}">
+          <span class="ollama-tier-tasks">${tiers.medium.join(', ')}</span>
+        </div>
+        <div class="ollama-tier-row">
+          <span class="ollama-tier-label">Complex</span>
+          <input class="ollama-tier-model" id="ollamaTierComplex" value="${escapeAttr(settingsData.ollama_model_complex || 'qwen3:14b')}">
+          <span class="ollama-tier-tasks">${tiers.complex.join(', ')}</span>
+        </div>`;
+    }
+  } catch {}
+
+  container.innerHTML = `
+    <div class="ollama-section">
+      <div class="ollama-section-header">
+        <h4>Local LLM (Ollama)</h4>
+        <span class="ollama-status-badge ${statusClass}">${statusText}</span>
+      </div>
+      ${statusClass !== 'running'
+        ? `<button class="primary" style="font-size:12px;padding:5px 14px;margin-bottom:10px" onclick="openOllamaWizard()">Set Up Ollama</button>`
+        : ''}
+      <div class="settings-section-label" style="margin-top:8px">Model Tiers</div>
+      ${tierHtml}
+      ${modelsHtml}
+      ${status && status.missing_models && status.missing_models.length > 0
+        ? `<button class="secondary" style="font-size:11px;padding:4px 10px;margin-top:8px" onclick="openOllamaWizard()">Pull Missing Models (${status.missing_models.length})</button>`
+        : ''}
+    </div>
+    <div class="settings-section-label">Cloud Providers (Alternative)</div>`;
+}
+
+// Update the LLM chip to show Ollama status
+async function updateOllamaChip() {
+  const provider = document.getElementById('providerSelect')?.value;
+  if (provider !== 'ollama') return;
+
+  const status = await checkOllamaStatus();
+  if (!status) return;
+
+  if (status.status === 'running') {
+    const modelCount = status.models ? status.models.length : 0;
+    const missing = status.missing_models ? status.missing_models.length : 0;
+    if (missing > 0) {
+      setChip('chipLLM', 'orange', `Local (${modelCount} models)`,
+        `Ollama running but ${missing} tier model(s) missing. Click to set up.`);
+    } else {
+      setChip('chipLLM', 'green', 'Local (Ollama)',
+        `Ollama v${status.version} — ${modelCount} model(s) installed. Click to configure.`);
+    }
+  } else if (status.status === 'installed') {
+    setChip('chipLLM', 'orange', 'Setup Required',
+      'Ollama installed but not running. Click to start.');
+  } else {
+    setChip('chipLLM', 'orange', 'Setup Required',
+      'Ollama not installed. Click to set up local LLM.');
+  }
+}
+
+function onLLMChipClick() {
+  const provider = document.getElementById('providerSelect')?.value;
+  if (provider === 'ollama' && ollamaStatus && ollamaStatus.status !== 'running') {
+    openOllamaWizard();
+  } else {
+    openSettings();
   }
 }
 
