@@ -76,7 +76,11 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title=app_settings.app_name, version="0.2.0", lifespan=lifespan)
 
 # Middleware (order matters: outermost first)
-app.add_middleware(RateLimitMiddleware, max_requests=60, window_seconds=60)
+app.add_middleware(
+    RateLimitMiddleware,
+    max_requests=app_settings.rate_limit_requests,
+    window_seconds=app_settings.rate_limit_window,
+)
 app.add_middleware(SecurityMiddleware)
 app.add_middleware(
     CORSMiddleware,

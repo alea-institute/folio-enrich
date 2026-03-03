@@ -6427,7 +6427,8 @@ async function openGraphModal(iriHash) {
     document.getElementById('graphStats').textContent = `${data.nodes.length} nodes, ${data.edges.length} edges`;
     renderCytoscapeGraph(document.getElementById('cytoscapeContainer'), data);
   } catch (e) {
-    document.getElementById('graphModalTitle').textContent = 'Failed to load graph';
+    console.error('Graph load error:', e);
+    document.getElementById('graphModalTitle').textContent = e.message || 'Failed to load graph';
   }
 }
 
@@ -6442,7 +6443,11 @@ function closeGraphModal() {
 
 async function loadGraphData(iriHash) {
   const resp = await fetch(`${API}/concepts/${iriHash}/graph?ancestors_depth=3&descendants_depth=2`);
-  if (!resp.ok) throw new Error('Failed to load graph');
+  if (!resp.ok) {
+    const msg = resp.status === 429 ? 'Rate limit exceeded — please wait a moment and try again'
+      : resp.status === 404 ? 'Concept not found' : `Server error (${resp.status})`;
+    throw new Error(msg);
+  }
   return await resp.json();
 }
 
