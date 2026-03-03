@@ -129,6 +129,43 @@
     pointer-events: none;
   }
 
+  .header-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .header-controls-separator {
+    width: 1px;
+    height: 24px;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+  .header-controls .view-toggle {
+    border-color: var(--border);
+  }
+  .header-controls .view-toggle button {
+    background: var(--surface2);
+    color: var(--text-dim);
+    border-right-color: var(--border);
+  }
+  .header-controls .view-toggle button:hover {
+    background: var(--surface3);
+    color: var(--text);
+  }
+  .header-controls .view-toggle button.active {
+    background: #3b64e0;
+    color: #fff;
+  }
+  .header-controls .layer-chip:not(.active) {
+    background: var(--surface2);
+    color: var(--text-dim);
+    border-color: var(--border);
+  }
+  .header-controls .layer-chip:not(.active) .chip-dot {
+    background: var(--text-dim);
+  }
+
   .header-right {
     margin-left: auto;
     display: flex;
@@ -1152,8 +1189,6 @@
     display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
     flex-wrap: wrap;
   }
-  .ann-toolbar-spacer { flex: 1; }
-
   /* View toggle (segmented control) */
   .view-toggle {
     display: inline-flex; gap: 0; border: 1px solid #e0e1e6; border-radius: 6px;
@@ -2318,6 +2353,24 @@
       <span class="chip-gear">&#9881;</span>
     </div>
   </div>
+  <div class="header-controls" id="headerControls" style="display:none">
+    <div class="header-controls-separator"></div>
+    <div class="view-toggle" id="viewToggle">
+      <button onclick="setViewMode('classic', this)">Classic</button>
+      <button class="active" onclick="setViewMode('clean', this)">Clean</button>
+    </div>
+    <div class="layer-toggle-bar" id="layerToggleBar">
+      <span class="layer-chip active" data-layer="concepts" onclick="toggleLayer('concepts', this)">
+        <span class="chip-dot"></span>Classes
+      </span>
+      <span class="layer-chip active" data-layer="individuals" onclick="toggleLayer('individuals', this)">
+        <span class="chip-dot"></span>Individuals
+      </span>
+      <span class="layer-chip active" data-layer="properties" onclick="toggleLayer('properties', this)">
+        <span class="chip-dot"></span>Properties
+      </span>
+    </div>
+  </div>
   <div class="header-right">
     <label class="toggle">
       <input type="checkbox" id="hideUncertainToggle" checked onchange="toggleUncertain()" role="switch" aria-checked="true">
@@ -2481,22 +2534,6 @@
           <span class="doc-type-conf" id="docTypeConf"></span>
         </div>
         <div class="ann-toolbar" id="annToolbar" style="display:none">
-          <div class="view-toggle" id="viewToggle">
-            <button onclick="setViewMode('classic', this)">Classic</button>
-            <button class="active" onclick="setViewMode('clean', this)">Clean</button>
-          </div>
-          <div class="layer-toggle-bar" id="layerToggleBar">
-            <span class="layer-chip active" data-layer="concepts" onclick="toggleLayer('concepts', this)">
-              <span class="chip-dot"></span>Classes
-            </span>
-            <span class="layer-chip active" data-layer="individuals" onclick="toggleLayer('individuals', this)">
-              <span class="chip-dot"></span>Individuals
-            </span>
-            <span class="layer-chip active" data-layer="properties" onclick="toggleLayer('properties', this)">
-              <span class="chip-dot"></span>Properties
-            </span>
-          </div>
-          <span class="ann-toolbar-spacer"></span>
           <div class="ann-filter-bar" id="annFilterBar">
             <button class="active" onclick="setAnnFilter('all', this)" title="Show all annotations (dismissed ones are faded)">All</button>
             <button onclick="setAnnFilter('hide-dismissed', this)" title="Hide dismissed annotations">Active only</button>
@@ -4060,10 +4097,13 @@ function rerenderAnnotatedText() {
     document.getElementById('annotatedText').style.display = 'block';
     renderAnnotatedText(text, annotations, individuals, properties);
 
-    // Show toolbar as soon as any content arrives (progressive rendering)
-    const toolbar = document.getElementById('annToolbar');
-    if (toolbar && (annotations.length > 0 || individuals.length > 0 || properties.length > 0)) {
-      toolbar.style.display = '';
+    // Show toolbar + header controls as soon as any content arrives (progressive rendering)
+    const hasContent = annotations.length > 0 || individuals.length > 0 || properties.length > 0;
+    if (hasContent) {
+      const toolbar = document.getElementById('annToolbar');
+      if (toolbar) toolbar.style.display = '';
+      const hdrCtrl = document.getElementById('headerControls');
+      if (hdrCtrl) hdrCtrl.style.display = '';
     }
   }
 }
@@ -4165,12 +4205,12 @@ function renderResults(job) {
   renderPropertiesTab(properties);
   renderExportButtons();
 
-  // Show toolbar if there are any annotations/individuals/properties
+  // Show toolbar + header controls if there are any annotations/individuals/properties
+  const hasContent = annotations.length > 0 || (individuals && individuals.length > 0) || (properties && properties.length > 0);
   const toolbar = document.getElementById('annToolbar');
-  if (toolbar) {
-    const hasContent = annotations.length > 0 || (individuals && individuals.length > 0) || (properties && properties.length > 0);
-    toolbar.style.display = hasContent ? '' : 'none';
-  }
+  if (toolbar) toolbar.style.display = hasContent ? '' : 'none';
+  const hdrCtrl = document.getElementById('headerControls');
+  if (hdrCtrl) hdrCtrl.style.display = hasContent ? '' : 'none';
   // Sync view mode (clean/classic) and layer visibility
   _syncViewMode();
 }
@@ -8183,10 +8223,12 @@ function clearAll() {
   // Reset concepts tab tree cache
   _conceptsTabTreeCache = null;
   Object.keys(_conceptsTabCollapsed).forEach(k => delete _conceptsTabCollapsed[k]);
-  // Reset toolbar and filter bar
+  // Reset toolbar, header controls, and filter bar
   _annFilter = 'all';
   const toolbar = document.getElementById('annToolbar');
   if (toolbar) toolbar.style.display = 'none';
+  const hdrCtrl = document.getElementById('headerControls');
+  if (hdrCtrl) hdrCtrl.style.display = 'none';
   const filterBar = document.getElementById('annFilterBar');
   if (filterBar) {
     filterBar.querySelectorAll('button').forEach((b, i) => b.classList.toggle('active', i === 0));
