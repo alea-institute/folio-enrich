@@ -10,25 +10,32 @@ from starlette.responses import JSONResponse
 from app.config import settings
 
 
-_EXEMPT_PATHS: frozenset[str] = frozenset({"/health", "/openapi.json", "/docs", "/redoc"})
-
-# Prefixes for read-only lookup/streaming routes that shouldn't count against rate limit
-_EXEMPT_PREFIXES: tuple[str, ...] = ("/concepts/", "/enrich/")
+# Only rate-limit expensive mutation endpoints (POST routes that trigger LLM work).
+# Everything else (GET routes, frontend, docs, health) is exempt.
+_RATE_LIMITED_ROUTES: tuple[tuple[str, str], ...] = (
+    ("POST", "/enrich"),
+    ("POST", "/synthetic"),
+    ("POST", "/ollama/pull"),
+    ("POST", "/ollama/setup"),
+)
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """Simple in-memory per-IP rate limiter using sliding window."""
 
-    def __init__(self, app, max_requests: int = 60, window_seconds: int = 60):
+    def __init__(self, app, max_requests: int = 200, window_seconds: int = 60):
         super().__init__(app)
         self.max_requests = max_requests
         self.window_seconds = window_seconds
         self._requests: dict[str, list[float]] = defaultdict(list)
 
     async def dispatch(self, request: Request, call_next):
-        # Skip rate limiting for health checks, docs, and read-only routes
+        # Only rate-limit specific expensive POST endpoints
+        method = request.method
         path = request.url.path
-        if path in _EXEMPT_PATHS or path.startswith(_EXEMPT_PREFIXES):
+        if not any(
+            method == m and path.startswith(p) for m, p in _RATE_LIMITED_ROUTES
+        ):
             return await call_next(request)
 
         client_ip = request.client.host if request.client else "unknown"

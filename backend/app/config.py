@@ -98,7 +98,7 @@ class Settings(BaseSettings):
     stale_job_timeout_minutes: int = 30
 
     # Rate limiting
-    rate_limit_requests: int = 60
+    rate_limit_requests: int = 200
     rate_limit_window: int = 60
 
     # File size limit (bytes)
