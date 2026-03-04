@@ -89,6 +89,10 @@ class Settings(BaseSettings):
     llm_property_provider: str = ""
     llm_property_model: str = ""
 
+    # Triple extraction & POS tagging
+    triple_extraction_enabled: bool = True
+    pos_tagging_enabled: bool = True
+
     # Candidates
     max_candidates: int = 5
 
