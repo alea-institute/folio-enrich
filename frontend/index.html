@@ -556,6 +556,23 @@
     100% { transform: translateX(400%); }
   }
 
+  /* Concepts Tab tree toolbar */
+  .ct-tree-toolbar {
+    display: flex; gap: 8px; margin: 6px 0 4px;
+  }
+  .ct-seg-group {
+    display: inline-flex; border-radius: 6px; overflow: hidden;
+    border: 1px solid var(--border, #d5d6e0);
+  }
+  .ct-seg-group button {
+    border: none; cursor: pointer; font-size: 12px; line-height: 1;
+    background: var(--surface2, #f0f1f5); color: var(--text-dim, #6b6b80);
+    padding: 4px 10px; transition: background .15s;
+  }
+  .ct-seg-group button:hover { background: var(--surface3, #e2e3eb); }
+  .ct-seg-group button + button { border-left: 1px solid var(--border, #d5d6e0); }
+  .ct-seg-group button.ct-seg-icon { padding: 4px 7px; font-size: 11px; }
+
   /* Detail info */
   .detail-name-row {
     display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
@@ -6662,6 +6679,20 @@ function renderConceptsTabTree(treeData) {
   // Summary line
   html += `<div class="ct-summary-line"><strong>${conceptCount}</strong> unique concept${conceptCount !== 1 ? 's' : ''} across <strong>${branchCount}</strong> branch${branchCount !== 1 ? 'es' : ''}</div>`;
 
+  // Expand / Collapse toolbar
+  if (branchCount > 0) {
+    html += `<div class="ct-tree-toolbar">`;
+    html += `<div class="ct-seg-group">`;
+    html += `<button onclick="ctExpandOneLevel()" title="Expand one level">\u25BC Expand</button>`;
+    html += `<button class="ct-seg-icon" onclick="ctExpandAll()" title="Expand all levels">\u25BC\u25BC</button>`;
+    html += `</div>`;
+    html += `<div class="ct-seg-group">`;
+    html += `<button onclick="ctCollapseAll()" title="Collapse all">\u25B6\u25B6 Collapse</button>`;
+    html += `<button class="ct-seg-icon" onclick="ctCollapseOneLevel()" title="Collapse one level">\u25B6</button>`;
+    html += `</div>`;
+    html += `</div>`;
+  }
+
   // Auto-collapse if too many leaves
   const autoCollapse = totalLeaves > 40;
   if (autoCollapse) {
@@ -6797,6 +6828,90 @@ function toggleConceptsTabNode(pathKey, event) {
     const container = document.getElementById('conceptsList');
     container.innerHTML = renderConceptsTabTree(_conceptsTabTreeCache);
   }
+}
+
+// ---- Expand / Collapse helpers ----
+
+function _ctRerender() {
+  if (_conceptsTabTreeCache) {
+    const container = document.getElementById('conceptsList');
+    if (container) container.innerHTML = renderConceptsTabTree(_conceptsTabTreeCache);
+  }
+}
+
+/** Walk visible tree, returning [{key, depth, isCollapsed, hasKids}] */
+function _ctCollectNodeKeys() {
+  if (!_conceptsTabTreeCache) return [];
+  const result = [];
+  const { branches } = _conceptsTabTreeCache;
+  function walk(children, parentKey, depth) {
+    for (const [iriHash, node] of children) {
+      const key = `${parentKey}::${iriHash}`;
+      const hasKids = node.children.size > 0 || node.individuals.length > 0;
+      const collapsed = !!_conceptsTabCollapsed[key];
+      result.push({ key, depth, isCollapsed: collapsed, hasKids });
+      if (!collapsed && node.children.size > 0) walk(node.children, key, depth + 1);
+    }
+  }
+  for (const [branchIriHash, branch] of branches) {
+    const rootKey = `ct::${branchIriHash}`;
+    const collapsed = !!_conceptsTabCollapsed[rootKey];
+    result.push({ key: rootKey, depth: 0, isCollapsed: collapsed, hasKids: true });
+    if (!collapsed) walk(branch.children, rootKey, 1);
+  }
+  return result;
+}
+
+/** Walk entire tree unconditionally, returning all node keys */
+function _ctCollectAllNodeKeys() {
+  if (!_conceptsTabTreeCache) return [];
+  const keys = [];
+  const { branches } = _conceptsTabTreeCache;
+  function walk(children, parentKey) {
+    for (const [iriHash, node] of children) {
+      const key = `${parentKey}::${iriHash}`;
+      if (node.children.size > 0 || node.individuals.length > 0) keys.push(key);
+      if (node.children.size > 0) walk(node.children, key);
+    }
+  }
+  for (const [branchIriHash, branch] of branches) {
+    keys.push(`ct::${branchIriHash}`);
+    walk(branch.children, `ct::${branchIriHash}`);
+  }
+  return keys;
+}
+
+function ctExpandOneLevel() {
+  const nodes = _ctCollectNodeKeys();
+  const frontier = nodes.filter(n => n.hasKids && n.isCollapsed);
+  if (frontier.length === 0) return;
+  for (const n of frontier) _conceptsTabCollapsed[n.key] = false;
+  _ctRerender();
+}
+
+function ctExpandAll() {
+  const allKeys = _ctCollectAllNodeKeys();
+  if (allKeys.length === 0) return;
+  for (const key of allKeys) _conceptsTabCollapsed[key] = false;
+  _ctRerender();
+}
+
+function ctCollapseAll() {
+  const allKeys = _ctCollectAllNodeKeys();
+  if (allKeys.length === 0) return;
+  for (const key of allKeys) _conceptsTabCollapsed[key] = true;
+  _ctRerender();
+}
+
+function ctCollapseOneLevel() {
+  const nodes = _ctCollectNodeKeys();
+  // Find max depth among expanded nodes that have kids
+  const expandedWithKids = nodes.filter(n => n.hasKids && !n.isCollapsed);
+  if (expandedWithKids.length === 0) return;
+  const maxDepth = Math.max(...expandedWithKids.map(n => n.depth));
+  const deepest = expandedWithKids.filter(n => n.depth === maxDepth);
+  for (const n of deepest) _conceptsTabCollapsed[n.key] = true;
+  _ctRerender();
 }
 
 function scrollToConceptsTabIndividual(indId) {
