@@ -1247,6 +1247,19 @@
   .layer-chip[data-layer="properties"] .chip-dot { background: #b07ee8; }
   .layer-chip[data-layer="properties"]:not(.active) { background: var(--surface2); color: var(--text-dim); border-color: transparent; }
   .layer-chip[data-layer="properties"]:not(.active) .chip-dot { background: transparent; }
+
+  .layer-chip[data-layer="pos"]          { background: rgba(255,152,0,0.15); color: #ff9800; }
+  .layer-chip[data-layer="pos"] .chip-dot { background: #ff9800; }
+  .layer-chip[data-layer="pos"]:not(.active) { background: var(--surface2); color: var(--text-dim); border-color: transparent; }
+  .layer-chip[data-layer="pos"]:not(.active) .chip-dot { background: transparent; }
+
+  .pos-word { cursor: help; transition: color 0.15s; }
+  .pos-word[data-pos="NOUN"]  { color: #1565C0; }
+  .pos-word[data-pos="PROPN"] { color: #00897B; }
+  .pos-word[data-pos="VERB"]  { color: #C62828; }
+  .pos-word[data-pos="ADJ"]   { color: #2E7D32; }
+  .pos-word[data-pos="ADV"]   { color: #E65100; }
+  .pos-word.layer-off { color: inherit !important; cursor: default; }
   /* Layer chip hover */
   .layer-chip:hover { filter: brightness(1.15); }
   .layer-chip:not(.active):hover { background: var(--surface3); }
@@ -2389,6 +2402,9 @@
       <span class="layer-chip active" data-layer="properties" onclick="toggleLayer('properties', this)">
         <span class="chip-dot"></span>Properties
       </span>
+      <span class="layer-chip" data-layer="pos" onclick="toggleLayer('pos', this)" title="Nouns (blue) · Verbs (red) · Adjectives (green) · Adverbs (orange) · Proper nouns (teal)">
+        <span class="chip-dot"></span>POS
+      </span>
     </div>
   </div>
   <div class="header-right">
@@ -2554,11 +2570,13 @@
           <span class="doc-type-conf" id="docTypeConf"></span>
         </div>
         <div class="ann-toolbar" id="annToolbar" style="display:none">
+          <!-- Filter bar commented out for potential re-implementation
           <div class="ann-filter-bar" id="annFilterBar">
             <button class="active" onclick="setAnnFilter('all', this)" title="Show all annotations (dismissed ones are faded)">All</button>
             <button onclick="setAnnFilter('hide-dismissed', this)" title="Hide dismissed annotations">Active only</button>
             <button onclick="setAnnFilter('only-dismissed', this)" title="Show only dismissed annotations">Dismissed</button>
           </div>
+          -->
         </div>
         <div class="empty-state" id="emptyState">
           <h3>No annotations yet</h3>
@@ -2768,6 +2786,7 @@ let eventSource = null;
 let accumulatedAnnotations = [];
 let accumulatedIndividuals = [];
 let accumulatedProperties = [];
+let accumulatedTriples = [];
 let normalizedText = null;      // canonical full_text from backend, used for progressive rendering
 let activityEntries = [];
 let providersData = {};   // provider name → metadata {display_name, requires_api_key, default_model, api_key_set}
@@ -3927,6 +3946,7 @@ function startSSE() {
   accumulatedAnnotations = [];
   accumulatedIndividuals = [];
   accumulatedProperties = [];
+  accumulatedTriples = [];
   normalizedText = null;
 
   eventSource = new EventSource(`${API}/enrich/${currentJobId}/stream`);
@@ -3997,6 +4017,17 @@ function startSSE() {
     renderPropertiesTab(accumulatedProperties);
   });
 
+  eventSource.addEventListener('triple_added', (e) => {
+    const data = JSON.parse(e.data);
+    const existingIdx = accumulatedTriples.findIndex(t => t.id === data.id);
+    if (existingIdx >= 0) {
+      accumulatedTriples[existingIdx] = data;
+    } else {
+      accumulatedTriples.push(data);
+    }
+    renderTriples(accumulatedTriples, true);
+  });
+
   eventSource.addEventListener('complete', (e) => {
     const data = JSON.parse(e.data);
     closeSSE();
@@ -4011,9 +4042,11 @@ function startSSE() {
     renderProgressStages('completed');
     const indCount = data.total_individuals || 0;
     const propCount = data.total_properties || 0;
+    const triCount = data.total_triples || 0;
     const indSuffix = indCount > 0 ? `, ${indCount} individuals` : '';
     const propSuffix = propCount > 0 ? `, ${propCount} properties` : '';
-    setStatus(`Completed: ${data.total_annotations} annotations${indSuffix}${propSuffix}`, 'completed');
+    const triSuffix = triCount > 0 ? `, ${triCount} triples` : '';
+    setStatus(`Completed: ${data.total_annotations} annotations${indSuffix}${propSuffix}${triSuffix}`, 'completed');
     // Fetch final job for full render (concepts list, metadata, triples, exports)
     fetchFinalJob();
     // Re-fetch after delay to pick up post-pipeline assessments (e.g., areas of law)
@@ -4218,8 +4251,11 @@ function renderResults(job) {
     showDocTypeBanner(metadata.document_type, metadata.document_type_confidence);
   }
   renderAnnotatedText(text, annotations, individuals, properties);
+  applyPOSTags(metadata);
   renderConceptsList(annotations, individuals);
-  renderTriples(metadata.spo_triples || []);
+  // Use first-class triples if available, fall back to metadata.spo_triples
+  const triplesData = (job.result?.triples && job.result.triples.length > 0) ? job.result.triples : (metadata.spo_triples || []);
+  renderTriples(triplesData, !!(job.result?.triples && job.result.triples.length > 0));
   renderMetadata(metadata, job);
   renderIndividualsTab(individuals);
   renderPropertiesTab(properties);
@@ -5560,8 +5596,25 @@ let _activeLayers = new Set(['concepts', 'individuals', 'properties']);
   if (saved === 'classic' || saved === 'clean') _viewMode = saved;
   const savedLayers = localStorage.getItem('activeLayers');
   if (savedLayers) {
-    try { _activeLayers = new Set(JSON.parse(savedLayers)); } catch(e) {}
+    try {
+      const parsed = JSON.parse(savedLayers);
+      // Migration: if saved set is missing ALL core layers, reset to defaults + any extras
+      const CORE = ['concepts', 'individuals', 'properties'];
+      const hasAnyCore = CORE.some(c => parsed.includes(c));
+      if (!hasAnyCore) {
+        // Stale/broken state — restore core layers, keep extras like 'pos'
+        _activeLayers = new Set([...CORE, ...parsed]);
+        localStorage.setItem('activeLayers', JSON.stringify([..._activeLayers]));
+      } else {
+        _activeLayers = new Set(parsed);
+      }
+    } catch(e) {}
   }
+  // Sync layer chip UI with restored active state
+  document.querySelectorAll('.layer-chip[data-layer]').forEach(chip => {
+    const layer = chip.dataset.layer;
+    chip.classList.toggle('active', _activeLayers.has(layer));
+  });
 })();
 
 function setViewMode(mode, btn) {
@@ -5590,13 +5643,26 @@ function toggleLayer(layer, chipEl) {
   }
   localStorage.setItem('activeLayers', JSON.stringify([..._activeLayers]));
   _applyLayerVisibility();
+  // POS layer toggle requires re-rendering tags
+  if (layer === 'pos' && currentJob) {
+    if (_activeLayers.has('pos')) {
+      applyPOSTags(currentJob.result?.metadata || {});
+    } else {
+      // Unwrap .pos-word spans back to text nodes
+      document.querySelectorAll('.pos-word').forEach(el => {
+        el.replaceWith(document.createTextNode(el.textContent));
+      });
+      document.getElementById('annotatedText')?.normalize();
+    }
+  }
 }
 
 function _applyLayerVisibility() {
   const MAP = {
     concepts: '.annotation-span',
     individuals: '.individual-span',
-    properties: '.property-span'
+    properties: '.property-span',
+    pos: '.pos-word'
   };
   for (const [layer, sel] of Object.entries(MAP)) {
     const off = !_activeLayers.has(layer);
@@ -7858,29 +7924,164 @@ function _renderConceptsFlatFallback(annotations, container) {
   container.innerHTML = html;
 }
 
-function renderTriples(triples) {
+function renderTriples(triples, isFirstClass) {
   const container = document.getElementById('triplesList');
   if (!triples || !triples.length) {
     container.innerHTML = '<div class="empty-state"><p>No triples extracted</p></div>';
+    // Update tab badge
+    const triTab = document.querySelector('[data-tab="triples"]');
+    if (triTab) triTab.textContent = 'Triples';
     return;
   }
 
-  let html = `<p style="font-size:12px;color:#6b6b80;margin-bottom:12px">${triples.length} Subject-Predicate-Object triples extracted from dependency parsing:</p>`;
-  html += '<div style="font-size:12px">';
+  // Update tab badge with count
+  const triTab = document.querySelector('[data-tab="triples"]');
+  if (triTab) triTab.textContent = `Triples (${triples.length})`;
+
+  // Filter controls
+  const linked = triples.filter(t => (t.subject_links && t.subject_links.length) || (t.object_links && t.object_links.length) || (t.predicate_links && t.predicate_links.length));
+  const unlinked = triples.filter(t => !(t.subject_links && t.subject_links.length) && !(t.object_links && t.object_links.length) && !(t.predicate_links && t.predicate_links.length));
+
+  let html = `<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+    <span style="font-size:12px;color:#6b6b80">${triples.length} triples</span>
+    <button class="filter-btn active" onclick="filterTriples('all',this)" style="font-size:11px;padding:2px 8px;border-radius:12px;border:1px solid #d0d0da;background:var(--surface2);cursor:pointer">All (${triples.length})</button>
+    <button class="filter-btn" onclick="filterTriples('linked',this)" style="font-size:11px;padding:2px 8px;border-radius:12px;border:1px solid #d0d0da;background:transparent;cursor:pointer">FOLIO-Linked (${linked.length})</button>
+    <button class="filter-btn" onclick="filterTriples('unlinked',this)" style="font-size:11px;padding:2px 8px;border-radius:12px;border:1px solid #d0d0da;background:transparent;cursor:pointer">Unlinked (${unlinked.length})</button>
+  </div>`;
+  html += '<div id="triplesListInner" style="font-size:12px">';
 
   for (const t of triples) {
-    html += `<div style="padding:8px;border:1px solid #d0d0da;border-radius:6px;margin-bottom:4px">
-      <span style="color:#1a7a7a;font-weight:600">${escapeHtml(t.subject || '')}</span>
+    const hasLink = (t.subject_links && t.subject_links.length) || (t.object_links && t.object_links.length) || (t.predicate_links && t.predicate_links.length);
+    const linkClass = hasLink ? 'triple-linked' : 'triple-unlinked';
+
+    // Build link badges
+    let subjBadges = '';
+    let objBadges = '';
+    let predBadges = '';
+    if (isFirstClass) {
+      for (const link of (t.subject_links || [])) {
+        if (link.entity_type === 'individual') subjBadges += `<span style="font-size:9px;background:#009688;color:white;padding:0 4px;border-radius:3px;margin-left:3px" title="Individual: ${escapeHtml(link.folio_label || '')}">IND</span>`;
+        else if (link.entity_type === 'concept') subjBadges += `<span style="font-size:9px;background:#3b64e0;color:white;padding:0 4px;border-radius:3px;margin-left:3px" title="Concept: ${escapeHtml(link.folio_label || '')}">CLS</span>`;
+      }
+      for (const link of (t.object_links || [])) {
+        if (link.entity_type === 'individual') objBadges += `<span style="font-size:9px;background:#009688;color:white;padding:0 4px;border-radius:3px;margin-left:3px" title="Individual: ${escapeHtml(link.folio_label || '')}">IND</span>`;
+        else if (link.entity_type === 'concept') objBadges += `<span style="font-size:9px;background:#3b64e0;color:white;padding:0 4px;border-radius:3px;margin-left:3px" title="Concept: ${escapeHtml(link.folio_label || '')}">CLS</span>`;
+      }
+      for (const link of (t.predicate_links || [])) {
+        if (link.entity_type === 'property') predBadges += `<span style="font-size:9px;background:#9C27B0;color:white;padding:0 4px;border-radius:3px;margin-left:3px" title="Property: ${escapeHtml(link.folio_label || '')}">PROP</span>`;
+      }
+    }
+
+    const voiceBadge = t.voice === 'passive' ? `<span style="font-size:9px;background:#ff9800;color:white;padding:0 4px;border-radius:3px;margin-left:4px">passive</span>` : '';
+
+    html += `<div class="triple-item ${linkClass}" style="padding:8px;border:1px solid #d0d0da;border-radius:6px;margin-bottom:4px">
+      <span style="color:#1a7a7a;font-weight:600">${escapeHtml(t.subject || '')}</span>${subjBadges}
       <span style="color:#6b6b80"> \u2192 </span>
-      <span style="color:#9e6b0a">${escapeHtml(t.predicate || '')}</span>
+      <span style="color:#9e6b0a">${escapeHtml(t.predicate || '')}</span>${predBadges}${voiceBadge}
       <span style="color:#6b6b80"> \u2192 </span>
-      <span style="color:#6b3fa0;font-weight:600">${escapeHtml(t.object || '')}</span>
+      <span style="color:#6b3fa0;font-weight:600">${escapeHtml(t.object || '')}</span>${objBadges}
       ${t.sentence ? `<div style="font-size:10px;color:#6b6b80;margin-top:4px;font-style:italic">"${escapeHtml(t.sentence.slice(0,120))}${t.sentence.length > 120 ? '...' : ''}"</div>` : ''}
     </div>`;
   }
 
   html += '</div>';
   container.innerHTML = html;
+}
+
+function filterTriples(filter, btnEl) {
+  // Toggle active state on buttons
+  btnEl.parentElement.querySelectorAll('.filter-btn').forEach(b => {
+    b.classList.remove('active');
+    b.style.background = 'transparent';
+  });
+  btnEl.classList.add('active');
+  btnEl.style.background = 'var(--surface2)';
+
+  const items = document.querySelectorAll('.triple-item');
+  items.forEach(item => {
+    if (filter === 'all') { item.style.display = ''; }
+    else if (filter === 'linked') { item.style.display = item.classList.contains('triple-linked') ? '' : 'none'; }
+    else if (filter === 'unlinked') { item.style.display = item.classList.contains('triple-unlinked') ? '' : 'none'; }
+  });
+}
+
+function applyPOSTags(metadata) {
+  // Remove existing POS word spans (unwrap back to text)
+  const existing = document.querySelectorAll('.pos-word');
+  if (existing.length > 0) {
+    existing.forEach(el => el.replaceWith(document.createTextNode(el.textContent)));
+    const c = document.getElementById('annotatedText');
+    if (c) c.normalize();
+  }
+  const container = document.getElementById('annotatedText');
+
+  const sentencePOS = metadata?.sentence_pos;
+  if (!sentencePOS || !sentencePOS.length) return;
+  if (!container) return;
+
+  const posActive = _activeLayers.has('pos');
+  if (!posActive) return;
+
+  const CONTENT_POS = new Set(['NOUN', 'PROPN', 'VERB', 'ADJ', 'ADV']);
+
+  // Build a lookup of character offset -> { token, pos } for content words only
+  const posMap = new Map();
+  for (const sp of sentencePOS) {
+    let charIdx = sp.start;
+    for (let i = 0; i < sp.tokens.length; i++) {
+      const token = sp.tokens[i];
+      const pos = sp.pos_tags[i];
+      if (pos && CONTENT_POS.has(pos)) {
+        posMap.set(charIdx, { token, pos });
+      }
+      charIdx += token.length;
+      while (charIdx < sp.end && sp.text[charIdx - sp.start] === ' ') charIdx++;
+    }
+  }
+
+  // Walk text nodes and wrap content-word tokens in colored spans
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+  let absPos = 0;
+  for (const node of textNodes) {
+    const text = node.textContent;
+    // Collect matches within this text node (sorted by local offset)
+    const matches = [];
+    for (let i = 0; i < text.length; i++) {
+      const entry = posMap.get(absPos + i);
+      if (entry && i + entry.token.length <= text.length &&
+          text.slice(i, i + entry.token.length) === entry.token) {
+        matches.push({ localIdx: i, token: entry.token, pos: entry.pos });
+        i += entry.token.length - 1; // skip past this token
+      }
+    }
+
+    if (matches.length > 0) {
+      const fragments = [];
+      let lastIdx = 0;
+      for (const m of matches) {
+        if (m.localIdx > lastIdx) {
+          fragments.push(document.createTextNode(text.slice(lastIdx, m.localIdx)));
+        }
+        const span = document.createElement('span');
+        span.className = 'pos-word';
+        span.dataset.pos = m.pos;
+        span.title = `${m.token}: ${m.pos}`;
+        span.textContent = m.token;
+        fragments.push(span);
+        lastIdx = m.localIdx + m.token.length;
+      }
+      if (lastIdx < text.length) {
+        fragments.push(document.createTextNode(text.slice(lastIdx)));
+      }
+      const parent = node.parentNode;
+      for (const f of fragments) parent.insertBefore(f, node);
+      parent.removeChild(node);
+    }
+    absPos += text.length;
+  }
 }
 
 function renderMetadata(metadata, job) {
@@ -7935,9 +8136,9 @@ function renderMetadata(metadata, job) {
     html += `<div class="meta-key">Named Entities</div><div class="meta-value">${entities}</div>`;
   }
 
-  const triples = metadata.spo_triples || [];
-  if (triples.length) {
-    html += `<div class="meta-key">SPO Triples</div><div class="meta-value">${triples.length}</div>`;
+  const triplesCount = (job.result?.triples || []).length || (metadata.spo_triples || []).length;
+  if (triplesCount) {
+    html += `<div class="meta-key">SPO Triples</div><div class="meta-value">${triplesCount}</div>`;
   }
 
   const areas = metadata.areas_of_law || [];
@@ -8332,6 +8533,7 @@ function clearAll() {
   accumulatedAnnotations = [];
   accumulatedIndividuals = [];
   accumulatedProperties = [];
+  accumulatedTriples = [];
   activityEntries = [];
   // Clear feedback, dismiss, and data caches
   Object.keys(_feedbackCache).forEach(k => delete _feedbackCache[k]);
