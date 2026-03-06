@@ -146,7 +146,7 @@ The pipeline runs in three phases with 5 parallel stages and 9 sequential post-p
 
 ```bash
 # Clone the repository
-git clone https://github.com/damienriehl/folio-enrich.git
+git clone https://github.com/alea-institute/folio-enrich.git
 cd folio-enrich/backend
 
 # Create virtual environment and install dependencies
