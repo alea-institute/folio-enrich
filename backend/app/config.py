@@ -93,6 +93,12 @@ class Settings(BaseSettings):
     triple_extraction_enabled: bool = True
     pos_tagging_enabled: bool = True
 
+    # POS confidence modulation
+    pos_confidence_enabled: bool = True           # Master switch for all POS adjustments
+    pos_concept_mismatch_penalty: float = 0.15    # Penalty when concept span POS != expected
+    pos_property_mismatch_penalty: float = 0.12   # Penalty when property span POS mismatches
+    pos_branch_affinity_boost: float = 0.05       # Boost/penalty for POS-branch alignment
+
     # Candidates
     max_candidates: int = 5
 
