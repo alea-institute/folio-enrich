@@ -169,6 +169,7 @@ class DependencyParser:
                 if not objects and not prep_objects:
                     # Passive with no explicit object or prep: emit triple with passive_subj as object
                     for pass_subj in passive_subjects:
+                        verb_bonus = 0.10 if verb.pos_ in ("VERB", "AUX") else 0.0
                         results.append(SPOTriple(
                             id=str(uuid4()),
                             subject="[agent]",
@@ -180,7 +181,7 @@ class DependencyParser:
                             predicate_span=self._token_span(verb),
                             voice="passive",
                             normalized=True,
-                            confidence=0.4,
+                            confidence=max(0.30, 0.4 + verb_bonus),
                             source="spacy",
                         ))
                 return results
@@ -203,6 +204,21 @@ class DependencyParser:
 
         return results
 
+    def _compute_triple_confidence(
+        self, subj_token, verb_token, obj_token, is_passive: bool
+    ) -> float:
+        """Compute confidence based on POS quality of triple components."""
+        base = 0.50
+        if subj_token.pos_ in ("NOUN", "PROPN"):
+            base += 0.10
+        if verb_token.pos_ in ("VERB", "AUX"):
+            base += 0.10
+        if obj_token.pos_ in ("NOUN", "PROPN"):
+            base += 0.10
+        if is_passive:
+            base -= 0.05
+        return min(0.85, max(0.30, base))
+
     def _make_triple(
         self, subj_token, verb_token, obj_token,
         sent_idx: int, sent,
@@ -223,7 +239,9 @@ class DependencyParser:
             object_span=self._subtree_span(obj_token),
             voice="passive" if is_passive else "active",
             normalized=normalized,
-            confidence=0.7 if not is_passive else 0.6,
+            confidence=self._compute_triple_confidence(
+                subj_token, verb_token, obj_token, is_passive
+            ),
             source="spacy",
         )
 

@@ -137,6 +137,9 @@ class LLMPropertyStage(PipelineStage):
         combined = existing_properties + llm_new
         deduplicated = deduplicate_properties(combined)
 
+        # POS-based penalty for Aho-Corasick property matches
+        pos_adjusted = self._apply_pos_penalties(job, deduplicated)
+
         job.result.properties = deduplicated
 
         log.append({
@@ -146,6 +149,7 @@ class LLMPropertyStage(PipelineStage):
                 f"Property linking complete: {len(deduplicated)} properties "
                 f"({len(llm_new)} LLM-discovered, "
                 f"{len(existing_properties)} from early extraction)"
+                + (f", {pos_adjusted} POS-adjusted" if pos_adjusted else "")
             ),
         })
 
@@ -155,3 +159,46 @@ class LLMPropertyStage(PipelineStage):
         )
 
         return job
+
+    @staticmethod
+    def _apply_pos_penalties(job: Job, properties: list) -> int:
+        """Penalize Aho-Corasick properties where span POS mismatches verb sense."""
+        from app.config import settings
+        from app.models.annotation import StageEvent
+        from app.services.nlp.pos_lookup import get_majority_pos
+
+        if not settings.pos_confidence_enabled or not settings.pos_tagging_enabled:
+            return 0
+
+        sentence_pos = job.result.metadata.get("sentence_pos", [])
+        if not sentence_pos:
+            return 0
+
+        penalty = settings.pos_property_mismatch_penalty
+        adjusted = 0
+
+        for prop in properties:
+            # Only penalize Aho-Corasick matches, not LLM-sourced
+            if prop.source != "aho_corasick":
+                continue
+
+            # Skip multi-word matches (less likely to be ambiguous)
+            if " " in prop.property_text.strip():
+                continue
+
+            pos = get_majority_pos(prop.span.start, prop.span.end, sentence_pos)
+            if pos is None:
+                continue
+
+            # NOUN/PROPN for a verb-sense ObjectProperty → penalize
+            if pos in ("NOUN", "PROPN"):
+                prop.confidence = max(0.0, prop.confidence - penalty)
+                adjusted += 1
+                prop.lineage.append(StageEvent(
+                    stage="llm_property_linking",
+                    action="pos_adjusted",
+                    detail=f"POS mismatch: {pos} for verb-sense property '{prop.folio_label}'",
+                    confidence=prop.confidence,
+                ))
+
+        return adjusted

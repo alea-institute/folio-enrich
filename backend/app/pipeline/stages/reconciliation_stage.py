@@ -114,9 +114,65 @@ class ReconciliationStage(PipelineStage):
                 record_lineage(ann, "reconciliation", "kept",
                                detail=_CATEGORY_DETAIL.get(category, f"Category: {category}"))
 
+        # POS-based confidence penalty pass
+        pos_adjusted = self._apply_pos_penalties(job)
+
         confirmed = sum(1 for a in job.result.annotations if a.state == "confirmed")
         ruler_only = sum(1 for r in results if r.category == "ruler_only")
         rejected = sum(1 for a in job.result.annotations if a.state == "rejected")
         log = job.result.metadata.setdefault("activity_log", [])
-        log.append({"ts": datetime.now(timezone.utc).isoformat(), "stage": self.name, "msg": f"Reconciled: {confirmed} confirmed, {ruler_only} ruler-only, {rejected} rejected"})
+        msg = f"Reconciled: {confirmed} confirmed, {ruler_only} ruler-only, {rejected} rejected"
+        if pos_adjusted:
+            msg += f", {pos_adjusted} POS-adjusted"
+        log.append({"ts": datetime.now(timezone.utc).isoformat(), "stage": self.name, "msg": msg})
         return job
+
+    @staticmethod
+    def _apply_pos_penalties(job: Job) -> int:
+        """Penalize annotations where POS tag mismatches expected concept sense."""
+        from app.config import settings
+        from app.services.nlp.pos_lookup import get_majority_pos
+
+        if not settings.pos_confidence_enabled or not settings.pos_tagging_enabled:
+            return 0
+
+        sentence_pos = job.result.metadata.get("sentence_pos", [])
+        if not sentence_pos:
+            return 0
+
+        penalty = settings.pos_concept_mismatch_penalty
+        adjusted = 0
+
+        for ann in job.result.annotations:
+            if ann.state == "rejected" or not ann.concepts:
+                continue
+
+            concept = ann.concepts[0]
+            span_text = ann.span.text
+
+            # Only penalize single-word alternative-label matches
+            is_single_word = " " not in span_text.strip()
+            if not is_single_word:
+                continue
+
+            pos = get_majority_pos(ann.span.start, ann.span.end, sentence_pos)
+            if pos is None:
+                continue
+
+            # VERB/ADV used for a noun-sense concept → penalize
+            if pos in ("VERB", "ADV") and concept.match_type == "alternative":
+                concept.confidence = max(0.0, concept.confidence - penalty)
+                adjusted += 1
+                record_lineage(
+                    ann, "reconciliation", "pos_adjusted",
+                    detail=f"POS mismatch: {pos} for noun concept '{concept.concept_text}'",
+                    confidence=concept.confidence,
+                )
+                if concept.confidence < 0.20:
+                    ann.state = "rejected"
+                    record_lineage(
+                        ann, "reconciliation", "rejected",
+                        detail="Confidence below 0.20 after POS penalty",
+                    )
+
+        return adjusted
