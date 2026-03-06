@@ -1,6 +1,6 @@
 # **Product Requirements Document: FOLIO Enrich: Legal Document Annotation Pipeline**
 
-**Version:** 5.0 **Date:** February 21, 2026 **Author:** Damien Riehl / Claude Opus **Status:** Draft **Related Repository:** [`damienriehl/folio-mapper`](https://github.com/damienriehl/folio-mapper) — the existing FOLIO mapping tool whose backend pipeline this PRD extends
+**Version:** 5.0 **Date:** February 21, 2026 **Author:** Damien Riehl / Claude Opus **Status:** Draft **Related Repository:** [`alea-institute/folio-mapper`](https://github.com/alea-institute/folio-mapper) — the existing FOLIO mapping tool whose backend pipeline this PRD extends
 
 ---
 
@@ -8,7 +8,7 @@
 
 This PRD specifies a pipeline that ingests legal documents in any common format — PDF, Microsoft Word, Markdown, plain text, HTML, RTF, email, or pasted text — annotates every recognized legal concept with tags from the FOLIO ontology (18,000+ standardized concepts), extracts syntactic relationships between co-occurring concepts, and delivers those annotations to end users as clickable spans. Clicking a tagged span reveals the FOLIO concept's label, definition, IRI, and position in the ontology hierarchy. The pipeline's ultimate output feeds a Legal Knowledge Graph: annotated concepts become graph nodes, and extracted syntactic relations become graph edges.
 
-The pipeline builds on **FOLIO Mapper** ([`damienriehl/folio-mapper`](https://github.com/damienriehl/folio-mapper)), an existing tool that maps user taxonomies to the FOLIO ontology using fuzzy text matching and optional LLM-assisted ranking. This annotation pipeline reuses FOLIO Mapper's backend services — its FOLIO singleton, candidate search, hierarchy traversal, LLM provider integrations, and export infrastructure — while adding new upstream stages for multi-format ingestion, format-aware normalization, chunking, and document-wide span annotation. FOLIO Mapper already parses Excel, CSV, TSV, TXT, and Markdown for taxonomy input (`backend/app/services/file_parser.py`); this pipeline extends that ingestion capability to long-form legal documents.
+The pipeline builds on **FOLIO Mapper** ([`alea-institute/folio-mapper`](https://github.com/alea-institute/folio-mapper)), an existing tool that maps user taxonomies to the FOLIO ontology using fuzzy text matching and optional LLM-assisted ranking. This annotation pipeline reuses FOLIO Mapper's backend services — its FOLIO singleton, candidate search, hierarchy traversal, LLM provider integrations, and export infrastructure — while adding new upstream stages for multi-format ingestion, format-aware normalization, chunking, and document-wide span annotation. FOLIO Mapper already parses Excel, CSV, TSV, TXT, and Markdown for taxonomy input (`backend/app/services/file_parser.py`); this pipeline extends that ingestion capability to long-form legal documents.
 
 The pipeline uses a **dual-path concept discovery** architecture. Two independent systems identify concepts in parallel: a deterministic **EntityRuler** (spaCy) scans the full document against all 18,000+ FOLIO labels, while the **LLM** reads chunks contextually to find concepts that require semantic understanding. Neither system sees the other's output. A **Reconciliation Layer** merges their results, using an LLM Judge to resolve conflicts — cases where the two systems disagree about whether a word functions as a legal concept in context. This parallel-then-reconcile design eliminates anchoring bias while maximizing recall.
 
@@ -335,7 +335,7 @@ Every annotation in the output satisfies two deterministic checks: (1) the conce
 
 ### **5A.1 What FOLIO Mapper Provides**
 
-[FOLIO Mapper](https://github.com/damienriehl/folio-mapper) (`damienriehl/folio-mapper`) already implements the core FOLIO resolution infrastructure this pipeline needs. Rather than rebuild these capabilities, the annotation pipeline reuses FOLIO Mapper's backend as its resolution engine.
+[FOLIO Mapper](https://github.com/alea-institute/folio-mapper) (`alea-institute/folio-mapper`) already implements the core FOLIO resolution infrastructure this pipeline needs. Rather than rebuild these capabilities, the annotation pipeline reuses FOLIO Mapper's backend as its resolution engine.
 
 **FOLIO Mapper's backend services relevant to this pipeline:**
 
@@ -5464,7 +5464,7 @@ Every extractor handles tables and lists natively for its format. PDF tables com
 
 | Component | Technology | Rationale |
 | ----- | ----- | ----- |
-| **Existing resolution engine** | [FOLIO Mapper](https://github.com/damienriehl/folio-mapper) (`backend/app/services/folio_service.py`) | Fuzzy search, synonym expansion, branch filtering, hierarchy traversal, confidence scoring — already built and tested (155 pytest cases) |
+| **Existing resolution engine** | [FOLIO Mapper](https://github.com/alea-institute/folio-mapper) (`backend/app/services/folio_service.py`) | Fuzzy search, synonym expansion, branch filtering, hierarchy traversal, confidence scoring — already built and tested (155 pytest cases) |
 | **Ingestion router** | Custom Python (`backend/app/services/ingestion/router.py`) | Format detection via extension \+ MIME sniffing; dispatch to format-specific extractors |
 | **PDF extraction** | Docling (IBM) | Best structural extraction for legal PDFs; sections, paragraphs, tables, headers; preserves page/element metadata |
 | **Word extraction** | python-docx (`.docx`); antiword or LibreOffice CLI (`.doc`) | python-docx preserves paragraph styles, heading levels, and table structure. Legacy `.doc` needs binary conversion. |
@@ -6013,7 +6013,7 @@ The pipeline loads several large models and data structures into memory simultan
 | **Lossless export** | An export format that preserves full annotation fidelity: every field, relationship, and metadata element survives the conversion. JSON, JSON-LD, XML, and RDF/Turtle qualify. |
 | **Lossy export** | An export format that sacrifices some annotation detail for compatibility or readability. CSV flattens nested structures; brat drops definitions; HTML optimizes for human viewing. |
 | **Overlapping spans** | Two or more annotations whose character ranges intersect. Occurs when a contained concept (e.g., "Contract" at 111–119) sits inside a container concept (e.g., "Breach of Contract" at 100–119). The pipeline produces overlapping spans intentionally — each annotation is independent in a flat array, and containment relationships are derivable from the offsets. |
-| **FOLIO Mapper** | The existing tool ([`damienriehl/folio-mapper`](https://github.com/damienriehl/folio-mapper)) that maps user taxonomies to FOLIO using fuzzy matching \+ optional LLM ranking. This annotation pipeline extends FOLIO Mapper's backend. |
+| **FOLIO Mapper** | The existing tool ([`alea-institute/folio-mapper`](https://github.com/alea-institute/folio-mapper)) that maps user taxonomies to FOLIO using fuzzy matching \+ optional LLM ranking. This annotation pipeline extends FOLIO Mapper's backend. |
 | **FOLIO** | Federated Open Legal Information Ontology — 18,000+ legal concepts in a hierarchical tree, CC-BY licensed |
 | **FOLIO branch** | A top-level category in the FOLIO hierarchy (e.g., "Area of Law," "Actors," "Contractual Clause") |
 | **IRI** | Internationalized Resource Identifier — FOLIO's unique ID for each concept |
