@@ -138,6 +138,66 @@ jobs:
           name: windows-x64
           path: folio-enrich-windows-x64.zip
 
+  build-windows-arm64:
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          pip install -e ".[dev]"
+          pip install pyinstaller
+          python -m spacy download en_core_web_sm
+      - name: Build with PyInstaller
+        working-directory: backend
+        shell: bash
+        run: |
+          SPACY_DATA=$(python -c "import en_core_web_sm; print(en_core_web_sm.__path__[0])")
+          pyinstaller --name folio-enrich \
+            --noconfirm \
+            --onedir \
+            --add-data "app;app" \
+            --add-data "../frontend;frontend" \
+            --add-data "${SPACY_DATA};en_core_web_sm" \
+            --hidden-import uvicorn \
+            --hidden-import uvicorn.logging \
+            --hidden-import uvicorn.protocols \
+            --hidden-import uvicorn.protocols.http \
+            --hidden-import uvicorn.protocols.http.auto \
+            --hidden-import uvicorn.protocols.websockets \
+            --hidden-import uvicorn.protocols.websockets.auto \
+            --hidden-import uvicorn.lifespan \
+            --hidden-import uvicorn.lifespan.on \
+            --hidden-import app.main \
+            --hidden-import app.api.routes.enrich \
+            --hidden-import app.api.routes.export \
+            --hidden-import app.api.routes.health \
+            --hidden-import app.api.routes.settings \
+            --hidden-import app.api.routes.ollama \
+            --hidden-import app.api.routes.concepts \
+            --hidden-import app.api.routes.feedback \
+            --hidden-import app.api.routes.synthetic \
+            --hidden-import spacy \
+            --hidden-import en_core_web_sm \
+            --hidden-import thinc \
+            --hidden-import httpx \
+            --hidden-import sse_starlette \
+            --hidden-import psutil \
+            --collect-submodules spacy \
+            --collect-submodules thinc \
+            --exclude-module pytest \
+            --exclude-module _pytest \
+            run.py
+      - name: Package
+        run: Compress-Archive -Path backend\dist\folio-enrich -DestinationPath folio-enrich-windows-arm64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-arm64
+          path: folio-enrich-windows-arm64.zip
+
   build-macos:
     runs-on: macos-latest
     steps:
@@ -197,7 +257,7 @@ jobs:
           path: folio-enrich-macos-arm64.tar.gz
 
   release:
-    needs: [build-linux, build-windows, build-macos]
+    needs: [build-linux, build-windows, build-windows-arm64, build-macos]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
@@ -210,5 +270,6 @@ jobs:
           files: |
             folio-enrich-linux-x64.tar.gz
             folio-enrich-windows-x64.zip
+            folio-enrich-windows-arm64.zip
             folio-enrich-macos-arm64.tar.gz
           generate_release_notes: true
