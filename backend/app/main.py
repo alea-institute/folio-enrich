@@ -136,7 +136,7 @@ async def lifespan(app: FastAPI):
     await _stop_ollama()
 
 
-app = FastAPI(title=app_settings.app_name, version="0.4.8", lifespan=lifespan)
+app = FastAPI(title=app_settings.app_name, version="0.4.10", lifespan=lifespan)
 
 # Middleware (order matters: outermost first)
 app.add_middleware(
