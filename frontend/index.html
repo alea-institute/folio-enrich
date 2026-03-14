@@ -7138,6 +7138,9 @@ function renderDetailInfo(detail) {
   if (detail.definition) {
     html += `<div class="detail-definition">${escapeHtml(detail.definition)}</div>`;
   }
+  if (detail.preferred_label) {
+    html += `<div class="detail-synonyms"><strong>Preferred Label:</strong> ${escapeHtml(detail.preferred_label)}</div>`;
+  }
   if (detail.synonyms && detail.synonyms.length) {
     html += `<div class="detail-synonyms"><strong>Synonyms:</strong> ${escapeHtml(detail.synonyms.join(', '))}</div>`;
   }
