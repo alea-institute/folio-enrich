@@ -20,6 +20,7 @@ class FOLIOConcept:
     definition: str
     branch: str
     parent_iris: list[str]
+    folio_pref_label: str = ""
     examples: list[str] | None = None
     notes: list[str] | None = None
     editorial_note: str = ""
@@ -238,6 +239,16 @@ class FolioService:
                         matched_label=pref,
                     )
 
+                # Index FOLIO prefLabel (same priority as preferred)
+                if fc.folio_pref_label:
+                    pref_key = fc.folio_pref_label.lower()
+                    if pref_key not in labels or labels[pref_key].label_type != "preferred":
+                        labels[pref_key] = LabelInfo(
+                            concept=fc,
+                            label_type="preferred",
+                            matched_label=fc.folio_pref_label,
+                        )
+
                 # Index alternative labels (only if not already a preferred label)
                 for alt in fc.alternative_labels:
                     if alt:
@@ -291,6 +302,13 @@ class FolioService:
                     key = pref.lower()
                     labels.setdefault(key, []).append(LabelInfo(
                         concept=fc, label_type="preferred", matched_label=pref,
+                    ))
+
+                # Index FOLIO prefLabel
+                if fc.folio_pref_label:
+                    pref_key = fc.folio_pref_label.lower()
+                    labels.setdefault(pref_key, []).append(LabelInfo(
+                        concept=fc, label_type="preferred", matched_label=fc.folio_pref_label,
                     ))
 
                 # Index alternative labels
@@ -447,6 +465,10 @@ class FolioService:
 
         branch = self._get_branch(iri, list(parent_iris))
 
+        # FOLIO skos:prefLabel — only store when it exists and differs from rdfs:label
+        folio_pref = getattr(concept, "preferred_label", "") or ""
+        folio_pref_label = folio_pref if folio_pref and folio_pref.lower() != pref_label.lower() else ""
+
         return FOLIOConcept(
             iri=iri,
             preferred_label=pref_label,
@@ -454,6 +476,7 @@ class FolioService:
             definition=definition,
             branch=branch,
             parent_iris=list(parent_iris),
+            folio_pref_label=folio_pref_label,
             examples=list(examples) if examples else None,
             notes=list(notes) if notes else None,
             editorial_note=editorial_note,

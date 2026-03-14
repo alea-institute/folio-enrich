@@ -244,11 +244,16 @@ def lookup_concept_detail(folio, iri_hash: str) -> ConceptDetail | None:
 
     hierarchy_paths = _build_all_hierarchy_paths(folio, iri_hash, branch_root_iris)
 
+    # FOLIO skos:prefLabel — include when it differs from rdfs:label
+    folio_pref = getattr(owl_class, "preferred_label", "") or ""
+    pref_label_val = folio_pref if folio_pref and folio_pref.lower() != (owl_class.label or "").lower() else None
+
     return ConceptDetail(
         label=owl_class.label or iri_hash,
         iri=owl_class.iri,
         iri_hash=iri_hash,
         definition=owl_class.definition,
+        preferred_label=pref_label_val,
         synonyms=owl_class.alternative_labels or [],
         branch=branch_name,
         branch_color=get_branch_color(branch_name),

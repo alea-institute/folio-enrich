@@ -55,6 +55,7 @@ class ConceptDetail(BaseModel):
     iri: str
     iri_hash: str
     definition: str | None = None
+    preferred_label: str | None = None
     synonyms: list[str] = []
     branch: str = ""
     branch_color: str = ""
