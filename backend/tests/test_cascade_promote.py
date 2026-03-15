@@ -52,8 +52,7 @@ class TestCascadePromote:
             self._make_ann("ann-3", "deal", old_iri, new_iri),
             self._make_ann("ann-4", "unrelated", "http://example.com/other"),
         ]
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(enrich_mod._job_store.save(job))
+        asyncio.run(enrich_mod._job_store.save(job))
         return job, old_iri, new_iri
 
     def test_cascade_all_when_no_ids(self, client, job_with_shared_iris):

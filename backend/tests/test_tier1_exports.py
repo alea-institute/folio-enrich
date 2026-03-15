@@ -6,8 +6,7 @@ import xml.etree.ElementTree as ET
 import pytest
 
 from app.models.annotation import Annotation, ConceptMatch, Span
-from app.models.document import CanonicalText, DocumentFormat, DocumentInput, TextChunk
-from app.models.job import Job, JobResult, JobStatus
+from app.models.job import Job
 from app.services.export.csv_exporter import CSVExporter
 from app.services.export.json_exporter import JSONExporter
 from app.services.export.jsonl_exporter import JSONLExporter
@@ -15,33 +14,28 @@ from app.services.export.jsonld_exporter import JSONLDExporter
 from app.services.export.registry import list_formats
 from app.services.export.xml_exporter import XMLExporter
 
+from tests.helpers import make_job
 
-def _make_job() -> Job:
-    return Job(
-        input=DocumentInput(content="The court granted the motion.", format=DocumentFormat.PLAIN_TEXT),
-        status=JobStatus.COMPLETED,
-        result=JobResult(
-            canonical_text=CanonicalText(
-                full_text="The court granted the motion.",
-                chunks=[TextChunk(text="The court granted the motion.", start_offset=0, end_offset=29, chunk_index=0)],
+
+def _make_export_job() -> Job:
+    return make_job(
+        text="The court granted the motion.",
+        annotations=[
+            Annotation(
+                span=Span(start=4, end=9, text="court"),
+                concepts=[
+                    ConceptMatch(
+                        concept_text="court",
+                        folio_iri="https://folio.openlegalstandard.org/R123",
+                        folio_label="Court",
+                        folio_definition="A tribunal.",
+                        branches=["Legal Entity"],
+                        confidence=0.95,
+                        source="llm",
+                    )
+                ],
             ),
-            annotations=[
-                Annotation(
-                    span=Span(start=4, end=9, text="court"),
-                    concepts=[
-                        ConceptMatch(
-                            concept_text="court",
-                            folio_iri="https://folio.openlegalstandard.org/R123",
-                            folio_label="Court",
-                            folio_definition="A tribunal.",
-                            branches=["Legal Entity"],
-                            confidence=0.95,
-                            source="llm",
-                        )
-                    ],
-                ),
-            ],
-        ),
+        ],
     )
 
 
@@ -55,13 +49,13 @@ class TestTier1Exports:
         assert "jsonl" in formats
 
     def test_json_export(self):
-        job = _make_job()
+        job = _make_export_job()
         data = json.loads(JSONExporter().export(job))
         assert data["status"] == "completed"
         assert len(data["annotations"]) == 1
 
     def test_jsonld_export(self):
-        job = _make_job()
+        job = _make_export_job()
         data = json.loads(JSONLDExporter().export(job))
         assert "@context" in data
         assert "oa" in data["@context"]
@@ -72,7 +66,7 @@ class TestTier1Exports:
         assert ann["oa:hasBody"]["@id"] == "https://folio.openlegalstandard.org/R123"
 
     def test_xml_export(self):
-        job = _make_job()
+        job = _make_export_job()
         xml_str = XMLExporter().export(job)
         root = ET.fromstring(xml_str)
         assert root.tag == "annotations"
@@ -81,7 +75,7 @@ class TestTier1Exports:
         assert len(anns) == 1
 
     def test_csv_export(self):
-        job = _make_job()
+        job = _make_export_job()
         csv_str = CSVExporter().export(job)
         reader = csv.reader(io.StringIO(csv_str))
         rows = list(reader)
@@ -90,7 +84,7 @@ class TestTier1Exports:
         assert rows[1][2] == "court"  # span_text
 
     def test_jsonl_export(self):
-        job = _make_job()
+        job = _make_export_job()
         jsonl_str = JSONLExporter().export(job)
         lines = [json.loads(line) for line in jsonl_str.strip().split("\n")]
         assert len(lines) == 1

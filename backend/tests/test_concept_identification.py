@@ -6,51 +6,25 @@ import pytest
 
 from app.models.document import TextChunk
 from app.services.concept.llm_concept_identifier import LLMConceptIdentifier
-from app.services.llm.base import LLMProvider
+
+from tests.helpers import FakeLLMProvider as _BaseFake, FailingLLMProvider
 
 
-class FakeLLMProvider(LLMProvider):
+_DEFAULT_CONCEPTS = [
+    {"concept_text": "breach of contract", "branch_hints": ["Objectives"], "confidence": 0.95},
+    {"concept_text": "damages", "branch_hints": ["Objectives"], "confidence": 0.88},
+]
+
+
+class FakeLLMProvider(_BaseFake):
     """Returns pre-configured concept identification results."""
 
-    _DEFAULTS = [
-        {"concept_text": "breach of contract", "branch_hints": ["Objectives"], "confidence": 0.95},
-        {"concept_text": "damages", "branch_hints": ["Objectives"], "confidence": 0.88},
-    ]
-
     def __init__(self, concepts: list[dict] | None = None):
-        self.concepts = self._DEFAULTS if concepts is None else concepts
+        super().__init__()
+        self.concepts = _DEFAULT_CONCEPTS if concepts is None else concepts
 
-    async def complete(self, prompt: str, **kwargs: Any) -> str:
-        return ""
-
-    async def chat(self, messages: list[dict[str, str]], **kwargs: Any) -> str:
-        return ""
-
-    async def structured(self, prompt: str, schema: dict, **kwargs: Any) -> dict:
+    async def structured(self, prompt: str, schema: dict, **kw: Any) -> dict:
         return {"concepts": self.concepts}
-
-    async def test_connection(self) -> bool:
-        return True
-
-    async def list_models(self):
-        return []
-
-
-class FailingLLMProvider(LLMProvider):
-    async def complete(self, prompt: str, **kwargs: Any) -> str:
-        raise RuntimeError("LLM error")
-
-    async def chat(self, messages: list[dict[str, str]], **kwargs: Any) -> str:
-        raise RuntimeError("LLM error")
-
-    async def structured(self, prompt: str, schema: dict, **kwargs: Any) -> dict:
-        raise RuntimeError("LLM error")
-
-    async def test_connection(self) -> bool:
-        return False
-
-    async def list_models(self):
-        return []
 
 
 class TestLLMConceptIdentifier:

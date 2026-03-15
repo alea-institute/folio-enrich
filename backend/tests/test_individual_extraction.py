@@ -185,111 +185,60 @@ class TestCitationExtractor:
 
 
 class TestEntityExtractors:
-    def test_monetary_amount_extractor(self):
-        from app.services.individual.entity_extractors import MonetaryAmountExtractor
-        ext = MonetaryAmountExtractor()
-        results = ext.extract_sync("The amount was $500,000 and €1.2 million.")
-        assert len(results) >= 1
-        texts = [r.mention_text for r in results]
-        assert any("$500,000" in t for t in texts)
+    @pytest.mark.parametrize(
+        "extractor_cls_name, text, min_results, expected_substring, expected_source, expected_name",
+        [
+            ("MonetaryAmountExtractor", "The amount was $500,000 and €1.2 million.", 1, "$500,000", None, None),
+            ("DateExtractor", "The filing was on January 15, 2023 and 03/15/2022.", 2, "January 15, 2023", None, None),
+            ("DateExtractor", "The filing was on January 15, 2023 and 03/15/2022.", 2, "03/15/2022", None, None),
+            ("DateExtractor", "Effective date: 2023-01-15.", 1, None, None, None),
+            ("DurationExtractor", "The lease is for 30 days and two years.", 1, "30 days", None, None),
+            ("PercentageExtractor", "Interest rate of 5% or three percent applies, with 250 basis points.", 2, None, None, None),
+            ("CourtExtractor", "Filed in the Supreme Court of the United States and S.D.N.Y.", 1, "Supreme Court", None, None),
+            ("DefinitionExtractor", '"Lessor" means the party granting the lease.', 1, None, None, "Lessor"),
+            ("ConditionExtractor", "If the tenant fails to pay, provided that notice was given.", 1, "if", None, None),
+            ("ConstraintExtractor", "The award shall not exceed $1 million. At least 30 days notice.", 1, None, None, None),
+            ("AddressExtractor", "Located at 123 Main Street, Suite 100, New York, NY 10001.", 1, None, None, None),
+            ("TrademarkExtractor", "Products include Apple® and Google™ devices.", 2, None, None, None),
+            ("CopyrightExtractor", "© 2024 Acme Corp. All rights reserved.", 1, None, None, None),
+            ("SpaCyPersonExtractor", "John Smith filed the complaint against Jane Doe.", 1, None, "spacy_ner", None),
+            ("SpaCyOrgExtractor", "Google LLC and the Securities and Exchange Commission were parties.", 1, None, "spacy_ner", None),
+            ("SpaCyLocationExtractor", "The court in New York ruled on the California statute.", 1, None, None, None),
+        ],
+        ids=[
+            "monetary_amount",
+            "date_named_month",
+            "date_numeric",
+            "date_iso_format",
+            "duration",
+            "percentage",
+            "court",
+            "definition",
+            "condition",
+            "constraint",
+            "address",
+            "trademark",
+            "copyright",
+            "spacy_person",
+            "spacy_org",
+            "spacy_location",
+        ],
+    )
+    def test_entity_extraction(
+        self, extractor_cls_name, text, min_results, expected_substring, expected_source, expected_name
+    ):
+        import app.services.individual.entity_extractors as mod
 
-    def test_date_extractor(self):
-        from app.services.individual.entity_extractors import DateExtractor
-        ext = DateExtractor()
-        results = ext.extract_sync("The filing was on January 15, 2023 and 03/15/2022.")
-        assert len(results) >= 2
-        texts = [r.mention_text for r in results]
-        assert any("January 15, 2023" in t for t in texts)
-        assert any("03/15/2022" in t for t in texts)
-
-    def test_date_extractor_iso_format(self):
-        from app.services.individual.entity_extractors import DateExtractor
-        ext = DateExtractor()
-        results = ext.extract_sync("Effective date: 2023-01-15.")
-        assert len(results) >= 1
-
-    def test_duration_extractor(self):
-        from app.services.individual.entity_extractors import DurationExtractor
-        ext = DurationExtractor()
-        results = ext.extract_sync("The lease is for 30 days and two years.")
-        assert len(results) >= 1
-        texts = [r.mention_text for r in results]
-        assert any("30 days" in t for t in texts)
-
-    def test_percentage_extractor(self):
-        from app.services.individual.entity_extractors import PercentageExtractor
-        ext = PercentageExtractor()
-        results = ext.extract_sync("Interest rate of 5% or three percent applies, with 250 basis points.")
-        assert len(results) >= 2
-
-    def test_court_extractor(self):
-        from app.services.individual.entity_extractors import CourtExtractor
-        ext = CourtExtractor()
-        results = ext.extract_sync("Filed in the Supreme Court of the United States and S.D.N.Y.")
-        assert len(results) >= 1
-        texts = [r.mention_text for r in results]
-        assert any("Supreme Court" in t for t in texts)
-
-    def test_definition_extractor(self):
-        from app.services.individual.entity_extractors import DefinitionExtractor
-        ext = DefinitionExtractor()
-        results = ext.extract_sync('"Lessor" means the party granting the lease.')
-        assert len(results) >= 1
-        assert results[0].name == "Lessor"
-
-    def test_condition_extractor(self):
-        from app.services.individual.entity_extractors import ConditionExtractor
-        ext = ConditionExtractor()
-        results = ext.extract_sync("If the tenant fails to pay, provided that notice was given.")
-        assert len(results) >= 1
-        texts = [r.mention_text.lower() for r in results]
-        assert any("if" in t for t in texts) or any("provided that" in t for t in texts)
-
-    def test_constraint_extractor(self):
-        from app.services.individual.entity_extractors import ConstraintExtractor
-        ext = ConstraintExtractor()
-        results = ext.extract_sync("The award shall not exceed $1 million. At least 30 days notice.")
-        assert len(results) >= 1
-
-    def test_address_extractor(self):
-        from app.services.individual.entity_extractors import AddressExtractor
-        ext = AddressExtractor()
-        results = ext.extract_sync("Located at 123 Main Street, Suite 100, New York, NY 10001.")
-        assert len(results) >= 1
-
-    def test_trademark_extractor(self):
-        from app.services.individual.entity_extractors import TrademarkExtractor
-        ext = TrademarkExtractor()
-        results = ext.extract_sync("Products include Apple® and Google™ devices.")
-        assert len(results) >= 2
-
-    def test_copyright_extractor(self):
-        from app.services.individual.entity_extractors import CopyrightExtractor
-        ext = CopyrightExtractor()
-        results = ext.extract_sync("© 2024 Acme Corp. All rights reserved.")
-        assert len(results) >= 1
-
-    def test_spacy_person_extractor(self):
-        from app.services.individual.entity_extractors import SpaCyPersonExtractor
-        ext = SpaCyPersonExtractor()
-        results = ext.extract_sync("John Smith filed the complaint against Jane Doe.")
-        # spaCy should find at least one person
-        assert len(results) >= 1
-        assert all(r.source == "spacy_ner" for r in results)
-
-    def test_spacy_org_extractor(self):
-        from app.services.individual.entity_extractors import SpaCyOrgExtractor
-        ext = SpaCyOrgExtractor()
-        results = ext.extract_sync("Google LLC and the Securities and Exchange Commission were parties.")
-        assert len(results) >= 1
-        assert all(r.source == "spacy_ner" for r in results)
-
-    def test_spacy_location_extractor(self):
-        from app.services.individual.entity_extractors import SpaCyLocationExtractor
-        ext = SpaCyLocationExtractor()
-        results = ext.extract_sync("The court in New York ruled on the California statute.")
-        # spaCy should find at least one location
-        assert len(results) >= 1
+        ext = getattr(mod, extractor_cls_name)()
+        results = ext.extract_sync(text)
+        assert len(results) >= min_results
+        if expected_substring:
+            texts = [r.mention_text.lower() for r in results]
+            assert any(expected_substring.lower() in t for t in texts)
+        if expected_source:
+            assert all(r.source == expected_source for r in results)
+        if expected_name:
+            assert results[0].name == expected_name
 
     def test_all_extractors_return_valid_individuals(self):
         from app.services.individual.entity_extractors import ALL_EXTRACTORS

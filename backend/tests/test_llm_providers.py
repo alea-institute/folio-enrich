@@ -73,47 +73,31 @@ class TestRegistryMetadata:
 # ── get_provider factory tests ──────────────────────────────────
 
 class TestGetProvider:
-    def test_openai_returns_openai_compat(self):
-        from app.services.llm.openai_compat import OpenAICompatProvider
-        p = get_provider("openai", api_key="test-key")
-        assert isinstance(p, OpenAICompatProvider)
+    @pytest.mark.parametrize("provider_name,api_key,cls_module,cls_name", [
+        ("openai", "test-key", "app.services.llm.openai_compat", "OpenAICompatProvider"),
+        ("anthropic", "test-key", "app.services.llm.anthropic_provider", "AnthropicProvider"),
+        ("google", "test-key", "app.services.llm.google_provider", "GoogleProvider"),
+        ("cohere", "test-key", "app.services.llm.cohere_provider", "CohereProvider"),
+        ("github_models", "test-key", "app.services.llm.github_models_provider", "GitHubModelsProvider"),
+        ("ollama", None, "app.services.llm.openai_compat", "OpenAICompatProvider"),
+        ("lmstudio", None, "app.services.llm.openai_compat", "OpenAICompatProvider"),
+        ("groq", "test-key", "app.services.llm.openai_compat", "OpenAICompatProvider"),
+    ])
+    def test_provider_returns_correct_type(self, provider_name, api_key, cls_module, cls_name):
+        import importlib
+        mod = importlib.import_module(cls_module)
+        expected_cls = getattr(mod, cls_name)
+        kwargs = {"api_key": api_key} if api_key else {}
+        p = get_provider(provider_name, **kwargs)
+        assert isinstance(p, expected_cls)
 
-    def test_anthropic_returns_anthropic_provider(self):
-        from app.services.llm.anthropic_provider import AnthropicProvider
-        p = get_provider("anthropic", api_key="test-key")
-        assert isinstance(p, AnthropicProvider)
-
-    def test_google_returns_google_provider(self):
-        from app.services.llm.google_provider import GoogleProvider
-        p = get_provider("google", api_key="test-key")
-        assert isinstance(p, GoogleProvider)
-
-    def test_cohere_returns_cohere_provider(self):
-        from app.services.llm.cohere_provider import CohereProvider
-        p = get_provider("cohere", api_key="test-key")
-        assert isinstance(p, CohereProvider)
-
-    def test_github_models_returns_github_provider(self):
-        from app.services.llm.github_models_provider import GitHubModelsProvider
-        p = get_provider("github_models", api_key="test-key")
-        assert isinstance(p, GitHubModelsProvider)
-
-    def test_ollama_returns_openai_compat(self):
-        from app.services.llm.openai_compat import OpenAICompatProvider
+    def test_ollama_base_url(self):
         p = get_provider("ollama")
-        assert isinstance(p, OpenAICompatProvider)
         assert p.base_url == "http://localhost:11434/v1"
 
-    def test_lmstudio_returns_openai_compat(self):
-        from app.services.llm.openai_compat import OpenAICompatProvider
+    def test_lmstudio_base_url(self):
         p = get_provider("lmstudio")
-        assert isinstance(p, OpenAICompatProvider)
         assert p.base_url == "http://localhost:1234/v1"
-
-    def test_groq_returns_openai_compat(self):
-        from app.services.llm.openai_compat import OpenAICompatProvider
-        p = get_provider("groq", api_key="test-key")
-        assert isinstance(p, OpenAICompatProvider)
 
     def test_enum_input(self):
         p = get_provider(LLMProviderType.openai, api_key="test-key")

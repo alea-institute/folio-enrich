@@ -23,32 +23,19 @@ class TestPlainTextIngestor:
 
 
 class TestFormatDetection:
-    def test_detect_txt_extension(self):
-        assert detect_format("doc.txt", "") == DocumentFormat.PLAIN_TEXT
-
-    def test_detect_md_extension(self):
-        assert detect_format("readme.md", "") == DocumentFormat.MARKDOWN
-
-    def test_detect_html_extension(self):
-        assert detect_format("page.html", "") == DocumentFormat.HTML
-
-    def test_detect_htm_extension(self):
-        assert detect_format("page.htm", "") == DocumentFormat.HTML
-
-    def test_detect_pdf_extension(self):
-        assert detect_format("file.pdf", "") == DocumentFormat.PDF
-
-    def test_detect_docx_extension(self):
-        assert detect_format("file.docx", "") == DocumentFormat.WORD
-
-    def test_detect_html_content(self):
-        assert detect_format(None, "<html><body>Hi</body></html>") == DocumentFormat.HTML
-
-    def test_detect_markdown_content(self):
-        assert detect_format(None, "# Heading\n\nSome text") == DocumentFormat.MARKDOWN
-
-    def test_detect_plain_text_fallback(self):
-        assert detect_format(None, "Just plain text.") == DocumentFormat.PLAIN_TEXT
+    @pytest.mark.parametrize("filename,content,expected", [
+        ("doc.txt", "", DocumentFormat.PLAIN_TEXT),
+        ("readme.md", "", DocumentFormat.MARKDOWN),
+        ("page.html", "", DocumentFormat.HTML),
+        ("page.htm", "", DocumentFormat.HTML),
+        ("file.pdf", "", DocumentFormat.PDF),
+        ("file.docx", "", DocumentFormat.WORD),
+        (None, "<html><body>Hi</body></html>", DocumentFormat.HTML),
+        (None, "# Heading\n\nSome text", DocumentFormat.MARKDOWN),
+        (None, "Just plain text.", DocumentFormat.PLAIN_TEXT),
+    ])
+    def test_format_detection(self, filename, content, expected):
+        assert detect_format(filename, content) == expected
 
 
 class TestIngestRegistry:
