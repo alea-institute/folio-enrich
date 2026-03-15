@@ -50,8 +50,7 @@ class TestDismissRestore:
             self._make_ann("ann-3", "Bid", iri),
             self._make_ann("ann-4", "Court", "http://example.com/court"),
         ]
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(enrich_mod._job_store.save(job))
+        asyncio.run(enrich_mod._job_store.save(job))
         return job, iri
 
     def test_reject_annotation(self, client, job_with_annotations):
@@ -149,8 +148,7 @@ class TestDismissRestore:
         job = Job(input=DocumentInput(content="The Bid was submitted on time."),
                   status=JobStatus.COMPLETED)
         job.result.annotations = [ann]
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(enrich_mod._job_store.save(job))
+        asyncio.run(enrich_mod._job_store.save(job))
 
         client.post(f"/enrich/{job.id}/annotations/ann-ctx/reject")
         resp = client.get(f"/feedback/insights/{job.id}")
@@ -213,8 +211,7 @@ class TestBulkReject:
                 state="rejected",  # already rejected
             ),
         ]
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(enrich_mod._job_store.save(job))
+        asyncio.run(enrich_mod._job_store.save(job))
         return job, iri
 
     def test_bulk_reject(self, client, job_with_shared_concepts):
@@ -301,8 +298,7 @@ class TestExportExcludesDismissed:
                 state="confirmed",
             ),
         ]
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(enrich_mod._job_store.save(job))
+        asyncio.run(enrich_mod._job_store.save(job))
         return job
 
     def test_export_excludes_rejected_by_default(self, client, job_with_dismissed):

@@ -5,6 +5,20 @@ import pytest
 from app.services.embedding.service import EmbeddingService
 
 
+@pytest.fixture(scope="module")
+def indexed_embedding_service():
+    svc = EmbeddingService()
+    labels = ["breach of contract", "motion to dismiss", "court order"]
+    metadata = [
+        {"iri": "iri1", "label": "Breach of Contract", "type": "preferred"},
+        {"iri": "iri2", "label": "Motion to Dismiss", "type": "preferred"},
+        {"iri": "iri3", "label": "Court Order", "type": "preferred"},
+    ]
+    svc.index_labels(labels, metadata)
+    return svc
+
+
+@pytest.mark.slow
 class TestEmbeddingService:
     def test_index_labels(self):
         svc = EmbeddingService()
@@ -17,16 +31,8 @@ class TestEmbeddingService:
         svc.index_labels(labels, metadata)
         assert svc.index_size == 3
 
-    def test_search_returns_results(self):
-        svc = EmbeddingService()
-        labels = ["breach of contract", "motion to dismiss", "court order"]
-        metadata = [
-            {"iri": "iri1", "label": "Breach of Contract", "type": "preferred"},
-            {"iri": "iri2", "label": "Motion to Dismiss", "type": "preferred"},
-            {"iri": "iri3", "label": "Court Order", "type": "preferred"},
-        ]
-        svc.index_labels(labels, metadata)
-        results = svc.search("contract violation", top_k=1)
+    def test_search_returns_results(self, indexed_embedding_service):
+        results = indexed_embedding_service.search("contract violation", top_k=1)
         assert len(results) == 1
         assert results[0].score > 0
 
@@ -35,10 +41,8 @@ class TestEmbeddingService:
         results = svc.search("anything")
         assert results == []
 
-    def test_similarity(self):
-        svc = EmbeddingService()
-        svc.index_labels(["test"])  # Force model load
-        score = svc.similarity("breach of contract", "contract breach")
+    def test_similarity(self, indexed_embedding_service):
+        score = indexed_embedding_service.similarity("breach of contract", "contract breach")
         assert score > 0.5
 
     def test_index_folio_labels_with_mock(self):

@@ -6,10 +6,11 @@ from typing import Any
 
 import pytest
 
-from app.models.document import CanonicalText, DocumentFormat, DocumentInput, TextChunk
+from app.models.document import DocumentFormat, DocumentInput
 from app.models.job import Job, JobResult, JobStatus
 from app.pipeline.stages.document_type_stage import DocumentTypeStage
-from app.services.llm.base import LLMProvider
+
+from tests.helpers import FakeLLMProvider, FailingLLMProvider, make_job
 
 
 SAMPLE_TEXT = (
@@ -24,61 +25,24 @@ SAMPLE_TEXT = (
 
 
 def _make_job(text: str = SAMPLE_TEXT) -> Job:
-    return Job(
-        input=DocumentInput(content=text, format=DocumentFormat.PLAIN_TEXT),
-        status=JobStatus.MATCHING,
-        result=JobResult(
-            canonical_text=CanonicalText(
-                full_text=text,
-                chunks=[TextChunk(text=text, start_offset=0, end_offset=len(text), chunk_index=0)],
-            ),
-        ),
-    )
+    return make_job(text=text, status=JobStatus.MATCHING)
 
 
-class FakeDocTypeLLM(LLMProvider):
+class FakeDocTypeLLM(FakeLLMProvider):
     """Returns a canned document type classification."""
 
     def __init__(self, response: dict | None = None):
-        self._response = response or {
+        super().__init__(structured_response=response or {
             "self_identified_type": "Defendant's Motion to Dismiss Under Rule 12(b)(6) for Failure to State a Claim",
             "confidence": 0.95,
             "reasoning": "Extracted from document header",
-        }
-
-    async def complete(self, prompt: str, **kw: Any) -> str:
-        return ""
-
-    async def chat(self, messages: list[dict[str, str]], **kw: Any) -> str:
-        return ""
+        })
 
     async def structured(self, prompt: str, schema: dict, **kw: Any) -> dict:
-        return self._response
-
-    async def test_connection(self) -> bool:
-        return True
-
-    async def list_models(self):
-        return []
+        return self._structured_response
 
 
-class FailingLLM(LLMProvider):
-    """Always raises an exception."""
-
-    async def complete(self, prompt: str, **kw: Any) -> str:
-        raise RuntimeError("LLM unavailable")
-
-    async def chat(self, messages: list[dict[str, str]], **kw: Any) -> str:
-        raise RuntimeError("LLM unavailable")
-
-    async def structured(self, prompt: str, schema: dict, **kw: Any) -> dict:
-        raise RuntimeError("LLM unavailable")
-
-    async def test_connection(self) -> bool:
-        return False
-
-    async def list_models(self):
-        return []
+FailingLLM = FailingLLMProvider
 
 
 class TestDocumentTypeStage:

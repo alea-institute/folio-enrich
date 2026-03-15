@@ -273,8 +273,7 @@ class TestFeedbackAPI:
         job.result.annotations = [ann]
 
         # Save directly via store
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(fb_mod._job_store.save(job))
+        asyncio.run(fb_mod._job_store.save(job))
         return job
 
     def test_submit_feedback(self, client, job_with_annotation):
@@ -362,8 +361,7 @@ class TestFeedbackAPI:
 
         # Check the persisted entry has lineage
         import app.api.routes.feedback as fb_mod
-        loop = asyncio.get_event_loop()
-        entry = loop.run_until_complete(fb_mod._feedback_store.load(feedback_id))
+        entry = asyncio.run(fb_mod._feedback_store.load(feedback_id))
         assert entry is not None
         assert len(entry.lineage) == 3
         assert entry.lineage[0]["stage"] == "entity_ruler"
@@ -487,8 +485,7 @@ class TestLineageAPI:
         )
         job.result.annotations = [ann]
 
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(enrich_mod._job_store.save(job))
+        asyncio.run(enrich_mod._job_store.save(job))
 
         resp = client.get(f"/enrich/{job.id}/annotations/ann-456/lineage")
         assert resp.status_code == 200
@@ -509,8 +506,7 @@ class TestLineageAPI:
             input=DocumentInput(content="test"),
             status=JobStatus.COMPLETED,
         )
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(enrich_mod._job_store.save(job))
+        asyncio.run(enrich_mod._job_store.save(job))
 
         resp = client.get(f"/enrich/{job.id}/annotations/nonexistent/lineage")
         assert resp.status_code == 404

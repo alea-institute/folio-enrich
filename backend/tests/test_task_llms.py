@@ -2,43 +2,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 from unittest.mock import patch
 
 import pytest
 
-from app.models.llm_models import ModelInfo
-from app.services.llm.base import LLMProvider
-
-
-# ---------------------------------------------------------------------------
-# Fake LLM providers for testing
-# ---------------------------------------------------------------------------
-
-class FakeLLM(LLMProvider):
-    """Minimal LLM provider stub that records its label."""
-
-    def __init__(self, label: str = "default") -> None:
-        super().__init__(api_key="fake", base_url=None, model="fake-model")
-        self.label = label
-
-    async def complete(self, prompt: str, **kw: Any) -> str:
-        return ""
-
-    async def chat(self, messages: list[dict], **kw: Any) -> str:
-        return ""
-
-    async def structured(self, prompt: str, schema: dict, **kw: Any) -> dict:
-        return {}
-
-    async def test_connection(self) -> bool:
-        return True
-
-    async def list_models(self) -> list[ModelInfo]:
-        return []
-
-    def __repr__(self) -> str:
-        return f"FakeLLM({self.label!r})"
+from tests.helpers import FakeLLMProvider as FakeLLM
 
 
 # ---------------------------------------------------------------------------

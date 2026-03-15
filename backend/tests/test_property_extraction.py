@@ -26,6 +26,12 @@ from app.models.job import Job, JobResult, JobStatus
 # ── Fixtures ────────────────────────────────────────────────────────────
 
 
+@pytest.fixture(scope="module")
+def folio_service():
+    from app.services.folio.folio_service import FolioService
+    return FolioService()
+
+
 SAMPLE_LEGAL_TEXT = (
     "The court reversed the grant of summary judgment and remanded "
     "the case for further proceedings. The motion was denied by the judge. "
@@ -121,7 +127,7 @@ class TestPropertyAnnotationModel:
 
 
 class TestPropertyMatcher:
-    @pytest.fixture
+    @pytest.fixture(scope="class")
     def matcher(self):
         from app.services.property.property_matcher import PropertyMatcher
         m = PropertyMatcher()
@@ -583,21 +589,18 @@ class TestPropertyConfig:
 # ── FolioService Property Tests ──────────────────────────────────────
 
 
+@pytest.mark.slow
 class TestFolioServiceProperties:
-    def test_get_all_property_labels(self):
-        from app.services.folio.folio_service import FolioService
-        svc = FolioService()
-        labels = svc.get_all_property_labels()
+    def test_get_all_property_labels(self, folio_service):
+        labels = folio_service.get_all_property_labels()
         assert len(labels) > 0
         # Check that deprecated properties are excluded
         for key in labels:
             assert "DEPRECATED" not in key.upper()
             assert not key.startswith("zzz:")
 
-    def test_property_labels_have_info(self):
-        from app.services.folio.folio_service import FolioService
-        svc = FolioService()
-        labels = svc.get_all_property_labels()
+    def test_property_labels_have_info(self, folio_service):
+        labels = folio_service.get_all_property_labels()
         # Pick one and verify it has data
         for key, info in labels.items():
             assert info.prop is not None
@@ -612,9 +615,7 @@ class TestFolioServiceProperties:
         assert FolioService._strip_prefix("utbms:Research") == "Research"
         assert FolioService._strip_prefix("affirmed") == "affirmed"
 
-    def test_property_labels_cached(self):
-        from app.services.folio.folio_service import FolioService
-        svc = FolioService()
-        labels1 = svc.get_all_property_labels()
-        labels2 = svc.get_all_property_labels()
+    def test_property_labels_cached(self, folio_service):
+        labels1 = folio_service.get_all_property_labels()
+        labels2 = folio_service.get_all_property_labels()
         assert labels1 is labels2  # Same object from cache

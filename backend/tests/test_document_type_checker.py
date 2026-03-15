@@ -7,10 +7,10 @@ from typing import Any
 import pytest
 
 from app.models.annotation import Annotation, ConceptMatch, Span
-from app.models.document import CanonicalText, DocumentFormat, DocumentInput, TextChunk
-from app.models.job import Job, JobResult, JobStatus
-from app.services.llm.base import LLMProvider
+from app.models.job import Job
 from app.services.quality.document_type_checker import DocumentTypeChecker
+
+from tests.helpers import FakeLLMProvider, FailingLLMProvider, make_job
 
 
 SAMPLE_TEXT = "IN THE UNITED STATES DISTRICT COURT..."
@@ -21,25 +21,19 @@ def _make_job(
     annotations: list[Annotation] | None = None,
     resolved_concepts: list[dict] | None = None,
 ) -> Job:
-    job = Job(
-        input=DocumentInput(content=SAMPLE_TEXT, format=DocumentFormat.PLAIN_TEXT),
-        status=JobStatus.COMPLETED,
-        result=JobResult(
-            canonical_text=CanonicalText(
-                full_text=SAMPLE_TEXT,
-                chunks=[TextChunk(text=SAMPLE_TEXT, start_offset=0, end_offset=len(SAMPLE_TEXT), chunk_index=0)],
-            ),
-            annotations=annotations or [],
-        ),
-    )
+    kw = {}
     if self_type:
-        job.result.metadata["self_identified_type"] = self_type
+        kw["self_identified_type"] = self_type
     if resolved_concepts:
-        job.result.metadata["resolved_concepts"] = resolved_concepts
-    return job
+        kw["resolved_concepts"] = resolved_concepts
+    return make_job(
+        text=SAMPLE_TEXT,
+        annotations=annotations or [],
+        **kw,
+    )
 
 
-class FakeQualityLLM(LLMProvider):
+class FakeQualityLLM(FakeLLMProvider):
     def __init__(self, signals: list[dict] | None = None):
         self._signals = signals if signals is not None else [
             {
@@ -48,38 +42,13 @@ class FakeQualityLLM(LLMProvider):
                 "details": "A Motion to Dismiss typically has procedural concepts",
             }
         ]
-
-    async def complete(self, prompt: str, **kw: Any) -> str:
-        return ""
-
-    async def chat(self, messages: list[dict[str, str]], **kw: Any) -> str:
-        return ""
+        super().__init__()
 
     async def structured(self, prompt: str, schema: dict, **kw: Any) -> dict:
         return {"signals": self._signals}
 
-    async def test_connection(self) -> bool:
-        return True
 
-    async def list_models(self):
-        return []
-
-
-class FailingLLM(LLMProvider):
-    async def complete(self, prompt: str, **kw: Any) -> str:
-        raise RuntimeError("fail")
-
-    async def chat(self, messages: list[dict[str, str]], **kw: Any) -> str:
-        raise RuntimeError("fail")
-
-    async def structured(self, prompt: str, schema: dict, **kw: Any) -> dict:
-        raise RuntimeError("fail")
-
-    async def test_connection(self) -> bool:
-        return False
-
-    async def list_models(self):
-        return []
+FailingLLM = FailingLLMProvider
 
 
 class TestDocumentTypeChecker:

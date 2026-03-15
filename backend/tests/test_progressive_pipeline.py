@@ -348,6 +348,7 @@ class TestSSETracking:
 # ── Parallel orchestrator ─────────────────────────────────────────
 
 
+@pytest.mark.slow
 class TestParallelOrchestrator:
     @pytest.mark.asyncio
     async def test_parallel_pipeline_completes(self, tmp_path: Path):

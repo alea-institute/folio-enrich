@@ -43,6 +43,8 @@ class TestLRUTTLCache:
         assert cache.size == 1
 
 
+@pytest.mark.slow
+@pytest.mark.integration
 class TestSecurityMiddleware:
     @pytest.mark.asyncio
     async def test_health_passes_security(self, client):
@@ -58,6 +60,8 @@ class TestSecurityMiddleware:
         assert resp.status_code == 202
 
 
+@pytest.mark.slow
+@pytest.mark.integration
 class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_404_for_missing_job(self, client):

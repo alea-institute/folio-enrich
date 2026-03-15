@@ -6,8 +6,9 @@ from app.services.embedding.service import EmbeddingService
 from app.services.entity_ruler.semantic_ruler import SemanticEntityRuler
 
 
+@pytest.mark.slow
 class TestSemanticEntityRuler:
-    @pytest.fixture
+    @pytest.fixture(scope="class")
     def indexed_embedding_service(self):
         svc = EmbeddingService()
         labels = ["breach of contract", "motion to dismiss", "intellectual property"]

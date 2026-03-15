@@ -15,6 +15,7 @@ def pipeline(tmp_path: Path) -> PipelineOrchestrator:
     return PipelineOrchestrator(store)
 
 
+@pytest.mark.slow
 class TestPipelineOrchestrator:
     @pytest.mark.asyncio
     async def test_plain_text_pipeline(self, pipeline: PipelineOrchestrator):
@@ -89,6 +90,8 @@ class TestJobStore:
         assert await store.load(job.id) is None
 
 
+@pytest.mark.slow
+@pytest.mark.integration
 class TestAPIEndpoints:
     @pytest.mark.asyncio
     async def test_health(self, client):
