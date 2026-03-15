@@ -93,6 +93,9 @@ class Settings(BaseSettings):
     folio_auto_update: bool = True
     folio_update_check_interval_hours: int = 24
 
+    # Translation matching — index FOLIO translations for text matching
+    translation_matching_enabled: bool = False
+
     # Triple extraction & POS tagging
     triple_extraction_enabled: bool = True
     pos_tagging_enabled: bool = True

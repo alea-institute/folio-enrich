@@ -12,6 +12,12 @@ from app.services.folio.branch_config import (
 logger = logging.getLogger(__name__)
 
 
+def _translation_matching_enabled() -> bool:
+    """Check if translation matching is enabled in settings (lazy import to avoid circular deps)."""
+    from app.config import settings
+    return settings.translation_matching_enabled
+
+
 @dataclass
 class FOLIOConcept:
     iri: str
@@ -30,6 +36,10 @@ class FOLIOConcept:
     see_also: list[str] | None = None
     hidden_label: str = ""
     is_defined_by: str = ""
+    deprecated: bool = False
+    history_note: str = ""
+    country: str = ""
+    translations: dict[str, str] | None = None
 
 
 @dataclass
@@ -229,6 +239,10 @@ class FolioService:
                 if fc.branch in EXCLUDED_BRANCHES:
                     continue
 
+                # Skip deprecated concepts
+                if fc.deprecated:
+                    continue
+
                 # Index preferred label (always wins over alt)
                 pref = fc.preferred_label
                 if pref:
@@ -269,6 +283,21 @@ class FolioService:
                             label_type="hidden",
                             matched_label=fc.hidden_label,
                         )
+
+                # Index translations when enabled
+                if _translation_matching_enabled() and fc.translations:
+                    pref_lower = pref.lower() if pref else ""
+                    for _lang, trans_text in fc.translations.items():
+                        if trans_text:
+                            tkey = trans_text.lower()
+                            if tkey == pref_lower:
+                                continue
+                            if tkey not in labels or labels[tkey].label_type not in ("preferred", "alternative", "hidden"):
+                                labels[tkey] = LabelInfo(
+                                    concept=fc,
+                                    label_type="translation",
+                                    matched_label=trans_text,
+                                )
             except Exception:
                 continue
 
@@ -294,6 +323,10 @@ class FolioService:
                 fc = self._to_folio_concept(concept)
 
                 if fc.branch in EXCLUDED_BRANCHES:
+                    continue
+
+                # Skip deprecated concepts
+                if fc.deprecated:
                     continue
 
                 # Index preferred label
@@ -325,11 +358,23 @@ class FolioService:
                     labels.setdefault(key, []).append(LabelInfo(
                         concept=fc, label_type="hidden", matched_label=fc.hidden_label,
                     ))
+
+                # Index translations when enabled
+                if _translation_matching_enabled() and fc.translations:
+                    pref_lower = (fc.preferred_label or "").lower()
+                    for _lang, trans_text in fc.translations.items():
+                        if trans_text:
+                            tkey = trans_text.lower()
+                            if tkey == pref_lower:
+                                continue
+                            labels.setdefault(tkey, []).append(LabelInfo(
+                                concept=fc, label_type="translation", matched_label=trans_text,
+                            ))
             except Exception:
                 continue
 
         # Deduplicate by IRI within each label key; sort preferred first
-        _type_order = {"preferred": 0, "alternative": 1, "hidden": 2}
+        _type_order = {"preferred": 0, "alternative": 1, "hidden": 2, "translation": 3}
         for key, entries in labels.items():
             seen_iris: set[str] = set()
             deduped: list[LabelInfo] = []
@@ -462,6 +507,11 @@ class FolioService:
         see_also = getattr(concept, "see_also", []) or []
         hidden_label = getattr(concept, "hidden_label", "") or ""
         is_defined_by = getattr(concept, "is_defined_by", "") or ""
+        deprecated = bool(getattr(concept, "deprecated", False))
+        history_note = getattr(concept, "history_note", "") or ""
+        country = getattr(concept, "country", "") or ""
+        raw_translations = getattr(concept, "translations", {}) or {}
+        translations = dict(raw_translations) if raw_translations else None
 
         branch = self._get_branch(iri, list(parent_iris))
 
@@ -486,4 +536,8 @@ class FolioService:
             see_also=list(see_also) if see_also else None,
             hidden_label=hidden_label,
             is_defined_by=is_defined_by,
+            deprecated=deprecated,
+            history_note=history_note,
+            country=country,
+            translations=translations,
         )

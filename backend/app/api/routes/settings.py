@@ -85,6 +85,8 @@ class SettingsUpdate(BaseModel):
     # FOLIO OWL auto-update
     folio_auto_update: bool | None = None
     folio_update_check_interval_hours: int | None = None
+    # Translation matching
+    translation_matching_enabled: bool | None = None
 
 
 _TASK_LLM_FIELDS = (
@@ -126,6 +128,8 @@ async def get_settings() -> dict:
     # FOLIO OWL auto-update
     result["folio_auto_update"] = settings.folio_auto_update
     result["folio_update_check_interval_hours"] = settings.folio_update_check_interval_hours
+    # Translation matching
+    result["translation_matching_enabled"] = settings.translation_matching_enabled
     return result
 
 
@@ -169,6 +173,15 @@ async def update_settings(update: SettingsUpdate) -> dict:
         settings.folio_auto_update = update.folio_auto_update
     if update.folio_update_check_interval_hours is not None:
         settings.folio_update_check_interval_hours = update.folio_update_check_interval_hours
+    # Translation matching — invalidate label caches when toggled
+    if update.translation_matching_enabled is not None:
+        old_val = settings.translation_matching_enabled
+        settings.translation_matching_enabled = update.translation_matching_enabled
+        if old_val != update.translation_matching_enabled:
+            from app.services.folio.folio_service import FolioService
+            svc = FolioService.get_instance()
+            svc._labels_cache = None
+            svc._labels_multi_cache = None
     return {"status": "ok", "message": "Settings updated"}
 
 

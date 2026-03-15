@@ -571,8 +571,27 @@
   .detail-synonyms { font-size: 12px; color: #555; margin-bottom: 8px; line-height: 1.4; }
   .detail-synonyms strong { color: #333; }
   .detail-translations { font-size: 12px; color: #555; margin-bottom: 8px; }
+  .detail-trans-header { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .detail-trans-header strong { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+  .detail-trans-header .detail-trans-count { font-size: 10px; color: #888; }
+  .detail-trans-pills { display: flex; flex-wrap: wrap; gap: 4px; }
+  .detail-trans-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: #f0f0f4; border: 1px solid #e0e0e8; border-radius: 12px;
+    padding: 2px 10px 2px 6px; font-size: 12px; color: #333;
+    line-height: 1.4; white-space: nowrap;
+  }
+  .detail-trans-pill .flag { font-size: 14px; }
+  .detail-trans-toggle {
+    background: none; border: none; color: #3b64e0; font-size: 11px;
+    cursor: pointer; padding: 2px 6px; font-weight: 500;
+  }
+  .detail-trans-toggle:hover { text-decoration: underline; }
   .detail-examples { font-size: 12px; color: #555; margin-bottom: 8px; }
   .detail-examples li { margin-bottom: 2px; }
+  .detail-meta-field { font-size: 12px; color: #555; margin-bottom: 6px; }
+  .detail-related-link { color: #3b64e0; text-decoration: none; cursor: pointer; }
+  .detail-related-link:hover { text-decoration: underline; }
 
   /* DAG */
   .dag-container { position: relative; overflow-x: auto; padding: 8px 0; }
@@ -2729,6 +2748,14 @@
       <div id="folioUpdateInfo" style="font-size:12px;color:#6b6b80;margin-bottom:8px"></div>
       <button class="primary" style="font-size:12px;padding:5px 14px" onclick="checkFolioUpdate()">Check Now</button>
     </div>
+    <div class="settings-section-label">Matching Options</div>
+    <div style="margin-bottom:16px">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="translationMatchingEnabled">
+        Translation matching
+      </label>
+      <div style="font-size:11px;color:#6b6b80;margin-top:4px;margin-left:22px">Index ~52K FOLIO translations (Spanish, French, etc.) for text matching. Off by default — most documents are English-only.</div>
+    </div>
     <div class="settings-section-label">Cloud Providers</div>
     <div id="settingsProviderCards"></div>
   </div>
@@ -3492,6 +3519,10 @@ async function saveSettings() {
     if (folioAutoUpdate) body.folio_auto_update = folioAutoUpdate.checked;
     if (folioInterval) body.folio_update_check_interval_hours = parseInt(folioInterval.value, 10) || 24;
 
+    // Collect translation matching toggle
+    const transMatch = document.getElementById('translationMatchingEnabled');
+    if (transMatch) body.translation_matching_enabled = transMatch.checked;
+
     // Collect Ollama tier models if present
     const tierSimple = document.getElementById('ollamaTierSimple');
     const tierMedium = document.getElementById('ollamaTierMedium');
@@ -3550,6 +3581,8 @@ async function populateFolioUpdateSettings() {
     const intervalEl = document.getElementById('folioUpdateInterval');
     if (autoEl) autoEl.checked = data.folio_auto_update !== false;
     if (intervalEl) intervalEl.value = data.folio_update_check_interval_hours || 24;
+    const transEl = document.getElementById('translationMatchingEnabled');
+    if (transEl) transEl.checked = !!data.translation_matching_enabled;
   } catch {}
   // Populate status info
   try {
@@ -7145,11 +7178,59 @@ function renderDetailInfo(detail) {
     html += `<div class="detail-synonyms"><strong>Synonyms:</strong> ${escapeHtml(detail.synonyms.join(', '))}</div>`;
   }
   if (detail.translations && Object.keys(detail.translations).length) {
-    const trans = Object.entries(detail.translations).map(([k, v]) => `${k}: ${v}`).join(', ');
-    html += `<div class="detail-translations"><strong>Translations:</strong> ${escapeHtml(trans)}</div>`;
+    const entries = Object.entries(detail.translations);
+    const COLLAPSED_MAX = 3;
+    const needsToggle = entries.length > COLLAPSED_MAX;
+    const transId = 'trans-' + Math.random().toString(36).slice(2, 9);
+    const makePill = ([locale, label]) => {
+      const flag = localeToFlag(locale);
+      return `<span class="detail-trans-pill"><span class="flag">${flag}</span>${escapeHtml(label)}</span>`;
+    };
+    const collapsedHtml = entries.slice(0, COLLAPSED_MAX).map(makePill).join('');
+    const expandedHtml = entries.map(makePill).join('');
+    html += `<div class="detail-translations">
+      <div class="detail-trans-header"><strong>Translations</strong><span class="detail-trans-count">(${entries.length})</span></div>
+      <div class="detail-trans-pills" id="${transId}"
+        data-collapsed-html="${escapeAttr(collapsedHtml)}"
+        data-expanded-html="${escapeAttr(expandedHtml)}"
+        data-more-label="+${entries.length - COLLAPSED_MAX} more">
+        ${collapsedHtml}
+        ${needsToggle ? `<button class="detail-trans-toggle" onclick="toggleTranslations('${transId}')">+${entries.length - COLLAPSED_MAX} more</button>` : ''}
+      </div>
+    </div>`;
   }
   if (detail.examples && detail.examples.length) {
     html += `<div class="detail-examples"><strong>Examples:</strong><ul>${detail.examples.map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul></div>`;
+  }
+  if (detail.deprecated) {
+    html += `<div style="margin:6px 0"><span style="background:#dc2626;color:#fff;font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px">Deprecated</span></div>`;
+  }
+  if (detail.notes && detail.notes.length) {
+    html += `<div class="detail-meta-field"><strong>Notes:</strong> ${detail.notes.map(n => escapeHtml(n)).join('; ')}</div>`;
+  }
+  if (detail.comment) {
+    html += `<div class="detail-meta-field"><strong>Comment:</strong> ${escapeHtml(detail.comment)}</div>`;
+  }
+  if (detail.description) {
+    html += `<div class="detail-meta-field"><strong>Description:</strong> ${escapeHtml(detail.description)}</div>`;
+  }
+  if (detail.source) {
+    html += `<div class="detail-meta-field"><strong>Source:</strong> ${escapeHtml(detail.source)}</div>`;
+  }
+  if (detail.editorial_note) {
+    html += `<div class="detail-meta-field"><strong>Editorial Note:</strong> ${escapeHtml(detail.editorial_note)}</div>`;
+  }
+  if (detail.history_note) {
+    html += `<div class="detail-meta-field"><strong>History Note:</strong> ${escapeHtml(detail.history_note)}</div>`;
+  }
+  if (detail.country) {
+    html += `<div class="detail-meta-field"><strong>Jurisdiction:</strong> ${escapeHtml(detail.country)}</div>`;
+  }
+  if (detail.related && detail.related.length) {
+    const relLinks = detail.related.map(r =>
+      `<a href="#" class="detail-related-link" onclick="event.preventDefault();loadConceptDetail('${escapeAttr(r.iri_hash)}')">${escapeHtml(r.label)}</a>`
+    ).join(', ');
+    html += `<div class="detail-meta-field"><strong>See Also:</strong> ${relLinks}</div>`;
   }
   container.innerHTML = html;
 }
@@ -8978,6 +9059,29 @@ function setStatus(text, state) {
 // ==============================================
 // Utilities
 // ==============================================
+
+function localeToFlag(locale) {
+  const parts = locale.split('-');
+  const country = (parts[1] || parts[0]).toUpperCase();
+  if (country.length !== 2) return '';
+  return String.fromCodePoint(
+    ...Array.from(country).map(c => 0x1f1a5 + c.charCodeAt(0))
+  );
+}
+
+function toggleTranslations(id) {
+  const wrap = document.getElementById(id);
+  const expanded = wrap.getAttribute('data-expanded') === 'true';
+  if (expanded) {
+    wrap.innerHTML = wrap.dataset.collapsedHtml +
+      `<button class="detail-trans-toggle" onclick="toggleTranslations('${id}')">${wrap.dataset.moreLabel}</button>`;
+    wrap.setAttribute('data-expanded', 'false');
+  } else {
+    wrap.innerHTML = wrap.dataset.expandedHtml +
+      `<button class="detail-trans-toggle" onclick="toggleTranslations('${id}')">collapse</button>`;
+    wrap.setAttribute('data-expanded', 'true');
+  }
+}
 
 function escapeHtml(s) {
   if (!s) return '';

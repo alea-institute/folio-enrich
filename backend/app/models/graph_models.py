@@ -67,3 +67,11 @@ class ConceptDetail(BaseModel):
     related: list[HierarchyPathEntry] = []
     examples: list[str] = []
     translations: dict[str, str] = {}
+    deprecated: bool = False
+    notes: list[str] = []
+    editorial_note: str | None = None
+    comment: str | None = None
+    description: str | None = None
+    source: str | None = None
+    history_note: str | None = None
+    country: str | None = None
