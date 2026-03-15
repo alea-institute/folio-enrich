@@ -18,6 +18,36 @@ _POS_CONCEPT_BOOST_MULTIPLIERS: dict[str, float] = {
     "ADJ": 0.6,     # base × 0.6 = 0.06
 }
 
+# spaCy NER label → compatible FOLIO branch names
+_NER_BRANCH_AFFINITY: dict[str, set[str]] = {
+    "ORG": {"Actor / Player", "Legal Entity", "Governmental Body", "Industry"},
+    "PERSON": {"Actor / Player"},
+    "GPE": {"Location", "Governmental Body"},
+    "LOC": {"Location"},
+    "DATE": {"Event", "Status"},
+    "MONEY": {"Currency", "Financial Concepts and Metrics", "Asset Type"},
+    "LAW": {"Legal Authorities"},
+    "NORP": {"Actor / Player"},
+    "FAC": {"Location", "Forums and Venues"},
+}
+
+
+def _find_overlapping_ner(
+    span_start: int, span_end: int, ner_entities: list[dict]
+) -> str | None:
+    """Find the NER label for an entity that overlaps the given character span.
+
+    Returns the NER label string (e.g. "ORG", "PERSON") or None if no overlap.
+    Any overlap between spans counts as a match.
+    """
+    for ent in ner_entities:
+        ent_start = ent.get("start", 0)
+        ent_end = ent.get("end", 0)
+        # Check for any overlap
+        if span_start < ent_end and span_end > ent_start:
+            return ent.get("label")
+    return None
+
 
 class ReconciliationStage(PipelineStage):
     def __init__(self, reconciler: Reconciler | None = None, embedding_service=None) -> None:
@@ -125,7 +155,10 @@ class ReconciliationStage(PipelineStage):
         # POS-based confidence boost + penalty pass
         pos_boosted, pos_penalized = self._apply_pos_adjustments(job)
 
-        # Sync POS-adjusted confidence back to reconciled_concepts metadata dicts
+        # NER cross-validation pass
+        ner_boosted, ner_penalized = self._apply_ner_adjustments(job)
+
+        # Sync adjusted confidence back to reconciled_concepts metadata dicts
         # so adjustments propagate through Resolution → StringMatch
         self._sync_pos_to_metadata(job)
 
@@ -136,6 +169,8 @@ class ReconciliationStage(PipelineStage):
         msg = f"Reconciled: {confirmed} confirmed, {ruler_only} ruler-only, {rejected} rejected"
         if pos_boosted or pos_penalized:
             msg += f", {pos_boosted} POS-boosted, {pos_penalized} POS-penalized"
+        if ner_boosted or ner_penalized:
+            msg += f", {ner_boosted} NER-boosted, {ner_penalized} NER-penalized"
         log.append({"ts": datetime.now(timezone.utc).isoformat(), "stage": self.name, "msg": msg})
         return job
 
@@ -256,8 +291,79 @@ class ReconciliationStage(PipelineStage):
         return boosted, penalized
 
     @staticmethod
+    def _apply_ner_adjustments(job: Job) -> tuple[int, int]:
+        """Cross-validate annotations against spaCy NER entities.
+
+        When a NER entity overlaps an annotation span:
+        - NER label compatible with FOLIO branch → small confidence boost
+        - NER label contradicts FOLIO branch → confidence penalty
+        - No NER overlap → no change (safe default, preserves recall)
+        """
+        from app.config import settings
+
+        if not settings.ner_cross_validation_enabled:
+            return 0, 0
+
+        ner_entities = job.result.metadata.get("spacy_ner_entities", [])
+        if not ner_entities:
+            return 0, 0
+
+        boost_val = settings.ner_agreement_boost
+        penalty_val = settings.ner_contradiction_penalty
+        boosted = 0
+        penalized = 0
+
+        for ann in job.result.annotations:
+            if ann.state == "rejected" or not ann.concepts:
+                continue
+
+            concept = ann.concepts[0]
+            branches = concept.branches or []
+            if not branches:
+                # Branch not yet assigned — skip (will be set by BranchJudge later)
+                continue
+
+            # Find overlapping NER entity
+            ner_label = _find_overlapping_ner(ann.span.start, ann.span.end, ner_entities)
+            if ner_label is None:
+                continue  # No NER signal — do nothing
+
+            compatible_branches = _NER_BRANCH_AFFINITY.get(ner_label, set())
+            if not compatible_branches:
+                continue  # Unmapped NER label — do nothing
+
+            # Check if any of the concept's branches match
+            branch = branches[0]  # Primary branch for logging
+            if compatible_branches & set(branches):
+                # NER confirms branch → small boost
+                concept.confidence = min(1.0, concept.confidence + boost_val)
+                boosted += 1
+                record_lineage(
+                    ann, "reconciliation", "ner_boosted",
+                    detail=f"NER agreement: {ner_label} confirms branch '{branch}'",
+                    confidence=concept.confidence,
+                )
+            else:
+                # NER contradicts branch → penalty
+                concept.confidence = max(0.0, concept.confidence - penalty_val)
+                penalized += 1
+                record_lineage(
+                    ann, "reconciliation", "ner_penalized",
+                    detail=f"NER contradiction: {ner_label} vs branch '{branch}'",
+                    confidence=concept.confidence,
+                )
+                if concept.confidence < 0.20:
+                    ann.state = "rejected"
+                    record_lineage(
+                        ann, "reconciliation", "rejected",
+                        detail="Confidence below 0.20 after NER penalty",
+                    )
+
+        return boosted, penalized
+
+    @staticmethod
     def _sync_pos_to_metadata(job: Job) -> None:
-        """Sync POS-adjusted confidence from annotations back to reconciled_concepts dicts."""
+        """Sync adjusted confidence from annotations back to reconciled_concepts dicts."""
         reconciled = job.result.metadata.get("reconciled_concepts", [])
         if not reconciled:
             return

@@ -30,10 +30,11 @@ class DependencyParser:
 
     def extract_triples_and_pos(
         self, text: str
-    ) -> tuple[list[SPOTriple], list[SentencePOS]]:
-        """Extract SPO triples and POS tags from all sentences.
+    ) -> tuple[list[SPOTriple], list[SentencePOS], list[dict]]:
+        """Extract SPO triples, POS tags, and NER entities from all sentences.
 
-        Returns (triples, sentence_pos_data).
+        Returns (triples, sentence_pos_data, ner_entities).
+        NER entities are dicts with keys: text, start, end, label.
         """
         nlp = self._get_nlp()
         doc = nlp(text)
@@ -67,7 +68,13 @@ class DependencyParser:
                     )
                     triples.extend(relcl_triples)
 
-        return triples, pos_data
+        # Extract NER entities from the already-processed doc (zero overhead)
+        ner_entities = [
+            {"text": ent.text, "start": ent.start_char, "end": ent.end_char, "label": ent.label_}
+            for ent in doc.ents
+        ]
+
+        return triples, pos_data, ner_entities
 
     def _extract_from_verb(self, verb, sent_idx: int, sent, relcl_head=None) -> list[SPOTriple]:
         """Extract triples rooted at a given verb token."""
@@ -288,5 +295,5 @@ class DependencyParser:
         self, text: str, concept_spans: list[dict] | None = None
     ) -> list[SPOTriple]:
         """Extract triples (legacy interface, ignores concept_spans)."""
-        triples, _ = self.extract_triples_and_pos(text)
+        triples, _, _ = self.extract_triples_and_pos(text)
         return triples

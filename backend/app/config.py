@@ -108,6 +108,11 @@ class Settings(BaseSettings):
     pos_concept_match_boost: float = 0.10        # Boost for POS-agreeing class concepts (NOUN/PROPN/ADJ)
     pos_property_match_boost: float = 0.10       # Boost for POS-agreeing properties (VERB/AUX)
 
+    # NER cross-validation
+    ner_cross_validation_enabled: bool = True       # Cross-check spaCy NER vs FOLIO branch
+    ner_contradiction_penalty: float = 0.08         # Penalty when NER contradicts branch
+    ner_agreement_boost: float = 0.04               # Boost when NER confirms branch
+
     # Candidates
     max_candidates: int = 5
 

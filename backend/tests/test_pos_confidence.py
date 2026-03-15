@@ -438,6 +438,135 @@ class TestConceptPosMetadataSync:
 
 
 # ---------------------------------------------------------------------------
+# NER Cross-Validation Tests (ReconciliationStage)
+# ---------------------------------------------------------------------------
+
+class TestNerCrossValidation:
+    def _make_ner_job(
+        self,
+        ann_text: str,
+        branch: str,
+        ner_entities: list[dict],
+        confidence: float = 0.60,
+        ann_start: int = 4,
+    ) -> tuple[MagicMock, Annotation]:
+        """Create a job with one annotation and NER entities for testing."""
+        job = MagicMock()
+        ann = Annotation(
+            span=Span(start=ann_start, end=ann_start + len(ann_text), text=ann_text),
+            concepts=[ConceptMatch(
+                concept_text=ann_text,
+                confidence=confidence,
+                match_type="preferred",
+                source="entity_ruler",
+                branches=[branch],
+            )],
+            state="confirmed",
+        )
+        job.result.annotations = [ann]
+        job.result.metadata = {"spacy_ner_entities": ner_entities}
+        return job, ann
+
+    def test_ner_agreement_boosts_confidence(self):
+        from app.pipeline.stages.reconciliation_stage import ReconciliationStage
+
+        job, ann = self._make_ner_job(
+            "Acme Corp", "Actor / Player",
+            [{"text": "Acme Corp", "start": 4, "end": 13, "label": "ORG"}],
+        )
+        boosted, penalized = ReconciliationStage._apply_ner_adjustments(job)
+        assert boosted == 1
+        assert penalized == 0
+        assert ann.concepts[0].confidence == pytest.approx(0.64)
+
+    def test_ner_contradiction_penalizes_confidence(self):
+        from app.pipeline.stages.reconciliation_stage import ReconciliationStage
+
+        # NER says ORG but branch is Location → contradiction
+        job, ann = self._make_ner_job(
+            "Acme Corp", "Location",
+            [{"text": "Acme Corp", "start": 4, "end": 13, "label": "ORG"}],
+        )
+        boosted, penalized = ReconciliationStage._apply_ner_adjustments(job)
+        assert boosted == 0
+        assert penalized == 1
+        assert ann.concepts[0].confidence == pytest.approx(0.52)
+
+    def test_no_ner_entities_no_change(self):
+        from app.pipeline.stages.reconciliation_stage import ReconciliationStage
+
+        job, ann = self._make_ner_job(
+            "Limitation Period", "Event",
+            [],  # No NER entities
+        )
+        boosted, penalized = ReconciliationStage._apply_ner_adjustments(job)
+        assert boosted == 0
+        assert penalized == 0
+        assert ann.concepts[0].confidence == 0.60
+
+    def test_no_overlapping_ner_no_change(self):
+        from app.pipeline.stages.reconciliation_stage import ReconciliationStage
+
+        # NER entity at different position, no overlap
+        job, ann = self._make_ner_job(
+            "Limitation Period", "Event",
+            [{"text": "Smith", "start": 100, "end": 105, "label": "PERSON"}],
+        )
+        boosted, penalized = ReconciliationStage._apply_ner_adjustments(job)
+        assert boosted == 0
+        assert penalized == 0
+
+    def test_ner_disabled_no_change(self):
+        from app.pipeline.stages.reconciliation_stage import ReconciliationStage
+
+        job, ann = self._make_ner_job(
+            "Acme Corp", "Location",
+            [{"text": "Acme Corp", "start": 4, "end": 13, "label": "ORG"}],
+        )
+        with patch("app.config.settings") as mock_settings:
+            mock_settings.ner_cross_validation_enabled = False
+            boosted, penalized = ReconciliationStage._apply_ner_adjustments(job)
+        assert boosted == 0
+        assert penalized == 0
+        assert ann.concepts[0].confidence == 0.60
+
+    def test_ner_penalty_below_threshold_rejects(self):
+        from app.pipeline.stages.reconciliation_stage import ReconciliationStage
+
+        job, ann = self._make_ner_job(
+            "Acme Corp", "Location",
+            [{"text": "Acme Corp", "start": 4, "end": 13, "label": "ORG"}],
+            confidence=0.15,
+        )
+        ReconciliationStage._apply_ner_adjustments(job)
+        assert ann.state == "rejected"
+
+    def test_unmapped_ner_label_no_change(self):
+        from app.pipeline.stages.reconciliation_stage import ReconciliationStage
+
+        # CARDINAL is not in _NER_BRANCH_AFFINITY → no signal
+        job, ann = self._make_ner_job(
+            "five", "Financial Concepts and Metrics",
+            [{"text": "five", "start": 4, "end": 8, "label": "CARDINAL"}],
+        )
+        boosted, penalized = ReconciliationStage._apply_ner_adjustments(job)
+        assert boosted == 0
+        assert penalized == 0
+
+    def test_lineage_records_ner_events(self):
+        from app.pipeline.stages.reconciliation_stage import ReconciliationStage
+
+        job, ann = self._make_ner_job(
+            "Acme Corp", "Actor / Player",
+            [{"text": "Acme Corp", "start": 4, "end": 13, "label": "ORG"}],
+        )
+        ReconciliationStage._apply_ner_adjustments(job)
+        ner_events = [e for e in ann.lineage if e.action == "ner_boosted"]
+        assert len(ner_events) == 1
+        assert "NER agreement: ORG" in ner_events[0].detail
+
+
+# ---------------------------------------------------------------------------
 # Branch POS Affinity Tests (BranchJudgeStage)
 # ---------------------------------------------------------------------------
 
