@@ -16,6 +16,11 @@ from app.services.folio.branch_config import (
 
 logger = logging.getLogger(__name__)
 
+# Word-count ratio threshold for substring match penalty.
+# When query is a substring of label and covers fewer than this fraction
+# of the label's words, the score is additionally scaled down.
+_WORD_RATIO_THRESHOLD = 0.5
+
 # Words too common to be useful for individual search or scoring
 SEARCH_STOPWORDS = frozenset({
     "a", "an", "the", "of", "and", "or", "in", "for", "to", "with", "by", "on", "at",
@@ -161,8 +166,12 @@ def _compute_relevance_score(
 
     # --- Label scoring ---
     label_score = 0.0
+    _query_in_label = False
     if len(query_lower) >= 4 and query_lower in label_lower:
-        label_score = 85.0
+        # Coverage-ratio penalty: scale by how much of the label the query covers
+        coverage = len(query_lower) / len(label_lower)
+        label_score = 85.0 * coverage
+        _query_in_label = True
     elif (
         len(label_lower) >= 4
         and label_lower in query_lower
@@ -173,6 +182,16 @@ def _compute_relevance_score(
     if overlap > 0:
         label_score = max(label_score, overlap * 88)
 
+    # Word-count ratio gate: when query is a substring of label,
+    # penalize if query covers too few of the label's words
+    if _query_in_label and label_score > 0:
+        q_words = len(query_lower.split())
+        l_words = len(label_lower.split())
+        if l_words > 0:
+            word_ratio = q_words / l_words
+            if word_ratio < _WORD_RATIO_THRESHOLD:
+                label_score *= word_ratio / _WORD_RATIO_THRESHOLD
+
     # --- Preferred label scoring ---
     pref_score = 0.0
     if preferred_label:
@@ -180,7 +199,9 @@ def _compute_relevance_score(
         if query_lower == pref_lower:
             pref_score = 90.0
         elif len(query_lower) >= 4 and query_lower in pref_lower:
-            pref_score = 84.0
+            # Coverage-ratio penalty for preferred label substring
+            coverage = len(query_lower) / len(pref_lower)
+            pref_score = 84.0 * coverage
         else:
             pref_content = _content_words(preferred_label)
             p_overlap = _word_overlap(query_content, pref_content)

@@ -95,12 +95,57 @@ class TestComputeRelevanceScore:
         )
         assert score1 == 82.0
 
-    def test_query_in_label_returns_85(self):
+    def test_query_in_label_with_high_word_overlap(self):
+        """Query is substring of label but all query words match — overlap dominates."""
         score = _compute_relevance_score(
             {"dog", "bite"}, "Dog Bite",
             "Dog Bite Strict Liability", None, [],
         )
+        # Word overlap gives 88; word ratio 2/4=0.5 (at threshold) → no penalty
         assert score >= 85.0
+
+    def test_query_in_label_coverage_penalty(self):
+        """Short query in long label gets reduced score via coverage ratio."""
+        score = _compute_relevance_score(
+            {"amended", "complaint"}, "Amended Complaint",
+            "Motion to File Amended Complaint", None, [],
+        )
+        # Coverage = 17/31 ≈ 0.55; word overlap = 88; word ratio = 2/5 = 0.4 < 0.5 → penalty
+        assert score < 75.0  # Was 85+ before fix
+
+    def test_exact_match_beats_substring_match(self):
+        """Exact match must score much higher than substring-of-longer-label."""
+        exact = _compute_relevance_score(
+            {"amended", "complaint"}, "Amended Complaint",
+            "Amended Complaint", None, [],
+        )
+        substring = _compute_relevance_score(
+            {"amended", "complaint"}, "Amended Complaint",
+            "Motion to File Amended Complaint", None, [],
+        )
+        assert exact > substring
+        assert exact - substring > 15  # Decisive gap
+
+    def test_coverage_penalty_preserves_near_matches(self):
+        """High-coverage substring matches (e.g. 'breach of contract' in
+        'breach of contract claim') should still score well."""
+        score = _compute_relevance_score(
+            {"breach", "contract"}, "breach of contract",
+            "Breach of Contract Claim", None, [],
+        )
+        # Coverage = 18/24 ≈ 0.75; word ratio 3/4 ≥ 0.5 → no word penalty
+        assert score >= 60.0
+
+    def test_preferred_label_substring_coverage_penalty(self):
+        """Preferred-label substring also gets coverage-ratio penalty."""
+        score = _compute_relevance_score(
+            {"complaint"}, "complaint",
+            "SomeLabel", None, [],
+            preferred_label="Motion to File Amended Complaint",
+        )
+        # "complaint" (9 chars) in "motion to file amended complaint" (31 chars)
+        # coverage ≈ 0.29, pref_score = 84 * 0.29 ≈ 24.4
+        assert score < 50.0
 
     def test_label_in_query_returns_78(self):
         score = _compute_relevance_score(
