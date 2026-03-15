@@ -21,6 +21,8 @@ _CONFIDENCE = {
     ("preferred", False): 0.72,  # single-word preferred label
     ("alternative", True): 0.65, # multi-word alternative label
     ("alternative", False): 0.35,  # single-word alternative label — high false-positive rate
+    ("translation", True): 0.60,   # multi-word translation
+    ("translation", False): 0.30,  # single-word translation
 }
 
 

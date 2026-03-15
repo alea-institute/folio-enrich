@@ -126,6 +126,13 @@ class StringMatchStage(PipelineStage):
                     folio_see_also=concept_dict.get("folio_see_also"),
                     folio_source=concept_dict.get("folio_source"),
                     folio_alt_labels=concept_dict.get("folio_alt_labels"),
+                    translations=concept_dict.get("translations"),
+                    folio_editorial_note=concept_dict.get("folio_editorial_note"),
+                    folio_comment=concept_dict.get("folio_comment"),
+                    folio_description=concept_dict.get("folio_description"),
+                    folio_history_note=concept_dict.get("folio_history_note"),
+                    folio_country=concept_dict.get("folio_country"),
+                    folio_deprecated=concept_dict.get("folio_deprecated"),
                 )
 
                 # Build backup ConceptMatch objects from runner-up candidates

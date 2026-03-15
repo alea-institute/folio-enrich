@@ -52,6 +52,12 @@ class ConceptMatch(BaseModel):
     folio_see_also: list[str] | None = None
     folio_source: str | None = None
     folio_alt_labels: list[str] | None = None
+    folio_editorial_note: str | None = None
+    folio_comment: str | None = None
+    folio_description: str | None = None
+    folio_history_note: str | None = None
+    folio_country: str | None = None
+    folio_deprecated: bool | None = None
 
     @model_validator(mode="before")
     @classmethod

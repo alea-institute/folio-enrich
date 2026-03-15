@@ -248,6 +248,16 @@ def lookup_concept_detail(folio, iri_hash: str) -> ConceptDetail | None:
     folio_pref = getattr(owl_class, "preferred_label", "") or ""
     pref_label_val = folio_pref if folio_pref and folio_pref.lower() != (owl_class.label or "").lower() else None
 
+    # OWL metadata fields
+    deprecated = bool(getattr(owl_class, "deprecated", False))
+    notes = list(owl_class.notes) if hasattr(owl_class, "notes") and owl_class.notes else []
+    editorial_note = getattr(owl_class, "editorial_note", "") or None
+    comment = getattr(owl_class, "comment", "") or None
+    description_val = getattr(owl_class, "description", "") or None
+    source = getattr(owl_class, "source", "") or None
+    history_note = getattr(owl_class, "history_note", "") or None
+    country = getattr(owl_class, "country", "") or None
+
     return ConceptDetail(
         label=owl_class.label or iri_hash,
         iri=owl_class.iri,
@@ -265,6 +275,14 @@ def lookup_concept_detail(folio, iri_hash: str) -> ConceptDetail | None:
         related=related,
         examples=examples,
         translations=translations,
+        deprecated=deprecated,
+        notes=notes,
+        editorial_note=editorial_note,
+        comment=comment,
+        description=description_val,
+        source=source,
+        history_note=history_note,
+        country=country,
     )
 
 

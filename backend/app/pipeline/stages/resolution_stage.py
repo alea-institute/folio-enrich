@@ -48,6 +48,13 @@ class ResolutionStage(PipelineStage):
             "folio_source": fc.source or None,
             "folio_alt_labels": fc.alternative_labels or None,
             "folio_hidden_label": fc.hidden_label or None,
+            "folio_editorial_note": fc.editorial_note or None,
+            "folio_comment": fc.comment or None,
+            "folio_description": fc.description or None,
+            "folio_history_note": fc.history_note or None,
+            "folio_country": fc.country or None,
+            "folio_deprecated": fc.deprecated if fc.deprecated else None,
+            "translations": fc.translations if fc.translations else None,
         }
         return result
 
