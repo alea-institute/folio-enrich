@@ -126,6 +126,19 @@ class TestApply:
         assert manager._status.update_in_progress is False
         assert "download fail" in manager._status.error
 
+    @pytest.mark.asyncio
+    async def test_apply_owl_download_error_surfaces(self):
+        """OWLDownloadError from ensure_owl_fresh surfaces in status."""
+        from app.services.folio.owl_cache import OWLDownloadError
+
+        manager = OWLUpdateManager.get_instance()
+        with patch("app.services.folio.owl_cache.ensure_owl_fresh",
+                    side_effect=OWLDownloadError("XML validation failed")):
+            result = await manager.apply()
+        assert result is None
+        assert manager._status.update_in_progress is False
+        assert "XML validation" in manager._status.error
+
 
 class TestCheckAndApply:
     @pytest.mark.asyncio

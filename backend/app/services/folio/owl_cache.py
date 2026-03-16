@@ -92,11 +92,18 @@ def check_owl_freshness() -> tuple[bool, str | None]:
     return (True, new_etag)
 
 
+class OWLDownloadError(RuntimeError):
+    """Raised when the OWL file download or validation fails."""
+
+
 def ensure_owl_fresh() -> None:
     """Check if the cached FOLIO OWL is up to date; download if stale.
 
     Uses HTTP conditional requests (ETag / If-None-Match) to avoid
     re-downloading the full ~18 MB file when nothing has changed.
+
+    Raises OWLDownloadError on network, HTTP, or XML validation failures
+    so callers (e.g. OWLUpdateManager) can surface errors to the UI.
     """
     meta = _load_metadata()
     stored_etag = meta.get("etag")
@@ -110,8 +117,7 @@ def ensure_owl_fresh() -> None:
         with httpx.Client(timeout=_REQUEST_TIMEOUT, follow_redirects=True) as client:
             head_resp = client.head(_OWL_URL, headers=headers)
     except httpx.HTTPError as exc:
-        logger.warning("OWL freshness check failed (network error): %s", exc)
-        return
+        raise OWLDownloadError(f"OWL freshness check failed (network error): {exc}") from exc
 
     if head_resp.status_code == 304:
         logger.info("FOLIO OWL is up to date (304 Not Modified)")
@@ -120,10 +126,9 @@ def ensure_owl_fresh() -> None:
         return
 
     if head_resp.status_code != 200:
-        logger.warning(
-            "OWL freshness HEAD returned unexpected status %d", head_resp.status_code
+        raise OWLDownloadError(
+            f"OWL freshness HEAD returned unexpected status {head_resp.status_code}"
         )
-        return
 
     new_etag = head_resp.headers.get("etag", "").strip('"')
 
@@ -133,8 +138,7 @@ def ensure_owl_fresh() -> None:
             get_resp = client.get(_OWL_URL)
             get_resp.raise_for_status()
     except httpx.HTTPError as exc:
-        logger.warning("OWL download failed: %s", exc)
-        return
+        raise OWLDownloadError(f"OWL download failed: {exc}") from exc
 
     content = get_resp.content
 
@@ -142,10 +146,9 @@ def ensure_owl_fresh() -> None:
     try:
         etree.fromstring(content)
     except etree.XMLSyntaxError as exc:
-        logger.error(
-            "Downloaded OWL failed XML validation — keeping previous version: %s", exc
-        )
-        return
+        raise OWLDownloadError(
+            f"Downloaded OWL failed XML validation — keeping previous version: {exc}"
+        ) from exc
 
     # Step 4: Rotate and write
     _CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)

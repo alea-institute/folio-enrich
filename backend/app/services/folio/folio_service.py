@@ -445,6 +445,21 @@ class FolioService:
         logger.info("Indexed %d FOLIO property labels", len(labels))
         return labels
 
+    def get_concept_count(self) -> int:
+        """Return the number of FOLIO concepts (classes)."""
+        folio = self._get_folio()
+        return len(folio.classes)
+
+    def get_label_count(self) -> int:
+        """Return the number of indexed labels."""
+        labels = self.get_all_labels()
+        return len(labels)
+
+    def get_property_count(self) -> int:
+        """Return the number of indexed property labels."""
+        props = self.get_all_property_labels()
+        return len(props)
+
     def get_property(self, iri: str) -> FOLIOProperty | None:
         """Look up a property by IRI."""
         folio = self._get_folio()

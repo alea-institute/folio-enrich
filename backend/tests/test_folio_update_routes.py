@@ -1,7 +1,7 @@
 """Tests for FOLIO update API routes."""
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -34,8 +34,28 @@ class TestUpdateStatus:
             data = r.json()
             assert "update" in data
             assert "owl_cache" in data
+            assert "folio_stats" in data
             assert data["update"]["update_available"] is False
             assert data["update"]["update_in_progress"] is False
+
+    @pytest.mark.asyncio
+    async def test_status_includes_folio_stats(self, client):
+        """When FOLIO is loaded, status should include concept/label/property counts."""
+        mock_svc = MagicMock()
+        mock_svc._folio = MagicMock()  # Simulate loaded FOLIO
+        mock_svc.get_concept_count = MagicMock(return_value=2847)
+        mock_svc.get_label_count = MagicMock(return_value=4312)
+        mock_svc.get_property_count = MagicMock(return_value=189)
+
+        with patch("app.api.routes.folio_update.get_owl_status", return_value={"cached": True}), \
+             patch("app.services.folio.folio_service.FolioService.get_instance", return_value=mock_svc):
+            r = await client.get("/folio/update/status")
+            assert r.status_code == 200
+            data = r.json()
+            stats = data["folio_stats"]
+            assert stats["concept_count"] == 2847
+            assert stats["label_count"] == 4312
+            assert stats["property_count"] == 189
 
 
 class TestCheckUpdate:
