@@ -568,7 +568,7 @@
   }
   .detail-iri-copy:hover { background: #d0d2da; color: #1a1a2e; }
   .detail-definition { font-size: 13px; color: #1a1a2e; line-height: 1.5; margin-bottom: 8px; }
-  .detail-synonyms { font-size: 12px; color: #555; margin-bottom: 8px; line-height: 1.4; }
+  .detail-synonyms { font-size: 12px; color: #555; margin-bottom: 8px; }
   .detail-synonyms strong { color: #333; }
   .detail-translations { font-size: 12px; color: #555; margin-bottom: 8px; }
   .detail-trans-header { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
@@ -592,6 +592,8 @@
   .detail-meta-field { font-size: 12px; color: #555; margin-bottom: 6px; }
   .detail-related-link { color: #3b64e0; text-decoration: none; cursor: pointer; }
   .detail-related-link:hover { text-decoration: underline; }
+  a.detail-trans-pill.detail-related-link { text-decoration: none; color: #3b64e0; cursor: pointer; }
+  a.detail-trans-pill.detail-related-link:hover { background: #e8ecf8; }
 
   /* DAG */
   .dag-container { position: relative; overflow-x: auto; padding: 8px 0; }
@@ -7178,14 +7180,23 @@ function renderDetailInfo(detail) {
     html += `<div class="detail-definition">${escapeHtml(detail.definition)}</div>`;
   }
   if (detail.preferred_label) {
-    html += `<div class="detail-synonyms"><strong>Preferred Label:</strong> ${escapeHtml(detail.preferred_label)}</div>`;
+    html += `<div class="detail-synonyms">
+      <div class="detail-trans-header"><strong>Preferred Label</strong></div>
+      <div class="detail-trans-pills"><span class="detail-trans-pill">${escapeHtml(detail.preferred_label)}</span></div>
+    </div>`;
   }
   if (detail.synonyms && detail.synonyms.length) {
-    html += `<div class="detail-synonyms"><strong>Synonyms:</strong> ${escapeHtml(detail.synonyms.join(', '))}</div>`;
+    const synPills = detail.synonyms.map(s =>
+      `<span class="detail-trans-pill">${escapeHtml(s)}</span>`
+    ).join('');
+    html += `<div class="detail-synonyms">
+      <div class="detail-trans-header"><strong>Synonyms</strong><span class="detail-trans-count">(${detail.synonyms.length})</span></div>
+      <div class="detail-trans-pills">${synPills}</div>
+    </div>`;
   }
   if (detail.translations && Object.keys(detail.translations).length) {
     const entries = Object.entries(detail.translations);
-    const COLLAPSED_MAX = 3;
+    const COLLAPSED_MAX = 8;
     const needsToggle = entries.length > COLLAPSED_MAX;
     const transId = 'trans-' + Math.random().toString(36).slice(2, 9);
     const makePill = ([locale, label]) => {
@@ -7233,10 +7244,13 @@ function renderDetailInfo(detail) {
     html += `<div class="detail-meta-field"><strong>Jurisdiction:</strong> ${escapeHtml(detail.country)}</div>`;
   }
   if (detail.related && detail.related.length) {
-    const relLinks = detail.related.map(r =>
-      `<a href="#" class="detail-related-link" onclick="event.preventDefault();loadConceptDetail('${escapeAttr(r.iri_hash)}')">${escapeHtml(r.label)}</a>`
-    ).join(', ');
-    html += `<div class="detail-meta-field"><strong>See Also:</strong> ${relLinks}</div>`;
+    const relPills = detail.related.map(r =>
+      `<a href="#" class="detail-trans-pill detail-related-link" onclick="event.preventDefault();loadConceptDetail('${escapeAttr(r.iri_hash)}')">${escapeHtml(r.label)}</a>`
+    ).join('');
+    html += `<div class="detail-synonyms">
+      <div class="detail-trans-header"><strong>See Also</strong><span class="detail-trans-count">(${detail.related.length})</span></div>
+      <div class="detail-trans-pills">${relPills}</div>
+    </div>`;
   }
   container.innerHTML = html;
 }
