@@ -57,6 +57,33 @@ def _save_metadata(data: dict) -> None:
     tmp.rename(_METADATA_FILE)
 
 
+def _fetch_source_commit_date() -> str | None:
+    """Query GitHub API for the last commit date on FOLIO.owl.
+
+    Returns an ISO 8601 timestamp string, or None on failure.
+    Result is cached in metadata so subsequent calls are free.
+    """
+    api_url = (
+        f"https://api.github.com/repos/{_REPO_OWNER}/{_REPO_NAME}"
+        f"/commits?path=FOLIO.owl&sha={_REPO_BRANCH}&per_page=1"
+    )
+    try:
+        with httpx.Client(timeout=10.0, follow_redirects=True) as client:
+            resp = client.get(api_url, headers={"Accept": "application/json"})
+        if resp.status_code == 200:
+            commits = resp.json()
+            if commits and isinstance(commits, list):
+                date_str = commits[0].get("commit", {}).get("committer", {}).get("date")
+                if date_str:
+                    meta = _load_metadata()
+                    meta["source_last_modified"] = date_str
+                    _save_metadata(meta)
+                    return date_str
+    except Exception:
+        logger.debug("Failed to fetch source commit date from GitHub API", exc_info=True)
+    return None
+
+
 def check_owl_freshness() -> tuple[bool, str | None]:
     """HEAD-only probe. Returns (is_stale, new_etag).
 
@@ -80,6 +107,9 @@ def check_owl_freshness() -> tuple[bool, str | None]:
         logger.info("FOLIO OWL is up to date (304 Not Modified)")
         meta["checked_at"] = datetime.now(timezone.utc).isoformat()
         _save_metadata(meta)
+        # Refresh source commit date if not yet known
+        if not meta.get("source_last_modified"):
+            _fetch_source_commit_date()
         return (False, None)
 
     if head_resp.status_code != 200:
@@ -89,6 +119,8 @@ def check_owl_freshness() -> tuple[bool, str | None]:
         return (False, None)
 
     new_etag = head_resp.headers.get("etag", "").strip('"')
+    # Fetch source commit date from GitHub API
+    _fetch_source_commit_date()
     return (True, new_etag)
 
 
@@ -163,16 +195,23 @@ def ensure_owl_fresh() -> None:
     tmp.write_bytes(content)
     tmp.rename(_CACHE_FILE)
 
-    # Step 5: Update metadata
-    _save_metadata({
+    # Step 5: Update metadata (preserve source_last_modified if present)
+    old_source = meta.get("source_last_modified")
+    new_meta: dict = {
         "etag": new_etag,
         "checked_at": datetime.now(timezone.utc).isoformat(),
         "owl_bytes": len(content),
-    })
+    }
+    if old_source:
+        new_meta["source_last_modified"] = old_source
+    _save_metadata(new_meta)
 
     logger.info(
         "FOLIO OWL updated (etag: %s, %d bytes)", new_etag, len(content)
     )
+
+    # Fetch source commit date from GitHub API (best effort)
+    _fetch_source_commit_date()
 
 
 def rollback_owl() -> None:
@@ -211,4 +250,5 @@ def get_owl_status() -> dict:
         "checked_at": meta.get("checked_at"),
         "owl_bytes": meta.get("owl_bytes"),
         "has_previous_version": _PREVIOUS_FILE.exists(),
+        "source_last_modified": meta.get("source_last_modified"),
     }
