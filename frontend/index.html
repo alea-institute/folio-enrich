@@ -2876,6 +2876,7 @@
 
       <!-- Timestamps -->
       <div class="folio-timestamps">
+        <div>Source updated: <span id="folioSourceModified">unknown</span></div>
         <div>Last checked: <span id="folioLastChecked">never</span></div>
         <div>Last updated: <span id="folioLastUpdated">never</span></div>
       </div>
@@ -3825,6 +3826,10 @@ async function _refreshFolioModal() {
       _formatBytes(cache.owl_bytes);
 
     // Timestamps
+    document.getElementById('folioSourceModified').textContent =
+      cache.source_last_modified
+        ? new Date(cache.source_last_modified).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+        : 'unknown';
     document.getElementById('folioLastChecked').textContent =
       _formatRelativeTime(cache.checked_at || us.last_check_at);
     document.getElementById('folioLastUpdated').textContent =
