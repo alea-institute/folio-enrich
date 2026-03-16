@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 async def _index_folio_embeddings() -> None:
     """Pre-compute FOLIO label embeddings at startup (blocks startup until ready)."""
     try:
-        from app.services.folio.owl_cache import ensure_owl_fresh
+        from app.services.folio.owl_cache import ensure_owl_fresh, get_owl_content_hash
         from app.services.folio.folio_service import FolioService
         from app.services.embedding.service import EmbeddingService, build_embedding_index
 
@@ -35,14 +35,18 @@ async def _index_folio_embeddings() -> None:
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, ensure_owl_fresh)
 
+        owl_hash = get_owl_content_hash()
+
         folio_service = FolioService.get_instance()
         embedding_service = EmbeddingService.get_instance()
         # Run the heavy encoding in a thread to avoid blocking the event loop
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, embedding_service.index_folio_labels, folio_service)
+        await loop.run_in_executor(
+            None, embedding_service.index_folio_labels, folio_service, owl_hash,
+        )
         logger.info("FOLIO embedding index ready (%d vectors)", embedding_service.index_size)
         # Also build the FAISS-backed index for semantic search
-        await loop.run_in_executor(None, build_embedding_index, folio_service)
+        await loop.run_in_executor(None, build_embedding_index, folio_service, owl_hash)
     except Exception:
         logger.warning("Failed to pre-compute FOLIO embeddings — semantic features disabled", exc_info=True)
 
