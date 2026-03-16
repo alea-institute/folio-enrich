@@ -2854,6 +2854,28 @@
       <!-- Error display -->
       <div class="folio-error-box" id="folioModalError"></div>
 
+      <!-- Update section: timestamps, actions, auto-check -->
+      <div class="folio-timestamps">
+        <div>Source updated: <span id="folioSourceModified">unknown</span></div>
+        <div>Last checked: <span id="folioLastChecked">never</span></div>
+        <div>Last updated: <span id="folioLastUpdated">never</span></div>
+      </div>
+
+      <div class="folio-actions">
+        <button id="btnFolioCheck" onclick="checkFolioUpdateFromModal()">Check for Updates</button>
+        <button id="btnFolioApply" class="primary-action" onclick="applyFolioUpdateFromModal()" style="display:none">Apply Update</button>
+        <button id="btnFolioRollback" class="danger" onclick="rollbackFolioFromModal()" style="display:none">Rollback</button>
+      </div>
+
+      <div class="folio-auto-settings">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" id="folioModalAutoCheck" onchange="saveFolioAutoSettings()">
+          Auto-check every
+        </label>
+        <input type="number" id="folioModalInterval" min="1" max="168" value="24" onchange="saveFolioAutoSettings()">
+        <span>hours</span>
+      </div>
+
       <!-- Stats grid -->
       <div class="folio-stats-grid">
         <div class="folio-stat-card">
@@ -2872,30 +2894,6 @@
           <div class="folio-stat-label">OWL File</div>
           <div class="folio-stat-value" id="folioStatSize">&mdash;</div>
         </div>
-      </div>
-
-      <!-- Timestamps -->
-      <div class="folio-timestamps">
-        <div>Source updated: <span id="folioSourceModified">unknown</span></div>
-        <div>Last checked: <span id="folioLastChecked">never</span></div>
-        <div>Last updated: <span id="folioLastUpdated">never</span></div>
-      </div>
-
-      <!-- Action buttons -->
-      <div class="folio-actions">
-        <button id="btnFolioCheck" onclick="checkFolioUpdateFromModal()">Check for Updates</button>
-        <button id="btnFolioApply" class="primary-action" onclick="applyFolioUpdateFromModal()" style="display:none">Apply Update</button>
-        <button id="btnFolioRollback" class="danger" onclick="rollbackFolioFromModal()" style="display:none">Rollback</button>
-      </div>
-
-      <!-- Auto-check settings -->
-      <div class="folio-auto-settings">
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-          <input type="checkbox" id="folioModalAutoCheck" onchange="saveFolioAutoSettings()">
-          Auto-check every
-        </label>
-        <input type="number" id="folioModalInterval" min="1" max="168" value="24" onchange="saveFolioAutoSettings()">
-        <span>hours</span>
       </div>
 
       <!-- Technical details -->
