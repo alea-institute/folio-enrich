@@ -84,6 +84,17 @@ def _fetch_source_commit_date() -> str | None:
     return None
 
 
+def get_owl_content_hash() -> str:
+    """Return a SHA-256 hex digest (16 chars) of the cached OWL file.
+
+    Returns empty string if the cache file doesn't exist.
+    """
+    if not _CACHE_FILE.exists():
+        return ""
+    content = _CACHE_FILE.read_bytes()
+    return hashlib.sha256(content).hexdigest()[:16]
+
+
 def check_owl_freshness() -> tuple[bool, str | None]:
     """HEAD-only probe. Returns (is_stale, new_etag).
 
