@@ -822,6 +822,92 @@
   }
   .status-chip.clickable:hover .chip-gear { opacity: 0.9; }
 
+  /* FOLIO Modal */
+  .folio-modal-body { padding: 4px 0; }
+  .folio-status-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 16px; padding: 10px 14px;
+    background: #f5f5f8; border-radius: 8px;
+  }
+  .folio-status-dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  }
+  .folio-status-dot.green { background: #22c55e; }
+  .folio-status-dot.orange { background: #f59e0b; }
+  .folio-status-dot.red { background: #ef4444; }
+  .folio-status-dot.gray { background: #9ca3af; }
+  .folio-status-text { font-size: 14px; font-weight: 600; color: #1a1a2e; }
+  .folio-stats-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 8px 16px; margin-bottom: 16px;
+  }
+  .folio-stat-card {
+    background: #f9f9fb; border: 1px solid #e5e5ea; border-radius: 8px;
+    padding: 10px 14px;
+  }
+  .folio-stat-label { font-size: 11px; color: #6b6b80; text-transform: uppercase; letter-spacing: 0.5px; }
+  .folio-stat-value { font-size: 18px; font-weight: 700; color: #1a1a2e; margin-top: 2px; }
+  .folio-timestamps {
+    font-size: 12px; color: #6b6b80; margin-bottom: 16px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .folio-actions {
+    display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;
+  }
+  .folio-actions button {
+    padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 600;
+    border: 1px solid #d0d0d8; background: #fff; color: #1a1a2e; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .folio-actions button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .folio-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .folio-actions button.primary-action {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+  }
+  .folio-actions button.primary-action:hover:not(:disabled) {
+    background: #2a53cf; border-color: #2a53cf; color: #fff;
+  }
+  .folio-actions button.danger {
+    color: #dc2626; border-color: #fca5a5;
+  }
+  .folio-actions button.danger:hover:not(:disabled) {
+    background: #fef2f2; border-color: #dc2626; color: #dc2626;
+  }
+  .folio-actions button.danger.confirming {
+    background: #dc2626; color: #fff; border-color: #dc2626;
+  }
+  .folio-auto-settings {
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 14px; background: #f5f5f8; border-radius: 8px;
+    margin-bottom: 12px; font-size: 13px;
+  }
+  .folio-auto-settings input[type="number"] {
+    width: 50px; padding: 3px 6px; border: 1px solid #d0d0d8;
+    border-radius: 4px; font-size: 13px; text-align: center;
+  }
+  .folio-error-box {
+    background: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px;
+    padding: 10px 14px; font-size: 13px; color: #991b1b;
+    margin-bottom: 12px; display: none;
+  }
+  .folio-details-section {
+    font-size: 12px; color: #6b6b80; margin-top: 4px;
+  }
+  .folio-details-section summary {
+    cursor: pointer; user-select: none; font-weight: 600;
+  }
+  .folio-details-section code {
+    background: #f0f0f5; padding: 1px 5px; border-radius: 3px;
+    font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px;
+  }
+  .folio-spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid #d0d0d8; border-top-color: var(--accent);
+    border-radius: 50%; animation: folio-spin 0.6s linear infinite;
+    vertical-align: middle; margin-right: 6px;
+  }
+  @keyframes folio-spin { to { transform: rotate(360deg); } }
+
   /* Tabs */
   .tabs {
     display: flex;
@@ -2384,10 +2470,11 @@
       <span class="chip-label">Backend</span>
       <span class="chip-detail" id="chipBackendDetail">...</span>
     </div>
-    <div class="status-chip" id="chipFolio" data-tooltip="FOLIO ontology status">
+    <div class="status-chip clickable" id="chipFolio" data-tooltip="Click to manage FOLIO ontology" onclick="openFolioModal()" tabindex="0" role="button" aria-label="Manage FOLIO ontology">
       <span class="chip-dot gray"></span>
       <span class="chip-label">FOLIO</span>
       <span class="chip-detail" id="chipFolioDetail">...</span>
+      <span class="chip-gear">&#9881;</span>
     </div>
     <div class="status-chip" id="chipEmbedding" data-tooltip="Embedding service status">
       <span class="chip-dot gray"></span>
@@ -2731,22 +2818,9 @@
       </div>
     </div>
     <div id="ollamaSettingsSection"></div>
-    <div class="settings-section-label">FOLIO Ontology Updates</div>
-    <div id="folioUpdateSection" style="margin-bottom:16px">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
-          <input type="checkbox" id="folioAutoUpdate" checked>
-          Auto-check for updates
-        </label>
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px">
-          every
-          <input type="number" id="folioUpdateInterval" value="24" min="1" max="168"
-            style="width:50px;padding:3px 6px;border:1px solid #d0d0d8;border-radius:4px;font-size:13px">
-          hours
-        </label>
-      </div>
-      <div id="folioUpdateInfo" style="font-size:12px;color:#6b6b80;margin-bottom:8px"></div>
-      <button class="primary" style="font-size:12px;padding:5px 14px" onclick="checkFolioUpdate()">Check Now</button>
+    <div class="settings-section-label">FOLIO Ontology</div>
+    <div style="margin-bottom:16px">
+      <button class="secondary" style="font-size:12px;padding:5px 14px" onclick="closeSettings();openFolioModal()">Manage FOLIO Ontology&hellip;</button>
     </div>
     <div class="settings-section-label">Matching Options</div>
     <div style="margin-bottom:16px">
@@ -2758,6 +2832,80 @@
     </div>
     <div class="settings-section-label">Cloud Providers</div>
     <div id="settingsProviderCards"></div>
+  </div>
+</div>
+
+<!-- FOLIO Ontology Modal -->
+<div class="modal-overlay" id="folioModal">
+  <div class="modal" style="max-width:520px">
+    <div class="settings-header">
+      <h3>FOLIO Ontology</h3>
+      <div class="settings-header-actions">
+        <button class="btn-cancel" onclick="closeFolioModal()">&times;</button>
+      </div>
+    </div>
+    <div class="folio-modal-body">
+      <!-- Status row -->
+      <div class="folio-status-row">
+        <div class="folio-status-dot gray" id="folioModalDot"></div>
+        <span class="folio-status-text" id="folioModalStatusText">Loading...</span>
+      </div>
+
+      <!-- Error display -->
+      <div class="folio-error-box" id="folioModalError"></div>
+
+      <!-- Stats grid -->
+      <div class="folio-stats-grid">
+        <div class="folio-stat-card">
+          <div class="folio-stat-label">Concepts</div>
+          <div class="folio-stat-value" id="folioStatConcepts">&mdash;</div>
+        </div>
+        <div class="folio-stat-card">
+          <div class="folio-stat-label">Labels</div>
+          <div class="folio-stat-value" id="folioStatLabels">&mdash;</div>
+        </div>
+        <div class="folio-stat-card">
+          <div class="folio-stat-label">Properties</div>
+          <div class="folio-stat-value" id="folioStatProperties">&mdash;</div>
+        </div>
+        <div class="folio-stat-card">
+          <div class="folio-stat-label">OWL File</div>
+          <div class="folio-stat-value" id="folioStatSize">&mdash;</div>
+        </div>
+      </div>
+
+      <!-- Timestamps -->
+      <div class="folio-timestamps">
+        <div>Last checked: <span id="folioLastChecked">never</span></div>
+        <div>Last updated: <span id="folioLastUpdated">never</span></div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="folio-actions">
+        <button id="btnFolioCheck" onclick="checkFolioUpdateFromModal()">Check for Updates</button>
+        <button id="btnFolioApply" class="primary-action" onclick="applyFolioUpdateFromModal()" style="display:none">Apply Update</button>
+        <button id="btnFolioRollback" class="danger" onclick="rollbackFolioFromModal()" style="display:none">Rollback</button>
+      </div>
+
+      <!-- Auto-check settings -->
+      <div class="folio-auto-settings">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" id="folioModalAutoCheck" onchange="saveFolioAutoSettings()">
+          Auto-check every
+        </label>
+        <input type="number" id="folioModalInterval" min="1" max="168" value="24" onchange="saveFolioAutoSettings()">
+        <span>hours</span>
+      </div>
+
+      <!-- Technical details -->
+      <details class="folio-details-section">
+        <summary>Technical Details</summary>
+        <div style="margin-top:6px">
+          <div>ETag: <code id="folioModalEtag">&mdash;</code></div>
+          <div style="margin-top:4px">Source: <code>alea-institute/FOLIO@main</code></div>
+        </div>
+      </details>
+    </div>
   </div>
 </div>
 
@@ -3363,7 +3511,7 @@ function _providerKeyField(provider) {
 function openSettings() {
   document.getElementById('settingsModal').classList.add('visible');
   populateOllamaSettings();
-  populateFolioUpdateSettings();
+  populateSettingsMatchingOptions();
   populateSettingsCards();
 }
 
@@ -3513,12 +3661,6 @@ async function saveSettings() {
   try {
     const body = { llm_provider: provider, llm_model: model };
 
-    // Collect FOLIO update settings
-    const folioAutoUpdate = document.getElementById('folioAutoUpdate');
-    const folioInterval = document.getElementById('folioUpdateInterval');
-    if (folioAutoUpdate) body.folio_auto_update = folioAutoUpdate.checked;
-    if (folioInterval) body.folio_update_check_interval_hours = parseInt(folioInterval.value, 10) || 24;
-
     // Collect translation matching toggle
     const transMatch = document.getElementById('translationMatchingEnabled');
     if (transMatch) body.translation_matching_enabled = transMatch.checked;
@@ -3572,59 +3714,283 @@ async function saveSettings() {
 // FOLIO Ontology Update Management
 // ==============================================
 
-async function populateFolioUpdateSettings() {
+async function populateSettingsMatchingOptions() {
   try {
     const r = await fetch(`${API}/settings`);
     if (!r.ok) return;
     const data = await r.json();
-    const autoEl = document.getElementById('folioAutoUpdate');
-    const intervalEl = document.getElementById('folioUpdateInterval');
-    if (autoEl) autoEl.checked = data.folio_auto_update !== false;
-    if (intervalEl) intervalEl.value = data.folio_update_check_interval_hours || 24;
     const transEl = document.getElementById('translationMatchingEnabled');
     if (transEl) transEl.checked = !!data.translation_matching_enabled;
   } catch {}
-  // Populate status info
-  try {
-    const r = await fetch(`${API}/folio/update/status`);
-    if (!r.ok) return;
-    const data = await r.json();
-    const us = data.update || {};
-    const infoEl = document.getElementById('folioUpdateInfo');
-    if (infoEl) {
-      const parts = [];
-      if (us.last_check_at) parts.push(`Last checked: ${new Date(us.last_check_at).toLocaleString()}`);
-      if (us.last_update_at) parts.push(`Last updated: ${new Date(us.last_update_at).toLocaleString()}`);
-      if (us.update_available) parts.push('<strong>Update available</strong>');
-      infoEl.innerHTML = parts.join(' &middot; ') || 'No checks performed yet';
-    }
-  } catch {}
 }
 
-async function checkFolioUpdate() {
-  const infoEl = document.getElementById('folioUpdateInfo');
-  if (infoEl) infoEl.innerHTML = 'Checking...';
+// ==============================================
+// FOLIO Ontology Modal
+// ==============================================
+
+let _folioAutoSaveTimer = null;
+
+function _formatRelativeTime(isoStr) {
+  if (!isoStr) return 'never';
+  const d = new Date(isoStr);
+  const now = Date.now();
+  const diff = now - d.getTime();
+  if (diff < 60000) return 'just now';
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+  return d.toLocaleDateString();
+}
+
+function _formatBytes(bytes) {
+  if (!bytes) return '\u2014';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+async function openFolioModal() {
+  const modal = document.getElementById('folioModal');
+  modal.classList.add('visible');
+  _setFolioModalLoading(true);
+  await _refreshFolioModal();
+  _setFolioModalLoading(false);
+}
+
+function closeFolioModal() {
+  document.getElementById('folioModal').classList.remove('visible');
+}
+
+function _setFolioModalLoading(loading) {
+  const dot = document.getElementById('folioModalDot');
+  const text = document.getElementById('folioModalStatusText');
+  if (loading) {
+    dot.className = 'folio-status-dot gray';
+    text.innerHTML = '<span class="folio-spinner"></span>Loading...';
+  }
+}
+
+function _setFolioModalError(msg) {
+  const box = document.getElementById('folioModalError');
+  if (msg) {
+    box.textContent = msg;
+    box.style.display = 'block';
+  } else {
+    box.style.display = 'none';
+  }
+}
+
+async function _refreshFolioModal() {
+  try {
+    const [statusRes, settingsRes] = await Promise.all([
+      fetch(`${API}/folio/update/status`),
+      fetch(`${API}/settings`),
+    ]);
+
+    if (!statusRes.ok) { _setFolioModalError('Failed to fetch status'); return; }
+    const statusData = await statusRes.json();
+    const us = statusData.update || {};
+    const cache = statusData.owl_cache || {};
+    const stats = statusData.folio_stats || {};
+
+    // Status dot + text
+    const dot = document.getElementById('folioModalDot');
+    const text = document.getElementById('folioModalStatusText');
+    _setFolioModalError(us.error || null);
+
+    if (us.update_in_progress) {
+      dot.className = 'folio-status-dot orange';
+      text.textContent = 'Updating...';
+    } else if (us.error) {
+      dot.className = 'folio-status-dot red';
+      text.textContent = 'Error';
+    } else if (us.update_available) {
+      dot.className = 'folio-status-dot orange';
+      text.textContent = 'Update Available';
+    } else if (stats.concept_count) {
+      dot.className = 'folio-status-dot green';
+      text.textContent = 'Up to Date';
+    } else {
+      dot.className = 'folio-status-dot gray';
+      text.textContent = 'Standby';
+    }
+
+    // Stats
+    document.getElementById('folioStatConcepts').textContent =
+      stats.concept_count ? stats.concept_count.toLocaleString() : '\u2014';
+    document.getElementById('folioStatLabels').textContent =
+      stats.label_count ? stats.label_count.toLocaleString() : '\u2014';
+    document.getElementById('folioStatProperties').textContent =
+      stats.property_count ? stats.property_count.toLocaleString() : '\u2014';
+    document.getElementById('folioStatSize').textContent =
+      _formatBytes(cache.owl_bytes);
+
+    // Timestamps
+    document.getElementById('folioLastChecked').textContent =
+      _formatRelativeTime(cache.checked_at || us.last_check_at);
+    document.getElementById('folioLastUpdated').textContent =
+      _formatRelativeTime(us.last_update_at);
+
+    // ETag
+    const etag = cache.etag || us.current_etag || '';
+    document.getElementById('folioModalEtag').textContent =
+      etag ? etag.substring(0, 12) + (etag.length > 12 ? '...' : '') : '\u2014';
+    if (etag) document.getElementById('folioModalEtag').title = etag;
+
+    // Button visibility
+    const btnApply = document.getElementById('btnFolioApply');
+    const btnRollback = document.getElementById('btnFolioRollback');
+    const btnCheck = document.getElementById('btnFolioCheck');
+
+    btnApply.style.display = us.update_available ? '' : 'none';
+    btnRollback.style.display = cache.has_previous_version ? '' : 'none';
+
+    // Disable all buttons if update in progress
+    btnCheck.disabled = us.update_in_progress;
+    btnApply.disabled = us.update_in_progress;
+    btnRollback.disabled = us.update_in_progress;
+
+    // Reset rollback button state
+    btnRollback.textContent = 'Rollback';
+    btnRollback.classList.remove('confirming');
+
+    // Auto-check settings
+    if (settingsRes.ok) {
+      const settings = await settingsRes.json();
+      document.getElementById('folioModalAutoCheck').checked = settings.folio_auto_update !== false;
+      document.getElementById('folioModalInterval').value = settings.folio_update_check_interval_hours || 24;
+    }
+  } catch (e) {
+    _setFolioModalError('Failed to connect to backend: ' + e.message);
+  }
+}
+
+async function checkFolioUpdateFromModal() {
+  const btn = document.getElementById('btnFolioCheck');
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="folio-spinner"></span>Checking...';
+  _setFolioModalError(null);
+
   try {
     const r = await fetch(`${API}/folio/update/check`, { method: 'POST' });
     const data = await r.json();
     if (data.update_available) {
-      if (infoEl) infoEl.innerHTML = '<strong>Update available</strong> — applying...';
-      const ar = await fetch(`${API}/folio/update/apply`, { method: 'POST' });
-      const ad = await ar.json();
-      if (ad.applied) {
-        const s = ad.reload_stats || {};
-        _showInfoToast(`FOLIO ontology updated (${(s.concepts_after || 0).toLocaleString()} concepts)`);
-        if (infoEl) infoEl.innerHTML = `Updated: ${(s.concepts_before||0)} → ${(s.concepts_after||0)} concepts`;
-      } else {
-        if (infoEl) infoEl.innerHTML = 'Update could not be applied — check server logs';
-      }
+      _showInfoToast('FOLIO update available');
     } else {
-      if (infoEl) infoEl.innerHTML = 'FOLIO ontology is up to date';
+      _showInfoToast('FOLIO ontology is up to date');
+    }
+    await _refreshFolioModal();
+  } catch (e) {
+    _setFolioModalError('Check failed: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
+}
+
+async function applyFolioUpdateFromModal() {
+  const btn = document.getElementById('btnFolioApply');
+  const btnCheck = document.getElementById('btnFolioCheck');
+  const btnRollback = document.getElementById('btnFolioRollback');
+  btn.disabled = true;
+  btnCheck.disabled = true;
+  btnRollback.disabled = true;
+  btn.innerHTML = '<span class="folio-spinner"></span>Applying...';
+  _setFolioModalError(null);
+
+  // Pre-check active jobs
+  try {
+    const hr = await fetch(`${API}/health/detail`);
+    if (hr.ok) {
+      const hd = await hr.json();
+      const activeJobs = hd.active_jobs || 0;
+      if (activeJobs > 0) {
+        btn.innerHTML = `<span class="folio-spinner"></span>Waiting for ${activeJobs} job(s)...`;
+      }
+    }
+  } catch {}
+
+  try {
+    const r = await fetch(`${API}/folio/update/apply`, { method: 'POST' });
+    const data = await r.json();
+    if (data.applied) {
+      const s = data.reload_stats || {};
+      const delta = (s.concepts_after || 0) - (s.concepts_before || 0);
+      const sign = delta >= 0 ? '+' : '';
+      _showInfoToast(`FOLIO updated: ${(s.concepts_after || 0).toLocaleString()} concepts (${sign}${delta})`);
+    } else {
+      const status = data.status || {};
+      _setFolioModalError(status.error || 'Update could not be applied — check server logs');
     }
     checkHealth();
+    await _refreshFolioModal();
   } catch (e) {
-    if (infoEl) infoEl.innerHTML = 'Check failed: ' + e.message;
+    _setFolioModalError('Apply failed: ' + e.message);
+    btn.disabled = false;
+    btnCheck.disabled = false;
+    btn.textContent = 'Apply Update';
   }
+}
+
+let _rollbackConfirmTimer = null;
+
+function rollbackFolioFromModal() {
+  const btn = document.getElementById('btnFolioRollback');
+
+  // Two-step confirmation
+  if (!btn.classList.contains('confirming')) {
+    btn.classList.add('confirming');
+    btn.textContent = 'Confirm Rollback?';
+    _rollbackConfirmTimer = setTimeout(() => {
+      btn.classList.remove('confirming');
+      btn.textContent = 'Rollback';
+    }, 3000);
+    return;
+  }
+
+  // Confirmed — proceed
+  clearTimeout(_rollbackConfirmTimer);
+  btn.disabled = true;
+  btn.innerHTML = '<span class="folio-spinner"></span>Rolling back...';
+  btn.classList.remove('confirming');
+  _setFolioModalError(null);
+
+  fetch(`${API}/folio/update/rollback`, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      if (data.rolled_back) {
+        const s = data.reload_stats || {};
+        _showInfoToast(`FOLIO rolled back: ${(s.concepts_after || 0).toLocaleString()} concepts`);
+      } else {
+        const status = data.status || {};
+        _setFolioModalError(status.error || 'Rollback failed');
+      }
+      checkHealth();
+      return _refreshFolioModal();
+    })
+    .catch(e => {
+      _setFolioModalError('Rollback failed: ' + e.message);
+      btn.disabled = false;
+      btn.textContent = 'Rollback';
+    });
+}
+
+function saveFolioAutoSettings() {
+  clearTimeout(_folioAutoSaveTimer);
+  _folioAutoSaveTimer = setTimeout(async () => {
+    try {
+      const autoCheck = document.getElementById('folioModalAutoCheck').checked;
+      const interval = parseInt(document.getElementById('folioModalInterval').value, 10) || 24;
+      await fetch(`${API}/settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          folio_auto_update: autoCheck,
+          folio_update_check_interval_hours: Math.max(1, Math.min(168, interval)),
+        }),
+      });
+    } catch {}
+  }, 500);
 }
 
 // ==============================================
@@ -9106,14 +9472,29 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
   });
 });
 
-// Close graph modal on Escape
+// Close modals on Escape
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
+    const folioModal = document.getElementById('folioModal');
+    if (folioModal && folioModal.classList.contains('visible')) {
+      closeFolioModal();
+      return;
+    }
     const graphModal = document.getElementById('graphModal');
     if (graphModal.classList.contains('visible')) {
       closeGraphModal();
     }
   }
+});
+
+// Keyboard activation for clickable chips (Enter/Space)
+document.querySelectorAll('.status-chip.clickable').forEach(chip => {
+  chip.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      chip.click();
+    }
+  });
 });
 
 // ==============================================
