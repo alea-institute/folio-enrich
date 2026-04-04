@@ -7,7 +7,7 @@
 
 ### CSS Foundation
 
-- [ ] **CSSF-01**: All hardcoded CSS color values converted to CSS custom properties
+- [x] **CSSF-01**: All hardcoded CSS color values converted to CSS custom properties
 - [x] **CSSF-02**: Two-layer token system implemented (palette primitives + semantic tokens)
 - [x] **CSSF-03**: `data-theme` attribute on `<html>` controls theme switching via CSS selectors
 - [x] **CSSF-04**: Complete dark theme variable set defined under `[data-theme="dark"]`
@@ -69,7 +69,7 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CSSF-01 | Phase 1 | Pending |
+| CSSF-01 | Phase 1 | Complete |
 | CSSF-02 | Phase 1 | Complete |
 | CSSF-03 | Phase 1 | Complete |
 | CSSF-04 | Phase 1 | Complete |
