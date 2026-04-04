@@ -31,7 +31,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 Plans:
 - [x] 01-01: TBD
-- [ ] 01-02: TBD
+- [x] 01-02: TBD
 - [ ] 01-03: TBD
 
 ### Phase 2: Theme Switching & JS Integration
