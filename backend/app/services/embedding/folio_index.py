@@ -68,7 +68,9 @@ class FOLIOEmbeddingIndex:
             if defn:
                 parts.append(f": {defn}")
             if exs:
-                parts.append(f". Examples: {', '.join(exs[:3])}")
+                valid_exs = [e for e in exs[:3] if e is not None]
+                if valid_exs:
+                    parts.append(f". Examples: {', '.join(valid_exs)}")
             texts.append("".join(parts))
         return texts
 

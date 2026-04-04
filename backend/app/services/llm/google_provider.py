@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -29,6 +30,26 @@ class GoogleProvider(LLMProvider):
             "Content-Type": "application/json",
             "x-goog-api-key": self.api_key or "",
         }
+
+    async def _post_with_retry(
+        self, url: str, body: dict[str, Any], max_retries: int = 5
+    ) -> dict[str, Any]:
+        """POST with exponential backoff retry on 429/503 errors."""
+        timeout = httpx.Timeout(60.0, connect=10.0)
+        for attempt in range(max_retries + 1):
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                resp = await client.post(url, headers=self._headers(), json=body)
+                if resp.status_code in (429, 503) and attempt < max_retries:
+                    delay = 2 ** attempt
+                    logger.warning(
+                        "Google API %d, retrying in %ds (attempt %d/%d)",
+                        resp.status_code, delay, attempt + 1, max_retries,
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                resp.raise_for_status()
+                return resp.json()
+        return {}
 
     async def complete(self, prompt: str, **kwargs: Any) -> str:
         return await self.chat(
@@ -61,10 +82,7 @@ class GoogleProvider(LLMProvider):
             }
 
         url = f"{self._base}/models/{model}:generateContent"
-        async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(url, headers=self._headers(), json=body)
-            resp.raise_for_status()
-            data = resp.json()
+        data = await self._post_with_retry(url, body)
 
         candidates = data.get("candidates", [])
         if candidates:
@@ -75,17 +93,39 @@ class GoogleProvider(LLMProvider):
     async def structured(
         self, prompt: str, schema: dict, **kwargs: Any
     ) -> dict:
+        model = kwargs.pop("model", self.model or "gemini-2.0-flash")
+
         prompt_with_json = (
             f"{prompt}\n\nRespond ONLY with valid JSON matching this schema:\n"
             f"{json.dumps(schema, indent=2)}"
         )
-        text = await self.complete(prompt_with_json, **kwargs)
+
+        body: dict[str, Any] = {
+            "contents": [
+                {"role": "user", "parts": [{"text": prompt_with_json}]}
+            ],
+            "generationConfig": {
+                "responseMimeType": "application/json",
+            },
+        }
+
+        url = f"{self._base}/models/{model}:generateContent"
+        data = await self._post_with_retry(url, body)
+
+        candidates = data.get("candidates", [])
+        text = ""
+        if candidates:
+            parts = candidates[0].get("content", {}).get("parts", [])
+            text = parts[0].get("text", "") if parts else ""
+
         text = text.strip()
+        # Strip markdown code fences if present
         if text.startswith("```"):
             lines = text.split("\n")
             text = "\n".join(
                 lines[1:-1] if lines[-1].startswith("```") else lines[1:]
             )
+
         return json.loads(text)
 
     async def test_connection(self) -> bool:
