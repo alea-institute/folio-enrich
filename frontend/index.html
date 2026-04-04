@@ -3126,15 +3126,15 @@
         <div id="metadataDisplay"></div>
       </div>
       <div class="tab-content" id="tab-individuals">
-        <div id="individualsSummary" style="font-size:12px;color:#6b6b80;margin-bottom:10px"></div>
+        <div id="individualsSummary" style="font-size:12px;color:var(--text-dim);margin-bottom:10px"></div>
         <div id="individualsList"></div>
       </div>
       <div class="tab-content" id="tab-properties">
-        <div id="propertiesSummary" style="font-size:12px;color:#6b6b80;margin-bottom:10px"></div>
+        <div id="propertiesSummary" style="font-size:12px;color:var(--text-dim);margin-bottom:10px"></div>
         <div id="propertiesList"></div>
       </div>
       <div class="tab-content" id="tab-export">
-        <p style="color:#6b6b80;font-size:12px;margin-bottom:12px">Download annotations in any of the 12 supported formats:</p>
+        <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px">Download annotations in any of the 12 supported formats:</p>
         <div class="export-option-row">
           <label><input type="checkbox" id="exportIncludeDismissed"> Include dismissed annotations</label>
         </div>
@@ -3187,7 +3187,7 @@
         <button class="btn-cancel" onclick="closeOllamaWizard()">Close</button>
       </div>
     </div>
-    <p style="font-size:12px;color:#6b6b80;margin-bottom:14px">
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:14px">
       FOLIO Enrich uses Ollama to run AI models locally — no cloud API key needed.
     </p>
     <div class="wizard-steps" id="wizardSteps">
@@ -3243,7 +3243,7 @@
         <input type="checkbox" id="translationMatchingEnabled">
         Translation matching
       </label>
-      <div style="font-size:11px;color:#6b6b80;margin-top:4px;margin-left:22px">Index ~52K FOLIO translations (Spanish, French, etc.) for text matching. Off by default — most documents are English-only.</div>
+      <div style="font-size:11px;color:var(--text-dim);margin-top:4px;margin-left:22px">Index ~52K FOLIO translations (Spanish, French, etc.) for text matching. Off by default — most documents are English-only.</div>
     </div>
     <div class="settings-section-label">Cloud Providers</div>
     <div id="settingsProviderCards"></div>
@@ -3327,10 +3327,10 @@
 <div class="modal-overlay" id="syntheticModal">
   <div class="modal" style="max-width:600px">
     <h3>Generate Synthetic Legal Document</h3>
-    <p style="font-size:12px;color:#6b6b80;margin-bottom:16px">Select a document type to generate a realistic legal document for testing.</p>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px">Select a document type to generate a realistic legal document for testing.</p>
     <div class="doc-type-tree" id="docTypeTree"></div>
     <div style="margin-top:16px">
-      <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#6b6b80">Length</label>
+      <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-dim)">Length</label>
       <div class="radio-group">
         <label><input type="radio" name="synLength" value="short" checked> Short (1-5 pages)</label>
         <label><input type="radio" name="synLength" value="medium"> Medium (10-30 pages)</label>
@@ -3362,7 +3362,7 @@
 <div class="modal-overlay" id="cascadeModal">
   <div class="modal" style="max-width:600px">
     <h3 id="cascadeTitle">Update related annotations</h3>
-    <p id="cascadeDesc" style="font-size:12px;color:#6b6b80;margin-bottom:12px"></p>
+    <p id="cascadeDesc" style="font-size:12px;color:var(--text-dim);margin-bottom:12px"></p>
     <label class="cascade-select-all">
       <input type="checkbox" id="cascadeSelectAll" checked> <span>Select all</span>
     </label>
@@ -3378,7 +3378,7 @@
 <div class="modal-overlay" id="demoLinksModal">
   <div class="modal" style="max-width:520px">
     <h3>Demo Exemplars</h3>
-    <p style="font-size:12px;color:#6b6b80;margin-bottom:12px">Pre-enriched documents showcasing FOLIO Enrich features. Click to open:</p>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px">Pre-enriched documents showcasing FOLIO Enrich features. Click to open:</p>
     <div id="demoLinksList" style="display:flex;flex-direction:column;gap:6px;max-height:360px;overflow-y:auto"></div>
     <div class="modal-actions" style="margin-top:16px">
       <button class="primary" onclick="openAllDemoTabs()">Open All Tabs</button>
@@ -3411,11 +3411,11 @@
     <canvas class="graph-minimap" id="graphMinimap" width="180" height="120"></canvas>
   </div>
   <div class="graph-modal-legend">
-    <div class="graph-legend-item"><span class="graph-legend-line" style="background:#3b64e0"></span> subClassOf</div>
-    <div class="graph-legend-item"><span class="graph-legend-line" style="background:#7c3aed;border-top:2px dashed #7c3aed;height:0"></span> seeAlso</div>
-    <div class="graph-legend-item"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;border:3px solid #3b64e0;background:#1a1d27"></span> Focus</div>
-    <div class="graph-legend-item"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;border:3px solid #e05555;background:#1a1d27"></span> Branch Root</div>
-    <div class="graph-legend-item" style="margin-left:auto;color:#6b6b80">Click to expand &bull; Double-click to navigate &bull; Scroll to zoom &bull; Drag to pan</div>
+    <div class="graph-legend-item"><span class="graph-legend-line" style="background:var(--accent)"></span> subClassOf</div>
+    <div class="graph-legend-item"><span class="graph-legend-line" style="background:var(--purple);border-top:2px dashed var(--purple);height:0"></span> seeAlso</div>
+    <div class="graph-legend-item"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;border:3px solid var(--accent);background:var(--bg)"></span> Focus</div>
+    <div class="graph-legend-item"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;border:3px solid var(--red);background:var(--bg)"></span> Branch Root</div>
+    <div class="graph-legend-item" style="margin-left:auto;color:var(--text-dim)">Click to expand &bull; Double-click to navigate &bull; Scroll to zoom &bull; Drag to pan</div>
   </div>
 </div>
 
