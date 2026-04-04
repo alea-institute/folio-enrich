@@ -12,7 +12,7 @@ This roadmap delivers a three-mode theme system (Dark / Light / Mixed) for the F
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: CSS Variable Foundation** - Convert all hardcoded colors to CSS custom properties and define three complete theme variable sets
+- [x] **Phase 1: CSS Variable Foundation** - Convert all hardcoded colors to CSS custom properties and define three complete theme variable sets (completed 2026-04-04)
 - [ ] **Phase 2: Theme Switching & JS Integration** - Wire up toggle UI, persistence, flash prevention, and update all JS color references to use the variable system
 - [ ] **Phase 3: Accessibility & Component Polish** - Verify WCAG AA compliance across all themes and ensure modals, tooltips, and scrollbars theme correctly
 
@@ -30,7 +30,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: TBD
 
 Plans:
-- [ ] 01-01: TBD
+- [x] 01-01: TBD
 - [ ] 01-02: TBD
 - [ ] 01-03: TBD
 
@@ -72,6 +72,6 @@ Phases execute in numeric order: 1 -> 2 -> 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. CSS Variable Foundation | 0/3 | Not started | - |
+| 1. CSS Variable Foundation | 1/1 | Complete   | 2026-04-04 |
 | 2. Theme Switching & JS Integration | 0/2 | Not started | - |
 | 3. Accessibility & Component Polish | 0/2 | Not started | - |
