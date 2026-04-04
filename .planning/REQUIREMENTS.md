@@ -1,0 +1,105 @@
+# Requirements: FOLIO Enrich Theme System
+
+**Defined:** 2026-03-22
+**Core Value:** Every text element in every theme mode must meet WCAG AA contrast ratios (4.5:1 for normal text, 3:1 for large text)
+
+## v1 Requirements
+
+### CSS Foundation
+
+- [ ] **CSSF-01**: All hardcoded CSS color values converted to CSS custom properties
+- [ ] **CSSF-02**: Two-layer token system implemented (palette primitives + semantic tokens)
+- [ ] **CSSF-03**: `data-theme` attribute on `<html>` controls theme switching via CSS selectors
+- [ ] **CSSF-04**: Complete dark theme variable set defined under `[data-theme="dark"]`
+- [ ] **CSSF-05**: Complete light theme variable set defined under `[data-theme="light"]`
+- [ ] **CSSF-06**: Mixed theme scopes dark variables globally with light overrides on `.panel-right` and `.panel-detail` under `[data-theme="mixed"]`
+- [ ] **CSSF-07**: Branch color background opacity adapts per theme (lower opacity on light backgrounds)
+
+### Theme Switching
+
+- [ ] **THSW-01**: User can toggle theme via a control in the header bar
+- [ ] **THSW-02**: User can select theme (Dark/Light/Mixed) in the settings modal
+- [ ] **THSW-03**: Theme choice persists across page reloads via `localStorage`
+- [ ] **THSW-04**: Flash-prevention inline script in `<head>` applies stored theme before first paint
+- [ ] **THSW-05**: New users without a stored preference default to OS `prefers-color-scheme` preference
+- [ ] **THSW-06**: `color-scheme` CSS property set per theme for native form control and scrollbar theming
+
+### JavaScript Integration
+
+- [ ] **JSIT-01**: All inline JS color assignments refactored to read from CSS variables or use theme-aware helper
+- [ ] **JSIT-02**: Canvas/graph re-renders with correct theme colors when theme changes
+- [ ] **JSIT-03**: `BRANCH_COLORS` JS object eliminated or unified with CSS variable system
+
+### Accessibility
+
+- [ ] **A11Y-01**: All text-on-background pairs meet WCAG AA contrast ratio (4.5:1 normal text) in dark theme
+- [ ] **A11Y-02**: All text-on-background pairs meet WCAG AA contrast ratio (4.5:1 normal text) in light theme
+- [ ] **A11Y-03**: All text-on-background pairs meet WCAG AA contrast ratio (4.5:1 normal text) in mixed theme
+- [ ] **A11Y-04**: All 26 branch color labels meet WCAG AA contrast in all three themes
+- [ ] **A11Y-05**: Large text elements meet minimum 3:1 contrast ratio in all themes
+- [ ] **A11Y-06**: `--text-dim` and `--accent` values adjusted to maintain safe margin above WCAG AA thresholds
+
+### Component Theming
+
+- [ ] **CMPT-01**: Modals and dialogs render with theme-appropriate colors in all three modes
+- [ ] **CMPT-02**: Tooltips render with theme-appropriate colors in all three modes
+- [ ] **CMPT-03**: Scrollbars themed per mode (via `color-scheme` and/or scrollbar-color)
+
+## v2 Requirements
+
+### Enhanced Theming
+
+- **ENHC-01**: High-contrast mode exceeding WCAG AAA (7:1 ratio)
+- **ENHC-02**: Smooth CSS transition animation on theme switch (200ms)
+- **ENHC-03**: Theme-aware HTML export (embeds user's theme preference)
+- **ENHC-04**: `prefers-reduced-motion` suppresses theme transition animations
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Per-panel theme customization | Excessive complexity; three fixed modes cover all use cases |
+| Custom color palette editor | Not needed for core theme switching; potential v3 |
+| `light-dark()` CSS function | Only supports two modes; cannot express Mixed mode |
+| View Transitions API | Requires Safari flags; not cross-browser stable yet |
+| Print-specific theme | HTML exporter already handles this separately |
+| Mobile/responsive breakpoints | Separate concern from theming |
+
+## Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| CSSF-01 | Phase 1 | Pending |
+| CSSF-02 | Phase 1 | Pending |
+| CSSF-03 | Phase 1 | Pending |
+| CSSF-04 | Phase 1 | Pending |
+| CSSF-05 | Phase 1 | Pending |
+| CSSF-06 | Phase 1 | Pending |
+| CSSF-07 | Phase 1 | Pending |
+| THSW-01 | Phase 2 | Pending |
+| THSW-02 | Phase 2 | Pending |
+| THSW-03 | Phase 2 | Pending |
+| THSW-04 | Phase 2 | Pending |
+| THSW-05 | Phase 2 | Pending |
+| THSW-06 | Phase 2 | Pending |
+| JSIT-01 | Phase 2 | Pending |
+| JSIT-02 | Phase 2 | Pending |
+| JSIT-03 | Phase 2 | Pending |
+| A11Y-01 | Phase 3 | Pending |
+| A11Y-02 | Phase 3 | Pending |
+| A11Y-03 | Phase 3 | Pending |
+| A11Y-04 | Phase 3 | Pending |
+| A11Y-05 | Phase 3 | Pending |
+| A11Y-06 | Phase 3 | Pending |
+| CMPT-01 | Phase 3 | Pending |
+| CMPT-02 | Phase 3 | Pending |
+| CMPT-03 | Phase 3 | Pending |
+
+**Coverage:**
+- v1 requirements: 25 total
+- Mapped to phases: 25
+- Unmapped: 0 ✓
+
+---
+*Requirements defined: 2026-03-22*
+*Last updated: 2026-03-22 after initial definition*

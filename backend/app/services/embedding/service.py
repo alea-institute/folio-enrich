@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import logging
+import pickle
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+_LABEL_CACHE_DIR = Path.home() / ".folio-enrich" / "cache" / "embeddings"
 
 
 @dataclass
@@ -24,7 +28,7 @@ def get_embedding_index():
     return _embedding_index
 
 
-def build_embedding_index(folio_service) -> None:
+def build_embedding_index(folio_service, owl_hash: str = "") -> None:
     """Build a FAISS-backed embedding index of all FOLIO concepts.
 
     Uses the configured embedding provider.
@@ -75,7 +79,7 @@ def build_embedding_index(folio_service) -> None:
         branches=branches,
         examples=examples,
     )
-    index.build()
+    index.build(owl_hash=owl_hash or None)
     _embedding_index = index
     logger.info("Built FAISS embedding index with %d concepts", index.num_concepts)
 
@@ -233,8 +237,30 @@ class EmbeddingService:
         vecs = provider.encode(all_texts)  # (2N, dim)
         return [float(np.dot(vecs[i], vecs[i + 1])) for i in range(0, len(all_texts), 2)]
 
-    def index_folio_labels(self, folio_service) -> None:
-        """Index all FOLIO concept labels for semantic search."""
+    def index_folio_labels(self, folio_service, owl_hash: str = "") -> None:
+        """Index all FOLIO concept labels for semantic search.
+
+        When owl_hash is provided, label embeddings are cached to disk so
+        subsequent startups skip the expensive encoding step.
+        """
+        # Try loading from cache
+        if owl_hash:
+            try:
+                cached = self._load_label_cache(owl_hash)
+                self._labels = cached["labels"]
+                self._metadata = cached["metadata"]
+                self._embeddings = cached["embeddings"]
+                logger.info(
+                    "Loaded label embeddings from cache (%d labels, hash=%s)",
+                    len(self._labels), owl_hash,
+                )
+                return
+            except FileNotFoundError:
+                pass
+            except Exception as exc:
+                logger.warning("Label cache load failed, rebuilding: %s", exc)
+
+        # Build fresh
         labels_dict = folio_service.get_all_labels()
         labels = list(labels_dict.keys())
         metadata = [
@@ -247,6 +273,54 @@ class EmbeddingService:
         ]
         self.index_labels(labels, metadata)
         logger.info("Indexed %d FOLIO labels into embedding service", len(labels))
+
+        # Save to cache
+        if owl_hash and self._embeddings is not None:
+            try:
+                self._save_label_cache(owl_hash, labels, metadata, self._embeddings)
+            except Exception as exc:
+                logger.warning("Failed to save label cache: %s", exc)
+
+    def _label_cache_path(self, owl_hash: str) -> Path:
+        """Return cache file path for label embeddings."""
+        provider = self._get_provider()
+        model_slug = provider.model_name.replace("/", "_").replace("\\", "_")
+        return _LABEL_CACHE_DIR / f"{model_slug}_labels_{owl_hash}.pkl"
+
+    def _save_label_cache(
+        self, owl_hash: str, labels: list[str], metadata: list[dict], embeddings: np.ndarray,
+    ) -> None:
+        """Persist label embeddings to disk."""
+        path = self._label_cache_path(owl_hash)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        provider = self._get_provider()
+        data = {
+            "labels": labels,
+            "metadata": metadata,
+            "embeddings": embeddings,
+            "model": provider.model_name,
+        }
+        with open(path, "wb") as f:
+            pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+        logger.info("Saved label embedding cache: %s", path.name)
+
+    def _load_label_cache(self, owl_hash: str) -> dict:
+        """Load label embeddings from disk cache.
+
+        Raises FileNotFoundError if cache doesn't exist.
+        Raises ValueError if model name doesn't match.
+        """
+        path = self._label_cache_path(owl_hash)
+        if not path.exists():
+            raise FileNotFoundError(f"No label cache at {path}")
+        with open(path, "rb") as f:
+            data = pickle.load(f)  # noqa: S301 -- trusted local cache
+        provider = self._get_provider()
+        if data.get("model") != provider.model_name:
+            raise ValueError(
+                f"Model mismatch: cache={data.get('model')}, current={provider.model_name}"
+            )
+        return data
 
     @property
     def index_size(self) -> int:

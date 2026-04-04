@@ -132,9 +132,11 @@ class OWLUpdateManager:
         # Step 4: Re-index embeddings
         try:
             from app.services.embedding.service import EmbeddingService, build_embedding_index
+            from app.services.folio.owl_cache import get_owl_content_hash
+            owl_hash = get_owl_content_hash()
             emb_svc = EmbeddingService.get_instance()
-            await loop.run_in_executor(None, emb_svc.index_folio_labels, folio_svc)
-            await loop.run_in_executor(None, build_embedding_index, folio_svc)
+            await loop.run_in_executor(None, emb_svc.index_folio_labels, folio_svc, owl_hash)
+            await loop.run_in_executor(None, build_embedding_index, folio_svc, owl_hash)
             logger.info("Embedding index rebuilt after OWL update")
         except Exception:
             logger.warning("Embedding re-index failed after OWL update", exc_info=True)
@@ -182,9 +184,11 @@ class OWLUpdateManager:
             # Re-index embeddings
             try:
                 from app.services.embedding.service import EmbeddingService, build_embedding_index
+                from app.services.folio.owl_cache import get_owl_content_hash
+                owl_hash = get_owl_content_hash()
                 emb_svc = EmbeddingService.get_instance()
-                await loop.run_in_executor(None, emb_svc.index_folio_labels, folio_svc)
-                await loop.run_in_executor(None, build_embedding_index, folio_svc)
+                await loop.run_in_executor(None, emb_svc.index_folio_labels, folio_svc, owl_hash)
+                await loop.run_in_executor(None, build_embedding_index, folio_svc, owl_hash)
             except Exception:
                 logger.warning("Embedding re-index failed after rollback", exc_info=True)
 

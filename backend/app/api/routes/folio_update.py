@@ -15,11 +15,25 @@ router = APIRouter(prefix="/folio/update", tags=["folio-update"])
 
 @router.get("/status")
 async def update_status() -> dict:
-    """Current OWL update status + cache info."""
+    """Current OWL update status + cache info + ontology stats."""
     manager = OWLUpdateManager.get_instance()
+
+    # Collect ontology stats from FolioService (safe if not yet loaded)
+    folio_stats: dict = {}
+    try:
+        from app.services.folio.folio_service import FolioService
+        svc = FolioService.get_instance()
+        if svc._folio is not None:
+            folio_stats["concept_count"] = svc.get_concept_count()
+            folio_stats["label_count"] = svc.get_label_count()
+            folio_stats["property_count"] = svc.get_property_count()
+    except Exception:
+        pass
+
     return {
         "update": manager.get_status(),
         "owl_cache": get_owl_status(),
+        "folio_stats": folio_stats,
     }
 
 

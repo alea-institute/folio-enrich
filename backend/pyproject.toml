@@ -1,6 +1,6 @@
 [project]
 name = "folio-enrich"
-version = "0.4.15"
+version = "0.4.17"
 description = "Legal document annotation pipeline using the FOLIO ontology"
 requires-python = ">=3.11"
 dependencies = [
@@ -49,8 +49,9 @@ packages = ["app"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 timeout = 30
-addopts = "-m 'not slow' --strict-markers"
+addopts = "-m 'not slow and not demo_regen' --strict-markers"
 markers = [
     "slow: tests taking > 0.5s (pipeline, embedding, property loading)",
     "integration: tests using full ASGI stack",
+    "demo_regen: demo freshness checks and auto-regeneration (run with -m demo_regen)",
 ]
