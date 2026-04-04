@@ -1,43 +1,492 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="mixed">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FOLIO Enrich</title>
 <script src="https://unpkg.com/elkjs@0.11.1/lib/elk.bundled.js"></script>
 <style>
+  /* ══════════ LAYER 1: PALETTE PRIMITIVES ══════════
+     Raw color values. These NEVER change between themes.
+     Named by hue + lightness step. */
   :root {
-    --bg: #0f1117;
-    --surface: #1a1d27;
-    --surface2: #242836;
-    --surface3: #2e3348;
-    --border: #2e3348;
-    --text: #e4e6f0;
-    --text-dim: #8b8fa3;
-    --accent: #6c8cff;
-    --accent-dim: #4a5fa0;
-    --green: #4caf7c;
-    --orange: #e8a54c;
-    --red: #e05555;
-    --cyan: #5ec4d4;
-    --purple: #b07ee8;
+    /* Neutrals - dark side */
+    --gray-950: #0f1117;
+    --gray-900: #1a1d27;
+    --gray-800: #242836;
+    --gray-700: #2e3348;
+    --gray-600: #8b8fa3;
+    --gray-200: #e4e6f0;
+
+    /* Neutrals - light side */
+    --white: #ffffff;
+    --cool-gray-50: #f5f6fa;
+    --cool-gray-100: #eceef4;
+    --cool-gray-150: #e2e5ee;
+    --cool-gray-200: #d0d4e0;
+    --cool-gray-800: #5c6070;
+    --cool-gray-900: #1a1d27;
+
+    /* Blues */
+    --blue-400: #6c8cff;
+    --blue-500: #4a5fa0;
+    --blue-600: #2d5ee0;
+
+    /* Status */
+    --green-500: #4caf7c;
+    --green-600: #16a34a;
+    --orange-500: #e8a54c;
+    --orange-600: #d97706;
+    --red-500: #e05555;
+    --red-600: #dc2626;
+    --cyan-500: #5ec4d4;
+    --cyan-600: #0891b2;
+    --purple-500: #b07ee8;
+    --purple-600: #7c3aed;
+
+    /* Existing panel-right light values (for backward compat) */
+    --light-surface: #f5f6f8;
+    --light-surface2: #ecedf1;
+    --light-surface3: #e2e4ea;
+    --light-border: #d0d2da;
+    --light-text: #1a1a2e;
+    --light-text-dim: #6b6b80;
+    --light-accent: #3b64e0;
+    --light-accent-dim: #5a7ae8;
+  }
+
+  /* ══════════ LAYER 2: SEMANTIC TOKENS ══════════
+     Theme-aware tokens. Redefined per [data-theme] selector. */
+
+  /* ── DARK THEME ── */
+  [data-theme="dark"] {
+    /* Core */
+    --bg: var(--gray-950);
+    --surface: var(--gray-900);
+    --surface2: var(--gray-800);
+    --surface3: var(--gray-700);
+    --border: var(--gray-700);
+    --text: var(--gray-200);
+    --text-dim: var(--gray-600);
+    --accent: var(--blue-400);
+    --accent-dim: var(--blue-500);
+
+    /* Status */
+    --green: var(--green-500);
+    --orange: var(--orange-500);
+    --red: var(--red-500);
+    --cyan: var(--cyan-500);
+    --purple: var(--purple-500);
+
+    /* Highlights */
     --highlight: rgba(108,140,255,0.15);
     --highlight-confirmed: rgba(108,140,255,0.22);
     --highlight-preliminary: rgba(108,140,255,0.08);
     --highlight-rejected: rgba(224,85,85,0.08);
 
-    /* Branch colors */
-    --branch-actor: #5ec4d4;
+    /* Component: Modal */
+    --modal-bg: var(--gray-900);
+    --modal-text: var(--gray-200);
+    --modal-text-dim: var(--gray-600);
+    --modal-border: var(--gray-700);
+    --modal-input-bg: var(--gray-800);
+    --modal-input-border: var(--gray-700);
+
+    /* Component: Tooltip */
+    --tooltip-bg: var(--gray-900);
+    --tooltip-border: var(--gray-700);
+    --tooltip-text: var(--gray-200);
+
+    /* Component: Graph (always dark) */
+    --graph-header-bg: var(--gray-900);
+    --graph-header-text: var(--gray-200);
+    --graph-header-border: var(--gray-700);
+
+    /* Scrollbar */
+    --scrollbar-thumb: #555570;
+    --scrollbar-thumb-hover: #6b6b8a;
+
+    /* Confidence tiers */
+    --conf-high: #4caf7c;
+    --conf-high-bg: rgba(76,175,124,0.12);
+    --conf-mid: #e8a54c;
+    --conf-mid-bg: rgba(232,165,76,0.12);
+    --conf-low: #e05555;
+    --conf-low-bg: rgba(224,85,85,0.12);
+
+    /* Feedback */
+    --feedback-positive: #4caf7c;
+    --feedback-positive-bg: rgba(76,175,124,0.12);
+    --feedback-negative: #e05555;
+    --feedback-negative-bg: rgba(224,85,85,0.12);
+
+    /* Individuals */
+    --individual-citation: var(--blue-400);
+    --individual-entity: var(--cyan-500);
+
+    /* Properties */
+    --property-underline: var(--purple-500);
+
+    /* Layer chips */
+    --layer-concepts: var(--blue-400);
+    --layer-individuals: var(--cyan-500);
+    --layer-properties: var(--purple-500);
+    --layer-pos: var(--orange-500);
+
+    /* POS tag colors */
+    --pos-noun: #5ec4d4;
+    --pos-propn: #6c8cff;
+    --pos-verb: #e05555;
+    --pos-adj: #e8a54c;
+    --pos-adv: #b07ee8;
+
+    /* Misc */
+    --undo-toast-bg: var(--gray-900);
+    --badge-dot: var(--blue-400);
+
+    /* Branch colors - dark theme (bright/vibrant for dark backgrounds) */
+    --branch-actor-player: #5ec4d4;
     --branch-area-of-law: #e8a54c;
-    --branch-document: #b07ee8;
-    --branch-engagement: #4caf7c;
+    --branch-asset-type: #f0c040;
+    --branch-communication-modality: #b07ee8;
+    --branch-currency: #f0c040;
+    --branch-data-format: #8b8fa3;
+    --branch-document-artifact: #e8a54c;
+    --branch-document-metadata: #d4956a;
+    --branch-engagement-terms: #4caf7c;
     --branch-event: #e05555;
-    --branch-location: #6c8cff;
-    --branch-governmental: #e887a0;
+    --branch-financial-concepts: #f0c040;
+    --branch-folio-type: #e8a54c;
+    --branch-forums-venues: #e887a0;
+    --branch-governmental-body: #6c8cff;
+    --branch-industry: #4caf7c;
+    --branch-language: #e8a54c;
+    --branch-legal-authorities: #e05555;
     --branch-legal-entity: #7bed9f;
-    --branch-industry: #f0c040;
+    --branch-legal-use-cases: #b07ee8;
+    --branch-location: #5ec4d4;
+    --branch-matter-narrative: #b07ee8;
+    --branch-matter-narrative-format: #5ec4d4;
+    --branch-objectives: #e05555;
     --branch-service: #50c8ff;
+    --branch-standards-compatibility: #8b8fa3;
+    --branch-status: #e8a54c;
+    --branch-system-identifiers: #8b8fa3;
     --branch-default: #8b8fa3;
+  }
+
+  /* ── LIGHT THEME ── */
+  [data-theme="light"] {
+    /* Core - per D-03 locked values */
+    --bg: #ffffff;
+    --surface: #f5f6fa;
+    --surface2: #eceef4;
+    --surface3: #e2e5ee;
+    --border: #d0d4e0;
+    --text: #1a1d27;
+    --text-dim: #5c6070;
+    --accent: #2d5ee0;
+    --accent-dim: var(--blue-500);
+
+    /* Status (darker variants for light backgrounds) */
+    --green: var(--green-600);
+    --orange: var(--orange-600);
+    --red: var(--red-600);
+    --cyan: var(--cyan-600);
+    --purple: var(--purple-600);
+
+    /* Highlights */
+    --highlight: rgba(45,94,224,0.10);
+    --highlight-confirmed: rgba(45,94,224,0.15);
+    --highlight-preliminary: rgba(45,94,224,0.06);
+    --highlight-rejected: rgba(220,38,38,0.06);
+
+    /* Component: Modal */
+    --modal-bg: #ffffff;
+    --modal-text: #1a1d27;
+    --modal-text-dim: #5c6070;
+    --modal-border: #d0d4e0;
+    --modal-input-bg: #f5f6fa;
+    --modal-input-border: #d0d4e0;
+
+    /* Component: Tooltip */
+    --tooltip-bg: #ffffff;
+    --tooltip-border: #d0d4e0;
+    --tooltip-text: #1a1d27;
+
+    /* Component: Graph (stays dark per research recommendation) */
+    --graph-header-bg: var(--gray-900);
+    --graph-header-text: var(--gray-200);
+    --graph-header-border: var(--gray-700);
+
+    /* Scrollbar */
+    --scrollbar-thumb: #c0c0cc;
+    --scrollbar-thumb-hover: #9090a0;
+
+    /* Confidence tiers */
+    --conf-high: #16a34a;
+    --conf-high-bg: rgba(22,163,74,0.10);
+    --conf-mid: #d97706;
+    --conf-mid-bg: rgba(217,119,6,0.10);
+    --conf-low: #dc2626;
+    --conf-low-bg: rgba(220,38,38,0.10);
+
+    /* Feedback */
+    --feedback-positive: #16a34a;
+    --feedback-positive-bg: rgba(22,163,74,0.10);
+    --feedback-negative: #dc2626;
+    --feedback-negative-bg: rgba(220,38,38,0.10);
+
+    /* Individuals */
+    --individual-citation: var(--blue-600);
+    --individual-entity: var(--cyan-600);
+
+    /* Properties */
+    --property-underline: var(--purple-600);
+
+    /* Layer chips */
+    --layer-concepts: var(--blue-600);
+    --layer-individuals: var(--cyan-600);
+    --layer-properties: var(--purple-600);
+    --layer-pos: var(--orange-600);
+
+    /* POS tag colors (darker for light backgrounds) */
+    --pos-noun: #0e7490;
+    --pos-propn: #2d5ee0;
+    --pos-verb: #dc2626;
+    --pos-adj: #d97706;
+    --pos-adv: #7c3aed;
+
+    /* Misc */
+    --undo-toast-bg: var(--gray-900);
+    --badge-dot: var(--blue-600);
+
+    /* Branch colors - light theme (darker for WCAG on white, per D-05/D-06) */
+    --branch-actor-player: #1e6fa0;
+    --branch-area-of-law: #1a5276;
+    --branch-asset-type: #6b5600;
+    --branch-communication-modality: #7b4d93;
+    --branch-currency: #7a5a00;
+    --branch-data-format: #4a5568;
+    --branch-document-artifact: #9c4a10;
+    --branch-document-metadata: #8b5e3c;
+    --branch-engagement-terms: #10613a;
+    --branch-event: #b91c1c;
+    --branch-financial-concepts: #6e4b00;
+    --branch-folio-type: #6b5c00;
+    --branch-forums-venues: #7b2d8e;
+    --branch-governmental-body: #1a6091;
+    --branch-industry: #065550;
+    --branch-language: #7a3b10;
+    --branch-legal-authorities: #8b1a1a;
+    --branch-legal-entity: #085e40;
+    --branch-legal-use-cases: #4a3570;
+    --branch-location: #105560;
+    --branch-matter-narrative: #6d3580;
+    --branch-matter-narrative-format: #1a6894;
+    --branch-objectives: #b03020;
+    --branch-service: #065e4e;
+    --branch-standards-compatibility: #4a5a6a;
+    --branch-status: #864a08;
+    --branch-system-identifiers: #3d4d5a;
+    --branch-default: #5c6070;
+  }
+
+  /* ── MIXED THEME (dark root + light panels) ── */
+  [data-theme="mixed"] {
+    /* Root level: same as dark theme */
+    --bg: var(--gray-950);
+    --surface: var(--gray-900);
+    --surface2: var(--gray-800);
+    --surface3: var(--gray-700);
+    --border: var(--gray-700);
+    --text: var(--gray-200);
+    --text-dim: var(--gray-600);
+    --accent: var(--blue-400);
+    --accent-dim: var(--blue-500);
+    --green: var(--green-500);
+    --orange: var(--orange-500);
+    --red: var(--red-500);
+    --cyan: var(--cyan-500);
+    --purple: var(--purple-500);
+    --highlight: rgba(108,140,255,0.15);
+    --highlight-confirmed: rgba(108,140,255,0.22);
+    --highlight-preliminary: rgba(108,140,255,0.08);
+    --highlight-rejected: rgba(224,85,85,0.08);
+
+    /* Component: Modal */
+    --modal-bg: var(--gray-900);
+    --modal-text: var(--gray-200);
+    --modal-text-dim: var(--gray-600);
+    --modal-border: var(--gray-700);
+    --modal-input-bg: var(--gray-800);
+    --modal-input-border: var(--gray-700);
+
+    /* Component: Tooltip */
+    --tooltip-bg: var(--gray-900);
+    --tooltip-border: var(--gray-700);
+    --tooltip-text: var(--gray-200);
+
+    /* Component: Graph */
+    --graph-header-bg: var(--gray-900);
+    --graph-header-text: var(--gray-200);
+    --graph-header-border: var(--gray-700);
+
+    /* Scrollbar */
+    --scrollbar-thumb: #555570;
+    --scrollbar-thumb-hover: #6b6b8a;
+
+    /* Confidence tiers */
+    --conf-high: #4caf7c;
+    --conf-high-bg: rgba(76,175,124,0.12);
+    --conf-mid: #e8a54c;
+    --conf-mid-bg: rgba(232,165,76,0.12);
+    --conf-low: #e05555;
+    --conf-low-bg: rgba(224,85,85,0.12);
+
+    /* Feedback */
+    --feedback-positive: #4caf7c;
+    --feedback-positive-bg: rgba(76,175,124,0.12);
+    --feedback-negative: #e05555;
+    --feedback-negative-bg: rgba(224,85,85,0.12);
+
+    /* Individuals */
+    --individual-citation: var(--blue-400);
+    --individual-entity: var(--cyan-500);
+
+    /* Properties */
+    --property-underline: var(--purple-500);
+
+    /* Layer chips */
+    --layer-concepts: var(--blue-400);
+    --layer-individuals: var(--cyan-500);
+    --layer-properties: var(--purple-500);
+    --layer-pos: var(--orange-500);
+
+    /* POS tag colors */
+    --pos-noun: #5ec4d4;
+    --pos-propn: #6c8cff;
+    --pos-verb: #e05555;
+    --pos-adj: #e8a54c;
+    --pos-adv: #b07ee8;
+
+    /* Misc */
+    --undo-toast-bg: var(--gray-900);
+    --badge-dot: var(--blue-400);
+
+    /* Dark-theme branch colors at root level */
+    --branch-actor-player: #5ec4d4;
+    --branch-area-of-law: #e8a54c;
+    --branch-asset-type: #f0c040;
+    --branch-communication-modality: #b07ee8;
+    --branch-currency: #f0c040;
+    --branch-data-format: #8b8fa3;
+    --branch-document-artifact: #e8a54c;
+    --branch-document-metadata: #d4956a;
+    --branch-engagement-terms: #4caf7c;
+    --branch-event: #e05555;
+    --branch-financial-concepts: #f0c040;
+    --branch-folio-type: #e8a54c;
+    --branch-forums-venues: #e887a0;
+    --branch-governmental-body: #6c8cff;
+    --branch-industry: #4caf7c;
+    --branch-language: #e8a54c;
+    --branch-legal-authorities: #e05555;
+    --branch-legal-entity: #7bed9f;
+    --branch-legal-use-cases: #b07ee8;
+    --branch-location: #5ec4d4;
+    --branch-matter-narrative: #b07ee8;
+    --branch-matter-narrative-format: #5ec4d4;
+    --branch-objectives: #e05555;
+    --branch-service: #50c8ff;
+    --branch-standards-compatibility: #8b8fa3;
+    --branch-status: #e8a54c;
+    --branch-system-identifiers: #8b8fa3;
+    --branch-default: #8b8fa3;
+  }
+
+  /* Mixed theme: light overrides for right and detail panels */
+  [data-theme="mixed"] .panel-right,
+  [data-theme="mixed"] .panel-detail {
+    --bg: #ffffff;
+    --surface: #f5f6fa;
+    --surface2: #eceef4;
+    --surface3: #e2e5ee;
+    --border: #d0d4e0;
+    --text: #1a1d27;
+    --text-dim: #5c6070;
+    --accent: #2d5ee0;
+    --accent-dim: var(--blue-500);
+    --green: var(--green-600);
+    --orange: var(--orange-600);
+    --red: var(--red-600);
+    --cyan: var(--cyan-600);
+    --purple: var(--purple-600);
+    --highlight: rgba(45,94,224,0.10);
+    --highlight-confirmed: rgba(45,94,224,0.15);
+    --modal-bg: #ffffff;
+    --modal-text: #1a1d27;
+    --modal-text-dim: #5c6070;
+    --modal-border: #d0d4e0;
+    --modal-input-bg: #f5f6fa;
+    --modal-input-border: #d0d4e0;
+    --tooltip-bg: #ffffff;
+    --tooltip-border: #d0d4e0;
+    --tooltip-text: #1a1d27;
+    --scrollbar-thumb: #c0c0cc;
+    --scrollbar-thumb-hover: #9090a0;
+    --conf-high: #16a34a;
+    --conf-high-bg: rgba(22,163,74,0.10);
+    --conf-mid: #d97706;
+    --conf-mid-bg: rgba(217,119,6,0.10);
+    --conf-low: #dc2626;
+    --conf-low-bg: rgba(220,38,38,0.10);
+    --feedback-positive: #16a34a;
+    --feedback-positive-bg: rgba(22,163,74,0.10);
+    --feedback-negative: #dc2626;
+    --feedback-negative-bg: rgba(220,38,38,0.10);
+    --individual-citation: var(--blue-600);
+    --individual-entity: var(--cyan-600);
+    --property-underline: var(--purple-600);
+    --layer-concepts: var(--blue-600);
+    --layer-individuals: var(--cyan-600);
+    --layer-properties: var(--purple-600);
+    --layer-pos: var(--orange-600);
+    --pos-noun: #0e7490;
+    --pos-propn: #2d5ee0;
+    --pos-verb: #dc2626;
+    --pos-adj: #d97706;
+    --pos-adv: #7c3aed;
+    --badge-dot: var(--blue-600);
+    /* Light-theme branch colors for panels */
+    --branch-actor-player: #1e6fa0;
+    --branch-area-of-law: #1a5276;
+    --branch-asset-type: #6b5600;
+    --branch-communication-modality: #7b4d93;
+    --branch-currency: #7a5a00;
+    --branch-data-format: #4a5568;
+    --branch-document-artifact: #9c4a10;
+    --branch-document-metadata: #8b5e3c;
+    --branch-engagement-terms: #10613a;
+    --branch-event: #b91c1c;
+    --branch-financial-concepts: #6e4b00;
+    --branch-folio-type: #6b5c00;
+    --branch-forums-venues: #7b2d8e;
+    --branch-governmental-body: #1a6091;
+    --branch-industry: #065550;
+    --branch-language: #7a3b10;
+    --branch-legal-authorities: #8b1a1a;
+    --branch-legal-entity: #085e40;
+    --branch-legal-use-cases: #4a3570;
+    --branch-location: #105560;
+    --branch-matter-narrative: #6d3580;
+    --branch-matter-narrative-format: #1a6894;
+    --branch-objectives: #b03020;
+    --branch-service: #065e4e;
+    --branch-standards-compatibility: #4a5a6a;
+    --branch-status: #864a08;
+    --branch-system-identifiers: #3d4d5a;
+    --branch-default: #5c6070;
   }
 
   * { margin:0; padding:0; box-sizing:border-box; }
