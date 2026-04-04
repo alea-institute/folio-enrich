@@ -27,12 +27,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Switching the `data-theme` attribute on `<html>` between "dark", "light", and "mixed" changes the application's color scheme without any page reload
   3. Mixed mode produces visually identical output to the current application appearance (backward compatible)
   4. Branch color backgrounds are legible in all three themes (opacity adapts per theme context)
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
-- [ ] 01-03: TBD
+- [ ] 01-01-PLAN.md -- Define palette primitives and three-theme semantic token system
+- [ ] 01-02-PLAN.md -- Convert all hardcoded CSS colors to var() references, consolidate branch rules
+- [ ] 01-03-PLAN.md -- Convert inline style colors, visual verification checkpoint
 
 ### Phase 2: Theme Switching & JS Integration
 **Goal**: Users can switch between themes using UI controls, with their choice persisting and all JavaScript-driven colors responding to theme changes
@@ -72,6 +72,6 @@ Phases execute in numeric order: 1 -> 2 -> 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. CSS Variable Foundation | 0/3 | Not started | - |
+| 1. CSS Variable Foundation | 0/3 | Planning complete | - |
 | 2. Theme Switching & JS Integration | 0/2 | Not started | - |
 | 3. Accessibility & Component Polish | 0/2 | Not started | - |
