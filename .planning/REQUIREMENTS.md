@@ -8,12 +8,12 @@
 ### CSS Foundation
 
 - [ ] **CSSF-01**: All hardcoded CSS color values converted to CSS custom properties
-- [ ] **CSSF-02**: Two-layer token system implemented (palette primitives + semantic tokens)
-- [ ] **CSSF-03**: `data-theme` attribute on `<html>` controls theme switching via CSS selectors
-- [ ] **CSSF-04**: Complete dark theme variable set defined under `[data-theme="dark"]`
-- [ ] **CSSF-05**: Complete light theme variable set defined under `[data-theme="light"]`
-- [ ] **CSSF-06**: Mixed theme scopes dark variables globally with light overrides on `.panel-right` and `.panel-detail` under `[data-theme="mixed"]`
-- [ ] **CSSF-07**: Branch color background opacity adapts per theme (lower opacity on light backgrounds)
+- [x] **CSSF-02**: Two-layer token system implemented (palette primitives + semantic tokens)
+- [x] **CSSF-03**: `data-theme` attribute on `<html>` controls theme switching via CSS selectors
+- [x] **CSSF-04**: Complete dark theme variable set defined under `[data-theme="dark"]`
+- [x] **CSSF-05**: Complete light theme variable set defined under `[data-theme="light"]`
+- [x] **CSSF-06**: Mixed theme scopes dark variables globally with light overrides on `.panel-right` and `.panel-detail` under `[data-theme="mixed"]`
+- [x] **CSSF-07**: Branch color background opacity adapts per theme (lower opacity on light backgrounds)
 
 ### Theme Switching
 
@@ -70,12 +70,12 @@
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | CSSF-01 | Phase 1 | Pending |
-| CSSF-02 | Phase 1 | Pending |
-| CSSF-03 | Phase 1 | Pending |
-| CSSF-04 | Phase 1 | Pending |
-| CSSF-05 | Phase 1 | Pending |
-| CSSF-06 | Phase 1 | Pending |
-| CSSF-07 | Phase 1 | Pending |
+| CSSF-02 | Phase 1 | Complete |
+| CSSF-03 | Phase 1 | Complete |
+| CSSF-04 | Phase 1 | Complete |
+| CSSF-05 | Phase 1 | Complete |
+| CSSF-06 | Phase 1 | Complete |
+| CSSF-07 | Phase 1 | Complete |
 | THSW-01 | Phase 2 | Pending |
 | THSW-02 | Phase 2 | Pending |
 | THSW-03 | Phase 2 | Pending |
