@@ -3642,36 +3642,6 @@ function updateThemeSwatches(theme) {
   });
 }
 
-const BRANCH_COLORS = {
-  'Actor / Player': '#1e6fa0',
-  'Area of Law': '#1a5276',
-  'Asset Type': '#6b5600',
-  'Communication Modality': '#7b4d93',
-  'Currency': '#7a5a00',
-  'Data Format': '#4a5568',
-  'Document / Artifact': '#9c4a10',
-  'Document Metadata': '#8b5e3c',
-  'Engagement Terms': '#10613a',
-  'Event': '#b91c1c',
-  'Financial Concepts and Metrics': '#6e4b00',
-  'FOLIO Type': '#6b5c00',
-  'Forums and Venues': '#7b2d8e',
-  'Governmental Body': '#1a6091',
-  'Industry': '#065550',
-  'Language': '#7a3b10',
-  'Legal Authorities': '#8b1a1a',
-  'Legal Entity': '#085e40',
-  'Legal Use Cases': '#4a3570',
-  'Location': '#105560',
-  'Matter Narrative': '#6d3580',
-  'Matter Narrative Format': '#1a6894',
-  'Objectives': '#b03020',
-  'Service': '#065e4e',
-  'Standards Compatibility': '#4a5a6a',
-  'Status': '#864a08',
-  'System Identifiers': '#3d4d5a',
-};
-
 const EXPORT_FORMATS = [
   { name: 'json', label: 'JSON', ext: '.json' },
   { name: 'jsonld', label: 'JSON-LD', ext: '.jsonld' },
@@ -3862,10 +3832,10 @@ function openDemos() {
   const list = document.getElementById('demoLinksList');
   list.innerHTML = DEMO_CATALOG.map(d => {
     const url = window.location.pathname + '?demo=' + encodeURIComponent(d.slug);
-    return '<a href="' + url + '" target="_blank" style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f6f6fa;border:1px solid #e0e0e8;border-radius:6px;text-decoration:none;color:#3a3a5c;font-size:13px;transition:background 0.15s"'
-      + ' onmouseover="this.style.background=\'#eeeef6\'" onmouseout="this.style.background=\'#f6f6fa\'">'
+    return '<a href="' + url + '" target="_blank" style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:6px;text-decoration:none;color:var(--text);font-size:13px;transition:background 0.15s"'
+      + ' onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'var(--surface)\'">'
       + '<strong style="min-width:100px">' + escapeHtml(d.title) + '</strong>'
-      + '<span style="color:#8888a0;font-size:11px">' + escapeHtml(d.description) + '</span>'
+      + '<span style="color:var(--text-dim);font-size:11px">' + escapeHtml(d.description) + '</span>'
       + '</a>';
   }).join('');
   document.getElementById('demoLinksModal').classList.add('visible');
@@ -4867,7 +4837,7 @@ async function populateOllamaSettings() {
 
   let modelsHtml = '';
   if (status && status.models && status.models.length > 0) {
-    modelsHtml = `<div style="font-size:11px;color:#6b6b80;margin-top:8px">
+    modelsHtml = `<div style="font-size:11px;color:var(--text-dim);margin-top:8px">
       Installed: ${status.models.join(', ')}
     </div>`;
   }
@@ -5623,7 +5593,7 @@ function renderAnnotatedText(text, annotations, individuals, properties) {
       const dotColors = (el.style.getPropertyValue('--multi-dots') || '').split(',').filter(Boolean);
       const bg = dotColors.length >= 2
         ? `linear-gradient(135deg, ${dotColors[0].trim()}, ${dotColors[dotColors.length - 1].trim()})`
-        : '#666';
+        : 'var(--text-dim)';
       el.insertAdjacentHTML('beforeend',
         `<span class="multi-branch-badge" style="background:${bg}">${count}</span>`);
     }
@@ -5636,7 +5606,7 @@ function renderAnnotatedText(text, annotations, individuals, properties) {
       const dotColors = (el.style.getPropertyValue('--multi-ind-dots') || '').split(',').filter(Boolean);
       const bg = dotColors.length >= 2
         ? `linear-gradient(135deg, ${dotColors[0].trim()}, ${dotColors[dotColors.length - 1].trim()})`
-        : '#666';
+        : 'var(--text-dim)';
       el.insertAdjacentHTML('beforeend',
         `<span class="multi-branch-badge" style="top:-8px;bottom:auto;background:${bg}">${count}</span>`);
     }
@@ -5704,7 +5674,7 @@ function _buildAnnotationSpan(ann, innerHtml, rawInner, allCoveringAnns) {
     const branchColors = multiAnns.map(a => {
       const ac = a.concepts[0];
       const ab = (ac.branches && ac.branches.length > 0) ? ac.branches[0] : (ac.branch || '');
-      return BRANCH_COLORS[ab] || '#6b6b80';
+      return getBranchColor(ab);
     });
     // Stacked bottom border via gradient
     const gradStops = branchColors.map((col, i) => {
@@ -5762,7 +5732,7 @@ function _buildIndividualSpan(ind, innerHtml, allCoveringInds) {
   if (multiCount >= 2) {
     const indColors = multiInds.map(i => {
       const iType = i.individual_type || 'named_entity';
-      return iType === 'legal_citation' ? '#009688' : '#e67e22';
+      return iType === 'legal_citation' ? 'var(--individual-citation)' : 'var(--individual-entity)';
     });
     const gradStops = indColors.map((col, idx) => {
       const pct1 = (idx / indColors.length * 100).toFixed(1);
@@ -5814,11 +5784,11 @@ function showIndividualTooltip(event, el) {
 
   let normalizedLine = '';
   if (ind.normalized_form && ind.normalized_form !== ind.mention_text) {
-    normalizedLine = `<div style="font-size:10px;color:#888;margin-top:2px">Normalized: ${escapeHtml(ind.normalized_form)}</div>`;
+    normalizedLine = `<div style="font-size:10px;color:var(--text-dim);margin-top:2px">Normalized: ${escapeHtml(ind.normalized_form)}</div>`;
   }
   let urlLine = '';
   if (ind.url) {
-    urlLine = `<div style="font-size:10px;margin-top:2px"><a href="${escapeAttr(ind.url)}" target="_blank" style="color:#3b64e0">View source</a></div>`;
+    urlLine = `<div style="font-size:10px;margin-top:2px"><a href="${escapeAttr(ind.url)}" target="_blank" style="color:var(--accent)">View source</a></div>`;
   }
 
   // Multi-class graph overlay for individuals with 2+ class links
@@ -5835,19 +5805,19 @@ function showIndividualTooltip(event, el) {
     const cl = uniqueLinks[0];
     const label = cl.folio_label || '';
     const clBranch = cl.branch || '';
-    const clColor = BRANCH_COLORS[clBranch] || '#3b64e0';
+    const clColor = getBranchColor(clBranch);
     const annId = cl.annotation_id || '';
     const onclick = annId
       ? `onclick="navigateToAnnotation('${escapeAttr(annId)}')" style="cursor:pointer"`
       : '';
     badgeLine = `<div class="tooltip-branch" style="color:${clColor};background:${clColor}18" ${onclick}>${escapeHtml(label)}</div>`;
   } else {
-    const badgeColor = indType === 'legal_citation' ? '#009688' : '#e67e22';
+    const badgeColor = indType === 'legal_citation' ? 'var(--individual-citation)' : 'var(--individual-entity)';
     badgeLine = `<div class="tooltip-branch" style="color:${badgeColor};background:${badgeColor}18">${typeBadge}</div>`;
   }
 
   tooltip.innerHTML = `
-    <div style="font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:2px">${escapeHtml(name)}</div>
+    <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:2px">${escapeHtml(name)}</div>
     ${badgeLine}
     <div class="tooltip-main-row">
       <span class="tooltip-conf-num ${confTier}">${confPct.toFixed(0)}%</span>
@@ -5892,45 +5862,45 @@ function showPropertyTooltip(event, el) {
   let domainRange = '';
   if (prop.domain_iris && prop.domain_iris.length > 0) {
     const domains = prop.domain_iris.map(d => escapeHtml(d.split('/').pop().split('#').pop())).join(', ');
-    domainRange += `<div style="font-size:10px;color:#888;margin-top:2px">Domain: ${domains}</div>`;
+    domainRange += `<div style="font-size:10px;color:var(--text-dim);margin-top:2px">Domain: ${domains}</div>`;
   }
   if (prop.range_iris && prop.range_iris.length > 0) {
     const ranges = prop.range_iris.map(r => escapeHtml(r.split('/').pop().split('#').pop())).join(', ');
-    domainRange += `<div style="font-size:10px;color:#888;margin-top:2px">Range: ${ranges}</div>`;
+    domainRange += `<div style="font-size:10px;color:var(--text-dim);margin-top:2px">Range: ${ranges}</div>`;
   }
 
   // Inverse property
   let inverseLine = '';
   if (prop.inverse_of_iri || prop.inverse_of_label) {
     const invLabel = prop.inverse_of_label || prop.inverse_of_iri.split('/').pop().split('#').pop();
-    inverseLine = `<div style="font-size:10px;color:#888;margin-top:2px">Inverse: ${escapeHtml(invLabel)}</div>`;
+    inverseLine = `<div style="font-size:10px;color:var(--text-dim);margin-top:2px">Inverse: ${escapeHtml(invLabel)}</div>`;
   }
 
   // Alt labels
   let altLine = '';
   if (prop.folio_alt_labels && prop.folio_alt_labels.length > 0) {
-    altLine = `<div style="font-size:10px;color:#888;margin-top:2px">Also: ${prop.folio_alt_labels.map(l => escapeHtml(l)).join(', ')}</div>`;
+    altLine = `<div style="font-size:10px;color:var(--text-dim);margin-top:2px">Also: ${prop.folio_alt_labels.map(l => escapeHtml(l)).join(', ')}</div>`;
   }
 
   // Examples
   let examplesLine = '';
   if (prop.folio_examples && prop.folio_examples.length > 0) {
     const exList = prop.folio_examples.slice(0, 2).map(ex => escapeHtml(ex)).join('; ');
-    examplesLine = `<div style="font-size:10px;color:#888;margin-top:2px;font-style:italic">e.g. ${exList}</div>`;
+    examplesLine = `<div style="font-size:10px;color:var(--text-dim);margin-top:2px;font-style:italic">e.g. ${exList}</div>`;
   }
 
   tooltip.innerHTML = `
-    <div style="font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:2px">${escapeHtml(label)}</div>
-    <div class="tooltip-branch" style="color:#9C27B0;background:rgba(156,39,176,0.12)">Property</div>
+    <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:2px">${escapeHtml(label)}</div>
+    <div class="tooltip-branch" style="color:var(--property-underline);background:rgba(156,39,176,0.12)">Property</div>
     <div class="tooltip-main-row">
       <span class="tooltip-conf-num ${confTier}">${confPct.toFixed(0)}%</span>
     </div>
-    ${def ? `<div style="font-size:11px;color:#444;margin-top:4px;white-space:normal">${escapeHtml(def)}</div>` : ''}
+    ${def ? `<div style="font-size:11px;color:var(--text);margin-top:4px;white-space:normal">${escapeHtml(def)}</div>` : ''}
     ${domainRange}
     ${inverseLine}
     ${altLine}
     ${examplesLine}
-    ${iri ? `<div style="font-size:9px;color:#aaa;margin-top:4px;word-break:break-all;white-space:normal">${escapeHtml(iri)}</div>` : ''}
+    ${iri ? `<div style="font-size:9px;color:var(--text-dim);margin-top:4px;word-break:break-all;white-space:normal">${escapeHtml(iri)}</div>` : ''}
   `;
   tooltip.classList.add('visible');
 
@@ -5941,7 +5911,7 @@ function navigateToAnnotation(annId) {
   const el = document.querySelector(`.annotation-span[data-ann-id="${annId}"]`);
   if (el) {
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    el.style.outline = '2px solid #3b64e0';
+    el.style.outline = '2px solid var(--accent)';
     setTimeout(() => { el.style.outline = ''; }, 2000);
     showTooltip(null, el);
   }
@@ -5962,7 +5932,7 @@ function showTooltip(event, el) {
     return;
   }
 
-  const branchColor = BRANCH_COLORS[branch] || '#6b6b80';
+  const branchColor = getBranchColor(branch);
   const confPct = conf > 1 ? conf : conf * 100;
   const confTier = confPct >= 80 ? 'conf-high' : confPct >= 50 ? 'conf-mid' : 'conf-low';
 
@@ -6094,7 +6064,7 @@ function _redrawOverlayLines(overlay, pillColors) {
     const endY = direction === 'below'
       ? pRect.top - oRect.top
       : pRect.bottom - oRect.top;
-    const color = pillColors[i] || '#6b6b80';
+    const color = pillColors[i] || 'var(--text-dim)';
     lines += `<line x1="${startX}" y1="${startY}" x2="${endX}" y2="${endY}" stroke="${color}" stroke-width="1.5" stroke-opacity="0.5"/>`;
   });
 
@@ -6161,7 +6131,7 @@ function _showMultiBranchOverlay(tooltip, el, annIds) {
     if (!aData || !aData.concepts || !aData.concepts[0]) continue;
     const ac = aData.concepts[0];
     const ab = (ac.branches && ac.branches.length > 0) ? ac.branches[0] : '';
-    const aColor = BRANCH_COLORS[ab] || '#6b6b80';
+    const aColor = getBranchColor(ab);
     pillColors.push(aColor);
     const conceptLabel = ac.folio_label || ac.concept_text || 'Unknown';
     const aConf = typeof ac.confidence === 'number' ? (ac.confidence > 1 ? ac.confidence : ac.confidence * 100) : 0;
@@ -6319,7 +6289,7 @@ function _showIndividualMultiClassOverlay(tooltip, el, ind, uniqueLinks, name, c
     const cl = uniqueLinks[i];
     const label = cl.folio_label || 'Unknown';
     const branch = cl.branch || '';
-    const color = BRANCH_COLORS[branch] || '#3b64e0';
+    const color = getBranchColor(branch);
     pillColors.push(color);
     const clConfVal = cl.confidence ? (cl.confidence > 1 ? cl.confidence : cl.confidence * 100) : 0;
     const clConf = cl.confidence ? clConfVal.toFixed(0) + '%' : '';
@@ -6386,7 +6356,7 @@ function _showIndividualMultiOverlay(tooltip, el, indIds) {
     const iData = _individualDataById[iid];
     if (!iData) continue;
     const iType = iData.individual_type || 'named_entity';
-    const color = iType === 'legal_citation' ? '#009688' : '#e67e22';
+    const color = iType === 'legal_citation' ? 'var(--individual-citation)' : 'var(--individual-entity)';
     pillColors.push(color);
     const iName = iData.name || iData.mention_text || 'Unknown';
     const iConf = typeof iData.confidence === 'number' ? (iData.confidence > 1 ? iData.confidence : iData.confidence * 100) : 0;
@@ -6398,7 +6368,7 @@ function _showIndividualMultiOverlay(tooltip, el, indIds) {
       classHtml = uniqueLabels.map(lbl => {
         const cl = iData.class_links.find(c => c.folio_label === lbl);
         const branch = cl?.branch || '';
-        const bColor = BRANCH_COLORS[branch] || '#3b64e0';
+        const bColor = getBranchColor(branch);
         return `<div class="multi-pill-branch" style="color:${bColor};background:${bColor}18;font-size:9px;padding:1px 5px">${escapeHtml(lbl)}</div>`;
       }).join('');
     }
@@ -6985,12 +6955,12 @@ async function toggleLineage(annId) {
             </li>
           `).join('');
         } else {
-          list.innerHTML = contextHtml + '<li style="color:#a0a0b0">No lineage recorded</li>';
+          list.innerHTML = contextHtml + '<li style="color:var(--text-dim)">No lineage recorded</li>';
         }
         list.dataset.loaded = 'true';
       }
     } catch (e) {
-      list.innerHTML = '<li style="color:#991b1b">Failed to load lineage</li>';
+      list.innerHTML = '<li style="color:var(--conf-low)">Failed to load lineage</li>';
     }
   }
 
@@ -7401,7 +7371,7 @@ function renderAncestryTree(detail) {
 
   if (_showAltsInHierarchy && altCount > 0 && _currentDetailAnnId) {
     if (_altsFetching) {
-      html += '<div class="ancestry-tree"><div style="color:#6b6b80;font-size:12px;padding:8px 0"><span class="spinner"></span> Loading alternatives\u2026</div></div>';
+      html += '<div class="ancestry-tree"><div style="color:var(--text-dim);font-size:12px;padding:8px 0"><span class="spinner"></span> Loading alternatives\u2026</div></div>';
     } else {
       html += renderMergedAncestryTree(detail, annData);
     }
@@ -7418,7 +7388,7 @@ function renderAncestryTree(detail) {
 
 function renderSingleAncestryTree(detail, annData) {
   const path = detail.hierarchy_path || [];
-  const branchColor = detail.branch_color || BRANCH_COLORS[detail.branch] || '#6b6b80';
+  const branchColor = getBranchColor(detail.branch);
 
   let confPct = null;
   if (annData && annData.concepts && annData.concepts[0]) {
@@ -7457,8 +7427,8 @@ function renderSingleAncestryNodes(nodes, startIdx, detail, branchColor, confPct
   let html = '<div class="ancestry-children">';
 
   if (isCurrent) {
-    const confBg = confPct != null ? (confPct >= 80 ? '#dcfce7' : confPct >= 50 ? '#fef3c7' : '#fee2e2') : '';
-    const confFg = confPct != null ? (confPct >= 80 ? '#166534' : confPct >= 50 ? '#92400e' : '#991b1b') : '';
+    const confBg = confPct != null ? (confPct >= 80 ? 'var(--conf-high-bg)' : confPct >= 50 ? 'var(--conf-mid-bg)' : 'var(--conf-low-bg)') : '';
+    const confFg = confPct != null ? (confPct >= 80 ? 'var(--conf-high)' : confPct >= 50 ? 'var(--conf-mid)' : 'var(--conf-low)') : '';
     html += `<div class="ancestry-node current" style="--current-node-accent:${branchColor};--current-node-bg:${branchColor}10">`;
     html += `<span class="ancestry-toggle-spacer"></span>`;
     html += `<span class="ancestry-bullet-char" style="color:${branchColor}">\u25CF</span>`;
@@ -7499,7 +7469,7 @@ function buildMultiParentTree(detail) {
 
   for (const path of paths) {
     if (path.length === 0) continue;
-    const branchColor = detail.branch_color || BRANCH_COLORS[detail.branch] || '#6b6b80';
+    const branchColor = getBranchColor(detail.branch);
     const rootEntry = path[0];
 
     if (!branches.has(rootEntry.iri_hash)) {
@@ -7533,7 +7503,7 @@ function buildMultiParentTree(detail) {
 
 function renderMultiParentTree(detail, annData) {
   const branches = buildMultiParentTree(detail);
-  const branchColor = detail.branch_color || BRANCH_COLORS[detail.branch] || '#6b6b80';
+  const branchColor = getBranchColor(detail.branch);
 
   let confPct = null;
   if (annData && annData.concepts && annData.concepts[0]) {
@@ -7572,8 +7542,8 @@ function renderMultiParentNodes(children, parentKey, branchColor, confPct) {
 
     if (node.isTarget) {
       // Render current concept leaf
-      const confBg = confPct != null ? (confPct >= 80 ? '#dcfce7' : confPct >= 50 ? '#fef3c7' : '#fee2e2') : '';
-      const confFg = confPct != null ? (confPct >= 80 ? '#166534' : confPct >= 50 ? '#92400e' : '#991b1b') : '';
+      const confBg = confPct != null ? (confPct >= 80 ? 'var(--conf-high-bg)' : confPct >= 50 ? 'var(--conf-mid-bg)' : 'var(--conf-low-bg)') : '';
+      const confFg = confPct != null ? (confPct >= 80 ? 'var(--conf-high)' : confPct >= 50 ? 'var(--conf-mid)' : 'var(--conf-low)') : '';
       html += `<div class="ancestry-node current" style="--current-node-accent:${branchColor};--current-node-bg:${branchColor}10">`;
       html += `<span class="ancestry-toggle-spacer"></span>`;
       html += `<span class="ancestry-bullet-char" style="color:${branchColor}">\u25CF</span>`;
@@ -7617,7 +7587,7 @@ function buildMergedTree(primaryDetail, annData) {
       : (detail.hierarchy_path && detail.hierarchy_path.length > 0) ? [detail.hierarchy_path] : [];
     if (allPaths.length === 0) return;
 
-    const branchColor = detail.branch_color || BRANCH_COLORS[detail.branch] || '#6b6b80';
+    const branchColor = getBranchColor(detail.branch);
     let counted = false;
 
     for (const path of allPaths) {
@@ -7743,8 +7713,8 @@ function renderMergedTreeNodes(children, parentKey, annId) {
 
 function renderConceptLeaf(node, concept, annId) {
   const confPct = concept.confidence != null ? (concept.confidence > 1 ? concept.confidence : concept.confidence * 100) : null;
-  const confBg = confPct != null ? (confPct >= 80 ? '#dcfce7' : confPct >= 50 ? '#fef3c7' : '#fee2e2') : '';
-  const confFg = confPct != null ? (confPct >= 80 ? '#166534' : confPct >= 50 ? '#92400e' : '#991b1b') : '';
+  const confBg = confPct != null ? (confPct >= 80 ? 'var(--conf-high-bg)' : confPct >= 50 ? 'var(--conf-mid-bg)' : 'var(--conf-low-bg)') : '';
+  const confFg = confPct != null ? (confPct >= 80 ? 'var(--conf-high)' : confPct >= 50 ? 'var(--conf-mid)' : 'var(--conf-low)') : '';
 
   let html = '';
   if (concept.isPrimary) {
@@ -7866,7 +7836,7 @@ async function buildConceptsTabTree(annotations, individuals) {
       : (detail.hierarchy_path && detail.hierarchy_path.length > 0) ? [detail.hierarchy_path] : [];
     if (allPaths.length === 0) return;
 
-    const branchColor = detail.branch_color || BRANCH_COLORS[detail.branch] || '#6b6b80';
+    const branchColor = getBranchColor(detail.branch);
     let counted = false;
 
     for (const path of allPaths) {
@@ -8041,10 +8011,10 @@ function renderConceptsTabNodes(children, parentKey) {
     if (hasConcept) {
       // Concept leaf — filled bullet, clickable, with occurrence + confidence badges
       const info = node.concept;
-      const branchColor = node.branchColor || '#6b6b80';
+      const branchColor = node.branchColor || 'var(--text-dim)';
       const confPct = info.confidence != null ? (info.confidence > 1 ? info.confidence : info.confidence * 100) : null;
-      const confBg = confPct != null ? (confPct >= 80 ? '#dcfce7' : confPct >= 50 ? '#fef3c7' : '#fee2e2') : '';
-      const confFg = confPct != null ? (confPct >= 80 ? '#166534' : confPct >= 50 ? '#92400e' : '#991b1b') : '';
+      const confBg = confPct != null ? (confPct >= 80 ? 'var(--conf-high-bg)' : confPct >= 50 ? 'var(--conf-mid-bg)' : 'var(--conf-low-bg)') : '';
+      const confFg = confPct != null ? (confPct >= 80 ? 'var(--conf-high)' : confPct >= 50 ? 'var(--conf-mid)' : 'var(--conf-low)') : '';
 
       html += `<div class="ancestry-node current clickable" style="--current-node-accent:${branchColor};--current-node-bg:${branchColor}10" onclick="loadConceptDetail('${escapeAttr(iriHash)}')">`;
       if (hasChildren || hasIndividuals) {
@@ -8069,14 +8039,14 @@ function renderConceptsTabNodes(children, parentKey) {
       }
     } else if (isStub) {
       // Stub class node — dashed border, muted, for inferred individual classes
-      html += `<div class="ancestry-node current clickable ct-stub-node" style="--current-node-accent:#c0c0d0;--current-node-bg:#f8f8fa" onclick="loadConceptDetail('${escapeAttr(iriHash)}')">`;
+      html += `<div class="ancestry-node current clickable ct-stub-node" style="--current-node-accent:var(--text-dim);--current-node-bg:var(--surface)" onclick="loadConceptDetail('${escapeAttr(iriHash)}')">`;
       if (hasChildren || hasIndividuals) {
         html += `<button class="ancestry-toggle" onclick="toggleConceptsTabNode('${escapeAttr(nodeKey)}', event)">${isCollapsed ? '\u25B6' : '\u25BC'}</button>`;
       } else {
         html += `<span class="ancestry-toggle-spacer"></span>`;
       }
-      html += `<span class="ancestry-bullet-char" style="color:#a0a0b0">\u25CB</span>`;
-      html += `<span style="color:#6b6b80">${escapeHtml(node.label)}</span>`;
+      html += `<span class="ancestry-bullet-char" style="color:var(--text-dim)">\u25CB</span>`;
+      html += `<span style="color:var(--text-dim)">${escapeHtml(node.label)}</span>`;
       html += '</div>';
 
       if (!isCollapsed && (hasChildren || hasIndividuals)) {
@@ -8105,7 +8075,7 @@ function renderConceptsTabIndividuals(individuals) {
   let html = '';
   for (const ind of individuals) {
     const isCitation = ind.individual_type === 'legal_citation';
-    const iconColor = isCitation ? '#009688' : '#e67e22';
+    const iconColor = isCitation ? 'var(--individual-citation)' : 'var(--individual-entity)';
     const typeLabel = isCitation ? 'Citation' : 'Entity';
     const typeBadge = isCitation ? 'citation' : 'entity';
     const indId = ind.id || '';
@@ -8220,7 +8190,7 @@ function scrollToConceptsTabIndividual(indId) {
   if (el) {
     switchTab(document.querySelector('.tab[data-tab="annotated"]'), 'annotated');
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    el.style.outline = '2px solid #009688';
+    el.style.outline = '2px solid var(--individual-citation)';
     setTimeout(() => { el.style.outline = ''; }, 2000);
   }
 }
@@ -8274,7 +8244,7 @@ function renderDetailInfo(detail) {
     html += `<div class="detail-examples"><strong>Examples:</strong><ul>${detail.examples.map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul></div>`;
   }
   if (detail.deprecated) {
-    html += `<div style="margin:6px 0"><span style="background:#dc2626;color:#fff;font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px">Deprecated</span></div>`;
+    html += `<div style="margin:6px 0"><span style="background:var(--red);color:var(--white);font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px">Deprecated</span></div>`;
   }
   if (detail.notes && detail.notes.length) {
     html += `<div class="detail-meta-field"><strong>Notes:</strong> ${detail.notes.map(n => escapeHtml(n)).join('; ')}</div>`;
@@ -8321,7 +8291,7 @@ async function renderDetailLineage(annId) {
   const stagesContainer = document.getElementById('detailLineage');
   if (!annId || !currentJobId) { srcContainer.innerHTML = ''; stagesContainer.innerHTML = ''; return; }
 
-  srcContainer.innerHTML = '<div style="color:#6b6b80;font-size:12px"><span class="spinner"></span> Loading...</div>';
+  srcContainer.innerHTML = '<div style="color:var(--text-dim);font-size:12px"><span class="spinner"></span> Loading...</div>';
   stagesContainer.innerHTML = '';
 
   try {
@@ -8364,24 +8334,24 @@ async function renderDetailLineage(annId) {
         resolution: 'Resolution', branch_judge: 'Branch Judge',
         string_matching: 'String Matching',
       };
-      stagesHtml += '<ul style="list-style:none;padding:0;font-size:11px;color:#6b6b80">';
+      stagesHtml += '<ul style="list-style:none;padding:0;font-size:11px;color:var(--text-dim)">';
       data.lineage.forEach(e => {
-        stagesHtml += `<li style="padding:3px 0;border-bottom:1px solid #f0f0f4;display:flex;gap:6px">
-          <span class="lineage-stage-name" style="font-weight:600;color:#1a1a2e;min-width:100px;font-size:11px">${escapeHtml(stageLabels[e.stage] || e.stage)}</span>
-          <span class="lineage-action" style="color:#3b64e0;min-width:90px;font-size:10px;font-weight:600">${escapeHtml((e.action || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()))}</span>
-          ${e.confidence != null ? `<span style="font-weight:600;color:#555;font-size:10px;background:#f0f0f4;padding:0 4px;border-radius:3px">${(e.confidence * 100).toFixed(0)}%</span>` : ''}
+        stagesHtml += `<li style="padding:3px 0;border-bottom:1px solid var(--surface2);display:flex;gap:6px">
+          <span class="lineage-stage-name" style="font-weight:600;color:var(--text);min-width:100px;font-size:11px">${escapeHtml(stageLabels[e.stage] || e.stage)}</span>
+          <span class="lineage-action" style="color:var(--accent);min-width:90px;font-size:10px;font-weight:600">${escapeHtml((e.action || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()))}</span>
+          ${e.confidence != null ? `<span style="font-weight:600;color:var(--text-dim);font-size:10px;background:var(--surface2);padding:0 4px;border-radius:3px">${(e.confidence * 100).toFixed(0)}%</span>` : ''}
           ${e.detail ? `<span style="flex:1;font-size:11px">${escapeHtml(e.detail)}</span>` : ''}
           ${e.reasoning ? `<span class="lineage-reasoning">${escapeHtml(e.reasoning)}</span>` : ''}
         </li>`;
       });
       stagesHtml += '</ul>';
     } else {
-      stagesHtml += '<div style="color:#a0a0b0;font-size:12px">No lineage recorded</div>';
+      stagesHtml += '<div style="color:var(--text-dim);font-size:12px">No lineage recorded</div>';
     }
     stagesContainer.innerHTML = stagesHtml;
   } catch (e) {
     srcContainer.innerHTML = '';
-    stagesContainer.innerHTML = '<div class="detail-section-title">Pipeline Lineage</div><div style="color:#991b1b;font-size:12px">Failed to load lineage</div>';
+    stagesContainer.innerHTML = '<div class="detail-section-title">Pipeline Lineage</div><div style="color:var(--conf-low);font-size:12px">Failed to load lineage</div>';
   }
 }
 
@@ -8393,7 +8363,7 @@ function _buildDagSvg(detail, showSiblings, showChildren) {
   const parents = detail.all_parents || [];
   const siblings = detail.siblings || [];
   const children = detail.children || [];
-  const branchColor = detail.branch_color || BRANCH_COLORS[detail.branch] || '#3b64e0';
+  const branchColor = getBranchColor(detail.branch);
 
   const PILL_H = 26, PILL_PAD = 10, GAP_Y = 50, GAP_X = 12, FONT_SIZE = 11;
   function textW(t) { return t.length * FONT_SIZE * 0.58 + PILL_PAD * 2; }
@@ -8489,9 +8459,9 @@ function _buildDagSvg(detail, showSiblings, showChildren) {
     rl.items.forEach(item => {
       const isFocus = item.type === 'focus';
       const isMore = item.type === 'more';
-      const fill = isFocus ? branchColor : '#f5f6f8';
-      const textColor = isFocus ? '#fff' : isMore ? '#6b6b80' : '#1a1a2e';
-      const stroke = isFocus ? branchColor : '#d0d2da';
+      const fill = isFocus ? branchColor : 'var(--surface)';
+      const textColor = isFocus ? 'var(--white)' : isMore ? 'var(--text-dim)' : 'var(--text)';
+      const stroke = isFocus ? branchColor : 'var(--border)';
       const clickable = !isFocus && !isMore && item.iri_hash;
       const onclick = clickable ? ` onclick="loadConceptDetail('${escapeAttr(item.iri_hash)}')" style="cursor:pointer"` : '';
       svg += `<g class="dag-pill"${onclick}>
@@ -8569,7 +8539,7 @@ function renderDetailIndividuals(annId) {
 
   if (linked.length === 0) { container.innerHTML = ''; return; }
 
-  let html = '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#6b6b80;margin-bottom:6px">Individuals</div>';
+  let html = '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-dim);margin-bottom:6px">Individuals</div>';
   for (const ind of linked) {
     const typeBadge = ind.individual_type === 'legal_citation' ? 'citation' : 'entity';
     const typeLabel = ind.individual_type === 'legal_citation' ? 'Citation' : 'Entity';
@@ -8586,7 +8556,7 @@ function navigateToIndividual(indId) {
   if (el) {
     switchTab(document.querySelector('.tab[data-tab="annotated"]'), 'annotated');
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    el.style.outline = '2px solid #009688';
+    el.style.outline = '2px solid var(--individual-citation)';
     setTimeout(() => { el.style.outline = ''; }, 2000);
   }
 }
@@ -8806,7 +8776,7 @@ function renderGraph(elkResult, data) {
     div.style.top = elkNode.y + 'px';
     div.style.width = elkNode.width + 'px';
     div.style.height = elkNode.height + 'px';
-    div.style.borderLeftColor = nd.branch_color || '#6b6b80';
+    div.style.borderLeftColor = nd.branch_color || 'var(--text-dim)';
     div.style.borderLeftWidth = '4px';
     div.dataset.iriHash = elkNode.id;
     div.title = nd.definition || nd.label;
@@ -8835,7 +8805,7 @@ function renderGraph(elkResult, data) {
       const d = buildEdgePath(section);
       path.setAttribute('d', d);
       path.setAttribute('fill', 'none');
-      path.setAttribute('stroke', isSeeAlso ? '#7c3aed' : '#3b64e0');
+      path.setAttribute('stroke', isSeeAlso ? 'var(--purple)' : 'var(--accent)');
       path.setAttribute('stroke-width', '1.5');
       if (isSeeAlso) {
         path.setAttribute('stroke-dasharray', '6 3');
@@ -8900,8 +8870,9 @@ function renderMinimap() {
   const oy = (ch - gh * scale) / 2;
 
   // Draw nodes
+  const accentHex = getThemeColor('accent');
   positions.forEach(p => {
-    ctx.fillStyle = 'rgba(59,100,224,0.4)';
+    ctx.fillStyle = accentHex ? accentHex + '66' : 'rgba(59,100,224,0.4)';
     ctx.fillRect(ox + (p.x - minX) * scale, oy + (p.y - minY) * scale, Math.max(p.w * scale, 2), Math.max(p.h * scale, 2));
   });
 
@@ -8914,7 +8885,8 @@ function renderMinimap() {
     const ry = oy + (-_graphTransform.y / _graphTransform.scale - minY) * scale;
     const rw = (vpW / _graphTransform.scale) * scale;
     const rh = (vpH / _graphTransform.scale) * scale;
-    ctx.strokeStyle = 'rgba(228,230,240,0.5)';
+    const borderHex = getThemeColor('text-dim');
+    ctx.strokeStyle = borderHex ? borderHex + '80' : 'rgba(228,230,240,0.5)';
     ctx.lineWidth = 1;
     ctx.strokeRect(rx, ry, rw, rh);
   }
@@ -9322,7 +9294,7 @@ function renderInsightsPanel(data) {
         ${renderScopeToggle()}
         <button class="small secondary" onclick="exportFeedback('json')">Export JSON</button>
         <button class="small secondary" onclick="exportFeedback('csv')">Export CSV</button>
-        <button class="small secondary" style="color:#f87171;border-color:#f87171" onclick="clearAllFeedback()">Clear All</button>
+        <button class="small secondary" style="color:var(--red);border-color:var(--red)" onclick="clearAllFeedback()">Clear All</button>
       </div>
     </div>
     <div class="insights-stats">
@@ -9452,7 +9424,7 @@ function _renderConceptsFlatFallback(annotations, container) {
   let html = '';
   for (const branch of Object.keys(groups).sort()) {
     const concepts = groups[branch].sort((a, b) => b.count - a.count);
-    const branchColor = BRANCH_COLORS[branch] || '#6b6b80';
+    const branchColor = getBranchColor(branch);
     html += `<div class="concept-group">`;
     html += `<div class="concept-group-header" style="color:${branchColor}">${escapeHtml(branch)}<span class="concept-group-count">${concepts.length} concepts</span></div>`;
     for (const c of concepts) {
@@ -9484,10 +9456,10 @@ function renderTriples(triples, isFirstClass) {
   const unlinked = triples.filter(t => !(t.subject_links && t.subject_links.length) && !(t.object_links && t.object_links.length) && !(t.predicate_links && t.predicate_links.length));
 
   let html = `<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-    <span style="font-size:12px;color:#6b6b80">${triples.length} triples</span>
-    <button class="filter-btn active" onclick="filterTriples('all',this)" style="font-size:11px;padding:2px 8px;border-radius:12px;border:1px solid #d0d0da;background:var(--surface2);cursor:pointer">All (${triples.length})</button>
-    <button class="filter-btn" onclick="filterTriples('linked',this)" style="font-size:11px;padding:2px 8px;border-radius:12px;border:1px solid #d0d0da;background:transparent;cursor:pointer">FOLIO-Linked (${linked.length})</button>
-    <button class="filter-btn" onclick="filterTriples('unlinked',this)" style="font-size:11px;padding:2px 8px;border-radius:12px;border:1px solid #d0d0da;background:transparent;cursor:pointer">Unlinked (${unlinked.length})</button>
+    <span style="font-size:12px;color:var(--text-dim)">${triples.length} triples</span>
+    <button class="filter-btn active" onclick="filterTriples('all',this)" style="font-size:11px;padding:2px 8px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);cursor:pointer">All (${triples.length})</button>
+    <button class="filter-btn" onclick="filterTriples('linked',this)" style="font-size:11px;padding:2px 8px;border-radius:12px;border:1px solid var(--border);background:transparent;cursor:pointer">FOLIO-Linked (${linked.length})</button>
+    <button class="filter-btn" onclick="filterTriples('unlinked',this)" style="font-size:11px;padding:2px 8px;border-radius:12px;border:1px solid var(--border);background:transparent;cursor:pointer">Unlinked (${unlinked.length})</button>
   </div>`;
   html += '<div id="triplesListInner" style="font-size:12px">';
 
@@ -9501,27 +9473,27 @@ function renderTriples(triples, isFirstClass) {
     let predBadges = '';
     if (isFirstClass) {
       for (const link of (t.subject_links || [])) {
-        if (link.entity_type === 'individual') subjBadges += `<span style="font-size:9px;background:#009688;color:white;padding:0 4px;border-radius:3px;margin-left:3px" title="Individual: ${escapeHtml(link.folio_label || '')}">IND</span>`;
-        else if (link.entity_type === 'concept') subjBadges += `<span style="font-size:9px;background:#3b64e0;color:white;padding:0 4px;border-radius:3px;margin-left:3px" title="Concept: ${escapeHtml(link.folio_label || '')}">CLS</span>`;
+        if (link.entity_type === 'individual') subjBadges += `<span style="font-size:9px;background:var(--individual-citation);color:white;padding:0 4px;border-radius:3px;margin-left:3px" title="Individual: ${escapeHtml(link.folio_label || '')}">IND</span>`;
+        else if (link.entity_type === 'concept') subjBadges += `<span style="font-size:9px;background:var(--accent);color:white;padding:0 4px;border-radius:3px;margin-left:3px" title="Concept: ${escapeHtml(link.folio_label || '')}">CLS</span>`;
       }
       for (const link of (t.object_links || [])) {
-        if (link.entity_type === 'individual') objBadges += `<span style="font-size:9px;background:#009688;color:white;padding:0 4px;border-radius:3px;margin-left:3px" title="Individual: ${escapeHtml(link.folio_label || '')}">IND</span>`;
-        else if (link.entity_type === 'concept') objBadges += `<span style="font-size:9px;background:#3b64e0;color:white;padding:0 4px;border-radius:3px;margin-left:3px" title="Concept: ${escapeHtml(link.folio_label || '')}">CLS</span>`;
+        if (link.entity_type === 'individual') objBadges += `<span style="font-size:9px;background:var(--individual-citation);color:white;padding:0 4px;border-radius:3px;margin-left:3px" title="Individual: ${escapeHtml(link.folio_label || '')}">IND</span>`;
+        else if (link.entity_type === 'concept') objBadges += `<span style="font-size:9px;background:var(--accent);color:white;padding:0 4px;border-radius:3px;margin-left:3px" title="Concept: ${escapeHtml(link.folio_label || '')}">CLS</span>`;
       }
       for (const link of (t.predicate_links || [])) {
-        if (link.entity_type === 'property') predBadges += `<span style="font-size:9px;background:#9C27B0;color:white;padding:0 4px;border-radius:3px;margin-left:3px" title="Property: ${escapeHtml(link.folio_label || '')}">PROP</span>`;
+        if (link.entity_type === 'property') predBadges += `<span style="font-size:9px;background:var(--property-underline);color:white;padding:0 4px;border-radius:3px;margin-left:3px" title="Property: ${escapeHtml(link.folio_label || '')}">PROP</span>`;
       }
     }
 
-    const voiceBadge = t.voice === 'passive' ? `<span style="font-size:9px;background:#ff9800;color:white;padding:0 4px;border-radius:3px;margin-left:4px">passive</span>` : '';
+    const voiceBadge = t.voice === 'passive' ? `<span style="font-size:9px;background:var(--orange);color:white;padding:0 4px;border-radius:3px;margin-left:4px">passive</span>` : '';
 
-    html += `<div class="triple-item ${linkClass}" style="padding:8px;border:1px solid #d0d0da;border-radius:6px;margin-bottom:4px">
-      <span style="color:#1a7a7a;font-weight:600">${escapeHtml(t.subject || '')}</span>${subjBadges}
-      <span style="color:#6b6b80"> \u2192 </span>
-      <span style="color:#9e6b0a">${escapeHtml(t.predicate || '')}</span>${predBadges}${voiceBadge}
-      <span style="color:#6b6b80"> \u2192 </span>
-      <span style="color:#6b3fa0;font-weight:600">${escapeHtml(t.object || '')}</span>${objBadges}
-      ${t.sentence ? `<div style="font-size:10px;color:#6b6b80;margin-top:4px;font-style:italic">"${escapeHtml(t.sentence.slice(0,120))}${t.sentence.length > 120 ? '...' : ''}"</div>` : ''}
+    html += `<div class="triple-item ${linkClass}" style="padding:8px;border:1px solid var(--border);border-radius:6px;margin-bottom:4px">
+      <span style="color:var(--cyan);font-weight:600">${escapeHtml(t.subject || '')}</span>${subjBadges}
+      <span style="color:var(--text-dim)"> \u2192 </span>
+      <span style="color:var(--orange)">${escapeHtml(t.predicate || '')}</span>${predBadges}${voiceBadge}
+      <span style="color:var(--text-dim)"> \u2192 </span>
+      <span style="color:var(--purple);font-weight:600">${escapeHtml(t.object || '')}</span>${objBadges}
+      ${t.sentence ? `<div style="font-size:10px;color:var(--text-dim);margin-top:4px;font-style:italic">"${escapeHtml(t.sentence.slice(0,120))}${t.sentence.length > 120 ? '...' : ''}"</div>` : ''}
     </div>`;
   }
 
@@ -9720,7 +9692,7 @@ function renderMetadata(metadata, job) {
 
     html += `<div class="meta-group">`;
     html += `<div class="meta-group-header" onclick="this.classList.toggle('collapsed');this.nextElementSibling.classList.toggle('hidden')">`;
-    html += `<span class="chevron">&#9660;</span> ${escapeHtml(groupName)} <span style="color:#8888a0;font-weight:400">(${populated.length})</span>`;
+    html += `<span class="chevron">&#9660;</span> ${escapeHtml(groupName)} <span style="color:var(--text-dim);font-weight:400">(${populated.length})</span>`;
     html += `</div>`;
     html += `<div class="meta-group-body"><div class="meta-grid">`;
     for (const k of populated) {
@@ -9734,7 +9706,7 @@ function renderMetadata(metadata, job) {
   if (ungrouped.length > 0) {
     html += `<div class="meta-group">`;
     html += `<div class="meta-group-header" onclick="this.classList.toggle('collapsed');this.nextElementSibling.classList.toggle('hidden')">`;
-    html += `<span class="chevron">&#9660;</span> Other <span style="color:#8888a0;font-weight:400">(${ungrouped.length})</span>`;
+    html += `<span class="chevron">&#9660;</span> Other <span style="color:var(--text-dim);font-weight:400">(${ungrouped.length})</span>`;
     html += `</div>`;
     html += `<div class="meta-group-body"><div class="meta-grid">`;
     for (const [k, v] of ungrouped) {
@@ -9789,7 +9761,7 @@ function renderIndividualsTab(individuals) {
       if (el) {
         switchTab(document.querySelector('.tab[data-tab="annotated"]'), 'annotated');
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        el.style.outline = '2px solid #009688';
+        el.style.outline = '2px solid var(--individual-citation)';
         setTimeout(() => { el.style.outline = ''; }, 2000);
       }
     });
@@ -9815,7 +9787,7 @@ function _renderIndividualCard(ind) {
 
   let extra = '';
   if (ind.normalized_form && ind.normalized_form !== ind.mention_text) {
-    extra += `<div style="font-size:10px;color:#888">${escapeHtml(ind.normalized_form)}</div>`;
+    extra += `<div style="font-size:10px;color:var(--text-dim)">${escapeHtml(ind.normalized_form)}</div>`;
   }
 
   return `<div class="ind-card" data-ind-id="${escapeAttr(ind.id || '')}">
@@ -9866,11 +9838,11 @@ function renderPropertiesTab(properties) {
     html += `<div class="prop-card" data-prop-id="${escapeAttr(first.id || '')}">
       <span class="prop-label-badge">${escapeHtml(first.source || 'match')}</span>
       <span class="prop-text">${escapeHtml(key)}</span>
-      ${count > 1 ? `<span style="font-size:10px;color:#888">&times;${count}</span>` : ''}
+      ${count > 1 ? `<span style="font-size:10px;color:var(--text-dim)">&times;${count}</span>` : ''}
       <span class="prop-conf ${confTier}">${confPct}</span>
     </div>`;
     if (first.folio_definition) {
-      html += `<div style="font-size:10px;color:#888;padding:0 10px 6px 10px;margin-top:-4px">${escapeHtml(first.folio_definition)}</div>`;
+      html += `<div style="font-size:10px;color:var(--text-dim);padding:0 10px 6px 10px;margin-top:-4px">${escapeHtml(first.folio_definition)}</div>`;
     }
   }
 
@@ -9884,7 +9856,7 @@ function renderPropertiesTab(properties) {
       if (el) {
         switchTab(document.querySelector('.tab[data-tab="annotated"]'), 'annotated');
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        el.style.outline = '2px solid #9C27B0';
+        el.style.outline = '2px solid var(--property-underline)';
         setTimeout(() => { el.style.outline = ''; }, 2000);
       }
     });
@@ -9894,7 +9866,7 @@ function renderPropertiesTab(properties) {
 function renderExportButtons() {
   const container = document.getElementById('exportButtons');
   if (!currentJobId) {
-    container.innerHTML = '<p style="color:#6b6b80;font-size:12px">Complete an enrichment first.</p>';
+    container.innerHTML = '<p style="color:var(--text-dim);font-size:12px">Complete an enrichment first.</p>';
     return;
   }
 
@@ -9967,7 +9939,7 @@ async function loadDocTypes() {
 
     tree.innerHTML = html;
   } catch (e) {
-    tree.innerHTML = '<p style="color:#6b6b80">Failed to load document types. Make sure the backend is running.</p>';
+    tree.innerHTML = '<p style="color:var(--text-dim)">Failed to load document types. Make sure the backend is running.</p>';
   }
 }
 
