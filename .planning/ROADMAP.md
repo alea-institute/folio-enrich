@@ -44,11 +44,11 @@ Plans:
   3. User's theme choice survives page reload with no flash of wrong theme
   4. First-time visitors see a theme matching their OS preference (dark OS = dark theme, light OS = light theme)
   5. Graph canvas re-renders with correct colors when theme changes (no stale colors from previous theme)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
+- [ ] 02-01-PLAN.md — Theme system infrastructure (toggle UI, settings swatches, persistence, flash prevention, color-scheme, MutationObserver)
+- [ ] 02-02-PLAN.md — JS color migration (replace ~101 hex values with CSS vars, eliminate BRANCH_COLORS, canvas theme-awareness)
 
 ### Phase 3: Accessibility & Component Polish
 **Goal**: Every text element meets WCAG AA contrast ratios in every theme mode, and all overlay components (modals, tooltips, scrollbars) render with theme-appropriate styling
