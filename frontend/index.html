@@ -2887,7 +2887,7 @@
 <script>
 (function() {
   var t = localStorage.getItem('theme');
-  if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  if (!t) t = 'light';
   document.documentElement.setAttribute('data-theme', t);
   document.documentElement.style.setProperty('color-scheme', t === 'light' ? 'light' : 'dark');
 })();
