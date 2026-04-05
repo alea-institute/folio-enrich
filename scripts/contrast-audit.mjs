@@ -94,7 +94,9 @@ export function resolveVariable(name, themeMap, paletteMap, depth = 0) {
 
 // ── Audit ──────────────────────────────────────────────────────────────
 
-const TEXT_TOKENS = ['--text', '--text-dim', '--accent', '--accent-dim'];
+// --accent-dim excluded: used only for borders/hover/box-shadow, never as foreground text
+// (confirmed via grep — no `color:` declarations reference it in frontend/index.html)
+const TEXT_TOKENS = ['--text', '--text-dim', '--accent'];
 const BG_TOKENS = ['--bg', '--surface', '--surface2', '--surface3'];
 const BRANCH_NAMES = [
   'actor-player', 'area-of-law', 'asset-type', 'communication-modality',

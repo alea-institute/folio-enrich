@@ -1,6 +1,6 @@
 # Phase 03 WCAG Contrast Audit Report
 
-**Generated:** 2026-04-05T17:10:34.818Z
+**Generated:** 2026-04-05T17:11:32.154Z
 **Script:** scripts/contrast-audit.mjs
 **Thresholds:** Body text 4.5:1 (AA), Large text 3:1 (AA), Target margin 5.5:1 per D-04
 
@@ -8,10 +8,10 @@
 
 | Theme | Total Pairs | Pass | Large-Only | Fail |
 |-------|-------------|------|------------|------|
-| dark | 16 | 10 | 3 | 3 |
-| light | 16 | 15 | 1 | 0 |
-| mixed | 16 | 10 | 3 | 3 |
-| mixed-light | 16 | 15 | 1 | 0 |
+| dark | 12 | 10 | 2 | 0 |
+| light | 12 | 11 | 1 | 0 |
+| mixed | 12 | 10 | 2 | 0 |
+| mixed-light | 12 | 11 | 1 | 0 |
 
 ## Text-on-Background Results
 
@@ -22,19 +22,15 @@
 | --text | --bg | #e4e6f0 | #0f1117 | 15.16:1 | PASS |
 | --text-dim | --bg | #8b8fa3 | #0f1117 | 5.89:1 | PASS |
 | --accent | --bg | #6c8cff | #0f1117 | 6.14:1 | PASS |
-| --accent-dim | --bg | #4a5fa0 | #0f1117 | 3.09:1 | LARGE-ONLY |
 | --text | --surface | #e4e6f0 | #1a1d27 | 13.51:1 | PASS |
 | --text-dim | --surface | #8b8fa3 | #1a1d27 | 5.25:1 | PASS |
 | --accent | --surface | #6c8cff | #1a1d27 | 5.47:1 | PASS |
-| --accent-dim | --surface | #4a5fa0 | #1a1d27 | 2.75:1 | FAIL |
 | --text | --surface2 | #e4e6f0 | #242836 | 11.79:1 | PASS |
 | --text-dim | --surface2 | #8b8fa3 | #242836 | 4.58:1 | PASS |
 | --accent | --surface2 | #6c8cff | #242836 | 4.77:1 | PASS |
-| --accent-dim | --surface2 | #4a5fa0 | #242836 | 2.40:1 | FAIL |
 | --text | --surface3 | #e4e6f0 | #2e3348 | 10.03:1 | PASS |
 | --text-dim | --surface3 | #8b8fa3 | #2e3348 | 3.89:1 | LARGE-ONLY |
 | --accent | --surface3 | #6c8cff | #2e3348 | 4.06:1 | LARGE-ONLY |
-| --accent-dim | --surface3 | #4a5fa0 | #2e3348 | 2.04:1 | FAIL |
 
 ### light
 
@@ -43,19 +39,15 @@
 | --text | --bg | #1a1d27 | #ffffff | 16.81:1 | PASS |
 | --text-dim | --bg | #5c6070 | #ffffff | 6.25:1 | PASS |
 | --accent | --bg | #2d5ee0 | #ffffff | 5.54:1 | PASS |
-| --accent-dim | --bg | #4a5fa0 | #ffffff | 6.11:1 | PASS |
 | --text | --surface | #1a1d27 | #f5f6fa | 15.57:1 | PASS |
 | --text-dim | --surface | #5c6070 | #f5f6fa | 5.78:1 | PASS |
 | --accent | --surface | #2d5ee0 | #f5f6fa | 5.13:1 | PASS |
-| --accent-dim | --surface | #4a5fa0 | #f5f6fa | 5.66:1 | PASS |
 | --text | --surface2 | #1a1d27 | #eceef4 | 14.49:1 | PASS |
 | --text-dim | --surface2 | #5c6070 | #eceef4 | 5.38:1 | PASS |
 | --accent | --surface2 | #2d5ee0 | #eceef4 | 4.78:1 | PASS |
-| --accent-dim | --surface2 | #4a5fa0 | #eceef4 | 5.27:1 | PASS |
 | --text | --surface3 | #1a1d27 | #e2e5ee | 13.35:1 | PASS |
 | --text-dim | --surface3 | #5c6070 | #e2e5ee | 4.96:1 | PASS |
 | --accent | --surface3 | #2d5ee0 | #e2e5ee | 4.40:1 | LARGE-ONLY |
-| --accent-dim | --surface3 | #4a5fa0 | #e2e5ee | 4.85:1 | PASS |
 
 ### mixed
 
@@ -64,19 +56,15 @@
 | --text | --bg | #e4e6f0 | #0f1117 | 15.16:1 | PASS |
 | --text-dim | --bg | #8b8fa3 | #0f1117 | 5.89:1 | PASS |
 | --accent | --bg | #6c8cff | #0f1117 | 6.14:1 | PASS |
-| --accent-dim | --bg | #4a5fa0 | #0f1117 | 3.09:1 | LARGE-ONLY |
 | --text | --surface | #e4e6f0 | #1a1d27 | 13.51:1 | PASS |
 | --text-dim | --surface | #8b8fa3 | #1a1d27 | 5.25:1 | PASS |
 | --accent | --surface | #6c8cff | #1a1d27 | 5.47:1 | PASS |
-| --accent-dim | --surface | #4a5fa0 | #1a1d27 | 2.75:1 | FAIL |
 | --text | --surface2 | #e4e6f0 | #242836 | 11.79:1 | PASS |
 | --text-dim | --surface2 | #8b8fa3 | #242836 | 4.58:1 | PASS |
 | --accent | --surface2 | #6c8cff | #242836 | 4.77:1 | PASS |
-| --accent-dim | --surface2 | #4a5fa0 | #242836 | 2.40:1 | FAIL |
 | --text | --surface3 | #e4e6f0 | #2e3348 | 10.03:1 | PASS |
 | --text-dim | --surface3 | #8b8fa3 | #2e3348 | 3.89:1 | LARGE-ONLY |
 | --accent | --surface3 | #6c8cff | #2e3348 | 4.06:1 | LARGE-ONLY |
-| --accent-dim | --surface3 | #4a5fa0 | #2e3348 | 2.04:1 | FAIL |
 
 ### mixed-light
 
@@ -85,19 +73,15 @@
 | --text | --bg | #1a1d27 | #ffffff | 16.81:1 | PASS |
 | --text-dim | --bg | #5c6070 | #ffffff | 6.25:1 | PASS |
 | --accent | --bg | #2d5ee0 | #ffffff | 5.54:1 | PASS |
-| --accent-dim | --bg | #4a5fa0 | #ffffff | 6.11:1 | PASS |
 | --text | --surface | #1a1d27 | #f5f6fa | 15.57:1 | PASS |
 | --text-dim | --surface | #5c6070 | #f5f6fa | 5.78:1 | PASS |
 | --accent | --surface | #2d5ee0 | #f5f6fa | 5.13:1 | PASS |
-| --accent-dim | --surface | #4a5fa0 | #f5f6fa | 5.66:1 | PASS |
 | --text | --surface2 | #1a1d27 | #eceef4 | 14.49:1 | PASS |
 | --text-dim | --surface2 | #5c6070 | #eceef4 | 5.38:1 | PASS |
 | --accent | --surface2 | #2d5ee0 | #eceef4 | 4.78:1 | PASS |
-| --accent-dim | --surface2 | #4a5fa0 | #eceef4 | 5.27:1 | PASS |
 | --text | --surface3 | #1a1d27 | #e2e5ee | 13.35:1 | PASS |
 | --text-dim | --surface3 | #5c6070 | #e2e5ee | 4.96:1 | PASS |
 | --accent | --surface3 | #2d5ee0 | #e2e5ee | 4.40:1 | LARGE-ONLY |
-| --accent-dim | --surface3 | #4a5fa0 | #e2e5ee | 4.85:1 | PASS |
 
 ## Branch Tint Results
 
@@ -347,13 +331,8 @@
 
 ## Failing Pairs
 
-- [dark] --accent-dim on --surface: 2.75:1 (need: 4.5:1)
-- [dark] --accent-dim on --surface2: 2.40:1 (need: 4.5:1)
-- [dark] --accent-dim on --surface3: 2.04:1 (need: 4.5:1)
-- [mixed] --accent-dim on --surface: 2.75:1 (need: 4.5:1)
-- [mixed] --accent-dim on --surface2: 2.40:1 (need: 4.5:1)
-- [mixed] --accent-dim on --surface3: 2.04:1 (need: 4.5:1)
+None — all pairs meet WCAG AA (4.5:1).
 
 ## Recommended Fixes
 
-- Other fixes needed: 6
+None needed.
