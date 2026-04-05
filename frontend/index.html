@@ -60,6 +60,7 @@
 
   /* ── DARK THEME ── */
   [data-theme="dark"] {
+    color-scheme: dark;
     /* Core */
     --bg: var(--gray-950);
     --surface: var(--gray-900);
@@ -177,6 +178,7 @@
 
   /* ── LIGHT THEME ── */
   [data-theme="light"] {
+    color-scheme: light;
     /* Core - per D-03 locked values */
     --bg: #ffffff;
     --surface: #f5f6fa;
@@ -294,6 +296,7 @@
 
   /* ── MIXED THEME (dark root + light panels) ── */
   [data-theme="mixed"] {
+    color-scheme: dark;
     /* Root level: same as dark theme */
     --bg: var(--gray-950);
     --surface: var(--gray-900);
@@ -2746,6 +2749,34 @@
     letter-spacing: 0.5px; color: var(--text-dim); margin-bottom: 10px;
   }
 
+  /* Theme swatches */
+  .theme-swatches { display: flex; gap: 10px; margin-bottom: 16px; }
+  .theme-swatch {
+    background: none; border: 2px solid var(--border); border-radius: 8px;
+    padding: 6px; cursor: pointer; text-align: center; transition: border-color 0.15s;
+  }
+  .theme-swatch:hover { border-color: var(--accent); }
+  .theme-swatch.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .swatch-preview {
+    width: 64px; height: 36px; border-radius: 4px; display: flex;
+    align-items: center; justify-content: center; font-size: 14px; font-weight: 600;
+  }
+  .swatch-dark { background: #0d0d1a; color: #e8e8f0; }
+  .swatch-light { background: #f0f0f4; color: #1a1a2e; }
+  .swatch-mixed {
+    background: linear-gradient(to right, #0d0d1a 50%, #f0f0f4 50%);
+    display: flex; overflow: hidden;
+  }
+  .swatch-mixed .swatch-text-left {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    color: #e8e8f0; font-size: 14px; font-weight: 600;
+  }
+  .swatch-mixed .swatch-text-right {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    color: #1a1a2e; font-size: 14px; font-weight: 600;
+  }
+  .swatch-label { display: block; font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+
   /* Provider cards */
   .provider-card {
     border: 1px solid var(--border);
@@ -2853,6 +2884,14 @@
   /* Concepts list alternatives indicator */
   .concept-alt-indicator { font-size: 10px; color: var(--accent); margin-left: 6px; }
 </style>
+<script>
+(function() {
+  var t = localStorage.getItem('theme');
+  if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', t);
+  document.documentElement.style.setProperty('color-scheme', t === 'light' ? 'light' : 'dark');
+})();
+</script>
 </head>
 <body>
 
@@ -2912,6 +2951,7 @@
     </div>
   </div>
   <div class="header-right">
+    <button class="header-btn" id="themeToggleBtn" onclick="cycleTheme()" title="Theme: Mixed (click for Dark)">&#9681;</button>
     <label class="toggle">
       <input type="checkbox" id="hideUncertainToggle" checked onchange="toggleUncertain()" role="switch" aria-checked="true">
       <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
@@ -3232,6 +3272,24 @@
         <button class="btn-save" onclick="saveSettings()">Save &amp; Close</button>
       </div>
     </div>
+    <div class="settings-section-label">Appearance</div>
+    <div class="theme-swatches">
+      <button class="theme-swatch" onclick="setTheme('dark')" data-theme-value="dark" title="Dark theme">
+        <div class="swatch-preview swatch-dark"><span class="swatch-text">Aa</span></div>
+        <span class="swatch-label">Dark</span>
+      </button>
+      <button class="theme-swatch" onclick="setTheme('light')" data-theme-value="light" title="Light theme">
+        <div class="swatch-preview swatch-light"><span class="swatch-text">Aa</span></div>
+        <span class="swatch-label">Light</span>
+      </button>
+      <button class="theme-swatch" onclick="setTheme('mixed')" data-theme-value="mixed" title="Mixed theme">
+        <div class="swatch-preview swatch-mixed">
+          <span class="swatch-text-left">Aa</span>
+          <span class="swatch-text-right">Aa</span>
+        </div>
+        <span class="swatch-label">Mixed</span>
+      </button>
+    </div>
     <div id="ollamaSettingsSection"></div>
     <div class="settings-section-label">FOLIO Ontology</div>
     <div style="margin-bottom:16px">
@@ -3528,6 +3586,62 @@ const STAGE_LABELS = {
   exporting: 'Exporting', completed: 'Done'
 };
 
+// ── Theme System ──
+
+const THEME_CYCLE = ['dark', 'light', 'mixed'];
+const THEME_ICONS = { dark: '\u{1F319}', light: '\u2600\uFE0F', mixed: '\u25D1' };
+const THEME_LABELS = { dark: 'Dark', light: 'Light', mixed: 'Mixed' };
+
+function getThemeColor(name) {
+  return getComputedStyle(document.documentElement)
+    .getPropertyValue('--' + name).trim();
+}
+
+function branchSlug(displayName) {
+  return displayName
+    .toLowerCase()
+    .replace(/\s*\/\s*/g, '-')
+    .replace(/\s+and\s+.*$/, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
+}
+
+function getBranchColor(displayName) {
+  if (!displayName) return getThemeColor('branch-default') || '#8b8fa3';
+  return getThemeColor('branch-' + branchSlug(displayName))
+    || getThemeColor('branch-default')
+    || '#8b8fa3';
+}
+
+function setTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.documentElement.style.setProperty('color-scheme',
+    theme === 'light' ? 'light' : 'dark');
+  localStorage.setItem('theme', theme);
+  updateThemeToggle(theme);
+  updateThemeSwatches(theme);
+}
+
+function cycleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'mixed';
+  const idx = THEME_CYCLE.indexOf(current);
+  setTheme(THEME_CYCLE[(idx + 1) % THEME_CYCLE.length]);
+}
+
+function updateThemeToggle(theme) {
+  const btn = document.getElementById('themeToggleBtn');
+  if (!btn) return;
+  const nextIdx = (THEME_CYCLE.indexOf(theme) + 1) % THEME_CYCLE.length;
+  btn.textContent = THEME_ICONS[theme];
+  btn.title = `Theme: ${THEME_LABELS[theme]} (click for ${THEME_LABELS[THEME_CYCLE[nextIdx]]})`;
+}
+
+function updateThemeSwatches(theme) {
+  document.querySelectorAll('.theme-swatch').forEach(s => {
+    s.classList.toggle('active', s.dataset.themeValue === theme);
+  });
+}
+
 const BRANCH_COLORS = {
   'Actor / Player': '#1e6fa0',
   'Area of Law': '#1a5276',
@@ -3785,6 +3899,11 @@ async function init() {
 
   // Suppress transitions on initial load to prevent animation flash
   main.classList.add('no-transition');
+
+  // Initialize theme toggle and swatches from current data-theme (set by <head> script)
+  const currentTheme = document.documentElement.getAttribute('data-theme') || 'mixed';
+  updateThemeToggle(currentTheme);
+  updateThemeSwatches(currentTheme);
 
   // Restore UI state immediately (before any async calls)
   if (showThinking) applyShowThinkingStyle(document.getElementById('showThinkingBtn'), true);
@@ -8800,6 +8919,24 @@ function renderMinimap() {
     ctx.strokeRect(rx, ry, rw, rh);
   }
 }
+
+// Theme change observer — re-render graph when theme changes
+const _themeObserver = new MutationObserver((mutations) => {
+  for (const m of mutations) {
+    if (m.attributeName === 'data-theme') {
+      if (_graphData) {
+        requestAnimationFrame(() => {
+          renderMinimap();
+          layoutAndRender();
+        });
+      }
+    }
+  }
+});
+_themeObserver.observe(document.documentElement, {
+  attributes: true,
+  attributeFilter: ['data-theme']
+});
 
 // --- Pan/zoom ---
 
