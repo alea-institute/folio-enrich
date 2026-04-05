@@ -59,11 +59,12 @@ Plans:
   2. All 26 branch color labels are readable against their backgrounds in all three themes
   3. Dim text (`--text-dim`) and accent-colored text (`--accent`) maintain safe contrast margins above WCAG AA thresholds
   4. Modals, tooltips, and scrollbars visually match the active theme (no dark-on-dark or light-on-light illegibility)
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: TBD
-- [ ] 03-02: TBD
+- [ ] 03-01-PLAN.md — Automated WCAG contrast audit (Node.js script + audit report)
+- [ ] 03-02-PLAN.md — Apply contrast fixes to theme tokens (text-dim, accent, per-branch overrides)
+- [ ] 03-03-PLAN.md — Modal/tooltip/scrollbar verification + gap fixes
 
 ## Progress
 
@@ -74,4 +75,4 @@ Phases execute in numeric order: 1 -> 2 -> 3
 |-------|----------------|--------|-----------|
 | 1. CSS Variable Foundation | 1/1 | Complete   | 2026-04-04 |
 | 2. Theme Switching & JS Integration | 0/2 | Not started | - |
-| 3. Accessibility & Component Polish | 0/2 | Not started | - |
+| 3. Accessibility & Component Polish | 0/3 | Not started | - |
