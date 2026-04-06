@@ -2181,6 +2181,33 @@
     flex-shrink: 0;
   }
 
+  /* LLM setup banner */
+  .llm-banner {
+    margin: 8px 16px; padding: 12px 16px; border-radius: 8px;
+    background: var(--surface2); border: 1px solid var(--border);
+    font-size: 12px; color: var(--text); line-height: 1.5;
+  }
+  .llm-banner-title {
+    font-weight: 700; font-size: 13px; margin-bottom: 6px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .llm-banner-actions {
+    display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;
+  }
+  .llm-banner-actions button {
+    padding: 6px 14px; border-radius: 6px; font-size: 12px;
+    font-weight: 600; cursor: pointer; border: 1px solid var(--border);
+    transition: all 0.15s;
+  }
+  .llm-banner-actions .btn-configure {
+    background: var(--accent); color: var(--bg); border-color: var(--accent);
+  }
+  .llm-banner-actions .btn-configure:hover { opacity: 0.9; }
+  .llm-banner-actions .btn-symbolic {
+    background: var(--surface); color: var(--text);
+  }
+  .llm-banner-actions .btn-symbolic:hover { border-color: var(--accent); }
+
   .progress-bar {
     height: 3px;
     background: var(--surface3);
@@ -3026,6 +3053,19 @@
       </div>
     </div>
 
+    <!-- LLM setup banner (shown once per session when no AI key configured) -->
+    <div class="llm-banner" id="llmBanner" style="display:none">
+      <div class="llm-banner-title">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="var(--accent)" stroke-width="1.5"/><line x1="8" y1="5" x2="8" y2="9" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="11.5" r="0.75" fill="var(--accent)"/></svg>
+        No AI provider configured
+      </div>
+      <div>FOLIO's symbolic AI (pattern matching, ontology lookup, dependency parsing) works great without a cloud key. For deeper concept extraction, you can add one.</div>
+      <div class="llm-banner-actions">
+        <button class="btn-configure" onclick="llmBannerConfigure()">Configure AI Provider</button>
+        <button class="btn-symbolic" onclick="llmBannerSymbolic()">Continue without AI &#8594;</button>
+      </div>
+    </div>
+
     <div class="panel-body">
       <!-- Hidden LLM state holders (managed via Settings modal) -->
       <div style="display:none">
@@ -3517,6 +3557,8 @@ let showUncertain = true;
 let _lastFolioUpdateAt = null;  // track FOLIO update timestamp for toast
 let debugMode = localStorage.getItem('debugMode') === 'true';
 let showThinking = localStorage.getItem('showThinking') === 'true';
+let _llmBannerDismissed = false; // per-session flag (not persisted)
+let _llmBannerSymbolicOnce = false; // true if user chose "continue without AI" for next enrichment
 
 // Demo mode state
 let isDemoMode = false;
@@ -3657,6 +3699,38 @@ function updateThemeSwatches(theme) {
   document.querySelectorAll('.theme-swatch').forEach(s => {
     s.classList.toggle('active', s.dataset.themeValue === theme);
   });
+}
+
+// ── LLM Setup Banner ──
+
+function isLlmConfigured() {
+  const chip = document.getElementById('chipLLM');
+  if (!chip) return true; // can't tell, assume yes
+  const dot = chip.querySelector('.chip-dot');
+  return dot && dot.style.color === 'var(--green)';
+}
+
+function showLlmBanner() {
+  const banner = document.getElementById('llmBanner');
+  if (banner) banner.style.display = '';
+}
+
+function hideLlmBanner() {
+  const banner = document.getElementById('llmBanner');
+  if (banner) banner.style.display = 'none';
+}
+
+function llmBannerConfigure() {
+  hideLlmBanner();
+  _llmBannerDismissed = true;
+  openSettings();
+}
+
+function llmBannerSymbolic() {
+  hideLlmBanner();
+  _llmBannerDismissed = true;
+  _llmBannerSymbolicOnce = true;
+  submitEnrichment();
 }
 
 const EXPORT_FORMATS = [
@@ -5047,6 +5121,13 @@ function toggleDebugMode() {
 async function submitEnrichment() {
   let content = document.getElementById('docInput').value.trim();
   if (!content) return;
+
+  // LLM banner gate: show once per session when no AI key is configured
+  if (!_llmBannerDismissed && !isLlmConfigured()) {
+    showLlmBanner();
+    return; // banner buttons call submitEnrichment() after user chooses
+  }
+
   if (debugMode) content = truncateToWords(content, 500);
 
   const provider = document.getElementById('providerSelect').value;
@@ -5074,9 +5155,15 @@ async function submitEnrichment() {
 
     const body = { content };
     if (uploadedFilename) body.filename = uploadedFilename;
-    if (provider) body.llm_provider = provider;
-    if (model) body.llm_model = model;
-    if (apiKey) body.api_key = apiKey;
+    if (_llmBannerSymbolicOnce) {
+      // Symbolic AI only — don't send LLM provider/model/key
+      // Backend LLM stages will skip gracefully when no provider is configured
+      _llmBannerSymbolicOnce = false; // reset after use — only affects this enrichment
+    } else {
+      if (provider) body.llm_provider = provider;
+      if (model) body.llm_model = model;
+      if (apiKey) body.api_key = apiKey;
+    }
 
     const r = await fetch(`${API}/enrich`, {
       method: 'POST',
