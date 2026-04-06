@@ -226,9 +226,9 @@
     --scrollbar-thumb-hover: #9090a0;
 
     /* Confidence tiers */
-    --conf-high: #16a34a;
+    --conf-high: #14532d;
     --conf-high-bg: rgba(22,163,74,0.10);
-    --conf-mid: #d97706;
+    --conf-mid: #92400e;
     --conf-mid-bg: rgba(217,119,6,0.10);
     --conf-low: #dc2626;
     --conf-low-bg: rgba(220,38,38,0.10);
@@ -441,9 +441,9 @@
     --tooltip-text: #1a1d27;
     --scrollbar-thumb: #c0c0cc;
     --scrollbar-thumb-hover: #9090a0;
-    --conf-high: #16a34a;
+    --conf-high: #14532d;
     --conf-high-bg: rgba(22,163,74,0.10);
-    --conf-mid: #d97706;
+    --conf-mid: #92400e;
     --conf-mid-bg: rgba(217,119,6,0.10);
     --conf-low: #dc2626;
     --conf-low-bg: rgba(220,38,38,0.10);
@@ -10213,7 +10213,7 @@ function clearAll() {
 function setStatus(text, state) {
   document.getElementById('statusText').textContent = text;
   const badge = document.getElementById('statusBadge');
-  const colorMap = { running: 'var(--accent)', completed: 'var(--green)', failed: 'var(--red)', idle: 'var(--text-dim)' };
+  const colorMap = { running: 'var(--accent)', completed: 'var(--conf-high)', failed: 'var(--red)', idle: 'var(--text-dim)' };
   badge.style.color = colorMap[state] || 'var(--text-dim)';
   badge.textContent = state;
 }
