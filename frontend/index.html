@@ -1009,8 +1009,14 @@
   }
   .detail-iri-copy:hover { background: var(--border); color: var(--text); }
   .detail-definition { font-size: 13px; color: var(--text); line-height: 1.5; margin-bottom: 8px; }
-  .detail-synonyms { font-size: 12px; color: var(--text-dim); margin-bottom: 8px; line-height: 1.4; }
-  .detail-synonyms strong { color: var(--text); }
+  .detail-synonyms { font-size: 12px; color: var(--text); margin-bottom: 8px; line-height: 1.6; }
+  .detail-synonyms strong { color: var(--text); margin-right: 4px; }
+  .detail-synonyms .detail-pill {
+    display: inline-flex; align-items: center;
+    background: var(--surface2); border-radius: 12px;
+    padding: 2px 10px; font-size: 12px; color: var(--text);
+    line-height: 1.4; white-space: nowrap; margin: 1px 2px;
+  }
   .detail-translations { font-size: 12px; color: var(--text-dim); margin-bottom: 8px; }
   .detail-trans-header { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
   .detail-trans-header strong { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
@@ -1018,7 +1024,7 @@
   .detail-trans-pills { display: flex; flex-wrap: wrap; gap: 4px; }
   .detail-trans-pill {
     display: inline-flex; align-items: center; gap: 4px;
-    background: var(--border); border: 1px solid var(--border); border-radius: 12px;
+    background: var(--surface2); border-radius: 12px;
     padding: 2px 10px 2px 6px; font-size: 12px; color: var(--text);
     line-height: 1.4; white-space: nowrap;
   }
@@ -1031,8 +1037,8 @@
   .detail-examples { font-size: 12px; color: var(--text-dim); margin-bottom: 8px; }
   .detail-examples li { margin-bottom: 2px; }
   .detail-meta-field { font-size: 12px; color: var(--text-dim); margin-bottom: 6px; }
-  .detail-seealso-pill { cursor: pointer; }
-  .detail-seealso-pill:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); border-color: var(--accent); color: var(--accent); }
+  .detail-seealso-pill { cursor: pointer; background: var(--surface3); }
+  .detail-seealso-pill:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
 
   /* DAG */
   .dag-container { position: relative; overflow-x: auto; padding: 8px 0; }
@@ -8235,10 +8241,10 @@ function renderDetailInfo(detail) {
     html += `<div class="detail-definition">${escapeHtml(detail.definition)}</div>`;
   }
   if (detail.preferred_label) {
-    html += `<div class="detail-synonyms"><strong>Preferred Label:</strong> ${escapeHtml(detail.preferred_label)}</div>`;
+    html += `<div class="detail-synonyms"><strong>Preferred Label:</strong> <span class="detail-pill">${escapeHtml(detail.preferred_label)}</span></div>`;
   }
   if (detail.synonyms && detail.synonyms.length) {
-    html += `<div class="detail-synonyms"><strong>Synonyms:</strong> ${escapeHtml(detail.synonyms.join(', '))}</div>`;
+    html += `<div class="detail-synonyms"><strong>Synonyms:</strong> ${detail.synonyms.map(s => `<span class="detail-pill">${escapeHtml(s)}</span>`).join(' ')}</div>`;
   }
   if (detail.translations && Object.keys(detail.translations).length) {
     const entries = Object.entries(detail.translations);
