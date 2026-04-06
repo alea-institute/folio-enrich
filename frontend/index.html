@@ -808,8 +808,23 @@
   .panel-detail .panel-body { background: var(--bg); color: var(--text); }
   .panel-detail .panel-body::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); }
   .panel-detail .panel-body::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
-  .panel-detail .panel-header { background: var(--surface); border-bottom: 1px solid var(--border); position: relative; }
-  .panel-detail .panel-header button { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); }
+  .panel-detail .panel-header {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    display: flex; padding: 0;
+  }
+  .panel-detail .panel-header .detail-tab {
+    flex: 1; padding: 8px 12px; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim);
+    background: none; border: none; border-bottom: 2px solid transparent;
+    cursor: pointer; text-align: center; transition: color 0.15s, border-color 0.15s;
+  }
+  .panel-detail .panel-header .detail-tab:hover { color: var(--text); }
+  .panel-detail .panel-header .detail-tab.active {
+    color: var(--text); border-bottom-color: var(--accent);
+  }
+  .panel-detail .panel-header .detail-tab:not(.active) {
+    background: var(--surface2);
+  }
 
   .detail-section { margin-bottom: 16px; }
   .detail-section-title {
@@ -3190,12 +3205,8 @@
   <!-- Detail panel: Concept details -->
   <div class="panel panel-detail" id="panelDetail">
     <div class="panel-header">
-      <h2>Concept Detail</h2>
-      <div style="display:flex;align-items:center;gap:6px">
-        <button class="detail-dismiss-btn" id="detailBulkDismissBtn" style="display:none"></button>
-        <button class="detail-dismiss-btn" id="detailDismissBtn" style="display:none"></button>
-        <button class="small secondary" onclick="closeDetailPanel()" title="Close detail panel" style="padding:2px 8px;font-size:14px;line-height:1">&times;</button>
-      </div>
+      <button class="detail-tab active" id="detailTabDetails" onclick="detailShowTab('details')">Candidate Details</button>
+      <button class="detail-tab" id="detailTabGraph" onclick="detailShowTab('graph')">&#8704; Entity Graph</button>
     </div>
     <div class="panel-body" id="detailBody">
       <div id="detailEmpty" class="detail-empty">Click an annotation to view concept details</div>
@@ -3206,7 +3217,6 @@
         <div id="detailInfo" class="detail-section"></div>
         <div id="detailAlternatives" class="detail-section"></div>
         <div id="detailDag" class="detail-section"></div>
-        <div id="detailGraphBtn" class="detail-section"></div>
         <div id="detailRelated" class="detail-section"></div>
         <div id="detailLineage" class="detail-section"></div>
         <div id="detailIndividuals" class="detail-section"></div>
@@ -7192,6 +7202,17 @@ function toggleDetailPanel() {
   }
 }
 
+function detailShowTab(tab) {
+  document.getElementById('detailTabDetails').classList.toggle('active', tab === 'details');
+  document.getElementById('detailTabGraph').classList.toggle('active', tab === 'graph');
+  if (tab === 'graph' && _currentDetailIriHash) {
+    openGraphModal(_currentDetailIriHash);
+    // Reset back to details tab after opening graph modal
+    document.getElementById('detailTabDetails').classList.add('active');
+    document.getElementById('detailTabGraph').classList.remove('active');
+  }
+}
+
 function closeDetailPanel() {
   const main = document.getElementById('mainLayout');
   main.classList.add('detail-hidden');
@@ -8641,11 +8662,8 @@ function renderDetailDismissBtn(annId) {
 }
 
 function renderDetailGraphButton(iriHash, label) {
-  const container = document.getElementById('detailGraphBtn');
-  container.innerHTML = `<button class="detail-graph-btn" onclick="openGraphModal('${escapeAttr(iriHash)}')">
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="4" cy="4" r="2.5" stroke="white" stroke-width="1.5"/><circle cx="12" cy="4" r="2.5" stroke="white" stroke-width="1.5"/><circle cx="8" cy="12" r="2.5" stroke="white" stroke-width="1.5"/><line x1="5.5" y1="5.5" x2="7" y2="10" stroke="white" stroke-width="1.2"/><line x1="10.5" y1="5.5" x2="9" y2="10" stroke="white" stroke-width="1.2"/></svg>
-    View Entity Graph: ${escapeHtml(label.length > 30 ? label.slice(0, 28) + '...' : label)}
-  </button>`;
+  // Graph is now accessible via the "Entity Graph" tab in the detail panel header.
+  // This function is kept as a no-op for backward compatibility.
 }
 
 // ==============================================
