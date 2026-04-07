@@ -6924,16 +6924,10 @@ let _activeLayers = new Set(['concepts', 'individuals', 'properties']);
   if (savedLayers) {
     try {
       const parsed = JSON.parse(savedLayers);
-      // Migration: if saved set is missing ALL core layers, reset to defaults + any extras
-      const CORE = ['concepts', 'individuals', 'properties'];
-      const hasAnyCore = CORE.some(c => parsed.includes(c));
-      if (!hasAnyCore) {
-        // Stale/broken state — restore core layers, keep extras like 'pos'
-        _activeLayers = new Set([...CORE, ...parsed]);
-        localStorage.setItem('activeLayers', JSON.stringify([..._activeLayers]));
-      } else {
-        _activeLayers = new Set(parsed);
-      }
+      _activeLayers = new Set(parsed);
+      // Ensure concepts is always active — it's the primary annotation layer
+      _activeLayers.add('concepts');
+      localStorage.setItem('activeLayers', JSON.stringify([..._activeLayers]));
     } catch(e) {}
   }
   // Sync layer chip UI with restored active state
