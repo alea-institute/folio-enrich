@@ -8976,49 +8976,17 @@ function renderGraph(elkResult, data) {
 function buildEdgePath(section) {
   const sp = section.startPoint;
   const ep = section.endPoint;
-  const bends = section.bendPoints || [];
-
-  if (bends.length === 0) {
-    // No bends — smooth cubic Bezier S-curve (ConceptDAG style)
-    const isVertical = Math.abs(ep.y - sp.y) >= Math.abs(ep.x - sp.x);
-    if (isVertical) {
-      const midY = (sp.y + ep.y) / 2;
-      return `M${sp.x},${sp.y} C${sp.x},${midY} ${ep.x},${midY} ${ep.x},${ep.y}`;
-    } else {
-      const midX = (sp.x + ep.x) / 2;
-      return `M${sp.x},${sp.y} C${midX},${sp.y} ${midX},${ep.y} ${ep.x},${ep.y}`;
-    }
+  // Always use cubic Bezier S-curve — guarantees 90° exit/entry at both nodes
+  const dir = _graphDirection;
+  if (dir === 'TB' || dir === undefined) {
+    // Top-down: edges leave straight down, arrive straight down
+    const midY = (sp.y + ep.y) / 2;
+    return `M${sp.x},${sp.y} C${sp.x},${midY} ${ep.x},${midY} ${ep.x},${ep.y}`;
+  } else {
+    // Left-right: edges leave straight right, arrive straight right
+    const midX = (sp.x + ep.x) / 2;
+    return `M${sp.x},${sp.y} C${midX},${sp.y} ${midX},${ep.y} ${ep.x},${ep.y}`;
   }
-
-  if (bends.length === 1) {
-    // Single bend — quadratic Bezier through bend point
-    const b = bends[0];
-    return `M${sp.x},${sp.y} Q${b.x},${b.y} ${ep.x},${ep.y}`;
-  }
-
-  // Multiple bends — chain smooth cubic Bezier segments
-  const pts = [sp, ...bends, ep];
-  let d = `M${pts[0].x},${pts[0].y}`;
-  for (let i = 0; i < pts.length - 1; i += 2) {
-    const p1 = pts[i];
-    const p2 = pts[Math.min(i + 1, pts.length - 1)];
-    const p3 = pts[Math.min(i + 2, pts.length - 1)];
-    if (i + 2 >= pts.length) {
-      // Last segment — simple curve to end
-      const isV = Math.abs(p2.y - p1.y) >= Math.abs(p2.x - p1.x);
-      if (isV) {
-        const my = (p1.y + p2.y) / 2;
-        d += ` C${p1.x},${my} ${p2.x},${my} ${p2.x},${p2.y}`;
-      } else {
-        const mx = (p1.x + p2.x) / 2;
-        d += ` C${mx},${p1.y} ${mx},${p2.y} ${p2.x},${p2.y}`;
-      }
-    } else {
-      // Use bend point as Bezier control, curve to next point
-      d += ` Q${p2.x},${p2.y} ${p3.x},${p3.y}`;
-    }
-  }
-  return d;
 }
 
 function renderMinimap() {
