@@ -8831,7 +8831,7 @@ function buildELKGraph(data, direction) {
       'elk.layered.spacing.edgeEdgeBetweenLayers': '15',
       'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
       'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
-      'elk.edgeRouting': 'SPLINES',
+      'elk.edgeRouting': 'POLYLINE',
       'elk.padding': '[top=30,left=30,bottom=30,right=30]',
     },
     children,
@@ -8980,25 +8980,34 @@ function buildEdgePath(section) {
   const pts = [sp, ...bends, ep];
 
   if (pts.length === 2) {
-    // Straight line — use slight curve for visual softness
-    const mx = (sp.x + ep.x) / 2;
-    const my = (sp.y + ep.y) / 2;
-    return `M${sp.x},${sp.y} Q${mx},${my} ${ep.x},${ep.y}`;
+    return `M${sp.x},${sp.y} L${ep.x},${ep.y}`;
   }
 
-  // Catmull-Rom-style smooth path through all points
+  // Rounded-corner polyline: straight segments with small arcs at bends
+  const r = 8; // corner radius
   let d = `M${pts[0].x},${pts[0].y}`;
-  for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[Math.max(0, i - 1)];
-    const p1 = pts[i];
-    const p2 = pts[i + 1];
-    const p3 = pts[Math.min(pts.length - 1, i + 2)];
-    const cp1x = p1.x + (p2.x - p0.x) / 10;
-    const cp1y = p1.y + (p2.y - p0.y) / 10;
-    const cp2x = p2.x - (p3.x - p1.x) / 10;
-    const cp2y = p2.y - (p3.y - p1.y) / 10;
-    d += ` C${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const prev = pts[i - 1];
+    const cur = pts[i];
+    const next = pts[i + 1];
+    // Vectors from cur to prev and cur to next
+    const dx1 = prev.x - cur.x, dy1 = prev.y - cur.y;
+    const dx2 = next.x - cur.x, dy2 = next.y - cur.y;
+    const len1 = Math.sqrt(dx1 * dx1 + dy1 * dy1);
+    const len2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+    const clampR = Math.min(r, len1 / 2, len2 / 2);
+    if (clampR < 1) {
+      d += ` L${cur.x},${cur.y}`;
+      continue;
+    }
+    // Points where the arc starts and ends
+    const ax = cur.x + (dx1 / len1) * clampR;
+    const ay = cur.y + (dy1 / len1) * clampR;
+    const bx = cur.x + (dx2 / len2) * clampR;
+    const by = cur.y + (dy2 / len2) * clampR;
+    d += ` L${ax},${ay} Q${cur.x},${cur.y} ${bx},${by}`;
   }
+  d += ` L${pts[pts.length - 1].x},${pts[pts.length - 1].y}`;
   return d;
 }
 
