@@ -6925,8 +6925,10 @@ let _activeLayers = new Set(['concepts', 'individuals', 'properties']);
     try {
       const parsed = JSON.parse(savedLayers);
       _activeLayers = new Set(parsed);
-      // Ensure concepts is always active — it's the primary annotation layer
+      // Ensure core layers are always active on load
       _activeLayers.add('concepts');
+      _activeLayers.add('properties');
+      _activeLayers.add('individuals');
       localStorage.setItem('activeLayers', JSON.stringify([..._activeLayers]));
     } catch(e) {}
   }
