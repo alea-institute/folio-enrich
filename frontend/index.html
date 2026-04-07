@@ -1140,11 +1140,8 @@
   }
   .graph-node:hover { box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 35%, transparent); border-color: var(--accent-dim); }
   .graph-node.focus { border-color: var(--accent); background: var(--surface2); font-weight: bold; }
-  .graph-node.branch-root { border-color: var(--red); border-width: 3px; }
-  .graph-node.unexpanded::after {
-    content: '+'; font-size: 10px; font-weight: bold;
-    color: var(--text-dim); margin-left: 2px;
-  }
+  .graph-node.branch-root-ultimate { border-color: var(--red); border-width: 3px; }
+  .graph-node.branch-root-ancillary { border-color: #6b7280; border-width: 3px; }
   .graph-minimap {
     position: absolute; bottom: 12px; right: 12px;
     border-radius: 6px; background: color-mix(in srgb, var(--bg) 85%, transparent);
@@ -3529,7 +3526,8 @@
     <div class="graph-legend-item"><span class="graph-legend-line" style="background:var(--accent)"></span> subClassOf</div>
     <div class="graph-legend-item"><span class="graph-legend-line" style="background:var(--purple);border-top:2px dashed var(--purple);height:0"></span> seeAlso</div>
     <div class="graph-legend-item"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;border:3px solid var(--accent);background:var(--bg)"></span> Focus</div>
-    <div class="graph-legend-item"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;border:3px solid var(--red);background:var(--bg)"></span> Branch Root</div>
+    <div class="graph-legend-item"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;border:3px solid var(--red);background:var(--bg)"></span> Ultimate Ancestor</div>
+    <div class="graph-legend-item"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;border:3px solid #6b7280;background:var(--bg)"></span> Ancillary Ancestor</div>
     <div class="graph-legend-item" style="margin-left:auto;color:var(--text-dim)">Click to expand &bull; Double-click to navigate &bull; Scroll to zoom &bull; Drag to pan</div>
   </div>
 </div>
@@ -8826,9 +8824,12 @@ function buildELKGraph(data, direction) {
     layoutOptions: {
       'elk.algorithm': 'layered',
       'elk.direction': dir,
-      'elk.spacing.nodeNode': '40',
+      'elk.spacing.nodeNode': '30',
       'elk.layered.spacing.nodeNodeBetweenLayers': '70',
+      'elk.layered.spacing.edgeNodeBetweenLayers': '30',
+      'elk.layered.spacing.edgeEdgeBetweenLayers': '15',
       'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
+      'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
       'elk.edgeRouting': 'SPLINES',
       'elk.padding': '[top=30,left=30,bottom=30,right=30]',
     },
@@ -8877,15 +8878,15 @@ function renderGraph(elkResult, data) {
     const div = document.createElement('div');
     div.className = 'graph-node';
     if (nd.is_focus) div.classList.add('focus');
-    if (nd.is_branch_root) div.classList.add('branch-root');
+    if (nd.branch_root_type === 'ultimate') div.classList.add('branch-root-ultimate');
+    else if (nd.branch_root_type === 'ancillary') div.classList.add('branch-root-ancillary');
+    else if (nd.is_branch_root) div.classList.add('branch-root-ultimate');
     if (!_graphExpandedNodes.has(elkNode.id) && !nd.is_focus) div.classList.add('unexpanded');
 
     div.style.left = elkNode.x + 'px';
     div.style.top = elkNode.y + 'px';
     div.style.width = elkNode.width + 'px';
     div.style.height = elkNode.height + 'px';
-    div.style.borderLeftColor = nd.branch_color || 'var(--text-dim)';
-    div.style.borderLeftWidth = '4px';
     div.dataset.iriHash = elkNode.id;
     div.title = nd.definition || nd.label;
 
@@ -8893,7 +8894,20 @@ function renderGraph(elkResult, data) {
     span.textContent = nd.label;
     span.style.overflow = 'hidden';
     span.style.textOverflow = 'ellipsis';
+    span.style.flex = '1';
+    span.style.textAlign = 'center';
     div.appendChild(span);
+
+    if (!_graphExpandedNodes.has(elkNode.id) && !nd.is_focus && nd.child_count > 0) {
+      const countSpan = document.createElement('span');
+      countSpan.textContent = '+' + nd.child_count;
+      countSpan.style.fontSize = '10px';
+      countSpan.style.fontWeight = 'bold';
+      countSpan.style.color = 'var(--text-dim)';
+      countSpan.style.marginLeft = 'auto';
+      countSpan.style.flexShrink = '0';
+      div.appendChild(countSpan);
+    }
 
     div.addEventListener('click', () => handleGraphNodeClick(elkNode.id));
     div.addEventListener('dblclick', (e) => { e.stopPropagation(); handleGraphNodeDblClick(elkNode.id); });
@@ -8921,6 +8935,37 @@ function renderGraph(elkResult, data) {
         path.setAttribute('marker-end', 'url(#arrow-sub)');
       }
       svg.appendChild(path);
+
+      if (isSeeAlso) {
+        const sp = section.startPoint;
+        const ep = section.endPoint;
+        const bends = section.bendPoints || [];
+        const allPts = [sp, ...bends, ep];
+        const midIdx = Math.floor(allPts.length / 2);
+        const midPt = allPts.length % 2 === 0
+          ? { x: (allPts[midIdx-1].x + allPts[midIdx].x) / 2, y: (allPts[midIdx-1].y + allPts[midIdx].y) / 2 }
+          : allPts[midIdx];
+        const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        const labelText = 'seeAlso';
+        const textW = labelText.length * 5.5 + 8;
+        bgRect.setAttribute('x', midPt.x - textW/2);
+        bgRect.setAttribute('y', midPt.y - 8);
+        bgRect.setAttribute('width', textW);
+        bgRect.setAttribute('height', 14);
+        bgRect.setAttribute('rx', '3');
+        bgRect.setAttribute('fill', 'var(--bg)');
+        bgRect.setAttribute('fill-opacity', '0.85');
+        svg.appendChild(bgRect);
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', midPt.x);
+        text.setAttribute('y', midPt.y + 3);
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('font-size', '10');
+        text.setAttribute('fill', 'var(--purple)');
+        text.setAttribute('font-family', '-apple-system, BlinkMacSystemFont, sans-serif');
+        text.textContent = labelText;
+        svg.appendChild(text);
+      }
     });
   });
 
@@ -8947,10 +8992,10 @@ function buildEdgePath(section) {
     const p1 = pts[i];
     const p2 = pts[i + 1];
     const p3 = pts[Math.min(pts.length - 1, i + 2)];
-    const cp1x = p1.x + (p2.x - p0.x) / 6;
-    const cp1y = p1.y + (p2.y - p0.y) / 6;
-    const cp2x = p2.x - (p3.x - p1.x) / 6;
-    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    const cp1x = p1.x + (p2.x - p0.x) / 10;
+    const cp1y = p1.y + (p2.y - p0.y) / 10;
+    const cp2x = p2.x - (p3.x - p1.x) / 10;
+    const cp2y = p2.y - (p3.y - p1.y) / 10;
     d += ` C${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`;
   }
   return d;
