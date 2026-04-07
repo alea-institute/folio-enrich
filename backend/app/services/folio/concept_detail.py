@@ -327,6 +327,7 @@ def build_entity_graph(
             branch_color=get_branch_color(branch_name),
             is_focus=(h == iri_hash),
             is_branch_root=(h in branch_root_iris),
+            child_count=len(oc.parent_class_of or []),
             depth=depth,
         )
         visited[h] = node
@@ -434,6 +435,15 @@ def build_entity_graph(
                 if parent_hash not in sa_ancestor_visited:
                     sa_ancestor_visited.add(parent_hash)
                     sa_ancestor_queue.append((parent_hash, current_depth + 1))
+
+    # Post-pass: classify branch root types
+    for h, node in visited.items():
+        if not node.is_branch_root:
+            continue
+        if h in ancestor_visited:
+            node.branch_root_type = "ultimate"
+        else:
+            node.branch_root_type = "ancillary"
 
     truncated = total_discovered_ref[0] > len(visited)
 
