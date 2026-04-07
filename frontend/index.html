@@ -8808,10 +8808,11 @@ async function loadGraphData(iriHash) {
 
 function buildELKGraph(data, direction) {
   const dir = direction === 'TB' ? 'DOWN' : 'RIGHT';
+  const targetIds = new Set(data.edges.map(e => e.target));
   const children = data.nodes.map(n => {
     const w = Math.max(180, n.label.length * 7.5 + 32);
     const node = { id: n.id, width: w, height: 36, labels: [{ text: n.label }] };
-    if (n.is_branch_root) {
+    if (n.is_branch_root && !targetIds.has(n.id)) {
       node.layoutOptions = { 'elk.layered.layering.layerConstraint': 'FIRST' };
     }
     return node;
