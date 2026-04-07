@@ -8977,37 +8977,47 @@ function buildEdgePath(section) {
   const sp = section.startPoint;
   const ep = section.endPoint;
   const bends = section.bendPoints || [];
-  const pts = [sp, ...bends, ep];
 
-  if (pts.length === 2) {
-    return `M${sp.x},${sp.y} L${ep.x},${ep.y}`;
-  }
-
-  // Rounded-corner polyline: straight segments with small arcs at bends
-  const r = 8; // corner radius
-  let d = `M${pts[0].x},${pts[0].y}`;
-  for (let i = 1; i < pts.length - 1; i++) {
-    const prev = pts[i - 1];
-    const cur = pts[i];
-    const next = pts[i + 1];
-    // Vectors from cur to prev and cur to next
-    const dx1 = prev.x - cur.x, dy1 = prev.y - cur.y;
-    const dx2 = next.x - cur.x, dy2 = next.y - cur.y;
-    const len1 = Math.sqrt(dx1 * dx1 + dy1 * dy1);
-    const len2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
-    const clampR = Math.min(r, len1 / 2, len2 / 2);
-    if (clampR < 1) {
-      d += ` L${cur.x},${cur.y}`;
-      continue;
+  if (bends.length === 0) {
+    // No bends — smooth cubic Bezier S-curve (ConceptDAG style)
+    const isVertical = Math.abs(ep.y - sp.y) >= Math.abs(ep.x - sp.x);
+    if (isVertical) {
+      const midY = (sp.y + ep.y) / 2;
+      return `M${sp.x},${sp.y} C${sp.x},${midY} ${ep.x},${midY} ${ep.x},${ep.y}`;
+    } else {
+      const midX = (sp.x + ep.x) / 2;
+      return `M${sp.x},${sp.y} C${midX},${sp.y} ${midX},${ep.y} ${ep.x},${ep.y}`;
     }
-    // Points where the arc starts and ends
-    const ax = cur.x + (dx1 / len1) * clampR;
-    const ay = cur.y + (dy1 / len1) * clampR;
-    const bx = cur.x + (dx2 / len2) * clampR;
-    const by = cur.y + (dy2 / len2) * clampR;
-    d += ` L${ax},${ay} Q${cur.x},${cur.y} ${bx},${by}`;
   }
-  d += ` L${pts[pts.length - 1].x},${pts[pts.length - 1].y}`;
+
+  if (bends.length === 1) {
+    // Single bend — quadratic Bezier through bend point
+    const b = bends[0];
+    return `M${sp.x},${sp.y} Q${b.x},${b.y} ${ep.x},${ep.y}`;
+  }
+
+  // Multiple bends — chain smooth cubic Bezier segments
+  const pts = [sp, ...bends, ep];
+  let d = `M${pts[0].x},${pts[0].y}`;
+  for (let i = 0; i < pts.length - 1; i += 2) {
+    const p1 = pts[i];
+    const p2 = pts[Math.min(i + 1, pts.length - 1)];
+    const p3 = pts[Math.min(i + 2, pts.length - 1)];
+    if (i + 2 >= pts.length) {
+      // Last segment — simple curve to end
+      const isV = Math.abs(p2.y - p1.y) >= Math.abs(p2.x - p1.x);
+      if (isV) {
+        const my = (p1.y + p2.y) / 2;
+        d += ` C${p1.x},${my} ${p2.x},${my} ${p2.x},${p2.y}`;
+      } else {
+        const mx = (p1.x + p2.x) / 2;
+        d += ` C${mx},${p1.y} ${mx},${p2.y} ${p2.x},${p2.y}`;
+      }
+    } else {
+      // Use bend point as Bezier control, curve to next point
+      d += ` Q${p2.x},${p2.y} ${p3.x},${p3.y}`;
+    }
+  }
   return d;
 }
 
