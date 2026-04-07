@@ -228,6 +228,66 @@ class TestBuildEntityGraph:
             assert edge.target
             assert edge.edge_type in ("subClassOf", "seeAlso")
 
+    def test_graph_branch_root_type_ultimate(self, mock_folio):
+        """ROOT is in the direct subClassOf chain (CHILD1 -> PARENT -> ROOT), so it's ultimate."""
+        result = build_entity_graph(mock_folio, "CHILD1", ancestors_depth=2)
+        root_nodes = [n for n in result.nodes if n.id == "ROOT"]
+        assert len(root_nodes) == 1
+        assert root_nodes[0].branch_root_type == "ultimate"
+
+    def test_graph_branch_root_type_ancillary(self):
+        """ROOT2 is only reachable via seeAlso ancestry, so it's ancillary."""
+        base = "https://folio.openlegalstandard.org/"
+        root = FakeOWLClass(
+            iri=f"{base}ROOT",
+            label="Area of Law",
+            sub_class_of=["http://www.w3.org/2002/07/owl#Thing"],
+            parent_class_of=[f"{base}PARENT"],
+        )
+        root2 = FakeOWLClass(
+            iri=f"{base}ROOT2",
+            label="Practice Area",
+            sub_class_of=["http://www.w3.org/2002/07/owl#Thing"],
+            parent_class_of=[f"{base}RELATED"],
+        )
+        parent = FakeOWLClass(
+            iri=f"{base}PARENT",
+            label="Criminal Law",
+            sub_class_of=[f"{base}ROOT"],
+            parent_class_of=[f"{base}CHILD1"],
+        )
+        child1 = FakeOWLClass(
+            iri=f"{base}CHILD1",
+            label="DUI Defense",
+            sub_class_of=[f"{base}PARENT"],
+            see_also=[f"{base}RELATED"],
+        )
+        related = FakeOWLClass(
+            iri=f"{base}RELATED",
+            label="Traffic Violations",
+            sub_class_of=[f"{base}ROOT2"],
+        )
+        folio = FakeFOLIO([root, root2, parent, child1, related])
+        result = build_entity_graph(folio, "CHILD1", ancestors_depth=2, include_see_also=True)
+        # ROOT is in direct chain -> ultimate
+        root_nodes = [n for n in result.nodes if n.id == "ROOT"]
+        assert len(root_nodes) == 1
+        assert root_nodes[0].branch_root_type == "ultimate"
+        # ROOT2 is only reachable via seeAlso -> ancillary
+        root2_nodes = [n for n in result.nodes if n.id == "ROOT2"]
+        assert len(root2_nodes) == 1
+        assert root2_nodes[0].branch_root_type == "ancillary"
+
+    def test_graph_child_count(self, mock_folio):
+        """PARENT has 2 children (CHILD1, CHILD2), CHILD1 has 0."""
+        result = build_entity_graph(mock_folio, "PARENT", ancestors_depth=1, descendants_depth=1)
+        parent_nodes = [n for n in result.nodes if n.id == "PARENT"]
+        assert len(parent_nodes) == 1
+        assert parent_nodes[0].child_count == 2
+        child1_nodes = [n for n in result.nodes if n.id == "CHILD1"]
+        assert len(child1_nodes) == 1
+        assert child1_nodes[0].child_count == 0
+
 
 class TestGetAllParents:
     def test_returns_parents(self, mock_folio):

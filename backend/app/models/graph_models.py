@@ -16,6 +16,8 @@ class GraphNode(BaseModel):
     branch_color: str
     is_focus: bool = False
     is_branch_root: bool = False
+    branch_root_type: str | None = None  # "ultimate" | "ancillary" | None
+    child_count: int = 0
     depth: int = 0  # negative = ancestor, positive = descendant
 
 
