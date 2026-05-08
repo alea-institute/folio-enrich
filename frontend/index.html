@@ -8925,7 +8925,8 @@ function renderGraph(elkResult, data) {
 
     (elkEdge.sections || []).forEach(section => {
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      const d = buildEdgePath(section);
+      const centeredSection = recenterSection(section, ed);
+      const d = buildEdgePath(centeredSection);
       path.setAttribute('d', d);
       path.setAttribute('fill', 'none');
       path.setAttribute('stroke', isSeeAlso ? 'var(--purple)' : 'var(--accent)');
@@ -8938,9 +8939,9 @@ function renderGraph(elkResult, data) {
       svg.appendChild(path);
 
       if (isSeeAlso) {
-        const sp = section.startPoint;
-        const ep = section.endPoint;
-        const bends = section.bendPoints || [];
+        const sp = centeredSection.startPoint;
+        const ep = centeredSection.endPoint;
+        const bends = centeredSection.bendPoints || [];
         const allPts = [sp, ...bends, ep];
         const midIdx = Math.floor(allPts.length / 2);
         const midPt = allPts.length % 2 === 0
@@ -8971,6 +8972,30 @@ function renderGraph(elkResult, data) {
   });
 
   renderMinimap();
+}
+
+function recenterSection(section, edgeData) {
+  // Override ELK's per-edge port positions so every edge leaves/enters at the
+  // center of its source/target node — matches folio-mapper's React Flow look.
+  const src = edgeData && _graphNodePositions[edgeData.source];
+  const tgt = edgeData && _graphNodePositions[edgeData.target];
+  if (!src || !tgt) return section;
+  const dir = _graphDirection;
+  let sp, ep;
+  if (dir === 'TB' || dir === undefined) {
+    const srcCx = src.x + src.w / 2;
+    const tgtCx = tgt.x + tgt.w / 2;
+    const downward = (tgt.y + tgt.h / 2) >= (src.y + src.h / 2);
+    sp = { x: srcCx, y: downward ? src.y + src.h : src.y };
+    ep = { x: tgtCx, y: downward ? tgt.y : tgt.y + tgt.h };
+  } else {
+    const srcCy = src.y + src.h / 2;
+    const tgtCy = tgt.y + tgt.h / 2;
+    const rightward = (tgt.x + tgt.w / 2) >= (src.x + src.w / 2);
+    sp = { x: rightward ? src.x + src.w : src.x, y: srcCy };
+    ep = { x: rightward ? tgt.x : tgt.x + tgt.w, y: tgtCy };
+  }
+  return { startPoint: sp, endPoint: ep, bendPoints: [] };
 }
 
 function buildEdgePath(section) {
