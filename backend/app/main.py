@@ -178,4 +178,12 @@ if _frontend_dir.is_dir():
     async def _serve_index():
         return FileResponse(_frontend_dir / "index.html")
 
+    @app.get("/favicon.svg", include_in_schema=False)
+    async def _serve_favicon_svg():
+        return FileResponse(_frontend_dir / "favicon.svg", media_type="image/svg+xml")
+
+    @app.get("/favicon.ico", include_in_schema=False)
+    async def _serve_favicon_ico():
+        return FileResponse(_frontend_dir / "favicon.svg", media_type="image/svg+xml")
+
     app.mount("/static", StaticFiles(directory=_frontend_dir), name="frontend")

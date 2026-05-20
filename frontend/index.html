@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FOLIO Enrich</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <script src="https://unpkg.com/elkjs@0.11.1/lib/elk.bundled.js"></script>
 <style>
   /* ══════════ LAYER 1: PALETTE PRIMITIVES ══════════
@@ -4091,8 +4092,8 @@ async function checkHealth() {
           `LLM: ${l.provider} / ${l.model} — API key configured`);
       } else if (l.status === 'no_api_key') {
         setChip('chipLLM', 'orange',
-          modelShort,
-          `LLM: ${l.provider} / ${l.model} — No API key set. EntityRuler-only mode.`);
+          'Not Configured',
+          `LLM: ${l.provider} / ${l.model} — No API key set. EntityRuler-only mode. Click to configure.`);
       } else {
         setChip('chipLLM', 'red', 'Error', l.message || 'LLM error');
       }
