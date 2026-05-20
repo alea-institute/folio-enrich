@@ -108,3 +108,29 @@ cd /home/ubuntu/folio-enrich && git pull origin main
 sudo systemctl restart folio-enrich
 curl https://enrich.openlegalstandard.org/health   # verify
 ```
+
+## PROD Smoke Test — 2026-05-20
+
+**Result:** PASS
+
+PROD was already at `f5823b1` (same commit as DEV) when verification began; service restarted 2026-05-08 17:02 UTC, 44 min after the latest commit timestamp — so no deploy was needed.
+
+Smoke test against `https://enrich.openlegalstandard.org/` via Chrome DevTools MCP:
+
+| Check | Result |
+|---|---|
+| Public endpoint `/health` | ✓ 200 in 181ms |
+| Page loads (Light default) | ✓ Pass |
+| LLM setup banner triggers without provider key | ✓ Pass — same banner as DEV |
+| Document submission + SSE pipeline | ✓ Pass — Latin Terms doc, 7/7 stages done |
+| Pipeline result | 130 annotations · 28 individuals · 30 properties · 22 triples · 161 spans |
+| CANDIDATE DETAILS + ENTITY GRAPH tabs | ✓ Pass — both buttons present, Entity Graph has SVG icon |
+| Layer chips active on load | ✓ Pass — Nouns + Verbs + Individuals |
+| Stage pills done count | ✓ 7/7 |
+| Entity graph SVG renders | ✓ Pass — `svg.dag-svg` with 4 paths (cubic Bezier edges) |
+| Minimap theme-aware | ✓ Pass — `rgba(255,255,255,0.85)` |
+| Console errors | Only the same `favicon.ico` 404 — no JS errors |
+
+### Additional finding
+
+The misleading LLM header chip noted in DEV testing also affects PROD — header shows `gemini-2.5-flash-lite` while the banner correctly reports no provider configured. Same root cause as DEV; track as the same follow-up.
