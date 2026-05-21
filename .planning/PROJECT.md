@@ -1,29 +1,35 @@
-# FOLIO Enrich — Theme System
+# FOLIO Enrich
 
 ## What This Is
 
-A three-mode theme system (Dark / Light / Mixed) for the FOLIO Enrich frontend — a legal document annotation tool that enriches text with FOLIO ontology concepts, individuals, properties, and triples. Users can toggle between themes via a header button or settings swatches, with their choice persisting across sessions. All themes meet WCAG AA accessibility standards.
+FOLIO Enrich is a legal document annotation tool that enriches text with FOLIO ontology concepts, individuals, properties, and triples. A FastAPI backend runs a 14-stage pipeline (ingestion → normalization → parallel entity-ruler / LLM-concept / early-individual / early-property / early-triple → reconciliation → resolution → rerank → branch-judge → string-match → LLM individual/property → triple enrichment → metadata), and a single-file vanilla-JS frontend (`frontend/index.html`) presents the annotated document with an entity graph, detail panels, and 13 export formats.
 
 ## Core Value
 
-Every text element in every theme mode meets WCAG AA contrast ratios (4.5:1 for normal text, 3:1 for large text) — accessibility is non-negotiable.
+Make legal documents semantically rich — every recognizable concept, individual, property, and SVO triple is tagged with a FOLIO IRI and surfaced in a UI that meets WCAG AA accessibility standards.
 
 ## Current State
 
-**Shipped:** v1.0 Three-Mode Theme System (2026-04-05)
+**Shipped:** v1.1 Post-v1.0 Verification & Polish (2026-05-21)
 
-The complete theme system is live:
-- Two-layer CSS token system with 490+ variable definitions
-- Three themes (Dark, Light, Mixed) toggleable via `data-theme` attribute
-- Header toggle button (🌙/☀️/◑) + settings modal swatches
-- localStorage persistence with flash-prevention inline script
-- Default theme: Light (changed from OS preference per user request)
-- All 272 text-on-background pairs + 224 branch tints pass WCAG AA
-- Automated contrast audit script at `scripts/contrast-audit.mjs`
+PROD live at https://enrich.openlegalstandard.org/ running `71b5e9b`. Frontend includes:
+- Three-mode theme system (v1.0) — Dark / Light / Mixed, WCAG AA compliant
+- Entity graph with folio-mapper-style edge routing (cubic Bezier, 90° through node centers), theme-aware minimap, force-enabled core layers (Nouns / Verbs / Individuals)
+- Detail panel with CANDIDATE DETAILS / ENTITY GRAPH tabs + new SVG icon
+- Ontology metadata (synonyms, translations, see-also) rendered as styled pills
+- LLM UX: friendly setup banner + chip showing "Not Configured" when no provider key is set
+- Favicon (nodes-and-edges SVG glyph)
 
 ## Next Milestone Goals
 
 TBD — run `/gsd:new-milestone` to define the next milestone.
+
+<details>
+<summary>Previous shipped milestones</summary>
+
+**v1.0 Three-Mode Theme System (2026-04-05):** Two-layer CSS token system with 490+ variable definitions; three themes via `data-theme`; localStorage persistence with flash prevention; all 272 text-on-bg pairs + 224 branch tints pass WCAG AA; automated contrast audit at `scripts/contrast-audit.mjs`.
+
+</details>
 
 ## Requirements
 
