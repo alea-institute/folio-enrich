@@ -14,8 +14,9 @@ Replace the Unicode emoji flags shown next to FOLIO concept translations (in the
 <decisions>
 ## Implementation Decisions
 
-### Flag source & approach (locked by roadmap)
+### Flag source & approach (locked)
 - **D-01:** Flags are self-contained **inline SVG** — no Unicode emoji, no external image/CDN requests. Must render on Windows/macOS/Linux and survive content blockers.
+- **D-01b:** **Reuse existing open-licensed flag SVGs — do NOT hand-build flags.** Vendor (copy inline) the specific SVGs we need from an established set. **Preferred source: `flag-icons` (lipis/flag-icons), MIT-licensed**, ISO-code-named, 4:3 variants matching the rounded-rectangle style (D-04). MIT = no UI attribution burden; retain the license notice in-repo. flag-icons covers every ISO country, so all 12 flags come from the set with zero hand-building. (Do NOT link a CDN like flagcdn.com — external request violates FLAG-02.)
 - **D-02:** Bundle covers the **12 countries** FOLIO's locales resolve to: DE, CA, GB, US, ES, MX, FR, IL, IN, JP, BR, CN. (Full FOLIO locale set observed: `de-de, en-ca, en-gb, en-us, es-es, es-mx, fr-fr, he-il, hi-in, ja-jp, pt-br, zh-cn` + rare language-only `es, fr, he, hi, ja, zh`.)
 
 ### Language-only locales (he, hi, ja, zh, es, fr — no region)
@@ -31,7 +32,7 @@ Replace the Unicode emoji flags shown next to FOLIO concept translations (in the
 - **D-06:** Each flag/pill gets an accessible label and hover tooltip in the form **"Language (Country)"** — e.g. "Spanish (Mexico)", "English (United Kingdom)". Set via both `aria-label` and `title`. This disambiguates same-language regional variants (en-gb vs en-us vs en-ca) and serves screen-reader users.
 
 ### Claude's Discretion
-- Exact SVG flag source/library (must be open-licensed; see research questions), the precise embedding mechanism in the single-file frontend (JS map of SVG strings vs `<symbol>` sprite), and exact border/radius pixel values within the style intent above.
+- The precise embedding mechanism in the single-file frontend (JS map of SVG strings vs `<symbol>` sprite) and exact border/radius pixel values within the style intent above. (Flag source is locked to flag-icons per D-01b — not discretionary.)
 </decisions>
 
 <canonical_refs>
@@ -64,7 +65,7 @@ No external specs/ADRs — requirements fully captured in decisions above.
 - Single-file frontend, no build step, no new runtime dependencies — flag SVGs must be embedded inline.
 
 ### Research questions (for phase-researcher)
-- Which open-licensed SVG flag set to vendor (e.g., flag-icons (MIT), twemoji country flags (CC-BY 4.0), flagpack) for the 12 countries — license + minimal byte size, since they inline into a ~10k-line single file.
+- Confirm `flag-icons` (lipis/flag-icons) is still MIT-licensed and retrieve the current 4:3 SVGs for the 12 country codes (de, ca, gb, us, es, mx, fr, il, in, jp, br, cn). Note total inlined byte size and any per-flag minification opportunity (these embed into a ~10k-line single file). Confirm the license-notice retention requirement. Only if a specific flag is missing/unusable, fall back to another open set (e.g., flagpack/twemoji) — do not hand-build.
 - Confirm `Intl.DisplayNames` produces clean "Language (Country)" output for all 18 locales and define the fallback when a locale is unknown.
 </code_context>
 
