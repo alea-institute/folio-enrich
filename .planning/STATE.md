@@ -2,9 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Header & Status UX
-status: roadmapped
-last_updated: "2026-05-22T20:30:00.000Z"
-last_activity: 2026-05-22
+status: planning
+stopped_at: Phase 02 context gathered
+last_updated: "2026-05-22T20:26:13.568Z"
+last_activity: 2026-05-22 — v1.2 roadmap created (Phases 02-03)
 progress:
   total_phases: 2
   completed_phases: 0
@@ -58,7 +59,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-05-22
-Stopped at: v1.2 roadmap created (Phases 02-03), files written
-Resume file: —
+Last session: 2026-05-22T20:26:13.563Z
+Stopped at: Phase 02 context gathered
+Resume file: .planning/phases/02-robust-translation-flags/02-CONTEXT.md
 Next step: `/gsd:plan-phase 02` (or `/gsd:discuss-phase 02` to capture decisions first)
