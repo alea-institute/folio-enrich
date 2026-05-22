@@ -1279,6 +1279,82 @@
   }
   .status-chip.clickable:hover .chip-gear { opacity: 0.9; }
 
+  /* ── Consolidated System status chip + anchored popover (Phase 03) ──
+     Box metrics inherit .status-chip verbatim (padding:3px 10px; gap:5px;
+     border-radius:4px; font-size:11px) so header density is unchanged (D-12). */
+  .system-chip .chip-status-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 12px; height: 12px; flex-shrink: 0;
+  }
+  .system-chip .chip-status-icon svg { width: 12px; height: 12px; display: block; }
+
+  /* Keyboard focus ring — never bare outline:none (WCAG 2.4.7) */
+  .system-chip:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+
+  /* Status-icon glyphs: stroke at --text guarantees ≥3:1 in every theme
+     (02-SUMMARY: Light --green/--orange fail 3:1 as solid fills); the status
+     color is a secondary fill — color is redundant reinforcement, never the
+     sole signal (STATUS-05 / D-09). */
+  .system-status-icon svg,
+  .chip-status-icon svg {
+    stroke: var(--text);
+  }
+  .status-icon-fill { fill: none; }
+  .is-green .status-icon-fill { fill: var(--green); }
+  .is-orange .status-icon-fill { fill: var(--orange); }
+  .is-red .status-icon-fill { fill: var(--red); }
+
+  /* Anchored popover (D-01): position:fixed dropped below the chip, mirroring
+     the .status-chip[data-tooltip] fixed pattern (top:44px; z-index:100). */
+  .system-popover {
+    position: fixed;
+    top: 44px;
+    background: var(--surface3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+    z-index: 100;
+    min-width: 240px;
+    padding: 0;
+  }
+  .system-popover[hidden] { display: none; }
+  .system-popover:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+
+  /* Per-row rhythm mirrors .folio-status-row, surface swapped to --surface3,
+     1px dividers instead of margins to keep the panel compact. */
+  .system-status-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .system-status-row:last-child { border-bottom: none; }
+  .system-status-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 14px; height: 14px; flex-shrink: 0;
+  }
+  .system-status-icon svg { width: 14px; height: 14px; display: block; }
+  .system-status-name { font-size: 13px; font-weight: 600; color: var(--text); }
+  .system-status-detail { font-size: 12px; font-weight: 400; color: var(--text-dim); }
+  .system-status-annotation {
+    font-size: 11px; font-weight: 600; color: var(--text-dim);
+  }
+  .system-status-annotation:empty { display: none; }
+  /* FOLIO Manage action (D-08) — accent text link, right-aligned in its row. */
+  .system-status-action {
+    margin-left: auto;
+    background: none; border: none; padding: 2px 4px;
+    font-size: 11px; font-weight: 600; color: var(--accent);
+    cursor: pointer; white-space: nowrap; border-radius: 3px;
+  }
+  .system-status-action:hover { text-decoration: underline; }
+  .system-status-action:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px; text-decoration: none;
+  }
+
   /* FOLIO Modal */
   .folio-modal-body { padding: 4px 0; }
   .folio-status-row {
@@ -2957,26 +3033,44 @@
 <header>
   <h1><span>FOLIO</span> Enrich</h1>
   <div class="status-bar" id="statusBar">
-    <div class="status-chip" id="chipBackend" data-tooltip="Checking...">
-      <span class="chip-dot gray"></span>
-      <span class="chip-label">Backend</span>
-      <span class="chip-detail" id="chipBackendDetail">...</span>
+    <!-- Consolidated System status chip (D-12: 4 chips → 1). WAI-ARIA disclosure;
+         disclosure behavior + live rollup wired in plan 04. -->
+    <div class="status-chip system-chip clickable" id="chipSystem"
+         role="button" tabindex="0" aria-haspopup="true" aria-expanded="false"
+         aria-controls="systemStatusPopover" aria-label="System status">
+      <span class="chip-status-icon" id="chipSystemIcon"><!-- inline SVG rollup glyph (plan 04) --></span>
+      <span class="chip-label" id="chipSystemLabel">System</span>
     </div>
-    <div class="status-chip clickable" id="chipFolio" data-tooltip="Click to manage FOLIO ontology" onclick="openFolioModal()" tabindex="0" role="button" aria-label="Manage FOLIO ontology">
-      <span class="chip-dot gray"></span>
-      <span class="chip-label">FOLIO</span>
-      <span class="chip-detail" id="chipFolioDetail">...</span>
-      <span class="chip-gear">&#9881;</span>
-    </div>
-    <div class="status-chip" id="chipEmbedding" data-tooltip="Embedding service status">
-      <span class="chip-dot gray"></span>
-      <span class="chip-label">Embedding</span>
-      <span class="chip-detail" id="chipEmbeddingDetail">...</span>
-    </div>
-    <div class="status-chip" id="chipSpacy" data-tooltip="spaCy NLP status">
-      <span class="chip-dot gray"></span>
-      <span class="chip-label">spaCy</span>
-      <span class="chip-detail" id="chipSpacyDetail">...</span>
+    <!-- Anchored popover (D-01), immediately after the chip in source order so SR
+         users reach it naturally (D-04). All four rows always present (D-02). -->
+    <div class="system-popover" id="systemStatusPopover" role="region"
+         aria-label="System status detail" tabindex="-1" hidden>
+      <div class="system-status-row" id="sysRowBackend" data-subsystem="backend">
+        <span class="system-status-icon"><!-- inline SVG status glyph (plan 04) --></span>
+        <span class="system-status-name">Backend</span>
+        <span class="system-status-detail" id="sysRowBackendDetail">Checking…</span>
+        <span class="system-status-annotation" id="sysRowBackendAnnotation"></span>
+      </div>
+      <div class="system-status-row" id="sysRowFolio" data-subsystem="folio">
+        <span class="system-status-icon"><!-- inline SVG status glyph (plan 04) --></span>
+        <span class="system-status-name">FOLIO</span>
+        <span class="system-status-detail" id="sysRowFolioDetail">Checking…</span>
+        <span class="system-status-annotation" id="sysRowFolioAnnotation"></span>
+        <button type="button" class="system-status-action" id="sysRowFolioManage"
+                aria-label="Manage FOLIO ontology" onclick="openFolioModal()">Manage FOLIO</button>
+      </div>
+      <div class="system-status-row" id="sysRowEmbedding" data-subsystem="embedding">
+        <span class="system-status-icon"><!-- inline SVG status glyph (plan 04) --></span>
+        <span class="system-status-name">Embedding</span>
+        <span class="system-status-detail" id="sysRowEmbeddingDetail">Checking…</span>
+        <span class="system-status-annotation" id="sysRowEmbeddingAnnotation"></span>
+      </div>
+      <div class="system-status-row" id="sysRowSpacy" data-subsystem="spacy">
+        <span class="system-status-icon"><!-- inline SVG status glyph (plan 04) --></span>
+        <span class="system-status-name">spaCy</span>
+        <span class="system-status-detail" id="sysRowSpacyDetail">Checking…</span>
+        <span class="system-status-annotation" id="sysRowSpacyAnnotation"></span>
+      </div>
     </div>
     <div class="status-chip clickable" id="chipLLM" data-tooltip="Click to configure LLM provider" onclick="onLLMChipClick()">
       <span class="chip-dot gray"></span>
@@ -10294,6 +10388,133 @@ function setStatus(text, state) {
 // Utilities
 // ==============================================
 
+// ── System status rollup (mirrors scripts/system-rollup.mjs — keep byte-identical) ──
+// Inline non-export copy of the pure rollup logic (single-file frontend, no build
+// step). Bodies are byte-identical to scripts/system-rollup.mjs — only the `export`
+// keyword is dropped — so scripts/system-rollup.test.mjs stays authoritative for
+// this copy. Not called yet; plan 04 wires these into checkHealth().
+
+// D-07: tier mapping red > orange > green.
+const TIER_RANK = { green: 0, orange: 1, red: 2 };
+
+// computeRollup: worst-of-four, red > orange > green; "+N" = other non-green
+// subsystems beyond the worst. The D-05/D-06 Standby/Update→green mapping is
+// applied upstream in normalizeSubsystems (one place), NOT here.
+function computeRollup(subsystems) {
+  let worst = { name: null, tier: 'green' };
+  let failCount = 0;
+  for (const s of subsystems) {
+    if (TIER_RANK[s.tier] > TIER_RANK['green']) failCount++;
+    if (TIER_RANK[s.tier] > TIER_RANK[worst.tier]) worst = s;
+  }
+  const overflow = Math.max(0, failCount - 1);
+  return { tier: worst.tier, worstName: worst.name, overflow };
+}
+
+function chipLabel(rollup) {
+  if (rollup.tier === 'green') return 'System';                // D-10
+  let label = `System: ${rollup.worstName}`;                   // D-11
+  if (rollup.overflow > 0) label += ` +${rollup.overflow}`;    // D-11
+  return label;
+}
+
+// Inline number formatter so node:test stays standalone (no DOM, no imports
+// beyond node: built-ins). Mirrors the `.toLocaleString()` calls in the
+// current index.html setChip() tooltips.
+function fmt(n) {
+  return Number(n || 0).toLocaleString();
+}
+
+// normalizeSubsystems: map raw /health/detail JSON + backend reachability to a
+// fixed-order array of 4 presentation rows for the consolidated System chip.
+// LLM is EXCLUDED (STATUS-06) — this function never reads the LLM subsystem.
+//
+// Row shape: { key, name, tier, statusWord, metric, annotation, action? }
+//   key        — stable id: 'backend' | 'folio' | 'embedding' | 'spacy'
+//   name       — display name: 'Backend' | 'FOLIO' | 'Embedding' | 'spaCy'
+//   tier       — 'green' | 'red' (D-05/D-06 keep Standby/Update green)
+//   statusWord — terse status-bar word (STATUS-05: text, not color alone)
+//   metric     — preserved metric string (STATUS-04), verbatim from the
+//                Metric Preservation Map (03-RESEARCH.md:352-368)
+//   annotation — informational sub-line (Standby/Update), never a warning (D-06)
+//   action     — 'manage-folio' on the FOLIO row ONLY (D-08); absent elsewhere
+//
+// backendUp=false (the /health probe failed): every row is red and the
+// dependents read "Backend offline", mirroring index.html:4044-4050.
+function normalizeSubsystems(detail, backendUp) {
+  const d = detail || {};
+
+  if (backendUp === false) {
+    return [
+      { key: 'backend', name: 'Backend', tier: 'red', statusWord: 'Offline', metric: 'Offline — cannot reach backend' },
+      { key: 'folio', name: 'FOLIO', tier: 'red', statusWord: 'Offline', metric: 'Backend offline', action: 'manage-folio' },
+      { key: 'embedding', name: 'Embedding', tier: 'red', statusWord: 'Offline', metric: 'Backend offline' },
+      { key: 'spacy', name: 'spaCy', tier: 'red', statusWord: 'Offline', metric: 'Backend offline' },
+    ];
+  }
+
+  // Backend — reachable here (backendUp truthy).
+  const backend = { key: 'backend', name: 'Backend', tier: 'green', statusWord: 'Running', metric: 'Running' };
+
+  // FOLIO ontology.
+  const f = d.folio_ontology || {};
+  const folio = { key: 'folio', name: 'FOLIO', tier: 'green', statusWord: '', metric: '', action: 'manage-folio' };
+  if (f.status === 'ready') {
+    folio.tier = 'green';
+    folio.statusWord = 'Ready';
+    folio.metric = `${fmt(f.concepts)} concepts, ${fmt(f.labels_indexed)} labels indexed`;
+    const us = f.update_status || {};
+    if (us.update_in_progress) {
+      folio.annotation = 'Updating…';                       // D-06 (green)
+    } else if (us.update_available) {
+      folio.annotation = 'Update available';                // D-06 (green)
+    }
+  } else if (f.status === 'not_loaded') {
+    folio.tier = 'green';                                   // D-05 (green)
+    folio.statusWord = 'Standby';
+    folio.metric = 'Standby — loads on first use';
+    folio.annotation = 'Standby — loads on first use';
+  } else {
+    folio.tier = 'red';
+    folio.statusWord = 'Error';
+    folio.metric = f.message ? `FOLIO error — ${f.message}` : 'FOLIO error';
+  }
+
+  // Embedding.
+  const e = d.embedding || {};
+  const embedding = { key: 'embedding', name: 'Embedding', tier: 'green', statusWord: '', metric: '' };
+  if (e.status === 'ready') {
+    embedding.tier = 'green';
+    embedding.statusWord = 'Ready';
+    embedding.metric = `${e.provider || 'Local'}, ${fmt(e.index_size)} vectors indexed`;
+  } else if (e.status === 'not_loaded') {
+    embedding.tier = 'green';                               // D-05 (green)
+    embedding.statusWord = 'Standby';
+    embedding.metric = 'Standby — loads on first use';
+    embedding.annotation = 'Standby — loads on first use';
+  } else {
+    embedding.tier = 'red';
+    embedding.statusWord = 'Error';
+    embedding.metric = e.message ? `Embedding error — ${e.message}` : 'Embedding error';
+  }
+
+  // spaCy.
+  const s = d.spacy || {};
+  const spacy = { key: 'spacy', name: 'spaCy', tier: 'green', statusWord: '', metric: '' };
+  if (s.status === 'ready') {
+    spacy.tier = 'green';
+    spacy.statusWord = 'Ready';
+    spacy.metric = `spaCy ${s.version} — EntityRuler ready`;
+  } else {
+    spacy.tier = 'red';
+    spacy.statusWord = 'Error';
+    spacy.metric = s.message ? `spaCy error — ${s.message}` : 'spaCy error';
+  }
+
+  // Fixed order: Backend, FOLIO, Embedding, spaCy. LLM excluded (STATUS-06).
+  return [backend, folio, embedding, spacy];
+}
+
 // ── Translation flags (inline SVG; mirrors scripts/flags.mjs — keep byte-identical) ──
 // Flags: lipis/flag-icons, MIT (c) 2013 Panayiotis Lipiridis. See LICENSES/flag-icons-LICENSE.txt
 // Vendoring rules: wrapper id="flag-icons-XX" stripped; internal ids namespaced;
@@ -10314,6 +10535,21 @@ const FLAG_SVG = {
   br: '<svg viewBox="0 0 640 480" aria-hidden="true" focusable="false"><g stroke-width="1pt"><path fill="#229e45" fill-rule="evenodd" d="M0 0h640v480H0z"/><path fill="#f8e509" fill-rule="evenodd" d="m321.4 436 301.5-195.7L319.6 44 17.1 240.7z"/><path fill="#2b49a3" fill-rule="evenodd" d="M452.8 240c0 70.3-57.1 127.3-127.6 127.3A127.4 127.4 0 1 1 452.8 240"/><path fill="#fff" fill-rule="evenodd" d="M323.6 364.2a124 124 0 0 0 87-35.5c-2.3-30.2-41-69-87.3-69.4a127 127 0 0 0-86.7 33.6 124 124 0 0 0 87 71.3"/></g></svg>',
   cn: '<svg viewBox="0 0 640 480" aria-hidden="true" focusable="false"><path fill="#ee1c25" d="M0 0h640v480H0z"/><path fill="#ff0" d="M76.8 177.6 L120 48 L163.2 177.6 L48 98.4 L192 98.4z"/><path fill="#ff0" d="M264.2 50.5 L219.7 60.3 L249.4 25.8 L246.5 72.3 L221.8 31.1z"/><path fill="#ff0" d="M309 107.3 L264.2 99.2 L305 78.8 L284.3 120.6 L277.5 73.1z"/><path fill="#ff0" d="M302.5 187.1 L264.9 161.4 L310.4 159.4 L274.5 189.1 L287.7 142.9z"/><path fill="#ff0" d="M246 239.2 L221.3 201 L264 216.8 L219.4 230.2 L249.4 192.8z"/></svg>',
 };
+// ── System status glyphs (inline SVG; D-09) ──
+// Three distinct silhouettes — round-check / triangle-bang / cross-circle — so a
+// grayscale or colorblind user distinguishes them by FORM, never color alone
+// (STATUS-05). aria-hidden + focusable="false" (the status WORD carries the a11y
+// text). The stroke is set to var(--text) in CSS (≥3:1 in every theme; 02-SUMMARY
+// found solid Light green/orange fail 3:1) — the .status-icon-fill region takes
+// the status color as redundant reinforcement, toggled via .is-green/.is-orange/
+// .is-red on an ancestor. healthy → green / warning → orange (reserved tier, D-07)
+// / error → red. The collapsed chip shows the rollup glyph; each row shows its own.
+const STATUS_ICON_SVG = {
+  healthy: '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle class="status-icon-fill" cx="8" cy="8" r="6.5" stroke-width="1.5"/><path d="M5 8.2 7 10.2 11 5.8" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  warning: '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path class="status-icon-fill" d="M8 2 14.5 13.5H1.5Z" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 6.5V9.5" fill="none" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="11.6" r="0.9" fill="var(--text)" stroke="none"/></svg>',
+  error: '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle class="status-icon-fill" cx="8" cy="8" r="6.5" stroke-width="1.5"/><path d="M5.5 5.5 10.5 10.5 M10.5 5.5 5.5 10.5" fill="none" stroke-width="1.6" stroke-linecap="round"/></svg>',
+};
+
 const LANG_TO_COUNTRY = { he: 'il', hi: 'in', ja: 'jp', zh: 'cn', es: 'es', fr: 'fr' };  // D-03
 const FLAG_BUNDLED = new Set(['de', 'ca', 'gb', 'us', 'es', 'mx', 'fr', 'il', 'in', 'jp', 'br', 'cn']);  // D-02
 const _flagLangDN = new Intl.DisplayNames(['en'], { type: 'language' });
