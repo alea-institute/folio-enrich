@@ -24,8 +24,10 @@ PROD live at https://enrich.openlegalstandard.org/ running `71b5e9b`. Frontend i
 
 **Goal:** Make the header status bar render reliably across all platforms and consolidate passive health indicators so problems are obvious and clutter is gone.
 
+**Progress:** Phase 02 (Robust translation flags) complete on `dev` 2026-05-22 — UAT-approved on Railway Dev. Phase 03 (Consolidated system status chip) next.
+
 **Target features:**
-- Robust translation flags — replace Unicode emoji flags (unrendered on Windows, look broken) with self-contained inline SVG flags for FOLIO's locale set; render on every OS and immune to content/privacy blockers.
+- ✓ Robust translation flags — replace Unicode emoji flags (unrendered on Windows, look broken) with self-contained inline SVG flags for FOLIO's locale set; render on every OS and immune to content/privacy blockers. **(Phase 02, complete)**
 - Consolidated system status chip — collapse Backend / FOLIO / Embedding / spaCy into one "System" chip: quiet green when all healthy, worst-status rollup that names the failing subsystem when degraded, click-to-expand per-subsystem detail, WCAG-compliant (icon + text, not color alone). LLM chip stays a separate actionable control.
 
 <details>
@@ -36,6 +38,13 @@ PROD live at https://enrich.openlegalstandard.org/ running `71b5e9b`. Frontend i
 </details>
 
 ## Requirements
+
+### Validated (Phase 02 — v1.2)
+
+- ✓ FLAG-01: Translation pills show inline-SVG flag graphics on every OS (no emoji codepoints, no boxed letters) — Phase 02
+- ✓ FLAG-02: Flags display with a content/privacy blocker enabled (zero external requests) — Phase 02
+- ✓ FLAG-03: Each flag/pill has a "Language (Country)" aria-label + title via Intl.DisplayNames — Phase 02
+- ✓ FLAG-04: Unbundled locales render a styled country-code pill, never a broken glyph — Phase 02
 
 ### Validated (shipped in v1.0)
 
