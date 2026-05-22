@@ -98,6 +98,11 @@ export function resolveVariable(name, themeMap, paletteMap, depth = 0) {
 // (confirmed via grep — no `color:` declarations reference it in frontend/index.html)
 const TEXT_TOKENS = ['--text', '--text-dim', '--accent'];
 const BG_TOKENS = ['--bg', '--surface', '--surface2', '--surface3'];
+// STATUS-05: status-icon colors are graphical objects (WCAG 1.4.11) → 3:1 floor,
+// not the 4.5/3.0 text thresholds. Audited on the chip (--surface2) and
+// popover (--surface3) surfaces where the system-status icons render.
+const STATUS_ICON_TOKENS = ['--green', '--orange', '--red'];
+const STATUS_ICON_BG_TOKENS = ['--surface2', '--surface3'];
 const BRANCH_NAMES = [
   'actor-player', 'area-of-law', 'asset-type', 'communication-modality',
   'currency', 'data-format', 'document-artifact', 'document-metadata',
@@ -114,12 +119,18 @@ function classify(ratio) {
   return 'FAIL';
 }
 
+// STATUS-05: graphical-object contrast (WCAG 1.4.11) — single 3:1 floor.
+// Used only for the status-icon audit; do NOT weaken this threshold.
+function classifyIcon(ratio) {
+  return ratio >= 3.0 ? 'PASS' : 'FAIL';
+}
+
 function extractBlock(html, regex) {
   const m = html.match(regex);
   return m ? m[1] : '';
 }
 
-function buildReport(results, branchResults, failing, recommendations) {
+function buildReport(results, branchResults, iconResults, failing, recommendations) {
   const now = new Date().toISOString();
   let md = `# Phase 03 WCAG Contrast Audit Report\n\n`;
   md += `**Generated:** ${now}\n`;
@@ -170,13 +181,31 @@ function buildReport(results, branchResults, failing, recommendations) {
     md += `\n`;
   }
 
+  // Status-Icon Graphical-Object Results (STATUS-05, 3:1 floor)
+  md += `## Status-Icon Results (3:1 graphical-object floor — WCAG 1.4.11)\n\n`;
+  md += `Status icons (green/orange/red) are graphical objects, not text, so they\n`;
+  md += `must clear a 3:1 floor on the chip (--surface2) and popover (--surface3)\n`;
+  md += `surfaces. Solid Light-theme green/orange fills FAIL here — Wave 3 must\n`;
+  md += `stroke those glyphs at --text (≥13:1) so the shape carries the contrast.\n\n`;
+  const iconThemes = [...new Set(iconResults.map(r => r.theme))];
+  for (const theme of iconThemes) {
+    md += `### ${theme}\n\n`;
+    md += `| Icon Color | Surface | FG Hex | BG Hex | Ratio | Status (3:1) |\n`;
+    md += `|-----------|---------|--------|--------|-------|--------------|\n`;
+    for (const r of iconResults.filter(x => x.theme === theme)) {
+      md += `| ${r.fg} | ${r.bg} | ${r.fgHex} | ${r.bgHex} | ${r.ratio.toFixed(2)}:1 | ${r.status} |\n`;
+    }
+    md += `\n`;
+  }
+
   // Failing Pairs
   md += `## Failing Pairs\n\n`;
   if (failing.length === 0) {
     md += `None — all pairs meet WCAG AA (4.5:1).\n\n`;
   } else {
     for (const f of failing) {
-      md += `- [${f.theme}] ${f.fg} on ${f.bg}: ${f.ratio.toFixed(2)}:1 (need: 4.5:1)\n`;
+      const need = f.bg.includes('(icon 3:1)') ? '3:1 graphical-object' : '4.5:1';
+      md += `- [${f.theme}] ${f.fg} on ${f.bg}: ${f.ratio.toFixed(2)}:1 (need: ${need})\n`;
     }
     md += `\n`;
   }
@@ -197,7 +226,7 @@ function buildReport(results, branchResults, failing, recommendations) {
 export async function runAudit() {
   const projectRoot = path.resolve(fileURLToPath(import.meta.url), '..', '..');
   const htmlPath = path.join(projectRoot, 'frontend/index.html');
-  const reportPath = path.join(projectRoot, '.planning/phases/03-accessibility-component-polish/03-AUDIT-REPORT.md');
+  const reportPath = path.join(projectRoot, '.planning/phases/03-consolidated-system-status-chip/03-AUDIT-REPORT.md');
 
   const html = readFileSync(htmlPath, 'utf8');
 
@@ -228,6 +257,7 @@ export async function runAudit() {
 
   const results = [];
   const branchResults = [];
+  const iconResults = [];
   const failing = [];
 
   // Text-on-background audit
@@ -244,6 +274,30 @@ export async function runAudit() {
         results.push({ theme, fg, bg, fgHex, bgHex, ratio, status });
         if (status === 'FAIL') {
           failing.push({ theme, fg, bg, fgHex, bgHex, ratio });
+        }
+      }
+    }
+  }
+
+  // STATUS-05: status-icon graphical-object audit (WCAG 1.4.11, 3:1 floor).
+  // Mirrors the text-on-bg loop above but uses STATUS_ICON_TOKENS as foregrounds
+  // against the chip/popover surfaces and a 3:1 PASS threshold (classifyIcon).
+  // This is EXPECTED to surface the Light-theme solid green/orange FAILs
+  // (2.5–2.8:1); Wave 3 resolves them by stroking glyphs at --text. Do NOT
+  // weaken the threshold to hide those FAILs.
+  for (const theme of ['dark', 'light', 'mixed', 'mixed-light']) {
+    const tmap = themeMaps[theme];
+    for (const bg of STATUS_ICON_BG_TOKENS) {
+      const bgHex = resolveVariable(bg, tmap, paletteMap);
+      if (!bgHex) continue;
+      for (const fg of STATUS_ICON_TOKENS) {
+        const fgHex = resolveVariable(fg, tmap, paletteMap);
+        if (!fgHex) continue;
+        const ratio = contrastRatio(fgHex, bgHex);
+        const status = classifyIcon(ratio);
+        iconResults.push({ theme, fg, bg, fgHex, bgHex, ratio, status });
+        if (status === 'FAIL') {
+          failing.push({ theme, fg, bg: `${bg} (icon 3:1)`, fgHex, bgHex, ratio });
         }
       }
     }
@@ -279,17 +333,25 @@ export async function runAudit() {
   const dimFails = failing.filter(f => f.fg === '--text-dim').length;
   const accentFails = failing.filter(f => f.fg === '--accent').length;
   const branchFails = failing.filter(f => f.bg.includes('+branch-')).length;
+  const iconFailCount = failing.filter(f => f.bg.includes('(icon 3:1)')).length;
   if (dimFails > 0) recommendations.push(`Adjust --text-dim: ${dimFails} failing pair(s)`);
   if (accentFails > 0) recommendations.push(`Adjust --accent: ${accentFails} failing pair(s)`);
   if (branchFails > 0) recommendations.push(`Add per-branch text overrides: ${branchFails} branch tint(s) fail`);
-  const other = failing.length - dimFails - accentFails - branchFails;
+  if (iconFailCount > 0) recommendations.push(`STATUS-05: stroke status icons at --text — ${iconFailCount} solid green/orange icon(s) fail the 3:1 graphical-object floor`);
+  const other = failing.length - dimFails - accentFails - branchFails - iconFailCount;
   if (other > 0) recommendations.push(`Other fixes needed: ${other}`);
 
-  const md = buildReport(results, branchResults, failing, recommendations);
+  const md = buildReport(results, branchResults, iconResults, failing, recommendations);
   writeFileSync(reportPath, md, 'utf8');
-  console.log(`Audit complete: ${results.length + branchResults.length} pairs checked, ${failing.length} failures.`);
+  const totalChecked = results.length + branchResults.length + iconResults.length;
+  console.log(`Audit complete: ${totalChecked} pairs checked, ${failing.length} failures.`);
+  const iconFails = iconResults.filter(r => r.status === 'FAIL');
+  console.log(`Status-icon (3:1 graphical-object) checks: ${iconResults.length}, ${iconFails.length} fail.`);
+  for (const r of iconFails) {
+    console.log(`  FAIL [${r.theme}] ${r.fg} on ${r.bg}: ${r.ratio.toFixed(2)}:1 (need 3:1) → stroke at --text in Wave 3`);
+  }
   console.log(`Report written: ${reportPath}`);
-  return { results, branchResults, failing, recommendations };
+  return { results, branchResults, iconResults, failing, recommendations };
 }
 
 // Run if invoked directly (not imported)
