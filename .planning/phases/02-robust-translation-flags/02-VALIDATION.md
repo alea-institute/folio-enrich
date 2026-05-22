@@ -19,15 +19,15 @@ created: 2026-05-22
 |----------|-------|
 | **Framework** | `node:test` (built into Node, no install) for extracted flag logic; pytest for the existing backend suite |
 | **Config file** | none — flag logic extracted to a testable `scripts/flags.mjs` (per RESEARCH §architecture) |
-| **Quick run command** | `node --test test/` |
-| **Full suite command** | `node --test test/ && (cd backend && .venv/bin/python -m pytest tests/ -q)` |
+| **Quick run command** | `node --test scripts/` |
+| **Full suite command** | `node --test scripts/ && (cd backend && .venv/bin/python -m pytest tests/ -q)` |
 | **Estimated runtime** | ~10 seconds |
 
 ---
 
 ## Sampling Rate
 
-- **After every task commit:** Run `node --test test/`
+- **After every task commit:** Run `node --test scripts/`
 - **After every plan wave:** Run the full suite command
 - **Before `/gsd:verify-work`:** Full suite green + manual UAT (below) complete
 - **Max feedback latency:** ~10 seconds
@@ -40,10 +40,10 @@ created: 2026-05-22
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 02-01-01 | 01 | 1 | FLAG-01 | — | N/A | unit | `node --test test/flags.test.mjs` | ❌ W0 | ⬜ pending |
-| 02-01-02 | 01 | 1 | FLAG-03 | — | aria-label = "Language (Country)" via Intl.DisplayNames | unit | `node --test test/flags.test.mjs` | ❌ W0 | ⬜ pending |
-| 02-01-03 | 01 | 1 | FLAG-04 | — | unknown locale → country-code fallback string, never empty | unit | `node --test test/flags.test.mjs` | ❌ W0 | ⬜ pending |
-| 02-01-04 | 01 | 1 | FLAG-01 (D-03) | — | language-only locale maps he→IL/hi→IN/ja→JP/zh→CN/es→ES/fr→FR | unit | `node --test test/flags.test.mjs` | ❌ W0 | ⬜ pending |
+| 02-01-01 | 01 | 1 | FLAG-01 | — | N/A | unit | `node --test scripts/flags.test.mjs` | ❌ W0 | ⬜ pending |
+| 02-01-02 | 01 | 1 | FLAG-03 | — | aria-label = "Language (Country)" via Intl.DisplayNames | unit | `node --test scripts/flags.test.mjs` | ❌ W0 | ⬜ pending |
+| 02-01-03 | 01 | 1 | FLAG-04 | — | unknown locale → country-code fallback string, never empty | unit | `node --test scripts/flags.test.mjs` | ❌ W0 | ⬜ pending |
+| 02-01-04 | 01 | 1 | FLAG-01 (D-03) | — | language-only locale maps he→IL/hi→IN/ja→JP/zh→CN/es→ES/fr→FR | unit | `node --test scripts/flags.test.mjs` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -52,7 +52,7 @@ created: 2026-05-22
 ## Wave 0 Requirements
 
 - [ ] `scripts/flags.mjs` — extract pure locale→{svgKey, fallbackCode, label} logic from `localeToFlag` so it is testable in `node:test`.
-- [ ] `test/flags.test.mjs` — `node:test` stubs covering FLAG-01 (all 12 countries resolve to an SVG key), FLAG-03 (label format), FLAG-04 (fallback), and D-03 (language-only mapping).
+- [ ] `scripts/flags.test.mjs` — `node:test` stubs covering FLAG-01 (all 12 countries resolve to an SVG key), FLAG-03 (label format), FLAG-04 (fallback), and D-03 (language-only mapping).
 
 ---
 
