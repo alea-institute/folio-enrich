@@ -70,3 +70,31 @@ test('resolveVariable follows var(--x) chain through themeMap and paletteMap', (
   const resolved = resolveVariable('--text', theme, palette);
   assert.equal(resolved, '#e4e6f0');
 });
+
+// ── STATUS-05: status-icon 3:1 graphical-object floor (WCAG 1.4.11) ──────────
+// These pin the computed Light-theme ratios (03-RESEARCH.md:294, 03-UI-SPEC.md:72-77)
+// so the mandatory --text stroke fallback for status icons cannot regress.
+// The --text stroke clears 3:1 (≥13:1); solid green/orange fills FAIL — proving
+// the stroke fallback is mandatory, not optional. Exact v1.0 hex literals are
+// pinned here: --text #1a1d27, --green #16a34a, --orange #d97706,
+// --surface2 #eceef4, --surface3 #e2e5ee.
+
+test('STATUS-05: Light --text #1a1d27 stroke clears 3:1 on --surface2 #eceef4', () => {
+  const ratio = contrastRatio('#1a1d27', '#eceef4');
+  assert.ok(ratio >= 3.0, `--text stroke must clear 3:1, got ${ratio.toFixed(2)}:1`);
+});
+
+test('STATUS-05: Light --text #1a1d27 stroke clears 3:1 on --surface3 #e2e5ee', () => {
+  const ratio = contrastRatio('#1a1d27', '#e2e5ee');
+  assert.ok(ratio >= 3.0, `--text stroke must clear 3:1, got ${ratio.toFixed(2)}:1`);
+});
+
+test('STATUS-05: Light solid --green #16a34a FAILS 3:1 on --surface2 #eceef4 (stroke fallback mandatory)', () => {
+  const ratio = contrastRatio('#16a34a', '#eceef4');
+  assert.ok(ratio < 3.0, `solid green must fail 3:1 (~2.84:1), got ${ratio.toFixed(2)}:1`);
+});
+
+test('STATUS-05: Light solid --orange #d97706 FAILS 3:1 on --surface2 #eceef4 (stroke fallback mandatory)', () => {
+  const ratio = contrastRatio('#d97706', '#eceef4');
+  assert.ok(ratio < 3.0, `solid orange must fail 3:1 (~2.75:1), got ${ratio.toFixed(2)}:1`);
+});
