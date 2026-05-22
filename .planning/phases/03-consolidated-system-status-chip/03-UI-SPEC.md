@@ -31,7 +31,7 @@ created: 2026-05-22
 
 ## Spacing Scale
 
-The host stylesheet uses a 4-based scale already (`gap:4px`, `padding:3px 10px`, `gap:8px`, `margin-bottom:16px`). Match it. Declared values (multiples of 4):
+The host stylesheet uses a 4-based scale already (`gap:4px`, `gap:8px`, `margin-bottom:16px`). Match it. Declared layout tokens (all multiples of 4):
 
 | Token | Value | Usage in this phase |
 |-------|-------|---------------------|
@@ -39,27 +39,27 @@ The host stylesheet uses a 4-based scale already (`gap:4px`, `padding:3px 10px`,
 | sm | 8px | Gap between status icon and text inside a popover row; popover internal column gap |
 | md | 12px | Popover row vertical padding (`10–12px`); horizontal row padding `12–14px` (mirrors `.folio-status-row` `10px 14px`) |
 | lg | 16px | Popover content block separation (between rows is via border, not margin); popover internal top/bottom padding |
-| — | 6px | Popover corner radius (`border-radius`), matching modal cards (`.folio-status-row` uses 8px; popover uses 6–8px) |
 
 **Exceptions (required):**
-- Collapsed chip preserves the existing `.status-chip` box metrics exactly: `padding: 3px 10px; border-radius: 4px; gap: 5px; font-size: 11px`. Do NOT enlarge the chip — header density must be unchanged so D-12 (overlap relief from removing 3 chips) holds.
 - Popover anchors **4px below** the chip's bottom edge (small visual gap), top-aligned to the chip's left edge, using `position: fixed` like the existing `data-tooltip` (`top:44px` reference at `index.html:570-583`) to avoid header reflow (D-01).
 - Status-icon hit area inside the collapsed chip is the whole chip (chip is the button); the chip's existing height is the touch target. No separate 44px target is introduced (desktop header; mobile is deferred).
+
+> Non-token box metrics that must be preserved verbatim from the existing `.status-chip` and modal styling (NOT part of the spacing scale — they are implementation carry-forward, recorded in the Component Layout Contract below): collapsed-chip `padding: 3px 10px`, `gap: 5px`; popover `border-radius: 6px`.
 
 ---
 
 ## Typography
 
-Reuse the header/modal type ramp already in the file. Two weights only (regular 400 + semibold/600); the chip uses 500 for its label exactly as `.chip-label` does today.
+Reuse the header/modal type ramp already in the file. **Two weights only — regular (400) and semibold (600).** The chip label, annotations, and the "Manage" link use 600; metrics and status text use 400.
 
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
-| Chip label ("System" / "System: FOLIO +1") | 11px | 500 | 1 (single line, `white-space: nowrap`) |
+| Chip label ("System" / "System: FOLIO +1") | 11px | 600 | 1 (single line, `white-space: nowrap`) |
 | Popover row subsystem name | 13px | 600 | 1.3 |
 | Popover row status word + metrics | 12px | 400 | 1.4 |
-| Popover row "Standby / Update" annotation + "Manage" link | 11px | 500 | 1.3 |
+| Popover row "Standby / Update" annotation + "Manage" link | 11px | 600 | 1.3 |
 
-No display/heading tier — the popover has no title bar (it is a disclosure region, not a modal). If a header label is wanted, use a single 11px uppercase eyebrow ("System status", `color: var(--text-dim)`, `letter-spacing: 0.5px`) mirroring `.folio-stat-label` at `index.html:1305`.
+No display/heading tier — the popover has no title bar (it is a disclosure region, not a modal). If a header label is wanted, use a single 11px uppercase eyebrow ("System status", `weight 600`, `color: var(--text-dim)`, `letter-spacing: 0.5px`) mirroring `.folio-stat-label` at `index.html:1305`.
 
 ---
 
@@ -113,16 +113,19 @@ The three shapes (round-check / triangle-bang / cross-circle) are deliberately d
 ### Collapsed chip (replaces `chipBackend`/`chipFolio`/`chipEmbedding`/`chipSpacy`)
 - Single `.status-chip` reusing existing box styling, now `role="button"`, `tabindex="0"`, `aria-haspopup="true"`, `aria-expanded="false|true"`, `aria-controls="systemStatusPopover"`.
 - Content order: `[status icon] [label]`. Healthy → icon + **"System"** (D-10). Degraded → worst icon + **"System: {Subsystem}"**, with **"+N"** overflow when >1 fails, e.g. **"System: FOLIO +1"** (D-11).
+- **Primary visual focal point:** the rollup status icon at the chip's left edge is the single element a user's eye is meant to land on first — its shape + color summarize whole-system health at a glance, and the chip label is its caption.
+- **Box-metric carry-forward (NOT spacing tokens — preserve existing `.status-chip` footprint exactly, per D-12 overlap relief):** keep `padding: 3px 10px`, `border-radius: 4px`, `gap: 5px`, `font-size: 11px` unchanged. Do NOT enlarge the chip — header density must be unchanged so the width freed by removing 3 chips holds.
 - No gear on the aggregate chip (D-08 — gear/manage moves into the FOLIO row).
 - Existing `data-tooltip` may carry a one-line summary, but the popover is the source of truth; tooltip is optional reinforcement.
 
 ### Anchored popover (`#systemStatusPopover`, D-01/D-02/D-03/D-04)
-- `position: fixed`, dropped 4px below the chip, left-aligned to chip; `background: var(--surface3)`; `1px solid var(--border)`; `border-radius: 6–8px`; subtle shadow consistent with existing modals; `z-index` above header (≥ 100, like the tooltip).
+- `position: fixed`, dropped 4px below the chip, left-aligned to chip; `background: var(--surface3)`; `1px solid var(--border)`; subtle shadow consistent with existing modals; `z-index` above header (≥ 100, like the tooltip).
+- **Box-metric carry-forward (NOT a spacing token):** popover `border-radius: 6px`, matching modal cards (`.folio-status-row` uses 8px; 6–8px is the existing modal range).
 - `role="region"` (or `role="dialog"` if focus is trapped) with `aria-label="System status detail"`.
 - Always available (never hidden when green) — D-02. Shows **all four rows** at all times.
 - One row per subsystem in fixed order: **Backend, FOLIO, Embedding, spaCy**. Each row mirrors `.folio-status-row` rhythm (`display:flex; align-items:center; gap:8px; padding:10px 14px`), separated by `1px var(--border)` dividers (not margins, to keep the panel compact).
 - Row anatomy: `[status icon] [subsystem name (13px/600)] … [status word + metric (12px/400, --text-dim)]`. Standby/Update get a trailing 11px annotation pill/text in `--text-dim` (e.g. "Standby — loads on first use", "Update available").
-- **FOLIO row only:** a right-aligned **"Manage"** action (accent text link or small ghost button), `aria-label="Manage FOLIO ontology"`, calling existing `openFolioModal()` unchanged (D-08). No other row has an action.
+- **FOLIO row only:** a right-aligned **"Manage FOLIO"** action (accent text link or small ghost button), `aria-label="Manage FOLIO ontology"`, calling existing `openFolioModal()` unchanged (D-08). No other row has an action.
 - Rows update live while open from the existing health poll (D-03): the collapsed chip rollup and the matching row re-render in place when a poll arrives (e.g. FOLIO Standby → ready).
 
 ### Metrics to preserve verbatim (STATUS-04 — from `/health/detail`)
@@ -143,9 +146,9 @@ Consolidation must not drop any metric currently shown via `setChip()` tooltips 
 |---------|----------|
 | Open | Click on chip, or focus chip + Enter/Space (reuse existing `.status-chip.clickable` keydown handler at `index.html:10404`). Sets `aria-expanded="true"`. |
 | Close | Escape (extend the existing Escape handler at `index.html:10389`), outside-click, or re-activating the chip. Sets `aria-expanded="false"`. |
-| Focus on open | Move focus into the popover (first focusable = the popover container or the FOLIO "Manage" action). |
+| Focus on open | Move focus into the popover (first focusable = the popover container or the FOLIO "Manage FOLIO" action). |
 | Focus on close | Restore focus to the System chip. |
-| Focus-visible | Visible accent ring (`var(--accent)`) on chip, popover, and "Manage" — never `outline:none` without a replacement (matches existing `textarea:focus` accent pattern at `index.html:1267`). |
+| Focus-visible | Visible accent ring (`var(--accent)`) on chip, popover, and "Manage FOLIO" — never `outline:none` without a replacement (matches existing `textarea:focus` accent pattern at `index.html:1267`). |
 | Screen reader | Each row announces "{Subsystem}: {status word}, {metric}". Chip announces its label ("System" / "System: FOLIO +1") and expanded state. Status conveyed by icon + text, not color (STATUS-05). |
 | Live updates | When the popover is open and a poll changes a row, update text in place; avoid an `aria-live` storm — prefer `aria-live="off"` on rows and let the user re-read, OR a single polite live region only for status-tier changes. (Implementer's discretion within "no announcement spam".) |
 
@@ -155,7 +158,7 @@ Consolidation must not drop any metric currently shown via `setChip()` tooltips 
 
 | Element | Copy |
 |---------|------|
-| Primary CTA (FOLIO row action) | **"Manage"** (aria-label: "Manage FOLIO ontology") |
+| Primary CTA (FOLIO row action) | **"Manage FOLIO"** (aria-label: "Manage FOLIO ontology") |
 | Collapsed chip — healthy | **"System"** |
 | Collapsed chip — single failure | **"System: {Subsystem}"** (e.g. "System: FOLIO", "System: Backend") |
 | Collapsed chip — multiple failures | **"System: {WorstSubsystem} +N"** (e.g. "System: Backend +2") |
@@ -170,7 +173,7 @@ Consolidation must not drop any metric currently shown via `setChip()` tooltips 
 | Popover row — spaCy ready | "spaCy {version} — EntityRuler ready" |
 | Error state (any subsystem) | "{Subsystem} error" + existing backend `message` if present (e.g. "FOLIO error — failed to load ontology") |
 | Empty/loading state | While first poll is pending, chip shows neutral icon + "System" with a checking tooltip; rows read "Checking…" (mirrors current "Checking..." / "..." placeholders at `index.html:2960-2979`). |
-| Destructive confirmation | None — this phase has no destructive actions. "Manage" opens the existing read/manage FOLIO modal unchanged; no delete/reset is introduced. |
+| Destructive confirmation | None — this phase has no destructive actions. "Manage FOLIO" opens the existing read/manage FOLIO modal unchanged; no delete/reset is introduced. |
 
 **Tone:** terse, status-bar register, sentence-case, no emoji. "Standby — loads on first use" must appear so the quiet-green nuance is visible (D-05). Informational states (Standby, Update available) are phrased neutrally, never as warnings (D-06).
 
