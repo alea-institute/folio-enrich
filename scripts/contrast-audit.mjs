@@ -197,7 +197,7 @@ function buildReport(results, branchResults, failing, recommendations) {
 export async function runAudit() {
   const projectRoot = path.resolve(fileURLToPath(import.meta.url), '..', '..');
   const htmlPath = path.join(projectRoot, 'frontend/index.html');
-  const reportPath = path.join(projectRoot, '.planning/phases/03-accessibility-component-polish/03-AUDIT-REPORT.md');
+  const reportPath = path.join(projectRoot, '.planning/phases/03-consolidated-system-status-chip/03-AUDIT-REPORT.md');
 
   const html = readFileSync(htmlPath, 'utf8');
 
