@@ -2957,26 +2957,44 @@
 <header>
   <h1><span>FOLIO</span> Enrich</h1>
   <div class="status-bar" id="statusBar">
-    <div class="status-chip" id="chipBackend" data-tooltip="Checking...">
-      <span class="chip-dot gray"></span>
-      <span class="chip-label">Backend</span>
-      <span class="chip-detail" id="chipBackendDetail">...</span>
+    <!-- Consolidated System status chip (D-12: 4 chips → 1). WAI-ARIA disclosure;
+         disclosure behavior + live rollup wired in plan 04. -->
+    <div class="status-chip system-chip clickable" id="chipSystem"
+         role="button" tabindex="0" aria-haspopup="true" aria-expanded="false"
+         aria-controls="systemStatusPopover" aria-label="System status">
+      <span class="chip-status-icon" id="chipSystemIcon"><!-- inline SVG rollup glyph (plan 04) --></span>
+      <span class="chip-label" id="chipSystemLabel">System</span>
     </div>
-    <div class="status-chip clickable" id="chipFolio" data-tooltip="Click to manage FOLIO ontology" onclick="openFolioModal()" tabindex="0" role="button" aria-label="Manage FOLIO ontology">
-      <span class="chip-dot gray"></span>
-      <span class="chip-label">FOLIO</span>
-      <span class="chip-detail" id="chipFolioDetail">...</span>
-      <span class="chip-gear">&#9881;</span>
-    </div>
-    <div class="status-chip" id="chipEmbedding" data-tooltip="Embedding service status">
-      <span class="chip-dot gray"></span>
-      <span class="chip-label">Embedding</span>
-      <span class="chip-detail" id="chipEmbeddingDetail">...</span>
-    </div>
-    <div class="status-chip" id="chipSpacy" data-tooltip="spaCy NLP status">
-      <span class="chip-dot gray"></span>
-      <span class="chip-label">spaCy</span>
-      <span class="chip-detail" id="chipSpacyDetail">...</span>
+    <!-- Anchored popover (D-01), immediately after the chip in source order so SR
+         users reach it naturally (D-04). All four rows always present (D-02). -->
+    <div class="system-popover" id="systemStatusPopover" role="region"
+         aria-label="System status detail" tabindex="-1" hidden>
+      <div class="system-status-row" id="sysRowBackend" data-subsystem="backend">
+        <span class="system-status-icon"><!-- inline SVG status glyph (plan 04) --></span>
+        <span class="system-status-name">Backend</span>
+        <span class="system-status-detail" id="sysRowBackendDetail">Checking…</span>
+        <span class="system-status-annotation" id="sysRowBackendAnnotation"></span>
+      </div>
+      <div class="system-status-row" id="sysRowFolio" data-subsystem="folio">
+        <span class="system-status-icon"><!-- inline SVG status glyph (plan 04) --></span>
+        <span class="system-status-name">FOLIO</span>
+        <span class="system-status-detail" id="sysRowFolioDetail">Checking…</span>
+        <span class="system-status-annotation" id="sysRowFolioAnnotation"></span>
+        <button type="button" class="system-status-action" id="sysRowFolioManage"
+                aria-label="Manage FOLIO ontology" onclick="openFolioModal()">Manage FOLIO</button>
+      </div>
+      <div class="system-status-row" id="sysRowEmbedding" data-subsystem="embedding">
+        <span class="system-status-icon"><!-- inline SVG status glyph (plan 04) --></span>
+        <span class="system-status-name">Embedding</span>
+        <span class="system-status-detail" id="sysRowEmbeddingDetail">Checking…</span>
+        <span class="system-status-annotation" id="sysRowEmbeddingAnnotation"></span>
+      </div>
+      <div class="system-status-row" id="sysRowSpacy" data-subsystem="spacy">
+        <span class="system-status-icon"><!-- inline SVG status glyph (plan 04) --></span>
+        <span class="system-status-name">spaCy</span>
+        <span class="system-status-detail" id="sysRowSpacyDetail">Checking…</span>
+        <span class="system-status-annotation" id="sysRowSpacyAnnotation"></span>
+      </div>
     </div>
     <div class="status-chip clickable" id="chipLLM" data-tooltip="Click to configure LLM provider" onclick="onLLMChipClick()">
       <span class="chip-dot gray"></span>
