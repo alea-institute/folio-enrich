@@ -44,7 +44,7 @@
   4. For any FOLIO locale without a bundled SVG, the user sees a graceful styled country-code pill instead of a broken glyph.
 **Plans**: 1 plan
 Plans:
-- [ ] 02-01-PLAN.md — Vendor 12 inline-SVG flags (flag-icons MIT), wire flagMarkup into translation pills, theme-aware box + fallback pill + Intl.DisplayNames labels; manual UAT for OS render & blocker resilience
+- [x] 02-01-PLAN.md — Vendor 12 inline-SVG flags (flag-icons MIT), wire flagMarkup into translation pills, theme-aware box + fallback pill + Intl.DisplayNames labels; manual UAT for OS render & blocker resilience
 **UI hint**: yes
 
 ### Phase 03: Consolidated system status chip
