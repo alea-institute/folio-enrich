@@ -57,5 +57,10 @@ Plans:
   3. The user can click/expand the chip to reveal per-subsystem detail, preserving today's metrics (concepts loaded, vectors indexed, etc.).
   4. The user perceives each status via icon + text (not color alone); the chip meets WCAG AA and is fully keyboard- and screen-reader-accessible.
   5. The LLM chip remains a separate, actionable control with its configure behavior unchanged, and the header status chips no longer overlap the layer chips (Nouns/Verbs/Individuals/POS).
-**Plans**: TBD
+**Plans**: 4 plans (Wave 1: 03-01 ∥ 03-02 · Wave 2: 03-03 · Wave 3: 03-04)
+Plans:
+- [ ] 03-01-PLAN.md — Pure tested rollup module (scripts/system-rollup.mjs + .test.mjs): normalizeSubsystems (D-05/D-06 Standby/Update→green), computeRollup (worst-of-four), chipLabel ("System" / "System: {X} +N") — STATUS-02/03
+- [ ] 03-02-PLAN.md — Extend scripts/contrast-audit.mjs: status-icon 3:1 graphical-object checks (green/orange/red on surface2/surface3, all themes) + fix stale report path; assertions in contrast-audit.test.mjs — STATUS-05
+- [ ] 03-03-PLAN.md — index.html markup/CSS: replace 4 chips with System disclosure chip + anchored popover, inline-SVG status glyphs (--text stroke fallback), re-home FOLIO Manage (D-08), byte-identical inline rollup copy — STATUS-01/05/07
+- [ ] 03-04-PLAN.md — index.html JS: refactor checkHealth()→normalize/rollup/render, accessible non-modal disclosure (open/close/focus/Escape/outside-click, D-04), live in-place rows (D-03), preserve metrics + LLM branch + FOLIO toast; manual UAT — STATUS-01/03/04/05/06/07
 **UI hint**: yes
