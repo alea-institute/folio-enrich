@@ -74,7 +74,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 03-03-PLAN.md — index.html markup/CSS: replace 4 chips with System disclosure chip + anchored popover, inline-SVG status glyphs (--text stroke fallback), re-home FOLIO Manage (D-08), byte-identical inline rollup copy — STATUS-01/05/07
+- [x] 03-03-PLAN.md — index.html markup/CSS: replace 4 chips with System disclosure chip + anchored popover, inline-SVG status glyphs (--text stroke fallback), re-home FOLIO Manage (D-08), byte-identical inline rollup copy — STATUS-01/05/07
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
