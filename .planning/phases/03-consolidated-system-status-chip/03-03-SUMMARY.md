@@ -106,3 +106,12 @@ None. This plan ships static markup/CSS and an inline pure-logic copy; no untrus
 | 1 | Replace four chips with System disclosure chip + popover; re-home FOLIO Manage | 040228b | frontend/index.html |
 | 2 | Add status-icon SVGs + chip/popover/icon CSS with --text stroke fallback | c255114 | frontend/index.html, scripts/contrast-audit.mjs |
 | 3 | Paste byte-identical inline rollup module copy | 62a3ab9 | frontend/index.html |
+
+## Self-Check: PASSED
+
+- FOUND: .planning/phases/03-consolidated-system-status-chip/03-03-SUMMARY.md
+- FOUND commit 040228b (Task 1)
+- FOUND commit c255114 (Task 2)
+- FOUND commit 62a3ab9 (Task 3)
+- FOUND commit dd86d1e (SUMMARY)
+- Only untracked file is the regenerable 03-AUDIT-REPORT.md (intentionally not tracked, per 02-SUMMARY precedent)
