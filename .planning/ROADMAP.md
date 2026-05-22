@@ -69,8 +69,8 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 03-01-PLAN.md — Pure tested rollup module (scripts/system-rollup.mjs + .test.mjs): normalizeSubsystems (D-05/D-06 Standby/Update→green), computeRollup (worst-of-four), chipLabel ("System" / "System: {X} +N") — STATUS-02/03
-- [ ] 03-02-PLAN.md — Extend scripts/contrast-audit.mjs: status-icon 3:1 graphical-object checks (green/orange/red on surface2/surface3, all themes) + fix stale report path; assertions in contrast-audit.test.mjs — STATUS-05
+- [x] 03-01-PLAN.md — Pure tested rollup module (scripts/system-rollup.mjs + .test.mjs): normalizeSubsystems (D-05/D-06 Standby/Update→green), computeRollup (worst-of-four), chipLabel ("System" / "System: {X} +N") — STATUS-02/03
+- [x] 03-02-PLAN.md — Extend scripts/contrast-audit.mjs: status-icon 3:1 graphical-object checks (green/orange/red on surface2/surface3, all themes) + fix stale report path; assertions in contrast-audit.test.mjs — STATUS-05
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
