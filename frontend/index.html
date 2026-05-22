@@ -4017,6 +4017,10 @@ function setChip(id, dotColor, detail, tooltip) {
     detailEl.style.display = detail ? '' : 'none';
   }
   chip.setAttribute('data-tooltip', tooltip);
+  // Auto-dismiss the "No AI provider configured" banner the moment a provider
+  // is detected as configured — covers the race where the user configures via
+  // the chip gear after the banner was already shown (orange→green is async).
+  if (id === 'chipLLM' && dotColor === 'green') hideLlmBanner();
 }
 
 async function checkHealth() {
