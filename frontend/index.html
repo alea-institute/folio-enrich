@@ -1279,6 +1279,82 @@
   }
   .status-chip.clickable:hover .chip-gear { opacity: 0.9; }
 
+  /* ── Consolidated System status chip + anchored popover (Phase 03) ──
+     Box metrics inherit .status-chip verbatim (padding:3px 10px; gap:5px;
+     border-radius:4px; font-size:11px) so header density is unchanged (D-12). */
+  .system-chip .chip-status-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 12px; height: 12px; flex-shrink: 0;
+  }
+  .system-chip .chip-status-icon svg { width: 12px; height: 12px; display: block; }
+
+  /* Keyboard focus ring — never bare outline:none (WCAG 2.4.7) */
+  .system-chip:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+
+  /* Status-icon glyphs: stroke at --text guarantees ≥3:1 in every theme
+     (02-SUMMARY: Light --green/--orange fail 3:1 as solid fills); the status
+     color is a secondary fill — color is redundant reinforcement, never the
+     sole signal (STATUS-05 / D-09). */
+  .system-status-icon svg,
+  .chip-status-icon svg {
+    stroke: var(--text);
+  }
+  .status-icon-fill { fill: none; }
+  .is-green .status-icon-fill { fill: var(--green); }
+  .is-orange .status-icon-fill { fill: var(--orange); }
+  .is-red .status-icon-fill { fill: var(--red); }
+
+  /* Anchored popover (D-01): position:fixed dropped below the chip, mirroring
+     the .status-chip[data-tooltip] fixed pattern (top:44px; z-index:100). */
+  .system-popover {
+    position: fixed;
+    top: 44px;
+    background: var(--surface3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+    z-index: 100;
+    min-width: 240px;
+    padding: 0;
+  }
+  .system-popover[hidden] { display: none; }
+  .system-popover:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+
+  /* Per-row rhythm mirrors .folio-status-row, surface swapped to --surface3,
+     1px dividers instead of margins to keep the panel compact. */
+  .system-status-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .system-status-row:last-child { border-bottom: none; }
+  .system-status-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 14px; height: 14px; flex-shrink: 0;
+  }
+  .system-status-icon svg { width: 14px; height: 14px; display: block; }
+  .system-status-name { font-size: 13px; font-weight: 600; color: var(--text); }
+  .system-status-detail { font-size: 12px; font-weight: 400; color: var(--text-dim); }
+  .system-status-annotation {
+    font-size: 11px; font-weight: 600; color: var(--text-dim);
+  }
+  .system-status-annotation:empty { display: none; }
+  /* FOLIO Manage action (D-08) — accent text link, right-aligned in its row. */
+  .system-status-action {
+    margin-left: auto;
+    background: none; border: none; padding: 2px 4px;
+    font-size: 11px; font-weight: 600; color: var(--accent);
+    cursor: pointer; white-space: nowrap; border-radius: 3px;
+  }
+  .system-status-action:hover { text-decoration: underline; }
+  .system-status-action:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px; text-decoration: none;
+  }
+
   /* FOLIO Modal */
   .folio-modal-body { padding: 4px 0; }
   .folio-status-row {
@@ -10332,6 +10408,21 @@ const FLAG_SVG = {
   br: '<svg viewBox="0 0 640 480" aria-hidden="true" focusable="false"><g stroke-width="1pt"><path fill="#229e45" fill-rule="evenodd" d="M0 0h640v480H0z"/><path fill="#f8e509" fill-rule="evenodd" d="m321.4 436 301.5-195.7L319.6 44 17.1 240.7z"/><path fill="#2b49a3" fill-rule="evenodd" d="M452.8 240c0 70.3-57.1 127.3-127.6 127.3A127.4 127.4 0 1 1 452.8 240"/><path fill="#fff" fill-rule="evenodd" d="M323.6 364.2a124 124 0 0 0 87-35.5c-2.3-30.2-41-69-87.3-69.4a127 127 0 0 0-86.7 33.6 124 124 0 0 0 87 71.3"/></g></svg>',
   cn: '<svg viewBox="0 0 640 480" aria-hidden="true" focusable="false"><path fill="#ee1c25" d="M0 0h640v480H0z"/><path fill="#ff0" d="M76.8 177.6 L120 48 L163.2 177.6 L48 98.4 L192 98.4z"/><path fill="#ff0" d="M264.2 50.5 L219.7 60.3 L249.4 25.8 L246.5 72.3 L221.8 31.1z"/><path fill="#ff0" d="M309 107.3 L264.2 99.2 L305 78.8 L284.3 120.6 L277.5 73.1z"/><path fill="#ff0" d="M302.5 187.1 L264.9 161.4 L310.4 159.4 L274.5 189.1 L287.7 142.9z"/><path fill="#ff0" d="M246 239.2 L221.3 201 L264 216.8 L219.4 230.2 L249.4 192.8z"/></svg>',
 };
+// ── System status glyphs (inline SVG; D-09) ──
+// Three distinct silhouettes — round-check / triangle-bang / cross-circle — so a
+// grayscale or colorblind user distinguishes them by FORM, never color alone
+// (STATUS-05). aria-hidden + focusable="false" (the status WORD carries the a11y
+// text). The stroke is set to var(--text) in CSS (≥3:1 in every theme; 02-SUMMARY
+// found solid Light green/orange fail 3:1) — the .status-icon-fill region takes
+// the status color as redundant reinforcement, toggled via .is-green/.is-orange/
+// .is-red on an ancestor. healthy → green / warning → orange (reserved tier, D-07)
+// / error → red. The collapsed chip shows the rollup glyph; each row shows its own.
+const STATUS_ICON_SVG = {
+  healthy: '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle class="status-icon-fill" cx="8" cy="8" r="6.5" stroke-width="1.5"/><path d="M5 8.2 7 10.2 11 5.8" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  warning: '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path class="status-icon-fill" d="M8 2 14.5 13.5H1.5Z" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 6.5V9.5" fill="none" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="11.6" r="0.9" fill="var(--text)" stroke="none"/></svg>',
+  error: '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle class="status-icon-fill" cx="8" cy="8" r="6.5" stroke-width="1.5"/><path d="M5.5 5.5 10.5 10.5 M10.5 5.5 5.5 10.5" fill="none" stroke-width="1.6" stroke-linecap="round"/></svg>',
+};
+
 const LANG_TO_COUNTRY = { he: 'il', hi: 'in', ja: 'jp', zh: 'cn', es: 'es', fr: 'fr' };  // D-03
 const FLAG_BUNDLED = new Set(['de', 'ca', 'gb', 'us', 'es', 'mx', 'fr', 'il', 'in', 'jp', 'br', 'cn']);  // D-02
 const _flagLangDN = new Intl.DisplayNames(['en'], { type: 'language' });
