@@ -20,9 +20,13 @@ PROD live at https://enrich.openlegalstandard.org/ running `71b5e9b`. Frontend i
 - LLM UX: friendly setup banner + chip showing "Not Configured" when no provider key is set
 - Favicon (nodes-and-edges SVG glyph)
 
-## Next Milestone Goals
+## Current Milestone: v1.2 Header & Status UX
 
-TBD — run `/gsd:new-milestone` to define the next milestone.
+**Goal:** Make the header status bar render reliably across all platforms and consolidate passive health indicators so problems are obvious and clutter is gone.
+
+**Target features:**
+- Robust translation flags — replace Unicode emoji flags (unrendered on Windows, look broken) with self-contained inline SVG flags for FOLIO's locale set; render on every OS and immune to content/privacy blockers.
+- Consolidated system status chip — collapse Backend / FOLIO / Embedding / spaCy into one "System" chip: quiet green when all healthy, worst-status rollup that names the failing subsystem when degraded, click-to-expand per-subsystem detail, WCAG-compliant (icon + text, not color alone). LLM chip stays a separate actionable control.
 
 <details>
 <summary>Previous shipped milestones</summary>
@@ -87,5 +91,22 @@ TBD — run `/gsd:new-milestone` to define the next milestone.
 | Default theme = Light (changed from OS preference) | User preference discovered post-deploy | ✓ Good — v1.0 |
 | MutationObserver for canvas re-render | Seamless theme changes while graph open | ✓ Good — v1.0 |
 
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd-transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd:complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
+
 ---
-*Last updated: 2026-04-05 after v1.0 milestone*
+*Last updated: 2026-05-22 — started v1.2 Header & Status UX milestone*

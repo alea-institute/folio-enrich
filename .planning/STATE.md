@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: post-v1.0-verification
-status: shipped
-stopped_at: v1.1 archived
-last_updated: "2026-05-21T00:00:00.000Z"
-last_activity: 2026-05-21
+milestone: v1.2
+milestone_name: Header & Status UX
+status: planning
+last_updated: "2026-05-22T20:06:45.461Z"
+last_activity: 2026-05-22
 progress:
-  total_phases: 1
-  completed_phases: 1
+  total_phases: 0
+  completed_phases: 0
   total_plans: 0
   completed_plans: 0
-  percent: 100
+  percent: 0
 ---
 
 # Project State
@@ -25,12 +24,10 @@ See: .planning/PROJECT.md
 
 ## Current Position
 
-Phase: —
+Phase: Not started (defining requirements)
 Plan: —
-Status: Idle — between milestones
-Last activity: 2026-05-21 — v1.1 milestone archived
-
-Progress: [██████████] 100%
+Status: Defining requirements
+Last activity: 2026-05-22 — Milestone v1.2 started
 
 ## Accumulated Context
 
