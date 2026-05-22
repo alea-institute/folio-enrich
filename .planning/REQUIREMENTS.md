@@ -6,10 +6,10 @@
 
 ### Translation Flags (FLAG)
 
-- [ ] **FLAG-01**: User sees translation flags rendered as self-contained inline SVG (no Unicode emoji, no external image requests), so flags display on every OS including Windows.
-- [ ] **FLAG-02**: User sees flags display correctly when a content/privacy blocker (e.g., EFF Privacy Badger) is enabled.
-- [ ] **FLAG-03**: User (screen-reader) gets an accessible label naming the locale/country for each flag.
-- [ ] **FLAG-04**: User sees a graceful fallback (e.g., styled country-code pill) for any locale without a bundled flag, never a broken glyph.
+- [x] **FLAG-01**: User sees translation flags rendered as self-contained inline SVG (no Unicode emoji, no external image requests), so flags display on every OS including Windows.
+- [x] **FLAG-02**: User sees flags display correctly when a content/privacy blocker (e.g., EFF Privacy Badger) is enabled.
+- [x] **FLAG-03**: User (screen-reader) gets an accessible label naming the locale/country for each flag.
+- [x] **FLAG-04**: User sees a graceful fallback (e.g., styled country-code pill) for any locale without a bundled flag, never a broken glyph.
 
 ### System Status Chip (STATUS)
 

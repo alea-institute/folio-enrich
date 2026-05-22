@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Header & Status UX
-status: planning
+status: verifying
 stopped_at: Phase 02 context gathered
-last_updated: "2026-05-22T20:26:13.568Z"
-last_activity: 2026-05-22 — v1.2 roadmap created (Phases 02-03)
+last_updated: "2026-05-22T22:14:22.615Z"
+last_activity: 2026-05-22
 progress:
   total_phases: 2
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  completed_phases: 1
+  total_plans: 1
+  completed_plans: 1
+  percent: 50
 ---
 
 # Project State
@@ -21,20 +21,20 @@ progress:
 See: .planning/PROJECT.md
 
 **Core value:** Make legal documents semantically rich — every recognizable concept, individual, property, and triple tagged with a FOLIO IRI, in a WCAG AA-compliant UI.
-**Current focus:** v1.2 Header & Status UX — roadmap created (2 phases). Ready to plan Phase 02.
+**Current focus:** Phase 02 — robust-translation-flags
 
 ## Current Position
 
-Phase: Phase 02 — Robust translation flags (not started)
-Plan: —
-Status: Roadmapped, awaiting phase planning
-Last activity: 2026-05-22 — v1.2 roadmap created (Phases 02-03)
+Phase: 02 (robust-translation-flags) — COMPLETE (ready for verification)
+Plan: 1 of 1 (complete)
+Status: Phase complete — ready for verification
+Last activity: 2026-05-22 -- Plan 02-01 executed and summarized (UAT approved)
 
-Progress: [          ] 0% (0/2 phases)
+Progress: [██████████] 100%
 
 ## Phases (v1.2)
 
-- [ ] Phase 02: Robust translation flags — FLAG-01..04 (UI hint: yes)
+- [x] Phase 02: Robust translation flags — FLAG-01..04 (UI hint: yes) — COMPLETE (UAT approved)
 - [ ] Phase 03: Consolidated system status chip — STATUS-01..07 (UI hint: yes; gets a `/gsd:ui-phase` design contract)
 
 ## Accumulated Context
@@ -47,6 +47,8 @@ Progress: [          ] 0% (0/2 phases)
 - Phase 02 implementation lives in single-file `frontend/index.html`: `localeToFlag()` near line 10286, translation pill render near line 8343. No build step, no new dependencies.
 - Phase 03 uses existing `/health` and `/health/detail` data — no new backend endpoints. LLM chip stays a separate actionable control (not folded in).
 - Phase 03 will get a `/gsd:ui-phase` design contract before planning.
+- [Phase 02]: Phase 02 flags: vendored inline flag-icons SVGs (MIT), ES/MX trimmed to stripe-only variants; zero external requests survive content blockers (FLAG-01/02).
+- [Phase 02]: Language-only locales resolve to representative country flags before the BUNDLED check (he->IL, hi->IN, ja->JP, zh->CN); fixes the 'HE'->blank bug (D-03).
 
 ### Pending Todos
 
@@ -59,7 +61,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-05-22T20:26:13.563Z
-Stopped at: Phase 02 context gathered
-Resume file: .planning/phases/02-robust-translation-flags/02-CONTEXT.md
-Next step: `/gsd:plan-phase 02` (or `/gsd:discuss-phase 02` to capture decisions first)
+Last session: 2026-05-22T22:14:02.143Z
+Stopped at: Completed 02-01-PLAN.md; phase 02 ready for verification
+Resume file: None
+Next step: `/gsd:verify-work 02` (manual acceptance for FLAG-01..04)
