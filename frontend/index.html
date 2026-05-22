@@ -3706,7 +3706,9 @@ function isLlmConfigured() {
   const chip = document.getElementById('chipLLM');
   if (!chip) return true; // can't tell, assume yes
   const dot = chip.querySelector('.chip-dot');
-  return dot && dot.style.color === 'var(--green)';
+  // The chip dot color is set via CSS class (chip-dot green), not an inline
+  // style — green means a provider is configured (cloud key set or Ollama up).
+  return !!dot && dot.classList.contains('green');
 }
 
 function showLlmBanner() {
