@@ -387,16 +387,18 @@ Note the **status enum** from the backend (verified in `health.py`): every subsy
 
 **Note:** Items A1–A3 are low-risk and verifiable during planning/execution; none block. All hard facts (contrast ratios, ARIA pattern, backend response shape, code anchors) are VERIFIED or CITED.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Exact glyph fill vs. stroke styling to clear 3:1 in Light theme.**
    - What we know: stroke at `var(--text)` clears 3:1 in all themes (computed); status color alone fails for Light green/orange.
    - What's unclear: whether ui-phase wants a fully-status-colored glyph (then stroke must dominate) or a neutral-stroke glyph with a small colored fill.
    - Recommendation: implement stroke=`var(--text)` + status-color secondary fill; verify with the extended audit; let ui-phase tune within that 3:1-safe envelope.
+   - RESOLVED: stroke = var(--text), status color as secondary fill (per Pattern 3 + UI-SPEC + PATTERNS.md — enforced in 03-03 Task 2).
 
 2. **Should a polite `aria-live` region announce rollup tier changes?**
    - What we know: D-03 requires live row updates; UI-SPEC grants discretion "within no announcement spam".
    - Recommendation: rows `aria-live="off"`; add ONE `aria-live="polite"` region that fires only when `computeRollup().tier` changes (e.g., a subsystem goes red). Cheap and avoids spam.
+   - RESOLVED: popover rows use aria-live="off"; a single polite live region announces ONLY rollup tier changes (per Pitfall 3 + UI-SPEC Interaction Contract — implemented in 03-04).
 
 ## Environment Availability
 
