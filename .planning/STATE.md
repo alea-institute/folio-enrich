@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Header & Status UX
 status: planning
-stopped_at: Phase 03 context gathered
-last_updated: "2026-05-22T22:34:44.748Z"
+stopped_at: Phase 03 UI-SPEC approved
+last_updated: "2026-05-22T22:50:39.650Z"
 last_activity: 2026-05-22
 progress:
   total_phases: 2
@@ -61,7 +61,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-05-22T22:34:44.742Z
-Stopped at: Phase 03 context gathered
-Resume file: .planning/phases/03-consolidated-system-status-chip/03-CONTEXT.md
+Last session: 2026-05-22T22:50:39.644Z
+Stopped at: Phase 03 UI-SPEC approved
+Resume file: .planning/phases/03-consolidated-system-status-chip/03-UI-SPEC.md
 Next step: `/gsd:verify-work 02` (manual acceptance for FLAG-01..04)
