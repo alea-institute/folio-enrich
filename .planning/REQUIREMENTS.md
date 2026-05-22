@@ -34,18 +34,16 @@
 
 ## Traceability
 
-_Filled by roadmap._
-
 | REQ-ID | Phase |
 |--------|-------|
-| FLAG-01 | — |
-| FLAG-02 | — |
-| FLAG-03 | — |
-| FLAG-04 | — |
-| STATUS-01 | — |
-| STATUS-02 | — |
-| STATUS-03 | — |
-| STATUS-04 | — |
-| STATUS-05 | — |
-| STATUS-06 | — |
-| STATUS-07 | — |
+| FLAG-01 | Phase 02 |
+| FLAG-02 | Phase 02 |
+| FLAG-03 | Phase 02 |
+| FLAG-04 | Phase 02 |
+| STATUS-01 | Phase 03 |
+| STATUS-02 | Phase 03 |
+| STATUS-03 | Phase 03 |
+| STATUS-04 | Phase 03 |
+| STATUS-05 | Phase 03 |
+| STATUS-06 | Phase 03 |
+| STATUS-07 | Phase 03 |
