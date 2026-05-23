@@ -78,6 +78,6 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 03-04-PLAN.md — index.html JS: refactor checkHealth()→normalize/rollup/render, accessible non-modal disclosure (open/close/focus/Escape/outside-click, D-04), live in-place rows (D-03), preserve metrics + LLM branch + FOLIO toast; manual UAT — STATUS-01/03/04/05/06/07
+- [x] 03-04-PLAN.md — index.html JS: refactor checkHealth()→normalize/rollup/render, accessible non-modal disclosure (open/close/focus/Escape/outside-click, D-04), live in-place rows (D-03), preserve metrics + LLM branch + FOLIO toast; manual UAT — STATUS-01/03/04/05/06/07
 
 **UI hint**: yes
