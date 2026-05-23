@@ -2369,41 +2369,25 @@
     transition: width 0.3s ease;
   }
 
-  /* Pipeline progress as a connected chevron FLOW (not chips): each stage is plain
-     colour-coded text joined by › connectors, so the sequence reads as a pipeline
-     and the labels breathe at ~11px. The connectors tint green as the flow fills up
-     to the active stage. Wraps gracefully (each stage keeps its trailing chevron). */
   .progress-stages {
     display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0 2px;
-    font-size: 11px;
-    letter-spacing: 0.01em;
+    gap: 3px;
+    font-size: 9px;
     color: var(--text-dim);
+    flex-wrap: nowrap;        /* keep all seven stages on one line */
+    white-space: nowrap;
   }
 
   .stage-pill {
-    padding: 0;
-    background: none;
-    color: var(--text-dim);
-    font-weight: 500;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: var(--surface2);
     white-space: nowrap;
-    transition: color 0.3s ease;
   }
-  .stage-pill:not(:last-child)::after {
-    content: '\203A';            /* › flow connector */
-    margin: 0 5px 0 7px;
-    color: var(--text-dim);
-    opacity: 0.4;
-    font-weight: 400;
-  }
-  .stage-pill.done   { color: var(--conf-high); }
-  /* connector after a completed stage tints green — the flow visibly fills */
-  .stage-pill.done:not(:last-child)::after { color: var(--conf-high); opacity: 0.55; }
-  .stage-pill.active { color: var(--accent); font-weight: 700; animation: stageFlowPulse 1.5s ease-in-out infinite; }
-  .stage-pill.error  { color: var(--conf-low); }
-  @keyframes stageFlowPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+
+  .stage-pill.active { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
+  .stage-pill.done { background: color-mix(in srgb, var(--green) 12%, transparent); color: var(--conf-high); }
+  .stage-pill.error { background: color-mix(in srgb, var(--red) 12%, transparent); color: var(--conf-low); }
 
   .status-text {
     font-size: 11px;
