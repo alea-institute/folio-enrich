@@ -24,11 +24,11 @@ PROD live at https://enrich.openlegalstandard.org/ running `71b5e9b`. Frontend i
 
 **Goal:** Make the header status bar render reliably across all platforms and consolidate passive health indicators so problems are obvious and clutter is gone.
 
-**Progress:** Phase 02 (Robust translation flags) complete on `dev` 2026-05-22 — UAT-approved on Railway Dev. Phase 03 (Consolidated system status chip) next.
+**Progress:** v1.2 milestone complete on `dev` 2026-05-23 — Phase 02 (Robust translation flags) and Phase 03 (Consolidated system status chip) both UAT-approved on Railway Dev. Ready to ship to PROD.
 
 **Target features:**
 - ✓ Robust translation flags — replace Unicode emoji flags (unrendered on Windows, look broken) with self-contained inline SVG flags for FOLIO's locale set; render on every OS and immune to content/privacy blockers. **(Phase 02, complete)**
-- Consolidated system status chip — collapse Backend / FOLIO / Embedding / spaCy into one "System" chip: quiet green when all healthy, worst-status rollup that names the failing subsystem when degraded, click-to-expand per-subsystem detail, WCAG-compliant (icon + text, not color alone). LLM chip stays a separate actionable control.
+- ✓ Consolidated system status chip — collapse Backend / FOLIO / Embedding / spaCy into one "System" chip: quiet green when all healthy, worst-status rollup that names the failing subsystem when degraded, click-to-expand per-subsystem detail, WCAG-compliant (flat status dots clearing 3:1 + text labels, not color alone). LLM chip stays a separate actionable control. **(Phase 03, complete)**
 
 <details>
 <summary>Previous shipped milestones</summary>
@@ -38,6 +38,16 @@ PROD live at https://enrich.openlegalstandard.org/ running `71b5e9b`. Frontend i
 </details>
 
 ## Requirements
+
+### Validated (Phase 03 — v1.2)
+
+- ✓ STATUS-01: Four Backend/FOLIO/Embedding/spaCy chips collapsed into one "System" chip + four-row click-to-expand popover — Phase 03
+- ✓ STATUS-02: Quiet green at rest ("System"); Standby/Update states map to green — Phase 03
+- ✓ STATUS-03: Worst-of-four rollup names the failing subsystem with overflow count ("System: spaCy +1") — Phase 03
+- ✓ STATUS-04: Popover preserves all per-subsystem metrics (concepts, labels, vectors, spaCy version) — Phase 03
+- ✓ STATUS-05: Accessible — keyboard disclosure with focus management; flat status dots clear WCAG 3:1; status conveyed by text too (1.4.1) — Phase 03
+- ✓ STATUS-06: LLM/Ollama chip left a separate actionable control, untouched — Phase 03
+- ✓ STATUS-07: Header status bar no longer overlaps the layer toggle bar (4→1 chip reduction frees width) — Phase 03
 
 ### Validated (Phase 02 — v1.2)
 
@@ -118,4 +128,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-22 — started v1.2 Header & Status UX milestone*
+*Last updated: 2026-05-23 — v1.2 Header & Status UX milestone complete (Phases 02 + 03)*
