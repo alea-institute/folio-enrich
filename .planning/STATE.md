@@ -59,6 +59,12 @@ Progress: [██████████] 100%
 
 None.
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260522-uot | Consolidate Nouns/Verbs/Individuals layer toggles under one "Annotations" disclosure chip (Parts of Speech kept separate) | 2026-05-23 | 9369907 | [260522-uot-consolidate-nouns-verbs-individuals-laye](./quick/260522-uot-consolidate-nouns-verbs-individuals-laye/) |
+
 ## Session Continuity
 
 Last session: 2026-05-22T22:50:39.644Z
