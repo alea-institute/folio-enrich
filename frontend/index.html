@@ -1345,6 +1345,44 @@
     outline: 2px solid var(--accent); outline-offset: 2px;
   }
 
+  /* ── Annotations disclosure chip + popover (quick task 260522-uot) ──
+     Mirrors the System chip disclosure: anchored fixed popover, viewport-clamped
+     in JS. Box metrics inherit .status-chip; the caret reads as expandable. */
+  .annotations-chip .chip-caret {
+    font-size: 9px; opacity: 0.6; margin-left: 1px;
+    transition: opacity 0.2s, transform 0.2s;
+  }
+  .annotations-chip:hover .chip-caret { opacity: 0.9; }
+  .annotations-chip[aria-expanded="true"] .chip-caret { transform: rotate(180deg); }
+  /* Keyboard focus ring — never bare outline:none (WCAG 2.4.7) */
+  .annotations-chip:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+  .annotations-popover {
+    position: fixed;
+    top: 44px;
+    background: var(--surface3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+    z-index: 100;
+    min-width: 200px;
+    max-width: calc(100vw - 16px); /* never overflow a narrow viewport (WR-04) */
+    padding: 6px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .annotations-popover[hidden] { display: none; }
+  .annotations-popover:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+  /* Each row is a full-width clickable target with comfortable vertical rhythm;
+     dot/color styling is inherited from the existing .layer-chip[data-layer] rules. */
+  .annotations-popover .layer-chip {
+    display: flex; align-items: center; gap: 6px;
+    width: 100%; padding: 7px 12px; border-radius: 6px;
+    font-size: 12px;
+  }
+
   /* Per-row rhythm mirrors .folio-status-row, surface swapped to --surface3,
      1px dividers instead of margins to keep the panel compact. */
   .system-status-row {
@@ -3103,15 +3141,30 @@
   </div>
   <div class="header-controls" id="headerControls" style="display:none">
     <div class="layer-toggle-bar" id="layerToggleBar">
-      <span class="layer-chip active" data-layer="concepts" onclick="toggleLayer('concepts', this)" title="Classes">
-        <span class="chip-dot"></span>Nouns
-      </span>
-      <span class="layer-chip active" data-layer="properties" onclick="toggleLayer('properties', this)" title="Properties">
-        <span class="chip-dot"></span>Verbs
-      </span>
-      <span class="layer-chip active" data-layer="individuals" onclick="toggleLayer('individuals', this)">
-        <span class="chip-dot"></span>Individuals
-      </span>
+      <!-- Annotations disclosure chip (quick task 260522-uot): consolidates the three
+           standalone Nouns/Verbs/Individuals layer chips into one click-to-expand
+           popover. Mirrors the Phase 03 System chip disclosure pattern verbatim. -->
+      <div class="status-chip clickable annotations-chip" id="chipAnnotations"
+           role="button" tabindex="0" aria-haspopup="true" aria-expanded="false"
+           aria-controls="annotationsPopover" aria-label="Annotations layers">
+        <span class="chip-label" id="chipAnnotationsLabel">Annotations</span>
+        <span class="chip-caret" aria-hidden="true">&#9662;</span>
+      </div>
+      <!-- Anchored popover, immediately after the chip in source order so SR users
+           reach it naturally. Rows stay .layer-chip[data-layer] so toggleLayer's
+           chipEl.classList.toggle('active') and _syncViewMode/_restoreViewPrefs sync. -->
+      <div class="annotations-popover" id="annotationsPopover" role="region"
+           aria-label="Annotation layers" tabindex="-1" hidden>
+        <span class="layer-chip active" data-layer="concepts" onclick="toggleLayer('concepts', this)" title="Classes">
+          <span class="chip-dot"></span>Nouns
+        </span>
+        <span class="layer-chip active" data-layer="properties" onclick="toggleLayer('properties', this)" title="Properties">
+          <span class="chip-dot"></span>Verbs
+        </span>
+        <span class="layer-chip active" data-layer="individuals" onclick="toggleLayer('individuals', this)">
+          <span class="chip-dot"></span>Individuals
+        </span>
+      </div>
       <span class="layer-divider"></span>
       <span class="layer-chip" data-layer="pos" onclick="toggleLayer('pos', this)" title="Nouns (blue) · Verbs (red) · Adjectives (green) · Adverbs (orange) · Proper nouns (teal)">
         <span class="chip-dot"></span>Parts of Speech
