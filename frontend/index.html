@@ -1300,9 +1300,11 @@
      border-radius:4px; font-size:11px) so header density is unchanged (D-12). */
   .system-chip .chip-status-icon {
     display: inline-flex; align-items: center; justify-content: center;
-    width: 12px; height: 12px; flex-shrink: 0;
+    width: 8px; height: 8px; flex-shrink: 0;
   }
-  .system-chip .chip-status-icon svg { width: 12px; height: 12px; display: block; }
+  /* svg 8px + circle r=6 in a 16-unit viewBox → a 6px dot, matching the
+     amber LLM .chip-dot (6px) and the layer .chip-dot. */
+  .system-chip .chip-status-icon svg { width: 8px; height: 8px; display: block; }
 
   /* Keyboard focus ring — never bare outline:none (WCAG 2.4.7) */
   .system-chip:focus-visible {
@@ -1352,9 +1354,10 @@
   .system-status-row:last-child { border-bottom: none; }
   .system-status-icon {
     display: inline-flex; align-items: center; justify-content: center;
-    width: 14px; height: 14px; flex-shrink: 0;
+    width: 8px; height: 8px; flex-shrink: 0;
   }
-  .system-status-icon svg { width: 14px; height: 14px; display: block; }
+  /* 6px dot (svg 8px × r=6 in 16-unit viewBox), matching the amber LLM dot. */
+  .system-status-icon svg { width: 8px; height: 8px; display: block; }
   .system-status-name { font-size: 13px; font-weight: 600; color: var(--text); }
   .system-status-detail { font-size: 12px; font-weight: 400; color: var(--text-dim); }
   .system-status-annotation {
@@ -1881,7 +1884,7 @@
     border: 1.5px solid transparent;
   }
   .layer-chip .chip-dot {
-    width: 7px; height: 7px; border-radius: 50%; display: inline-block;
+    width: 6px; height: 6px; border-radius: 50%; display: inline-block;
   }
   /* Concepts chip */
   .layer-chip[data-layer="concepts"]          { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
