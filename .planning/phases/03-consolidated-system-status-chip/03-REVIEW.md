@@ -14,8 +14,17 @@ findings:
   warning: 4
   info: 5
   total: 9
-status: issues_found
+status: resolved
+resolution:
+  warnings_fixed: "WR-01, WR-02, WR-03, WR-04 — commit 3ce8c19"
+  info_deferred: "5 info items left as documented (incl. the intentional flat-dot/color-only D-09 UAT revision); no behavior impact"
 ---
+
+> **Resolution (2026-05-22, commit `3ce8c19`):** All 4 warnings fixed and verified live via Chrome DevTools.
+> - **WR-01** — `closeSystemPopover(restoreFocus=true)`; outside-click passes `false` so focus stays where the user clicked (WCAG 2.4.3); Escape/re-activation still restore to the chip.
+> - **WR-02/WR-03** — "Manage FOLIO" now closes the popover before opening the modal, so it no longer sits open behind the modal and a single Escape dismisses the modal.
+> - **WR-04** — popover left edge anchored to the chip in `openSystemPopover()` + `max-width: calc(100vw - 16px)` so it cannot misalign or overflow a narrow viewport.
+> - **Info (5)** — left as documented; the "icon is color-only" item is the intentional flat-dot D-09 UAT revision (WCAG 1.4.11 via deeper shades, 1.4.1 via text labels).
 
 # Phase 3: Code Review Report
 
