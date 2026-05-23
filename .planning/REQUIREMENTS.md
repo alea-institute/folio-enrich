@@ -13,13 +13,13 @@
 
 ### System Status Chip (STATUS)
 
-- [ ] **STATUS-01**: User sees Backend, FOLIO, Embedding, and spaCy consolidated into a single "System" status chip in the header.
-- [ ] **STATUS-02**: User sees a single quiet green state when all four subsystems are healthy.
-- [ ] **STATUS-03**: User sees the chip reflect worst-status (red > orange > green) and identify the failing subsystem when any is degraded or errored.
-- [ ] **STATUS-04**: User can click/expand the chip to reveal per-subsystem detail (status plus the metrics shown today — concepts loaded, vectors indexed, etc.).
-- [ ] **STATUS-05**: User perceives each status via icon + text (not color alone); the chip meets WCAG AA and is keyboard- and screen-reader-accessible.
-- [ ] **STATUS-06**: User sees the LLM chip remain a separate, actionable chip with its current configure behavior unchanged.
-- [ ] **STATUS-07**: User no longer sees the header status chips overlap the layer chips (Nouns/Verbs/Individuals/POS).
+- [x] **STATUS-01**: User sees Backend, FOLIO, Embedding, and spaCy consolidated into a single "System" status chip in the header.
+- [x] **STATUS-02**: User sees a single quiet green state when all four subsystems are healthy.
+- [x] **STATUS-03**: User sees the chip reflect worst-status (red > orange > green) and identify the failing subsystem when any is degraded or errored.
+- [x] **STATUS-04**: User can click/expand the chip to reveal per-subsystem detail (status plus the metrics shown today — concepts loaded, vectors indexed, etc.).
+- [x] **STATUS-05**: User perceives each status via icon + text (not color alone); the chip meets WCAG AA and is keyboard- and screen-reader-accessible.
+- [x] **STATUS-06**: User sees the LLM chip remain a separate, actionable chip with its current configure behavior unchanged.
+- [x] **STATUS-07**: User no longer sees the header status chips overlap the layer chips (Nouns/Verbs/Individuals/POS).
 
 ## Future Requirements (deferred)
 
