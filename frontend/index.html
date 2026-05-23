@@ -4314,6 +4314,71 @@ function toggleSystemPopover() {
   else openSystemPopover();
 }
 
+// ── Annotations layer disclosure (quick task 260522-uot) ──
+// Mirrors the System status disclosure verbatim: non-modal anchored popover, open
+// via click + Enter/Space (the .status-chip.clickable keydown handler calls
+// chip.click()), close on Escape / outside-click / re-activation. Focus moves INTO
+// the popover on open, restores to the chip ONLY on keyboard/Escape close (WR-01).
+// Outside-click listener is deferred a tick so the opening click does not close it
+// (Pitfall 5). Clicking a row toggles its layer in place via the unchanged
+// toggleLayer() and must NOT close the popover or steal focus.
+let _annotationsPopoverOpen = false;
+let _annotationsOutsideClickHandler = null;
+
+function openAnnotationsPopover() {
+  const pop = document.getElementById('annotationsPopover');
+  const chip = document.getElementById('chipAnnotations');
+  if (!pop || !chip) return;
+  pop.hidden = false;
+  chip.setAttribute('aria-expanded', 'true');
+  _annotationsPopoverOpen = true;
+  // Anchor left under the chip and clamp inside the viewport (WR-04).
+  const rect = chip.getBoundingClientRect();
+  const maxLeft = window.innerWidth - pop.offsetWidth - 8;
+  pop.style.left = Math.round(Math.max(8, Math.min(rect.left, maxLeft))) + 'px';
+  // Focus-in-on-open: move focus into the non-modal popover region.
+  pop.focus();
+  // Defer the outside-click listener (Pitfall 5). Outside-click passes
+  // restoreFocus=false so focus is not yanked back to the chip (WR-01).
+  _annotationsOutsideClickHandler = (e) => {
+    if (!pop.contains(e.target) && !chip.contains(e.target)) closeAnnotationsPopover(false);
+  };
+  setTimeout(() => {
+    if (_annotationsPopoverOpen) document.addEventListener('click', _annotationsOutsideClickHandler);
+  }, 0);
+}
+
+function closeAnnotationsPopover(restoreFocus = true) {
+  const pop = document.getElementById('annotationsPopover');
+  const chip = document.getElementById('chipAnnotations');
+  if (pop) pop.hidden = true;
+  if (chip) chip.setAttribute('aria-expanded', 'false');
+  _annotationsPopoverOpen = false;
+  if (_annotationsOutsideClickHandler) {
+    document.removeEventListener('click', _annotationsOutsideClickHandler);
+    _annotationsOutsideClickHandler = null;
+  }
+  // Restore-on-close ONLY for keyboard / Escape / re-activation closes (WCAG 2.4.3, WR-01).
+  if (restoreFocus && chip) chip.focus();
+}
+
+function toggleAnnotationsPopover() {
+  if (_annotationsPopoverOpen) closeAnnotationsPopover();
+  else openAnnotationsPopover();
+}
+
+// Active-layer count summary on the chip label. Counts how many of the three
+// annotation layers are active; ignores 'pos'. textContent only (no innerHTML).
+function renderAnnotationsSummary() {
+  const labelEl = document.getElementById('chipAnnotationsLabel');
+  if (!labelEl) return;
+  const layers = ['concepts', 'properties', 'individuals'];
+  const active = layers.filter(l => _activeLayers.has(l)).length;
+  labelEl.textContent = active === layers.length
+    ? 'Annotations'
+    : `Annotations (${active}/${layers.length})`;
+}
+
 async function checkHealth() {
   // Quick basic check first
   let backendUp = true;
@@ -7237,6 +7302,8 @@ function toggleLayer(layer, chipEl) {
     }
   }
   document.getElementById('posLegend')?.classList.toggle('visible', _activeLayers.has('pos'));
+  // Update the Annotations chip active-layer count (ignores 'pos'); quick task 260522-uot.
+  if (typeof renderAnnotationsSummary === 'function') renderAnnotationsSummary();
 }
 
 function _applyLayerVisibility() {
@@ -10787,6 +10854,11 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 // Close modals on Escape
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
+    // Annotations layer popover (non-modal disclosure) closes first.
+    if (_annotationsPopoverOpen) {
+      closeAnnotationsPopover();
+      return;
+    }
     // System status popover (non-modal disclosure) closes first (D-04).
     if (_systemPopoverOpen) {
       closeSystemPopover();
@@ -10821,6 +10893,15 @@ document.querySelectorAll('.status-chip.clickable').forEach(chip => {
 (function () {
   const chipSystem = document.getElementById('chipSystem');
   if (chipSystem) chipSystem.addEventListener('click', toggleSystemPopover);
+})();
+
+// Annotations chip disclosure: click (and Enter/Space via the .status-chip.clickable
+// handler above) toggles the popover — re-activation closes it. Render the initial
+// active-layer count summary after _restoreViewPrefs/_syncViewMode set the state.
+(function () {
+  const chipAnnotations = document.getElementById('chipAnnotations');
+  if (chipAnnotations) chipAnnotations.addEventListener('click', toggleAnnotationsPopover);
+  if (typeof renderAnnotationsSummary === 'function') renderAnnotationsSummary();
 })();
 
 // ==============================================
