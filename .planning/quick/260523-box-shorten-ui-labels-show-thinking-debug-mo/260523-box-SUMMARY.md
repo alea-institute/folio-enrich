@@ -26,6 +26,13 @@ Display-text renames only — no logic, status keys, or behavior changed.
 - Toolbar buttons render "Thinking" and "Debug".
 - All seven shortened stage labels render on the **same row** (measured `getBoundingClientRect().top` identical for all seven) — they now fit on one line.
 
+## Follow-up (2026-05-23, same task)
+
+Shortening the labels alone still wrapped to two lines on narrower panels (the row was
+`flex-wrap: wrap` at 10px). Resolved + added requested tooltips:
+- `.progress-stages` → `font-size: 9px`, `gap: 3px`, **`flex-wrap: nowrap`** + `white-space: nowrap`; `.stage-pill` → `padding: 1px 5px`, `cursor: help`. All seven pills now sit on one row (verified: identical `getBoundingClientRect().top`, no container overflow).
+- Added a `STAGE_TOOLTIPS` map and a `title` attribute (escaped) on each pill so hovering describes what that pipeline stage does. Descriptions grounded in the backend stages: Ingest=ingestion_stage, Normalize=normalization_stage, Enrich=parallel EntityRuler+early extraction, Identify=llm_concept_stage, Resolve=resolution_stage, Match=string_match_stage, Judge=branch_judge_stage.
+
 ## Scope
 
 frontend/index.html only; no backend changes; no new dependencies; no status-key or logic changes.
