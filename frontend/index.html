@@ -4181,6 +4181,54 @@ function renderPopoverRows(subsystems) {
   }
 }
 
+// ── System status disclosure (plan 04; D-04) ──
+// Non-modal anchored popover. Open via click + Enter/Space (the existing
+// .status-chip.clickable keydown handler calls chip.click(), so a single click
+// listener covers both); close on Escape, outside-click, or re-activation. Focus
+// moves INTO the popover on open and restores to the chip on close. No focus trap
+// (non-modal) — RESEARCH anti-pattern. The outside-click listener is registered on
+// a deferred tick so the opening click does not immediately close it (Pitfall 5).
+let _systemPopoverOpen = false;
+let _systemOutsideClickHandler = null;
+
+function openSystemPopover() {
+  const pop = document.getElementById('systemStatusPopover');
+  const chip = document.getElementById('chipSystem');
+  if (!pop || !chip) return;
+  pop.hidden = false;
+  chip.setAttribute('aria-expanded', 'true');
+  _systemPopoverOpen = true;
+  // Focus-in-on-open (D-04): move focus into the non-modal popover region.
+  pop.focus();
+  // Defer the outside-click listener so the click that opened the popover does
+  // not bubble up and immediately close it (Pitfall 5).
+  _systemOutsideClickHandler = (e) => {
+    if (!pop.contains(e.target) && !chip.contains(e.target)) closeSystemPopover();
+  };
+  setTimeout(() => {
+    if (_systemPopoverOpen) document.addEventListener('click', _systemOutsideClickHandler);
+  }, 0);
+}
+
+function closeSystemPopover() {
+  const pop = document.getElementById('systemStatusPopover');
+  const chip = document.getElementById('chipSystem');
+  if (pop) pop.hidden = true;
+  if (chip) chip.setAttribute('aria-expanded', 'false');
+  _systemPopoverOpen = false;
+  if (_systemOutsideClickHandler) {
+    document.removeEventListener('click', _systemOutsideClickHandler);
+    _systemOutsideClickHandler = null;
+  }
+  // Restore-on-close (D-04): return focus to the chip.
+  if (chip) chip.focus();
+}
+
+function toggleSystemPopover() {
+  if (_systemPopoverOpen) closeSystemPopover();
+  else openSystemPopover();
+}
+
 async function checkHealth() {
   // Quick basic check first
   let backendUp = true;
@@ -10654,6 +10702,11 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 // Close modals on Escape
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
+    // System status popover (non-modal disclosure) closes first (D-04).
+    if (_systemPopoverOpen) {
+      closeSystemPopover();
+      return;
+    }
     const folioModal = document.getElementById('folioModal');
     if (folioModal && folioModal.classList.contains('visible')) {
       closeFolioModal();
@@ -10667,6 +10720,8 @@ document.addEventListener('keydown', (e) => {
 });
 
 // Keyboard activation for clickable chips (Enter/Space)
+// #chipSystem inherits this via its .status-chip.clickable class, so Enter/Space
+// fire chip.click() → the toggle listener below (open via click + Enter/Space, D-04).
 document.querySelectorAll('.status-chip.clickable').forEach(chip => {
   chip.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -10675,6 +10730,13 @@ document.querySelectorAll('.status-chip.clickable').forEach(chip => {
     }
   });
 });
+
+// System chip disclosure: click (and Enter/Space via the handler above) toggles the
+// popover — re-activation closes it (D-04). No duplicate keydown listener added.
+(function () {
+  const chipSystem = document.getElementById('chipSystem');
+  if (chipSystem) chipSystem.addEventListener('click', toggleSystemPopover);
+})();
 
 // ==============================================
 // Auto-resize textarea (fallback for browsers without field-sizing: content)
