@@ -2371,16 +2371,19 @@
 
   .progress-stages {
     display: flex;
-    gap: 4px;
-    font-size: 10px;
+    gap: 3px;
+    font-size: 9px;
     color: var(--text-dim);
-    flex-wrap: wrap;
+    flex-wrap: nowrap;        /* keep all seven stages on one line */
+    white-space: nowrap;
   }
 
   .stage-pill {
-    padding: 1px 6px;
+    padding: 1px 5px;
     border-radius: 3px;
     background: var(--surface2);
+    white-space: nowrap;
+    cursor: help;             /* hint the hover tooltip */
   }
 
   .stage-pill.active { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
@@ -3823,6 +3826,17 @@ const STAGE_LABELS = {
   enriching: 'Enrich', identifying: 'Identify', resolving: 'Resolve',
   matching: 'Match', judging: 'Judge', extracting_individuals: 'Extracting Individuals',
   exporting: 'Exporting', completed: 'Done'
+};
+
+// Hover descriptions for the pipeline progress pills (what each backend stage does).
+const STAGE_TOOLTIPS = {
+  ingesting: 'Parse the uploaded document (PDF, DOCX, HTML, MD, TXT, RTF, EML…) into plain text.',
+  normalizing: 'Clean and normalize the extracted text — whitespace, encoding, structure — for analysis.',
+  enriching: 'Tag FOLIO concepts with the EntityRuler dictionary and extract early individuals, properties, and triples (run in parallel).',
+  identifying: 'An LLM identifies additional FOLIO concept candidates from surrounding context.',
+  resolving: 'Reconcile the candidate tags and resolve each to a canonical FOLIO ontology IRI.',
+  matching: 'String-match labels to the best-fitting FOLIO concepts and re-rank the candidates.',
+  judging: 'An LLM judges ambiguous matches and picks the correct ontology branch.'
 };
 
 // ── Theme System ──
@@ -5854,7 +5868,8 @@ function renderProgressStages(currentStatus) {
     else if (isFailed && i <= currentIdx) cls += ' error';
     else if (i < currentIdx) cls += ' done';
     else if (i === currentIdx) cls += ' active';
-    return `<span class="${cls}">${STAGE_LABELS[s] || s}</span>`;
+    const tip = STAGE_TOOLTIPS[s] || '';
+    return `<span class="${cls}"${tip ? ` title="${escapeHtml(tip)}"` : ''}>${STAGE_LABELS[s] || s}</span>`;
   }).join('');
 }
 
