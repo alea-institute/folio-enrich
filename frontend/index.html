@@ -4129,18 +4129,75 @@ function setChip(id, dotColor, detail, tooltip) {
   if (id === 'chipLLM' && dotColor === 'green') hideLlmBanner();
 }
 
+// ── Consolidated System chip render (plan 04; D-03/D-09) ──
+// Tier → glyph (green→healthy, orange→warning, red→error) and tier → fill state
+// class (.is-green/.is-orange/.is-red). The status COLOR is a redundant fill; the
+// glyph silhouette + status word carry the signal (STATUS-05). All backend strings
+// are written via textContent only — never innerHTML of a message string (T-03-04
+// DOM-XSS; mirrors setChip's textContent discipline). The SVG glyph itself is a
+// static constant from STATUS_ICON_SVG (no interpolation), so assigning it via
+// innerHTML carries no untrusted input.
+const _TIER_GLYPH = { green: 'healthy', orange: 'warning', red: 'error' };
+const _TIER_CLASS = { green: 'is-green', orange: 'is-orange', red: 'is-red' };
+
+// Set a static SVG glyph + fill state-class on an icon-slot element, idempotently.
+// Only rewrites innerHTML when the glyph changes, so live polls never tear down DOM
+// while the popover is open (D-03 / Pitfall 3). data-glyph tracks the current glyph.
+function _setStatusIcon(slot, tier) {
+  if (!slot) return;
+  const glyph = _TIER_GLYPH[tier] || 'healthy';
+  if (slot.dataset.glyph !== glyph) {
+    slot.innerHTML = STATUS_ICON_SVG[glyph];   // static constant — no untrusted input
+    slot.dataset.glyph = glyph;
+  }
+  slot.classList.remove('is-green', 'is-orange', 'is-red');
+  slot.classList.add(_TIER_CLASS[tier] || 'is-green');
+}
+
+// Drive the collapsed chip from the rollup: glyph + fill on #chipSystemIcon, label
+// via chipLabel(), and aria-label so SR users hear the rolled-up state.
+function renderSystemChip(rollup) {
+  _setStatusIcon(document.getElementById('chipSystemIcon'), rollup.tier);
+  const labelEl = document.getElementById('chipSystemLabel');
+  const label = chipLabel(rollup);
+  if (labelEl) labelEl.textContent = label;
+  const chip = document.getElementById('chipSystem');
+  if (chip) chip.setAttribute('aria-label', label + ' status');
+}
+
+// Update each of the four always-present popover rows IN PLACE (never rebuild the
+// DOM, never steal focus) — D-03 / Pitfall 3. Writes detail + annotation strings
+// via textContent only (DOM-XSS mitigation, T-03-04). The FOLIO Manage action is
+// static markup left untouched.
+function renderPopoverRows(subsystems) {
+  for (const s of subsystems) {
+    const row = document.getElementById('sysRow' + s.key.charAt(0).toUpperCase() + s.key.slice(1));
+    if (!row) continue;
+    _setStatusIcon(row.querySelector('.system-status-icon'), s.tier);
+    const detailEl = document.getElementById(row.id + 'Detail');
+    if (detailEl) detailEl.textContent = s.metric || '';
+    const annEl = document.getElementById(row.id + 'Annotation');
+    if (annEl) annEl.textContent = s.annotation || '';   // :empty CSS hides it when blank
+  }
+}
+
 async function checkHealth() {
   // Quick basic check first
+  let backendUp = true;
   try {
     const r = await fetch(`${API}/health`);
     if (!r.ok) throw new Error();
-    setChip('chipBackend', 'green', '', 'Backend is running');
   } catch {
-    setChip('chipBackend', 'red', 'Offline', 'Cannot reach backend at ' + (API || window.location.origin));
-    setChip('chipFolio', 'gray', '---', 'Backend offline');
-    setChip('chipEmbedding', 'gray', '---', 'Backend offline');
+    backendUp = false;
+  }
+
+  if (!backendUp) {
+    // Backend unreachable: route the same red rollup through the new render path
+    // (preserves the prior :4044-4050 intent — chip red, all rows offline).
+    const subsystems = normalizeSubsystems(null, false);
+    renderSystemChip(computeRollup(subsystems));
+    renderPopoverRows(subsystems);
     setChip('chipLLM', 'gray', '---', 'Backend offline');
-    setChip('chipSpacy', 'gray', '---', 'Backend offline');
     return;
   }
 
@@ -4150,20 +4207,15 @@ async function checkHealth() {
     if (!r.ok) return;
     const d = await r.json();
 
-    // FOLIO Ontology
+    // Drive the consolidated System chip + four popover rows from the rollup.
+    const subsystems = normalizeSubsystems(d, backendUp);
+    renderSystemChip(computeRollup(subsystems));
+    renderPopoverRows(subsystems);
+
+    // FOLIO completed-update toast — preserved verbatim (uses _lastFolioUpdateAt).
     const f = d.folio_ontology || {};
     if (f.status === 'ready') {
       const us = f.update_status || {};
-      if (us.update_in_progress) {
-        setChip('chipFolio', 'orange', 'Updating...', 'FOLIO ontology update in progress');
-      } else if (us.update_available) {
-        setChip('chipFolio', 'orange', 'Update Available',
-          `FOLIO loaded: ${(f.concepts || 0).toLocaleString()} concepts — an update is available`);
-      } else {
-        setChip('chipFolio', 'green',
-          '',
-          `FOLIO loaded: ${(f.concepts || 0).toLocaleString()} concepts, ${(f.labels_indexed || 0).toLocaleString()} labels indexed`);
-      }
       // Detect completed update and show toast
       if (us.last_update_at && us.last_update_at !== _lastFolioUpdateAt) {
         if (_lastFolioUpdateAt !== null) {
@@ -4173,22 +4225,6 @@ async function checkHealth() {
         }
         _lastFolioUpdateAt = us.last_update_at;
       }
-    } else if (f.status === 'not_loaded') {
-      setChip('chipFolio', 'orange', 'Standby', 'FOLIO ontology not yet loaded — loads on first enrichment request');
-    } else {
-      setChip('chipFolio', 'red', 'Error', f.message || 'Failed to load FOLIO ontology');
-    }
-
-    // Embedding
-    const e = d.embedding || {};
-    if (e.status === 'ready') {
-      setChip('chipEmbedding', 'green',
-        '',
-        `Embedding: ${e.provider || 'Local'}, ${(e.index_size || 0).toLocaleString()} vectors indexed`);
-    } else if (e.status === 'not_loaded') {
-      setChip('chipEmbedding', 'orange', 'Standby', 'Embedding service loads on first use');
-    } else {
-      setChip('chipEmbedding', 'red', 'Error', e.message || 'Embedding service error');
     }
 
     // LLM
@@ -4210,14 +4246,8 @@ async function checkHealth() {
         setChip('chipLLM', 'red', 'Error', l.message || 'LLM error');
       }
     }
-
-    // spaCy
-    const s = d.spacy || {};
-    if (s.status === 'ready') {
-      setChip('chipSpacy', 'green', '', `spaCy ${s.version} — EntityRuler ready`);
-    } else {
-      setChip('chipSpacy', 'red', 'Error', s.message || 'spaCy not available');
-    }
+    // spaCy, FOLIO, Embedding, and Backend rows are driven above by
+    // normalizeSubsystems → renderPopoverRows; only the LLM chip remains on setChip.
   } catch {
     // Detail endpoint failed — leave subsystem chips at current state
   }
