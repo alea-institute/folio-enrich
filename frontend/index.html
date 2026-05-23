@@ -2354,69 +2354,84 @@
   }
   .llm-banner-actions .btn-symbolic:hover { border-color: var(--accent); }
 
-  /* ── Process Pipeline (node track + active-stage label) ───────────────────
-     A compact 7-node track: nodes fill left→right (done = green, doing = accent
-     with a pulsing ring, to-do = hollow) and the connectors tint green as the
-     flow advances. The current stage is named below the track while running;
-     idle and after completion the track is a quiet summary, each node
-     hover-inspectable for its name + what it does. */
+  /* ── Process Pipeline (collapsible vertical stepper) ──────────────────────
+     Every stage is labeled and visible when expanded, connected by a rail that
+     fills green as stages complete. The active stage is emphasized (larger,
+     accent, with an inline description); done = filled green, to-do = hollow/dim.
+     The header is a toggle — collapse to a one-line summary that, while running,
+     names the CURRENT stage. Hover any step for its description. */
   .ppl-head {
     display: flex;
     align-items: center;
     gap: 6px;
-    margin-bottom: 7px;
+    width: 100%;
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0 0 7px;
+    cursor: pointer;
+    text-align: left;
+    color: inherit;
+    font: inherit;
   }
+  .ppl-caret { font-size: 9px; color: var(--text-dim); transition: transform 0.2s ease; }
+  .ppl.collapsed .ppl-caret { transform: rotate(-90deg); }
   .ppl-title {
-    font-size: 9px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--text-dim);
+    font-size: 9px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--text-dim);
   }
-  .ppl-state { font-size: 12px; font-weight: 700; line-height: 1; }
-  .ppl-state.done   { color: var(--conf-high); }
-  .ppl-state.failed { color: var(--conf-low); }
+  .ppl-summary { font-size: 11px; font-weight: 600; margin-left: auto; }
+  .ppl-summary.running { color: var(--accent); }
+  .ppl-summary.done    { color: var(--conf-high); }
+  .ppl-summary.failed  { color: var(--conf-low); }
+  /* The summary is the collapsed-state readout; when expanded, the steps already
+     show everything (active stage, completion), so suppress it to avoid duplication. */
+  .ppl:not(.collapsed) .ppl-summary { display: none; }
+  .ppl.collapsed .ppl-body { display: none; }
+  .ppl-head:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
 
-  .ppl-track {
-    display: flex;
-    align-items: center;
-    gap: 0;
+  .ppl-steps { list-style: none; margin: 0; padding: 0; }
+  .ppl-step {
+    position: relative;
+    padding: 2px 0 2px 18px;
+    line-height: 1.45;
   }
-  .ppl-node {
-    width: 11px;
-    height: 11px;
+  .ppl-step::before {                 /* the node */
+    content: '';
+    position: absolute;
+    left: 1px; top: 6px;
+    width: 9px; height: 9px;
     border-radius: 50%;
-    flex-shrink: 0;
     box-sizing: border-box;
     border: 1.5px solid var(--border);
-    background: transparent;
+    background: var(--surface);
+    z-index: 1;
     transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
   }
-  .ppl-node.done   { border-color: var(--conf-high); background: var(--conf-high); }
-  .ppl-node.active { border-color: var(--accent); background: var(--accent); animation: pplPulse 1.4s ease-in-out infinite; }
-  .ppl-node.error  { border-color: var(--conf-low); background: var(--conf-low); }
-  .ppl-conn {
-    flex: 1 1 auto;
-    min-width: 8px;
-    height: 2px;
+  .ppl-step:not(:last-child)::after { /* rail to the next step */
+    content: '';
+    position: absolute;
+    left: 5.5px; top: 13px; bottom: -2px;
+    width: 2px;
     background: var(--border);
+    transform: translateX(-50%);
     transition: background 0.3s ease;
   }
-  .ppl-conn.done { background: var(--conf-high); }
+  .ppl-step.done::before   { border-color: var(--conf-high); background: var(--conf-high); }
+  .ppl-step.done::after    { background: var(--conf-high); }
+  .ppl-step.active::before { border-color: var(--accent); background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); animation: pplPulse 1.5s ease-in-out infinite; }
+  .ppl-step.error::before  { border-color: var(--conf-low); background: var(--conf-low); }
   @keyframes pplPulse {
     0%, 100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
     50%      { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 6%, transparent); }
   }
 
-  .ppl-active {
-    margin-top: 6px;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--accent);
-    line-height: 1.2;
-    transition: opacity 0.2s ease;
-  }
-  .ppl-active:empty { display: none; }
+  .ppl-step-label { font-size: 12px; color: var(--text-dim); transition: color 0.2s ease, font-size 0.2s ease; }
+  .ppl-step.done  .ppl-step-label { color: var(--text); }
+  .ppl-step.active .ppl-step-label { color: var(--accent); font-weight: 700; font-size: 14px; }
+  .ppl-step.error .ppl-step-label { color: var(--conf-low); }
+  .ppl-step-desc { display: none; font-size: 11px; color: var(--text-dim); }
+  .ppl-step.active .ppl-step-desc { display: block; margin-top: 1px; }
 
   .status-text {
     font-size: 11px;
@@ -3251,12 +3266,14 @@
     <!-- Pipeline progress -->
     <div class="pipeline-progress" id="pipelineProgress">
       <div class="ppl" id="pplWrap">
-        <div class="ppl-head">
+        <button type="button" class="ppl-head" id="pplToggle" onclick="togglePipeline()" aria-expanded="true" aria-controls="pplBody" title="Show / hide pipeline stages">
+          <span class="ppl-caret" aria-hidden="true">&#9662;</span>
           <span class="ppl-title">Process Pipeline</span>
-          <span class="ppl-state" id="pplState"></span>
+          <span class="ppl-summary" id="pplSummary"></span>
+        </button>
+        <div class="ppl-body" id="pplBody">
+          <ol class="ppl-steps" id="pplSteps"></ol>
         </div>
-        <div class="ppl-track" id="pplTrack"></div>
-        <div class="ppl-active" id="pplActive"></div>
       </div>
       <div class="activity-log-wrapper collapsed" id="logWrapper">
         <button class="log-toggle" onclick="toggleLog()"><span class="chevron">&#9660;</span> Log</button>
@@ -5884,47 +5901,66 @@ async function fetchFinalJob() {
 // Pipeline Progress
 // ==============================================
 
-// Render the Process Pipeline as a node track + active-stage label.
-// - idle ('pending'/unknown): all hollow nodes, no active label (the collapsed "before" state)
-// - running: nodes fill done→active→to-do, connectors tint green up to the active node,
-//   and the current stage is named below the track
-// - completed: all green + a ✓ in the header, active label cleared (quiet "after" state)
-// Every node carries a title (stage name — what it does) for hover inspection.
+// Render the Process Pipeline as a collapsible vertical stepper.
+// - idle ('pending'/unknown): all stages hollow/dim, summary blank (the quiet "before")
+// - running: stages fill done→active→to-do; the active stage is emphasized with an
+//   inline description; the header summary names the CURRENT stage (seen when collapsed)
+// - completed: all stages green, summary "✓ Complete"
+// Every step label is always visible; hover a step for its full description.
 function renderProgressStages(currentStatus) {
-  const track = document.getElementById('pplTrack');
-  if (!track) return;
-  const activeEl = document.getElementById('pplActive');
-  const stateEl = document.getElementById('pplState');
+  const stepsEl = document.getElementById('pplSteps');
+  if (!stepsEl) return;
+  const summary = document.getElementById('pplSummary');
   const stages = ['ingesting', 'normalizing', 'enriching', 'identifying', 'resolving', 'matching', 'judging'];
   const currentIdx = stages.indexOf(currentStatus);
   const isComplete = currentStatus === 'completed';
   const isFailed = currentStatus === 'failed';
 
-  track.innerHTML = stages.map((s, i) => {
+  stepsEl.innerHTML = stages.map((s, i) => {
     const passed = isComplete || (currentIdx >= 0 && i < currentIdx);
     let state = 'todo';
     if (isFailed) state = 'error';
     else if (passed) state = 'done';
     else if (i === currentIdx) state = 'active';
+    const name = STAGE_LABELS[s] || s;
+    const desc = STAGE_TOOLTIPS[s] || '';
     const word = state === 'done' ? 'done' : state === 'active' ? 'in progress' : state === 'error' ? 'failed' : 'pending';
-    const title = `${STAGE_LABELS[s] || s} — ${STAGE_TOOLTIPS[s] || ''}`;
-    const node = `<span class="ppl-node ${state}" title="${escapeHtml(title)}" aria-label="${escapeHtml((STAGE_LABELS[s] || s) + ': ' + word)}"></span>`;
-    const conn = i < stages.length - 1 ? `<span class="ppl-conn${passed ? ' done' : ''}" aria-hidden="true"></span>` : '';
-    return node + conn;
+    return `<li class="ppl-step ${state}" title="${escapeHtml(name + ' — ' + desc)}" aria-label="${escapeHtml(name + ': ' + word)}">`
+      + `<span class="ppl-step-label">${escapeHtml(name)}</span>`
+      + `<span class="ppl-step-desc">${escapeHtml(desc)}</span>`
+      + `</li>`;
   }).join('');
 
-  if (activeEl) {
-    if (isFailed) activeEl.textContent = '✕ Failed';
-    else if (isComplete) activeEl.textContent = '';
-    else if (currentIdx >= 0) activeEl.textContent = '▸ ' + (STAGE_LABELS[currentStatus] || currentStatus);
-    else activeEl.textContent = '';
-  }
-
-  if (stateEl) {
-    stateEl.className = 'ppl-state' + (isComplete ? ' done' : isFailed ? ' failed' : '');
-    stateEl.textContent = isComplete ? '✓' : isFailed ? '✕' : '';
+  if (summary) {
+    if (isFailed) { summary.textContent = '✕ Failed'; summary.className = 'ppl-summary failed'; }
+    else if (isComplete) { summary.textContent = '✓ Complete'; summary.className = 'ppl-summary done'; }
+    else if (currentIdx >= 0) { summary.textContent = STAGE_LABELS[currentStatus] || currentStatus; summary.className = 'ppl-summary running'; }
+    else { summary.textContent = ''; summary.className = 'ppl-summary'; }
   }
 }
+
+// Collapse/expand the pipeline stepper (persisted). The collapsed header still shows
+// the live current-stage summary while running.
+function togglePipeline() {
+  const wrap = document.getElementById('pplWrap');
+  if (!wrap) return;
+  const collapsed = wrap.classList.toggle('collapsed');
+  const btn = document.getElementById('pplToggle');
+  if (btn) btn.setAttribute('aria-expanded', String(!collapsed));
+  try { localStorage.setItem('pipelineExpanded', collapsed ? '0' : '1'); } catch (e) {}
+}
+
+// Restore persisted collapse state on load (default expanded).
+(function _restorePipelineState() {
+  try {
+    if (localStorage.getItem('pipelineExpanded') === '0') {
+      const wrap = document.getElementById('pplWrap');
+      const btn = document.getElementById('pplToggle');
+      if (wrap) wrap.classList.add('collapsed');
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+    }
+  } catch (e) {}
+})();
 
 // ==============================================
 // Document Type Banner
