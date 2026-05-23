@@ -2380,10 +2380,19 @@
     font-size: 9px; font-weight: 700; text-transform: uppercase;
     letter-spacing: 0.5px; color: var(--text-dim);
   }
-  .ppl-summary { font-size: 11px; font-weight: 600; margin-left: auto; }
+  /* Collapsed-accordion readout: a small state dot + the representative stage name
+     (first stage before, current stage while running, last stage after). */
+  .ppl-summary { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; margin-left: auto; color: var(--text-dim); }
+  .ppl-summary::before {
+    content: ''; width: 7px; height: 7px; border-radius: 50%; box-sizing: border-box;
+    border: 1.5px solid var(--border); background: var(--surface); flex-shrink: 0;
+  }
   .ppl-summary.running { color: var(--accent); }
+  .ppl-summary.running::before { border-color: var(--accent); background: var(--accent); }
   .ppl-summary.done    { color: var(--conf-high); }
+  .ppl-summary.done::before    { border-color: var(--conf-high); background: var(--conf-high); }
   .ppl-summary.failed  { color: var(--conf-low); }
+  .ppl-summary.failed::before  { border-color: var(--conf-low); background: var(--conf-low); }
   /* The summary is the collapsed-state readout; when expanded, the steps already
      show everything (active stage, completion), so suppress it to avoid duplication. */
   .ppl:not(.collapsed) .ppl-summary { display: none; }
@@ -5935,10 +5944,12 @@ function renderProgressStages(currentStatus) {
   }).join('');
 
   if (summary) {
-    if (isFailed) { summary.textContent = '✕ Failed'; summary.className = 'ppl-summary failed'; }
-    else if (isComplete) { summary.textContent = '✓ Complete'; summary.className = 'ppl-summary done'; }
+    // Collapsed accordion shows a representative stage: first before, current while
+    // running, last after completion (the user's "beginning/final stage showing").
+    if (isFailed) { summary.textContent = 'Failed'; summary.className = 'ppl-summary failed'; }
+    else if (isComplete) { summary.textContent = STAGE_LABELS[stages[stages.length - 1]] || 'Done'; summary.className = 'ppl-summary done'; }
     else if (currentIdx >= 0) { summary.textContent = STAGE_LABELS[currentStatus] || currentStatus; summary.className = 'ppl-summary running'; }
-    else { summary.textContent = ''; summary.className = 'ppl-summary'; }
+    else { summary.textContent = STAGE_LABELS[stages[0]] || ''; summary.className = 'ppl-summary'; }
   }
 
   // Auto-disclosure: expand WHILE running, collapse at rest (before) and after completion.
