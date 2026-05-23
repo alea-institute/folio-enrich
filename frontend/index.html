@@ -3212,8 +3212,8 @@
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <button class="primary" id="enrichBtn" onclick="submitEnrichment()">Enrich Document</button>
         <button class="secondary" onclick="clearAll()">Clear</button>
-        <button id="showThinkingBtn" onclick="toggleShowThinking()" style="background:var(--surface2);border:none;color:var(--text-dim)" title="Show LLM chain-of-thought reasoning in lineage"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;background:transparent"></span>Show Thinking</button>
-        <button id="debugModeBtn" onclick="toggleDebugMode()" style="background:var(--surface2);border:none;color:var(--text-dim)" title="Truncate input to ~500 words for faster pipeline testing"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;background:transparent"></span>Debug Mode</button>
+        <button id="showThinkingBtn" onclick="toggleShowThinking()" style="background:var(--surface2);border:none;color:var(--text-dim)" title="Show LLM chain-of-thought reasoning in lineage"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;background:transparent"></span>Thinking</button>
+        <button id="debugModeBtn" onclick="toggleDebugMode()" style="background:var(--surface2);border:none;color:var(--text-dim)" title="Truncate input to ~500 words for faster pipeline testing"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;background:transparent"></span>Debug</button>
       </div>
     </div>
 
@@ -3819,9 +3819,9 @@ const PIPELINE_STAGES = [
 ];
 
 const STAGE_LABELS = {
-  pending: 'Queued', ingesting: 'Ingesting', normalizing: 'Normalizing',
-  enriching: 'Enriching', identifying: 'Identifying', resolving: 'Resolving',
-  matching: 'Matching', judging: 'Judging', extracting_individuals: 'Extracting Individuals',
+  pending: 'Queued', ingesting: 'Ingest', normalizing: 'Normalize',
+  enriching: 'Enrich', identifying: 'Identify', resolving: 'Resolve',
+  matching: 'Match', judging: 'Judge', extracting_individuals: 'Extracting Individuals',
   exporting: 'Exporting', completed: 'Done'
 };
 
@@ -5433,13 +5433,13 @@ function applyDebugTruncation() {
 function applyDebugBtnStyle(btn, on) {
   btn.style.background = on ? 'rgba(232,165,76,0.15)' : 'var(--surface2)';
   btn.style.color = on ? 'var(--orange)' : 'var(--text-dim)';
-  btn.innerHTML = '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;background:' + (on ? 'var(--orange)' : 'transparent') + '"></span>Debug Mode';
+  btn.innerHTML = '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;background:' + (on ? 'var(--orange)' : 'transparent') + '"></span>Debug';
 }
 
 function applyShowThinkingStyle(btn, on) {
   btn.style.background = on ? 'rgba(176,126,232,0.15)' : 'var(--surface2)';
   btn.style.color = on ? 'var(--purple)' : 'var(--text-dim)';
-  btn.innerHTML = '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;background:' + (on ? 'var(--purple)' : 'transparent') + '"></span>Show Thinking';
+  btn.innerHTML = '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;background:' + (on ? 'var(--purple)' : 'transparent') + '"></span>Thinking';
   document.body.classList.toggle('show-thinking', on);
 }
 
