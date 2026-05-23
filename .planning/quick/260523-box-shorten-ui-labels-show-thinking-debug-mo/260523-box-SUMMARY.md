@@ -40,7 +40,7 @@ stepper), the chosen end state is a **collapsible vertical stepper**:
 - **Before:** every stage labeled and visible (hollow/dim nodes on a rail) — "easily see each stage".
 - **During:** stages fill done→active→to-do; the active stage is **emphasized** (14px, accent, bold) with its description inline; the rail fills green up to it.
 - **After:** all stages green; auto-collapses; collapsed header reads "✓ Complete".
-- **Auto-disclosure:** collapsed at rest (before) and after completion, auto-expands while processing — driven by phase transitions (idle/done → collapsed, running → expanded). Manually expandable/collapsible anytime via the header chevron; a manual toggle is respected until the next phase transition. While collapsed, the header summary names the **current stage** so progress is never lost.
+- **Accordion auto-disclosure:** collapsed at rest (before) and after completion, auto-expands while processing — driven by phase transitions (idle/done → collapsed, running → expanded). Manually expandable/collapsible anytime via the header chevron; a manual toggle is respected until the next phase transition. The collapsed header shows a **representative stage** with a state dot: the **first** stage (Ingest) before, the **current** stage while running, the **final** stage (Judge, green) after.
 - Hover any step for its full description. Theme-aware (`--accent`/`--conf-high`/`--border`); `renderProgressStages(status)` signature unchanged (still driven by the existing SSE status flow).
 
 ## Scope
