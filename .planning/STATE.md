@@ -64,6 +64,7 @@ None.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260522-uot | Consolidate Nouns/Verbs/Individuals layer toggles under one "Annotations" disclosure chip (Parts of Speech kept separate) | 2026-05-23 | 9369907 | [260522-uot-consolidate-nouns-verbs-individuals-laye](./quick/260522-uot-consolidate-nouns-verbs-individuals-laye/) |
+| 260523-box | Shorten UI labels: Show Thinking→Thinking, Debug Mode→Debug, pipeline stages to one-word forms (fit on one line) | 2026-05-23 | (see commit) | [260523-box-shorten-ui-labels-show-thinking-debug-mo](./quick/260523-box-shorten-ui-labels-show-thinking-debug-mo/) |
 
 ## Session Continuity
 
