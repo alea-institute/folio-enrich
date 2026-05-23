@@ -98,10 +98,11 @@ export function resolveVariable(name, themeMap, paletteMap, depth = 0) {
 // (confirmed via grep — no `color:` declarations reference it in frontend/index.html)
 const TEXT_TOKENS = ['--text', '--text-dim', '--accent'];
 const BG_TOKENS = ['--bg', '--surface', '--surface2', '--surface3'];
-// STATUS-05: status-icon colors are graphical objects (WCAG 1.4.11) → 3:1 floor,
-// not the 4.5/3.0 text thresholds. Audited on the chip (--surface2) and
-// popover (--surface3) surfaces where the system-status icons render.
-const STATUS_ICON_TOKENS = ['--green', '--orange', '--red'];
+// STATUS-05: status-icon dots are graphical objects (WCAG 1.4.11) → 3:1 floor,
+// not the 4.5/3.0 text thresholds. The System chip renders flat filled dots using
+// the theme-aware --status-dot-* tokens; this audit measures that fill against the
+// chip (--surface2) and popover (--surface3) surfaces where the dots render.
+const STATUS_ICON_TOKENS = ['--status-dot-green', '--status-dot-orange', '--status-dot-red'];
 const STATUS_ICON_BG_TOKENS = ['--surface2', '--surface3'];
 const BRANCH_NAMES = [
   'actor-player', 'area-of-law', 'asset-type', 'communication-modality',
@@ -281,36 +282,34 @@ export async function runAudit() {
 
   // STATUS-05: status-icon graphical-object audit (WCAG 1.4.11, 3:1 floor).
   //
-  // Wave 3 ships the mandated --text stroke fallback (03-RESEARCH.md:295,
-  // 03-02-SUMMARY.md): every status glyph in frontend/index.html is stroked at
-  // var(--text) — that stroke is the distinguishing boundary of the graphical
-  // object (the silhouette a colorblind/grayscale user reads), and the
-  // green/orange/red token is only a SECONDARY fill behind it. So the icon's
-  // graphical-object contrast that 1.4.11 measures is the --text stroke on each
-  // surface, NOT the solid-fill token. We verify the stroke clears 3:1 on the
-  // chip (--surface2) and popover (--surface3) surfaces, per status color, in
-  // every theme. (The unit test in contrast-audit.test.mjs separately pins the
-  // fact that a SOLID green/orange fill would fail 3:1 — proving the stroke
-  // fallback is mandatory, not optional. Do NOT weaken classifyIcon's 3:1 floor.)
-  const ICON_STROKE_TOKEN = '--text';
-  for (const theme of ['dark', 'light', 'mixed', 'mixed-light']) {
+  // The System chip + popover render the status indicator as a FLAT FILLED DOT
+  // (UAT feedback: the earlier --text-stroked check/triangle/cross badges clashed
+  // with the simple LLM/layer .chip-dot circles). The dot's fill is therefore the
+  // graphical object 1.4.11 measures. To clear 3:1 as a solid fill, the light
+  // themes use deeper --status-dot-* shades (green-700/orange-700/red-600) while
+  // the dark themes use the brighter 500s; this audit verifies the resolved
+  // --status-dot-* fill clears 3:1 on the chip (--surface2) and popover
+  // (--surface3) surfaces. (The unit test in contrast-audit.test.mjs pins the
+  // exact ratios AND that the lighter green-600/orange-600 would fail — proving
+  // the deeper light shades are mandatory. Do NOT weaken classifyIcon's 3:1 floor.)
+  //
+  // Themes iterated: dark, light, mixed. NOT 'mixed-light' — the System chip lives
+  // in the mixed theme's dark header and its popover keeps the dark --surface3
+  // (gray-700); it never renders on the light content panels, so a mixed-light
+  // surface context does not exist for these dots.
+  for (const theme of ['dark', 'light', 'mixed']) {
     const tmap = themeMaps[theme];
-    const strokeHex = resolveVariable(ICON_STROKE_TOKEN, tmap, paletteMap);
-    if (!strokeHex) continue;
     for (const bg of STATUS_ICON_BG_TOKENS) {
       const bgHex = resolveVariable(bg, tmap, paletteMap);
       if (!bgHex) continue;
       for (const fg of STATUS_ICON_TOKENS) {
-        // Each status glyph renders its silhouette as a --text stroke (the
-        // contrast carrier); the status token is a redundant secondary fill.
-        const ratio = contrastRatio(strokeHex, bgHex);
+        const fgHex = resolveVariable(fg, tmap, paletteMap);
+        if (!fgHex) continue;
+        const ratio = contrastRatio(fgHex, bgHex);
         const status = classifyIcon(ratio);
-        iconResults.push({
-          theme, fg: `${fg} (stroked at --text)`, bg,
-          fgHex: strokeHex, bgHex, ratio, status,
-        });
+        iconResults.push({ theme, fg, bg, fgHex, bgHex, ratio, status });
         if (status === 'FAIL') {
-          failing.push({ theme, fg, bg: `${bg} (icon 3:1)`, fgHex: strokeHex, bgHex, ratio });
+          failing.push({ theme, fg, bg: `${bg} (icon 3:1)`, fgHex, bgHex, ratio });
         }
       }
     }
