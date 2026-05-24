@@ -301,3 +301,23 @@ Browser-verified:
 Implemented but not browser-emulated this session (logic + CSS in place): `prefers-reduced-motion`
 fallback (DevTools cannot emulate the reduced-motion media feature here) — worth a manual pass with the
 OS flag set. Open question #2 (Identify as its own node) was kept as a node; renders `done` if skipped.
+
+## Enhancement (2026-05-24): per-stage transparency + stay-expanded
+
+Follow-on request — let users see *what each stage actually did* this run, to build trust.
+
+- **Click → inline detail panel.** Stations are now clickable (mouse/keyboard/touch, `role="button"`,
+  enlarged hit target). Clicking opens `#pplDetail` below the track with the stage's description +
+  this run's real activity-log messages; clicking again toggles it off.
+- **Data source.** `metadata.activity_log` (`{ts, stage, msg}`), preferring the final job's log and
+  falling back to the live `activityEntries`. A `PPL_ACTIVITY_MAP` folds the backend's finer stage
+  names (e.g. `entity_ruler`, `string_matching`, `llm_individual_linking`) onto the 8 stations;
+  `orchestrator` meta-lines are skipped; unknown stages bucket to Finalize.
+- **Stay-expanded supersedes the brainstorm's collapse (decision #6).** After complete/fail the
+  journey no longer collapses to one line — it stays fully visible (all-done/error track + a
+  completion message in the status row) so stations are immediately explorable. `_collapse`,
+  `_holdThenCollapse`, the `~2s` hold, `show-final`, and `togglePplFinal` were removed.
+- **Verified @ :8731:** real run → clicked stations showed correct grouped messages (Ingest chars,
+  Enrich matches/triples, Resolve reconcile/resolve, Finalize linking/classification); done state
+  stays expanded with `dddddddd` + "✓ Complete"; empty stages (e.g. Judge with nothing ambiguous)
+  show a graceful empty state; 674 backend tests still pass.

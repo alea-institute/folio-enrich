@@ -2385,7 +2385,6 @@
   }
   .ppl-expand:hover { color: var(--text); background: var(--surface2); }
   .ppl-expand[aria-pressed="true"] { color: var(--accent); }
-  .ppl[data-phase="done"] .ppl-expand, .ppl[data-phase="failed"] .ppl-expand { display: none; }
 
   /* the track: rail + fill + 8 evenly spaced nodes */
   .ppl-track { position: relative; height: 13px; margin: 2px 5px 0; }
@@ -2400,13 +2399,19 @@
     position: absolute; inset: 0;
     display: flex; justify-content: space-between; align-items: flex-start;
   }
-  .ppl-step { position: relative; }
+  .ppl-step { position: relative; cursor: pointer; }
+  .ppl-step:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
   .ppl-node {                                /* the dot — a real element, transitionable */
     display: block; width: 9px; height: 9px; border-radius: 50%; box-sizing: border-box;
     border: 1.5px solid var(--border); background: var(--surface);
     position: relative; z-index: 1;
     transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
   }
+  .ppl-node::after {                         /* invisible enlarged hit target (~24px) */
+    content: ''; position: absolute; inset: -8px; border-radius: 50%;
+  }
+  .ppl-step:hover .ppl-node { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+  .ppl-step.selected .ppl-node { box-shadow: 0 0 0 3px var(--accent); }
   .ppl-step.done  .ppl-node { border-color: var(--conf-high); background: var(--conf-high); }
   .ppl-step.active .ppl-node {
     border-color: var(--accent); background: var(--accent); transform: scale(1.5);
@@ -2457,18 +2462,28 @@
   .ppl-legend-item.todo  .ppl-legend-name { color: var(--text-dim); font-weight: 500; }
   .ppl-legend-desc { color: var(--text-dim); margin-left: 4px; }
 
-  /* done / failed: collapse to a single re-expandable line */
-  .ppl-done { display: none; font-size: 12px; font-weight: 600; cursor: pointer; }
-  .ppl[data-phase="done"]   .ppl-done { display: flex; align-items: center; gap: 6px; color: var(--conf-high); }
-  .ppl[data-phase="failed"] .ppl-done { display: flex; align-items: center; gap: 6px; color: var(--conf-low); }
-  .ppl-done .ppl-reexpand { margin-left: auto; font-size: 13px; color: var(--text-dim); font-weight: 400; }
-  .ppl[data-phase="done"]   .ppl-track,   .ppl[data-phase="done"]   .ppl-status,
-  .ppl[data-phase="done"]   .ppl-legend,  .ppl[data-phase="failed"] .ppl-track,
-  .ppl[data-phase="failed"] .ppl-status,  .ppl[data-phase="failed"] .ppl-legend { display: none; }
-  .ppl.show-final[data-phase="done"]   .ppl-track,
-  .ppl.show-final[data-phase="failed"] .ppl-track { display: block; }
-  .ppl.show-final[data-phase="done"]   .ppl-status,
-  .ppl.show-final[data-phase="failed"] .ppl-status { display: flex; }
+  /* per-stage detail panel: click a station to see what it did this run */
+  .ppl-detail[hidden] { display: none; }
+  .ppl-detail {
+    margin-top: 9px; padding: 9px 11px; border-radius: 7px;
+    background: var(--surface2); border: 1px solid var(--border);
+    animation: pplDetailIn 0.18s ease both;
+  }
+  @keyframes pplDetailIn { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: translateY(0); } }
+  .ppl-detail-title { font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 2px; }
+  .ppl-detail-desc { font-size: 11px; color: var(--text-dim); line-height: 1.4; }
+  .ppl-detail-msgs { list-style: none; margin: 7px 0 0; padding: 0; }
+  .ppl-detail-msgs li {
+    font-size: 11px; color: var(--text); line-height: 1.45; padding: 2px 0 2px 13px; position: relative;
+  }
+  .ppl-detail-msgs li::before { content: '–'; position: absolute; left: 0; color: var(--conf-high); font-weight: 700; }
+  .ppl-detail-empty { font-size: 11px; color: var(--text-dim); font-style: italic; margin-top: 6px; }
+
+  /* done / failed: STAY expanded (track + status remain visible & clickable — no collapse) */
+  .ppl-done { display: none; }
+  .ppl[data-phase="done"]   .ppl-desc b { color: var(--conf-high); }
+  .ppl[data-phase="failed"] .ppl-desc b { color: var(--conf-low); }
+  @media (prefers-reduced-motion: reduce) { .ppl-detail { animation: none; } }
 
   .ppl-live.sr-only {
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
@@ -3331,10 +3346,9 @@
           <span class="ppl-desc" id="pplDesc"></span>
           <span class="ppl-count" id="pplCount"></span>
         </div>
+        <div class="ppl-detail" id="pplDetail" hidden></div>
         <ol class="ppl-legend" id="pplLegend" aria-hidden="true"></ol>
-        <div class="ppl-done" id="pplDone" role="button" tabindex="0"
-             title="Show the full pipeline" onclick="togglePplFinal()"
-             onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();togglePplFinal();}"></div>
+        <div class="ppl-done" id="pplDone"></div>
         <span class="ppl-live sr-only" id="pplLive" aria-live="polite"></span>
       </div>
       <div class="activity-log-wrapper collapsed" id="logWrapper">
@@ -6000,13 +6014,28 @@ const PPL_STATUS_INDEX = {
   judging: 5, matching: 6,
   extracting_individuals: 7, extracting_properties: 7, exporting: 7, finalize: 7,
 };
+// Backend activity-log `stage` names (finer than the 8 stations) -> station key, so each
+// station's detail panel can show what it actually did this run. Unknown -> Finalize.
+const PPL_ACTIVITY_MAP = {
+  ingestion: 'ingesting',
+  normalization: 'normalizing',
+  entity_ruler: 'enriching', early_individual_extraction: 'enriching',
+  early_property_extraction: 'enriching', early_triple: 'enriching',
+  llm_concept_identification: 'identifying',
+  reconciliation: 'resolving', resolution: 'resolving', contextual_rerank: 'resolving',
+  branch_judge: 'judging',
+  string_matching: 'matching',
+  llm_individual_linking: 'finalize', llm_property_linking: 'finalize',
+  triple_enrichment: 'finalize', metadata: 'finalize',
+  document_type_classification: 'finalize', area_of_law: 'finalize', quality_check: 'finalize',
+  // 'orchestrator' intentionally excluded (cross-cutting meta messages, not stage-specific)
+};
 const PPL_DWELL = 600;   // min ms each stage holds focus (so the "walk" is visible)
 const PPL_FAST  = 170;   // ms/stage when fast-forwarding remaining stages to completion
-const PPL_HOLD  = 2000;  // ms to hold the filled track before collapsing to one line
 
 const PipelineJourney = {
   cur: -1, target: -1, phase: 'idle', latched: false, built: false, expanded: false,
-  speed: PPL_DWELL, timer: null, collapseTimer: null, _completePending: false,
+  speed: PPL_DWELL, timer: null, _completePending: false, openIdx: -1, _wired: false,
 
   reduced() { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); },
   el(id) { return document.getElementById(id); },
@@ -6014,10 +6043,25 @@ const PipelineJourney = {
   build() {
     const stepsEl = this.el('pplSteps'), legendEl = this.el('pplLegend');
     if (!stepsEl) return;
-    stepsEl.innerHTML = PPL_STAGES.map(s =>
-      `<li class="ppl-step todo" data-key="${s.key}"><span class="ppl-node"></span>`
-      + `<span class="ppl-step-label">${escapeHtml(s.abbr)}</span></li>`
-    ).join('');
+    stepsEl.innerHTML = PPL_STAGES.map(s => {
+      const name = STAGE_LABELS[s.key] || s.key;
+      return `<li class="ppl-step todo" data-key="${s.key}" role="button" tabindex="0" aria-expanded="false"`
+        + ` aria-label="${escapeHtml(name + ': show what this stage did')}"><span class="ppl-node"></span>`
+        + `<span class="ppl-step-label">${escapeHtml(s.abbr)}</span></li>`;
+    }).join('');
+    // Wire click/keyboard once (event delegation survives innerHTML rebuilds of the <li>s).
+    if (!this._wired) {
+      const open = (e) => {
+        const li = e.target.closest('.ppl-step'); if (!li) return;
+        const idx = Array.prototype.indexOf.call(stepsEl.children, li);
+        if (idx >= 0) this.openStageDetail(idx);
+      };
+      stepsEl.addEventListener('click', open);
+      stepsEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(e); }
+      });
+      this._wired = true;
+    }
     if (legendEl) {
       legendEl.innerHTML = PPL_STAGES.map(s =>
         `<li class="ppl-legend-item todo" data-key="${s.key}"><span class="ppl-legend-dot"></span>`
@@ -6068,13 +6112,64 @@ const PipelineJourney = {
     const btn = this.el('pplExpand'); if (btn) btn.setAttribute('aria-pressed', v ? 'true' : 'false');
   },
 
+  // This run's activity-log messages for a station (prefer the complete final-job log,
+  // fall back to the live-streamed entries). Cross-cutting 'orchestrator' lines are skipped.
+  stageMessages(stationKey) {
+    let src = [];
+    try {
+      if (typeof currentJob !== 'undefined' && currentJob && currentJob.result
+          && currentJob.result.metadata && currentJob.result.metadata.activity_log) {
+        src = currentJob.result.metadata.activity_log;
+      } else if (typeof activityEntries !== 'undefined' && Array.isArray(activityEntries)) {
+        src = activityEntries;
+      }
+    } catch (e) {}
+    const out = [];
+    for (const e of src) {
+      if (!e || !e.stage || e.stage === 'orchestrator') continue;
+      const key = PPL_ACTIVITY_MAP[e.stage] || 'finalize';
+      if (key === stationKey && e.msg) out.push(e.msg);
+    }
+    return out;
+  },
+
+  openStageDetail(i) {
+    const detail = this.el('pplDetail'); if (!detail) return;
+    if (this.openIdx === i) { this.closeDetail(); return; }   // toggle off if same
+    this.openIdx = i;
+    const s = PPL_STAGES[i];
+    const name = STAGE_LABELS[s.key] || s.key;
+    const desc = STAGE_TOOLTIPS[s.key] || '';
+    const msgs = this.stageMessages(s.key);
+    detail.innerHTML =
+      `<div class="ppl-detail-title">${escapeHtml(name)}</div>`
+      + `<div class="ppl-detail-desc">${escapeHtml(desc)}</div>`
+      + (msgs.length
+          ? `<ul class="ppl-detail-msgs">${msgs.map(m => `<li>${escapeHtml(m)}</li>`).join('')}</ul>`
+          : `<div class="ppl-detail-empty">No recorded activity for this stage${this.phase === 'running' ? ' yet' : ''}.</div>`);
+    detail.hidden = false;
+    document.querySelectorAll('#pplSteps .ppl-step').forEach((li, idx) => {
+      const sel = idx === i;
+      li.classList.toggle('selected', sel);
+      li.setAttribute('aria-expanded', sel ? 'true' : 'false');
+    });
+  },
+
+  closeDetail() {
+    this.openIdx = -1;
+    const detail = this.el('pplDetail'); if (detail) { detail.hidden = true; detail.innerHTML = ''; }
+    document.querySelectorAll('#pplSteps .ppl-step').forEach(li => {
+      li.classList.remove('selected'); li.setAttribute('aria-expanded', 'false');
+    });
+  },
+
   reset() {
     this.stop();
-    if (this.collapseTimer) { clearTimeout(this.collapseTimer); this.collapseTimer = null; }
     this.cur = -1; this.target = -1; this.latched = false; this._completePending = false;
     this.speed = PPL_DWELL; this.phase = 'idle';
     const w = this.el('pplWrap');
-    if (w) { w.dataset.phase = 'idle'; w.classList.remove('show-final'); }
+    if (w) w.dataset.phase = 'idle';
+    this.closeDetail();
     if (this.built) this.paint(-1);
     this.setExpanded(false);
   },
@@ -6096,42 +6191,31 @@ const PipelineJourney = {
     } else { this._maybeComplete(); }
   },
   _maybeComplete() {
-    if (this._completePending) {
-      this._completePending = false;
-      this.paint(PPL_LAST, { done: true });
-      this._holdThenCollapse('done');
-    }
+    if (this._completePending) { this._completePending = false; this._settleDone(); }
   },
-  _holdThenCollapse(kind) {
-    if (this.reduced()) { this._collapse(kind); return; }
-    this.collapseTimer = setTimeout(() => { this.collapseTimer = null; this._collapse(kind); }, PPL_HOLD);
-  },
-  _collapse(kind) {
-    this.phase = kind;
-    const w = this.el('pplWrap');
-    if (w) { w.dataset.phase = kind; w.classList.remove('show-final'); }
-    const doneEl = this.el('pplDone');
-    if (doneEl) doneEl.innerHTML = (kind === 'failed' ? '✕ Pipeline failed' : '✓ Pipeline complete')
-      + ' <span class="ppl-reexpand" aria-hidden="true">⤢</span>';
+  // Completion stays EXPANDED (no collapse): all stations done, completion message in the
+  // status row, stations remain clickable so the user can see what each one did.
+  _settleDone() {
+    this.cur = PPL_LAST; this.paint(PPL_LAST, { done: true });
+    this.phase = 'done';
+    const w = this.el('pplWrap'); if (w) w.dataset.phase = 'done';
+    const descEl = this.el('pplDesc');
+    if (descEl) descEl.innerHTML = '<b>✓ Complete</b> — click any stage to see what it did';
+    const countEl = this.el('pplCount'); if (countEl) countEl.textContent = `${PPL_STAGES.length} / ${PPL_STAGES.length}`;
+    if (this.openIdx >= 0) { const i = this.openIdx; this.openIdx = -1; this.openStageDetail(i); }  // refresh open panel with final messages
+    this.announce('Pipeline complete');
   },
 
   finishDone(animate) {
     if (this.latched && this.phase === 'done') return;
     if (!this.built) this.build();
     this.latched = true;
-    if (!animate || this.reduced()) {
-      this.stop(); this.cur = PPL_LAST; this.paint(PPL_LAST, { done: true });
-      this._collapse('done'); this.announce('Pipeline complete'); return;
-    }
+    if (!animate || this.reduced() || PPL_LAST - this.cur > 5) { this.stop(); this._settleDone(); return; }
+    // fast-forward any remaining stages, then settle (still expanded — no hold/collapse)
     this.phase = 'running';
     const w = this.el('pplWrap'); if (w) w.dataset.phase = 'running';
     this.target = PPL_LAST; this.speed = PPL_FAST;
-    if (PPL_LAST - this.cur > 5) {                // too many queued to walk — snap to done
-      this.stop(); this.cur = PPL_LAST; this.paint(PPL_LAST, { done: true }); this._holdThenCollapse('done');
-    } else {
-      this._completePending = true; this.stop(); this.ensureWalking();
-    }
-    this.announce('Pipeline complete');
+    this._completePending = true; this.stop(); this.ensureWalking();
   },
 
   finishFailed(animate) {
@@ -6139,12 +6223,10 @@ const PipelineJourney = {
     this.latched = true; this.stop();
     const at = this.cur < 0 ? 0 : this.cur; this.cur = at;
     this.paint(at, { error: true });
-    if (!animate || this.reduced()) { this._collapse('failed'); }
-    else {
-      this.phase = 'running';
-      const w = this.el('pplWrap'); if (w) w.dataset.phase = 'running';
-      this._holdThenCollapse('failed');
-    }
+    this.phase = 'failed';
+    const w = this.el('pplWrap'); if (w) w.dataset.phase = 'failed';
+    const descEl = this.el('pplDesc');
+    if (descEl) descEl.innerHTML = `<b>✕ Failed at ${escapeHtml(STAGE_LABELS[PPL_STAGES[at].key] || '')}</b> — click a stage for details`;
     this.announce('Pipeline failed');
   },
 
@@ -6160,7 +6242,7 @@ const PipelineJourney = {
     if (!this.built) this.build();
 
     if (this.phase !== 'running') {
-      this.phase = 'running'; w.dataset.phase = 'running'; w.classList.remove('show-final');
+      this.phase = 'running'; w.dataset.phase = 'running';
       this.announce('Pipeline started');
     }
     if (this.cur >= 0 && idx <= this.cur) return; // monotonic: never walk backward
@@ -6179,8 +6261,6 @@ function renderProgressStages(currentStatus, opts) {
 
 // ⤢ in the header: reveal/hide the full vertical legend of every stage.
 function togglePplExpand() { PipelineJourney.setExpanded(!PipelineJourney.expanded); }
-// Click the collapsed "✓ Pipeline complete" line to re-expand the final journey.
-function togglePplFinal() { const w = document.getElementById('pplWrap'); if (w) w.classList.toggle('show-final'); }
 
 // Returning to a backgrounded tab: setTimeout dwell throttles while hidden, so reconcile
 // the marker to the latest target instead of slowly replaying a stale walk.
