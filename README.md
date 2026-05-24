@@ -112,26 +112,28 @@ Seconds later, receive a structured annotation layer that machines can search, f
 
 The pipeline runs in three phases with 5 parallel stages and 9 sequential post-parallel stages. LLM-dependent stages are automatically skipped when no LLM is configured.
 
-| # | Stage | Phase | Description |
-|---|-------|-------|-------------|
-| 1 | **Ingestion** | Pre-parallel | Converts PDF, DOCX, HTML, Markdown, RTF, email, or plain text to raw text |
-| 2 | **Normalization** | Pre-parallel | Chunks text into semantic chunks, builds sentence index |
-| 3 | **EntityRuler** | Parallel | spaCy pattern matching against FOLIO preferred and alternative labels |
-| 4 | **LLM Concept** | Parallel | LLM-based concept extraction per chunk (runs concurrently with EntityRuler) |
-| 5 | **EarlyIndividual** | Parallel | Citation parsing (eyecite/citeurl) + 14 regex/spaCy entity extractors |
-| 6 | **EarlyProperty** | Parallel | Aho-Corasick automaton matching FOLIO ObjectProperty labels |
-| 7 | **DocumentType** | Parallel | LLM identifies what the document "calls itself" from title/header |
-| 8 | **Reconciliation** | Post-parallel | Merges EntityRuler + LLM results using embedding-powered triage |
-| 9 | **Resolution** | Post-parallel | Resolves concept text to FOLIO IRIs with multi-candidate backup lists |
-| 10 | **Contextual Rerank** | Post-parallel | LLM reranking using full document context (50/50 blend with pipeline score) |
-| 11 | **Branch Judge** | Post-parallel | LLM assigns FOLIO branch categories for ambiguous concepts (70/30 blend) |
-| 12 | **String Match** | Post-parallel | Aho-Corasick matching with containment-aware dedup and multi-branch keying |
-| 13 | **LLM Individual** | Post-parallel | LLM links individuals to resolved OWL class annotations |
-| 14 | **LLM Property** | Post-parallel | LLM identifies properties with domain/range cross-linking |
-| 15 | **Dependency** | Post-parallel | spaCy dependency parsing to extract subject-predicate-object triples |
-| 16 | **Metadata** | Post-parallel | LLM extracts 28 metadata fields using full pipeline context |
+In the UI's live progress journey these 16 backend stages roll up into **8 user-facing stations** — **Ingest → Normalize → String → LLM Extract → Resolve → Judge → Match → Finalize**. The **UI Station** column shows which station each backend stage appears under (several parallel/post stages share a station).
 
-**Post-pipeline**: Area of Law assessment classifies legal domains. Document Type quality cross-check validates findings against pipeline output.
+| # | Backend Stage | UI Station | Phase | Description |
+|---|---------------|------------|-------|-------------|
+| 1 | **Ingestion** | Ingest | Pre-parallel | Converts PDF, DOCX, HTML, Markdown, RTF, email, or plain text to raw text |
+| 2 | **Normalization** | Normalize | Pre-parallel | Chunks text into semantic chunks, builds sentence index |
+| 3 | **EntityRuler** | String | Parallel | spaCy pattern matching against FOLIO preferred and alternative labels |
+| 4 | **LLM Concept** | LLM Extract | Parallel | LLM-based concept extraction per chunk (runs concurrently with EntityRuler) |
+| 5 | **EarlyIndividual** | String | Parallel | Citation parsing (eyecite/citeurl) + 14 regex/spaCy entity extractors |
+| 6 | **EarlyProperty** | String | Parallel | Aho-Corasick automaton matching FOLIO ObjectProperty labels |
+| 7 | **DocumentType** | LLM Extract | Parallel | LLM identifies what the document "calls itself" from title/header |
+| 8 | **Reconciliation** | Resolve | Post-parallel | Merges EntityRuler + LLM results using embedding-powered triage |
+| 9 | **Resolution** | Resolve | Post-parallel | Resolves concept text to FOLIO IRIs with multi-candidate backup lists |
+| 10 | **Contextual Rerank** | Resolve | Post-parallel | LLM reranking using full document context (50/50 blend with pipeline score) |
+| 11 | **Branch Judge** | Judge | Post-parallel | LLM assigns FOLIO branch categories for ambiguous concepts (70/30 blend) |
+| 12 | **String Match** | Match | Post-parallel | Aho-Corasick matching with containment-aware dedup and multi-branch keying |
+| 13 | **LLM Individual** | Finalize | Post-parallel | LLM links individuals to resolved OWL class annotations |
+| 14 | **LLM Property** | Finalize | Post-parallel | LLM identifies properties with domain/range cross-linking |
+| 15 | **Dependency** | Finalize | Post-parallel | spaCy dependency parsing to extract subject-predicate-object triples |
+| 16 | **Metadata** | Finalize | Post-parallel | LLM extracts 28 metadata fields using full pipeline context |
+
+**Post-pipeline** (UI station: Finalize): Area of Law assessment classifies legal domains. Document Type quality cross-check validates findings against pipeline output.
 
 ---
 
