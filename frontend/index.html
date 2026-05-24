@@ -3950,7 +3950,7 @@ const PIPELINE_STAGES = [
 
 const STAGE_LABELS = {
   pending: 'Queued', ingesting: 'Ingest', normalizing: 'Normalize',
-  enriching: 'Enrich', identifying: 'Identify', resolving: 'Resolve',
+  enriching: 'String', identifying: 'LLM Extract', resolving: 'Resolve',
   matching: 'Match', judging: 'Judge',
   extracting_individuals: 'Finalize', extracting_properties: 'Finalize',
   exporting: 'Finalize', finalize: 'Finalize', completed: 'Done'
@@ -5999,8 +5999,8 @@ async function fetchFinalJob() {
 const PPL_STAGES = [
   { key: 'ingesting',   abbr: 'Ing' },
   { key: 'normalizing', abbr: 'Nrm' },
-  { key: 'enriching',   abbr: 'Enr' },
-  { key: 'identifying', abbr: 'Idn' },
+  { key: 'enriching',   abbr: 'Str' },
+  { key: 'identifying', abbr: 'LLM' },
   { key: 'resolving',   abbr: 'Res' },
   { key: 'judging',     abbr: 'Jdg' },
   { key: 'matching',    abbr: 'Mat' },
