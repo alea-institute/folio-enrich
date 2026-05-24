@@ -6027,7 +6027,8 @@ const PPL_ACTIVITY_MAP = {
   string_matching: 'matching',
   llm_individual_linking: 'finalize', llm_property_linking: 'finalize',
   triple_enrichment: 'finalize', metadata: 'finalize',
-  document_type_classification: 'finalize', area_of_law: 'finalize', quality_check: 'finalize',
+  document_type_classification: 'identifying',  // early parallel LLM classification (LLM Extract)
+  area_of_law: 'finalize', quality_check: 'finalize',
   // 'orchestrator' intentionally excluded (cross-cutting meta messages, not stage-specific)
 };
 const PPL_DWELL = 600;   // min ms each stage holds focus (so the "walk" is visible)
