@@ -2354,50 +2354,26 @@
   }
   .llm-banner-actions .btn-symbolic:hover { border-color: var(--accent); }
 
-  /* ── Process Pipeline (collapsible vertical stepper) ──────────────────────
-     Every stage is labeled and visible when expanded, connected by a rail that
-     fills green as stages complete. The active stage is emphasized (larger,
-     accent, with an inline description); done = filled green, to-do = hollow/dim.
-     The header is a toggle — collapse to a one-line summary that, while running,
-     names the CURRENT stage. Hover any step for its description. */
-  .ppl-head {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    width: 100%;
-    background: none;
-    border: none;
-    padding: 0;
-    margin: 0 0 7px;
-    cursor: pointer;
-    text-align: left;
-    color: inherit;
-    font: inherit;
-  }
-  .ppl-caret { font-size: 9px; color: var(--text-dim); transition: transform 0.2s ease; }
-  .ppl.collapsed .ppl-caret { transform: rotate(-90deg); }
+  /* ── Process Pipeline (vertical progression) ──────────────────────────────
+     Hidden until enrichment starts; then the WHOLE pipeline shows as a compact
+     vertical list and the active highlight travels DOWN the stages (done = filled
+     green on a green rail, active = accent + pulse, to-do = hollow/dim). On
+     completion it collapses to a single "✓ Pipeline complete" line. Hover a step
+     for its description. Visibility is driven by [data-phase] on #pplWrap. */
+  .ppl[data-phase="idle"] { display: none; }                  /* hidden before enrich */
+  .ppl[data-phase="done"] .ppl-title,
+  .ppl[data-phase="done"] .ppl-steps,
+  .ppl[data-phase="failed"] .ppl-title,
+  .ppl[data-phase="failed"] .ppl-steps { display: none; }     /* after: only the one-liner */
+
   .ppl-title {
     font-size: 9px; font-weight: 700; text-transform: uppercase;
     letter-spacing: 0.5px; color: var(--text-dim);
+    margin-bottom: 7px;
   }
-  /* Collapsed-accordion readout: a small state dot + the representative stage name
-     (first stage before, current stage while running, last stage after). */
-  .ppl-summary { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; margin-left: auto; color: var(--text-dim); }
-  .ppl-summary::before {
-    content: ''; width: 7px; height: 7px; border-radius: 50%; box-sizing: border-box;
-    border: 1.5px solid var(--border); background: var(--surface); flex-shrink: 0;
-  }
-  .ppl-summary.running { color: var(--accent); }
-  .ppl-summary.running::before { border-color: var(--accent); background: var(--accent); }
-  .ppl-summary.done    { color: var(--conf-high); }
-  .ppl-summary.done::before    { border-color: var(--conf-high); background: var(--conf-high); }
-  .ppl-summary.failed  { color: var(--conf-low); }
-  .ppl-summary.failed::before  { border-color: var(--conf-low); background: var(--conf-low); }
-  /* The summary is the collapsed-state readout; when expanded, the steps already
-     show everything (active stage, completion), so suppress it to avoid duplication. */
-  .ppl:not(.collapsed) .ppl-summary { display: none; }
-  .ppl.collapsed .ppl-body { display: none; }
-  .ppl-head:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+  .ppl-done { display: none; font-size: 12px; font-weight: 600; }
+  .ppl[data-phase="done"] .ppl-done   { display: block; color: var(--conf-high); }
+  .ppl[data-phase="failed"] .ppl-done { display: block; color: var(--conf-low); }
 
   .ppl-steps { list-style: none; margin: 0; padding: 0; }
   .ppl-step {
@@ -3274,15 +3250,10 @@
 
     <!-- Pipeline progress -->
     <div class="pipeline-progress" id="pipelineProgress">
-      <div class="ppl collapsed" id="pplWrap">
-        <button type="button" class="ppl-head" id="pplToggle" onclick="togglePipeline()" aria-expanded="false" aria-controls="pplBody" title="Show / hide pipeline stages">
-          <span class="ppl-caret" aria-hidden="true">&#9662;</span>
-          <span class="ppl-title">Process Pipeline</span>
-          <span class="ppl-summary" id="pplSummary"></span>
-        </button>
-        <div class="ppl-body" id="pplBody">
-          <ol class="ppl-steps" id="pplSteps"></ol>
-        </div>
+      <div class="ppl" id="pplWrap" data-phase="idle">
+        <div class="ppl-title">Process Pipeline</div>
+        <ol class="ppl-steps" id="pplSteps"></ol>
+        <div class="ppl-done" id="pplDone"></div>
       </div>
       <div class="activity-log-wrapper collapsed" id="logWrapper">
         <button class="log-toggle" onclick="toggleLog()"><span class="chevron">&#9660;</span> Log</button>
@@ -5910,23 +5881,24 @@ async function fetchFinalJob() {
 // Pipeline Progress
 // ==============================================
 
-// Current pipeline phase ('idle' | 'running' | 'done') for auto-disclosure transitions.
-let _pplPhase = null;
-
-// Render the Process Pipeline as a collapsible vertical stepper.
-// - idle ('pending'/unknown): all stages hollow/dim, summary blank (the quiet "before")
-// - running: stages fill done→active→to-do; the active stage is emphasized with an
-//   inline description; the header summary names the CURRENT stage (seen when collapsed)
-// - completed: all stages green, summary "✓ Complete"
-// Every step label is always visible; hover a step for its full description.
+// Render the Process Pipeline as a compact vertical progression.
+// Visibility is driven by [data-phase] on #pplWrap:
+// - idle (pending/unknown): hidden entirely (before enrichment)
+// - running: the WHOLE pipeline shows; the active highlight travels DOWN the stages
+//   (done = filled green on a green rail, active = accent + pulse + inline desc, to-do = dim)
+// - done/failed: collapses to a single "✓ Pipeline complete" / "✕ Pipeline failed" line
+// Every step label is visible; hover a step for its full description.
 function renderProgressStages(currentStatus) {
+  const wrap = document.getElementById('pplWrap');
   const stepsEl = document.getElementById('pplSteps');
-  if (!stepsEl) return;
-  const summary = document.getElementById('pplSummary');
+  if (!wrap || !stepsEl) return;
+  const doneEl = document.getElementById('pplDone');
   const stages = ['ingesting', 'normalizing', 'enriching', 'identifying', 'resolving', 'matching', 'judging'];
   const currentIdx = stages.indexOf(currentStatus);
   const isComplete = currentStatus === 'completed';
   const isFailed = currentStatus === 'failed';
+
+  wrap.dataset.phase = isComplete ? 'done' : isFailed ? 'failed' : (currentIdx >= 0 ? 'running' : 'idle');
 
   stepsEl.innerHTML = stages.map((s, i) => {
     const passed = isComplete || (currentIdx >= 0 && i < currentIdx);
@@ -5943,38 +5915,7 @@ function renderProgressStages(currentStatus) {
       + `</li>`;
   }).join('');
 
-  if (summary) {
-    // Collapsed accordion shows a representative stage: first before, current while
-    // running, last after completion (the user's "beginning/final stage showing").
-    if (isFailed) { summary.textContent = 'Failed'; summary.className = 'ppl-summary failed'; }
-    else if (isComplete) { summary.textContent = STAGE_LABELS[stages[stages.length - 1]] || 'Done'; summary.className = 'ppl-summary done'; }
-    else if (currentIdx >= 0) { summary.textContent = STAGE_LABELS[currentStatus] || currentStatus; summary.className = 'ppl-summary running'; }
-    else { summary.textContent = STAGE_LABELS[stages[0]] || ''; summary.className = 'ppl-summary'; }
-  }
-
-  // Auto-disclosure: expand WHILE running, collapse at rest (before) and after completion.
-  // Acts only on phase TRANSITIONS, so a manual expand/collapse between transitions is
-  // respected — the user can still toggle anytime via the header.
-  const phase = (isComplete || isFailed) ? 'done' : (currentIdx >= 0 ? 'running' : 'idle');
-  if (phase !== _pplPhase) {
-    _pplPhase = phase;
-    _setPipelineCollapsed(phase !== 'running');
-  }
-}
-
-function _setPipelineCollapsed(collapsed) {
-  const wrap = document.getElementById('pplWrap');
-  if (!wrap) return;
-  wrap.classList.toggle('collapsed', collapsed);
-  const btn = document.getElementById('pplToggle');
-  if (btn) btn.setAttribute('aria-expanded', String(!collapsed));
-}
-
-// Manual collapse/expand via the header — overrides the auto-disclosure until the next
-// phase transition. Starts collapsed (set in markup); auto-expands when processing begins.
-function togglePipeline() {
-  const wrap = document.getElementById('pplWrap');
-  if (wrap) _setPipelineCollapsed(!wrap.classList.contains('collapsed'));
+  if (doneEl) doneEl.textContent = isFailed ? '✕ Pipeline failed' : '✓ Pipeline complete';
 }
 
 // ==============================================
