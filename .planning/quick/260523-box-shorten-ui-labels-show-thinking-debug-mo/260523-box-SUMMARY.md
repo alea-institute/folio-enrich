@@ -40,7 +40,7 @@ stepper), the chosen end state is a **collapsible vertical stepper**:
 - **Before:** every stage labeled and visible (hollow/dim nodes on a rail) — "easily see each stage".
 - **During:** stages fill done→active→to-do; the active stage is **emphasized** (14px, accent, bold) with its description inline; the rail fills green up to it.
 - **After:** all stages green; auto-collapses; collapsed header reads "✓ Complete".
-- **Accordion auto-disclosure:** collapsed at rest (before) and after completion, auto-expands while processing — driven by phase transitions (idle/done → collapsed, running → expanded). Manually expandable/collapsible anytime via the header chevron; a manual toggle is respected until the next phase transition. The collapsed header shows a **representative stage** with a state dot: the **first** stage (Ingest) before, the **current** stage while running, the **final** stage (Judge, green) after.
+- **Lifecycle (no chevron):** hidden before enrichment; on enrich the WHOLE pipeline appears as a compact vertical list and the active highlight travels DOWN the stages (done→active→to-do); on completion it collapses to a single "✓ Pipeline complete" line (✕ on failure). Driven by `[data-phase]` on `#pplWrap` (idle → hidden, running → full list, done/failed → one-liner) — no manual toggle.
 - Hover any step for its full description. Theme-aware (`--accent`/`--conf-high`/`--border`); `renderProgressStages(status)` signature unchanged (still driven by the existing SSE status flow).
 
 ## Scope
