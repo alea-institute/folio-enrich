@@ -63,47 +63,53 @@ Seconds later, receive a structured annotation layer that machines can search, f
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                         Frontend (index.html)                    │
-│        Vanilla JS · Dark theme · Cytoscape graph viz             │
-│   Tabs: Annotated Text · Concepts · Individuals · Properties    │
-│         Triples · Metadata · Export · Insights                   │
-└──────────────────────────┬───────────────────────────────────────┘
-                           │ REST + SSE
-┌──────────────────────────▼───────────────────────────────────────┐
-│                      FastAPI Backend                              │
-│  Middleware: Rate Limit → Security → CORS → Error Handler        │
-├──────────────────────────────────────────────────────────────────┤
-│  Routes: /enrich  /export  /concepts  /synthetic  /feedback      │
-│          /settings  /health                                      │
-├──────────────────────────────────────────────────────────────────┤
-│                    Pipeline Orchestrator                          │
-│                                                                  │
-│  Phase 1 (Sequential)       Phase 2 (Parallel)                   │
-│  ┌─────────────────┐   ┌─────────────────────────────┐           │
-│  │ 1. Ingestion    │   │ 3. EntityRuler         ─┐   │           │
-│  │ 2. Normalize    │──▶│ 4. LLM Concept         ─┤   │           │
-│  └─────────────────┘   │ 5. EarlyIndividual     ─┤   │           │
-│                         │ 6. EarlyProperty       ─┤   │           │
-│                         │ 7. DocumentType        ─┘   │           │
-│                         └──────────────┬──────────────┘           │
-│                                        │                          │
-│  Phase 3 (Sequential)                  ▼                          │
-│  ┌──────────────────────────────────────────────────┐             │
-│  │  8. Reconciliation   12. LLMIndividual           │             │
-│  │  9. Resolution       13. LLMProperty             │             │
-│  │ 10. Rerank           14. Dependency              │             │
-│  │ 11. BranchJudge      15. StringMatch             │             │
-│  │                      16. Metadata                │             │
-│  └──────────────────────────────────────────────────┘             │
-│                                                                  │
-│  Post-pipeline: Area of Law · Document Type Quality Check        │
-├──────────────────────────────────────────────────────────────────┤
-│  Services: FOLIO · Embedding · LLM Registry · Individual ·       │
-│            Property · Quality · Job Store                         │
-├──────────────────────────────────────────────────────────────────┤
-│  Storage: ~/.folio-enrich/jobs/ (JSON, atomic writes)            │
-└──────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                    Frontend (index.html)                     │
+│        Vanilla JS · Dark theme · Cytoscape graph viz         │
+│  Tabs: Annotated Text · Concepts · Individuals · Properties  │
+│            Triples · Metadata · Export · Insights            │
+└───────────────────────────┬──────────────────────────────────┘
+                            │ REST + SSE
+┌───────────────────────────▼──────────────────────────────────┐
+│                       FastAPI Backend                        │
+├──────────────────────────────────────────────────────────────┤
+│  Middleware: Rate Limit → Security → CORS → Error Handler    │
+├──────────────────────────────────────────────────────────────┤
+│  Routes: /enrich · /export · /concepts · /synthetic          │
+│          /feedback · /settings · /health                     │
+├──────────────────────────────────────────────────────────────┤
+│      Pipeline Orchestrator  (16 stages · 8 UI stations)      │
+│                                                              │
+│  Phase 1 — Sequential                                        │
+│    1. Ingestion         → UI: Ingest                         │
+│    2. Normalization     → UI: Normalize                      │
+│                                                              │
+│  Phase 2 — Parallel (run concurrently)                       │
+│    3. EntityRuler       → UI: String                         │
+│    4. LLM Concept       → UI: LLM Extract                    │
+│    5. EarlyIndividual   → UI: String                         │
+│    6. EarlyProperty     → UI: String                         │
+│    7. DocumentType      → UI: LLM Extract                    │
+│                                                              │
+│  Phase 3 — Sequential (post-parallel)                        │
+│    8. Reconciliation    → UI: Resolve                        │
+│    9. Resolution        → UI: Resolve                        │
+│   10. Contextual Rerank → UI: Resolve                        │
+│   11. Branch Judge      → UI: Judge                          │
+│   12. String Match      → UI: Match                          │
+│   13. LLM Individual    → UI: Finalize                       │
+│   14. LLM Property      → UI: Finalize                       │
+│   15. Dependency        → UI: Finalize                       │
+│   16. Metadata          → UI: Finalize                       │
+│                                                              │
+│  Post-pipeline          → UI: Finalize                       │
+│    Area of Law · Document Type Quality Check                 │
+├──────────────────────────────────────────────────────────────┤
+│  Services: FOLIO · Embedding · LLM Registry · Individual ·   │
+│            Property · Quality · Job Store                    │
+├──────────────────────────────────────────────────────────────┤
+│  Storage: ~/.folio-enrich/jobs/ (JSON, atomic writes)        │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ---
