@@ -12,6 +12,10 @@ from app.models.job import Job, JobStatus
 
 logger = logging.getLogger(__name__)
 
+# Job IDs that must never be auto-deleted by cleanup_expired (e.g. seeded demo jobs
+# that back demo-mode exports). Populated at startup by app.services.demo_seed.
+PROTECTED_JOB_IDS: set[str] = set()
+
 
 class JobStore:
     def __init__(self, base_dir: Path | None = None) -> None:
@@ -95,6 +99,8 @@ class JobStore:
         deleted = 0
 
         for path in list(self.base_dir.glob("*.json")):
+            if path.stem in PROTECTED_JOB_IDS:
+                continue  # never delete seeded demo jobs
             try:
                 data = json.loads(path.read_text())
                 updated = data.get("updated_at") or data.get("created_at")
