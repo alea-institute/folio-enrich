@@ -7,9 +7,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python deps (with local embeddings — semantic FOLIO matching)
+# Install Python deps (local embeddings [embeddings] extra omitted — see root Dockerfile note)
 COPY pyproject.toml .
-RUN pip install --no-cache-dir ".[embeddings]"
+RUN pip install --no-cache-dir .
 
 # Download spacy model
 RUN python -m spacy download en_core_web_sm
