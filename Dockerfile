@@ -3,14 +3,16 @@ FROM python:3.13-slim
 # Install system deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app/backend
 
-# Install Python deps (with local embeddings — semantic FOLIO matching)
+# Install Python deps. NOTE: local embeddings ([embeddings] extra) are intentionally
+# NOT installed here — the all-MiniLM index build takes ~50 min on Railway's CPU, far
+# exceeding the healthcheck window (crash loop). DEV runs with embeddings gracefully
+# disabled; PROD (bare-metal) installs the extra and serves a prebuilt cache.
 COPY backend/pyproject.toml .
-RUN pip install --no-cache-dir ".[embeddings]"
+RUN pip install --no-cache-dir .
 
 # Download spaCy model
 RUN python -m spacy download en_core_web_sm
@@ -25,12 +27,7 @@ COPY frontend/ /app/frontend/
 RUN useradd -m -r appuser && \
     mkdir -p /home/appuser/.folio-enrich/jobs && \
     chown -R appuser:appuser /home/appuser
-
-# Entrypoint runs as root to fix Railway volume ownership (volumes mount root-owned),
-# then drops to appuser via gosu. Volume is mounted at /home/appuser/.folio-enrich.
-COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+USER appuser
 
 ENV FOLIO_ENRICH_JOBS_DIR=/home/appuser/.folio-enrich/jobs
 
