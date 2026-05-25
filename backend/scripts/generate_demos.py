@@ -41,6 +41,8 @@ _TRACKED_SOURCE_DIRS = [
     "app/services/dependency/",
     "app/services/embedding/",
     "app/services/nlp/",
+    "app/services/concept/",
+    "app/services/llm/",
 ]
 
 _TRACKED_SOURCE_FILES = [
@@ -49,8 +51,12 @@ _TRACKED_SOURCE_FILES = [
     "app/models/document.py",
     "app/models/job.py",
     "scripts/demo_documents.py",
+    "scripts/extract_exemplars.py",
     "scripts/generate_demos.py",
 ]
+
+# Frontend file holding the canonical SAMPLES exemplar texts (single source of truth).
+_FRONTEND_INDEX = BACKEND_ROOT.parent / "frontend" / "index.html"
 
 
 def get_staleness_info() -> tuple[bool, str]:
@@ -117,6 +123,13 @@ def get_staleness_info() -> tuple[bool, str]:
     except ImportError:
         pass  # Non-fatal — skip OWL cache check
 
+    # --- 4b. Frontend SAMPLES source (canonical exemplar text) ---
+    if _FRONTEND_INDEX.is_file():
+        mt = _FRONTEND_INDEX.stat().st_mtime
+        if mt > latest_source_mtime:
+            latest_source_mtime = mt
+            latest_source_path = str(_FRONTEND_INDEX)
+
     # --- 5. Compare ---
     if latest_source_mtime == 0.0:
         return False, "No tracked source files found — assuming fresh"
@@ -154,15 +167,48 @@ async def init_services() -> None:
         logger.warning("FAISS index build failed (non-fatal): %s", e)
 
 
+def build_generation_llm(provider_name: str | None, model: str | None, explicit_key: str | None):
+    """Build an LLM provider for demo generation (mirrors the /enrich request path).
+
+    Defaults to the app's configured provider (``settings.llm_provider`` = google →
+    Gemini 3 Flash). ``model`` left empty lets each provider resolve its own default —
+    never hardcode a provider-specific model id here. Raises if a required key is absent.
+    """
+    from app.config import settings
+    from app.services.llm.registry import REQUIRES_API_KEY, get_provider
+    from app.api.routes.settings import _get_api_key_for_provider
+    from app.models.llm_models import LLMProviderType
+
+    provider_name = provider_name or settings.llm_provider
+    model = model if model is not None else settings.llm_model
+
+    normalized = provider_name.replace("-", "_")
+    if normalized == "lm_studio":
+        normalized = "lmstudio"
+    provider_type = LLMProviderType(normalized)
+
+    api_key = _get_api_key_for_provider(provider_type, explicit_key)
+    if REQUIRES_API_KEY.get(provider_type, True) and not api_key:
+        env_hint = f"FOLIO_ENRICH_{provider_name.upper()}_API_KEY"
+        raise SystemExit(
+            f"No API key for provider '{provider_name}'. Set {env_hint} (or pass --api-key) "
+            "before generating LLM demos."
+        )
+
+    return get_provider(provider_type, api_key=api_key, model=model or "")
+
+
 def build_cache_payload(job: Job, doc_text: str) -> dict:
     """Build the cache shape that matches frontend cacheState() format."""
     job_dict = json.loads(job.model_dump_json())
+    result = job_dict.get("result", {})
     return {
         "jobId": str(job.id),
         "job": job_dict,
-        "annotations": job_dict.get("result", {}).get("annotations", []),
-        "individuals": job_dict.get("result", {}).get("individuals", []),
-        "properties": job_dict.get("result", {}).get("properties", []),
+        "annotations": result.get("annotations", []),
+        "individuals": result.get("individuals", []),
+        "properties": result.get("properties", []),
+        "triples": result.get("triples", []),
         "normalizedText": job.result.canonical_text.full_text if job.result.canonical_text else doc_text,
         "activity": [],
         "docInput": doc_text,
@@ -170,7 +216,7 @@ def build_cache_payload(job: Job, doc_text: str) -> dict:
     }
 
 
-async def generate_demo(slug: str, doc_info: dict, tmp_dir: Path) -> None:
+async def generate_demo(slug: str, doc_info: dict, tmp_dir: Path, llm, task_llms: TaskLLMs) -> None:
     """Run one document through the pipeline and save demo JSON."""
     logger.info("Generating demo: %s (%s)", slug, doc_info["title"])
 
@@ -183,11 +229,11 @@ async def generate_demo(slug: str, doc_info: dict, tmp_dir: Path) -> None:
     job_store = JobStore(base_dir=tmp_dir)
     await job_store.save(job)
 
-    # Build orchestrator (no LLM — regex/rule-based only for reproducibility)
+    # Build orchestrator with the full LLM pipeline (per-task LLMs + fallback)
     orchestrator = PipelineOrchestrator(
         job_store=job_store,
-        llm=None,
-        task_llms=TaskLLMs(),
+        llm=llm,
+        task_llms=task_llms,
     )
 
     # Run pipeline
@@ -223,20 +269,52 @@ async def generate_demo(slug: str, doc_info: dict, tmp_dir: Path) -> None:
     )
 
 
+def _arg_value(flag: str) -> str | None:
+    """Read ``--flag value`` from argv, or None if absent."""
+    if flag in sys.argv:
+        idx = sys.argv.index(flag)
+        if idx + 1 < len(sys.argv):
+            return sys.argv[idx + 1]
+    return None
+
+
 async def main() -> None:
-    from scripts.demo_documents import DEMO_DOCUMENTS
+    from scripts.demo_documents import load_demo_documents
 
     DEMOS_DIR.mkdir(parents=True, exist_ok=True)
+
+    # --- Resolve LLM config (default: app provider = google / Gemini 3 Flash) ---
+    use_llm = "--no-llm" not in sys.argv
+    if use_llm:
+        provider = _arg_value("--provider")
+        model = _arg_value("--model")
+        api_key = _arg_value("--api-key")
+        llm = build_generation_llm(provider, model, api_key)
+        task_llms = TaskLLMs.from_settings(fallback=llm)
+        logger.info("LLM generation ENABLED (provider=%s, model=%s)",
+                    provider or "default", model or "default")
+    else:
+        llm = None
+        task_llms = TaskLLMs()
+        logger.info("LLM generation DISABLED (--no-llm): rule-based only")
+
+    # --- Resolve which exemplars to generate ---
+    only = _arg_value("--only")
+    docs = load_demo_documents()
+    if only:
+        if only not in docs:
+            raise SystemExit(f"--only '{only}' is not a known exemplar slug. Choices: {', '.join(docs)}")
+        docs = {only: docs[only]}
 
     logger.info("Initializing FOLIO services...")
     await init_services()
 
     with tempfile.TemporaryDirectory(prefix="folio_demo_") as tmp_dir:
         tmp_path = Path(tmp_dir)
-        for slug, doc_info in DEMO_DOCUMENTS.items():
-            await generate_demo(slug, doc_info, tmp_path)
+        for slug, doc_info in docs.items():
+            await generate_demo(slug, doc_info, tmp_path, llm, task_llms)
 
-    logger.info("Done — %d demo files written to %s", len(DEMO_DOCUMENTS), DEMOS_DIR)
+    logger.info("Done — %d demo file(s) written to %s", len(docs), DEMOS_DIR)
 
 
 if __name__ == "__main__":
