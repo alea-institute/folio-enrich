@@ -199,16 +199,16 @@ def build_generation_llm(provider_name: str | None, model: str | None, explicit_
 
 
 def build_cache_payload(job: Job, doc_text: str) -> dict:
-    """Build the cache shape that matches frontend cacheState() format."""
+    """Build the demo cache payload.
+
+    annotations/individuals/properties/triples are NOT duplicated at the top level —
+    they live in ``job.result`` and the frontend derives them from there on hydrate.
+    (Duplicating them ~doubled demo file size.)
+    """
     job_dict = json.loads(job.model_dump_json())
-    result = job_dict.get("result", {})
     return {
         "jobId": str(job.id),
         "job": job_dict,
-        "annotations": result.get("annotations", []),
-        "individuals": result.get("individuals", []),
-        "properties": result.get("properties", []),
-        "triples": result.get("triples", []),
         "normalizedText": job.result.canonical_text.full_text if job.result.canonical_text else doc_text,
         "activity": [],
         "docInput": doc_text,
@@ -255,9 +255,9 @@ async def generate_demo(slug: str, doc_info: dict, tmp_dir: Path, llm, task_llms
         "cache": cache,
     }
 
-    # Write to frontend/demos/
+    # Write to frontend/demos/ (compact — these are machine-served, not hand-edited)
     out_path = DEMOS_DIR / f"{slug}.json"
-    out_path.write_text(json.dumps(demo_json, indent=2, default=str))
+    out_path.write_text(json.dumps(demo_json, separators=(",", ":"), default=str))
 
     ann_count = len(job.result.annotations)
     ind_count = len(job.result.individuals)

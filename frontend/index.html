@@ -2494,7 +2494,7 @@
   .ppl[data-phase="failed"] .ppl-desc b { color: var(--conf-low); }
   @media (prefers-reduced-motion: reduce) { .ppl-detail { animation: none; } }
 
-  .ppl-live.sr-only {
+  .sr-only {
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
     overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
   }
@@ -4361,10 +4361,13 @@ function hydrateFromDemo(cache, slug) {
 
   currentJobId = cache.jobId;
   currentJob = cache.job;
-  accumulatedAnnotations = cache.annotations || [];
-  accumulatedIndividuals = cache.individuals || [];
-  accumulatedProperties = cache.properties || [];
-  accumulatedTriples = cache.triples || [];
+  // Demo files don't duplicate these at the top level — derive from job.result.
+  // (Falls back to top-level for sessionStorage caches written by cacheState().)
+  const _res = (cache.job && cache.job.result) || {};
+  accumulatedAnnotations = cache.annotations || _res.annotations || [];
+  accumulatedIndividuals = cache.individuals || _res.individuals || [];
+  accumulatedProperties = cache.properties || _res.properties || [];
+  accumulatedTriples = cache.triples || _res.triples || [];
   normalizedText = cache.normalizedText || null;
   activityEntries = cache.activity || [];
   uploadedFilename = cache.filename || null;
