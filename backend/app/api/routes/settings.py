@@ -189,7 +189,10 @@ async def update_settings(update: SettingsUpdate) -> dict:
 async def list_providers() -> dict:
     """Return provider metadata: display names, requires_api_key, default models."""
     providers = {}
-    for pt in LLMProviderType:
+    # Show the configured default provider first so it heads the dropdown (stable
+    # sort keeps the remaining providers in their declared enum order).
+    _ordered = sorted(LLMProviderType, key=lambda pt: pt.value != settings.llm_provider)
+    for pt in _ordered:
         providers[pt.value] = {
             "display_name": PROVIDER_DISPLAY_NAMES.get(pt, pt.value),
             "requires_api_key": REQUIRES_API_KEY.get(pt, True),
