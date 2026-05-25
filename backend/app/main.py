@@ -176,7 +176,10 @@ _frontend_dir = Path(__file__).resolve().parent.parent.parent / "frontend"
 if _frontend_dir.is_dir():
     @app.get("/", include_in_schema=False)
     async def _serve_index():
-        return FileResponse(_frontend_dir / "index.html")
+        # no-cache: the browser must revalidate the HTML on every load, so a new
+        # deploy shows up immediately without a hard refresh (the ETag still lets
+        # unchanged content return a cheap 304).
+        return FileResponse(_frontend_dir / "index.html", headers={"Cache-Control": "no-cache"})
 
     @app.get("/favicon.svg", include_in_schema=False)
     async def _serve_favicon_svg():
