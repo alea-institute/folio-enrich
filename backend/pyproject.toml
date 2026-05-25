@@ -30,6 +30,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Local semantic embeddings (the default embedding_provider="local"). Pulls torch, so
+# it's an opt-in extra: `pip install -e ".[embeddings]"` (or uv equivalent). Without it,
+# local embeddings are unavailable and semantic FOLIO matching degrades gracefully.
+embeddings = [
+    "sentence-transformers>=3.0",
+]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.25.0",
