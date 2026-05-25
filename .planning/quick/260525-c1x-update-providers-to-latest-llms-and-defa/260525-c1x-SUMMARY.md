@@ -13,7 +13,11 @@ status: complete
    - Anthropic → `claude-opus-4-7` (Claude Opus 4.7) — also added to `_FALLBACK_MODELS` in `anthropic_provider.py`
    - Google → `gemini-3.1-flash-lite` (Gemini 3.1 Flash Lite), `gemini-3.5-flash` (Gemini 3.5 Flash)
 2. **Gemini 3 Flash is now the default LLM, top of the list:**
-   - `config.py`: `llm_provider="google"`, `llm_model="gemini-3-flash-preview"` (was `ollama` / `""`).
+   - `config.py`: `llm_provider="google"` (was `ollama`); `llm_model` kept **empty** (was also empty) so it
+     resolves to the provider's own default — for google that is `gemini-3-flash-preview`. (Hardcoding the
+     google model id was reverted: it would break a deployment whose `.env` pins only the *provider* —
+     e.g. PROD pins `FOLIO_ENRICH_LLM_PROVIDER=anthropic`, which with a hardcoded google model id would
+     call Anthropic with an invalid model. Empty → Anthropic resolves `claude-sonnet-4-6` correctly.)
    - `KNOWN_MODELS[google]` reordered so **Gemini 3 Flash is first**.
    - `settings.py` `list_providers` now emits the configured default provider first → **Google Gemini heads the provider dropdown**.
 
