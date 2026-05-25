@@ -13,6 +13,27 @@ from app.services.llm.base import LLMProvider
 logger = logging.getLogger(__name__)
 
 
+def _loads_first_json(text: str):
+    """Parse JSON, tolerating leading prose or trailing data the model may emit.
+
+    Gemini sometimes returns a valid JSON value followed by extra text (a bare
+    ``json.loads`` then raises "Extra data"). Fall back to decoding the first complete
+    JSON value found, ignoring anything after it.
+    """
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        decoder = json.JSONDecoder()
+        for i, ch in enumerate(text):
+            if ch in "{[":
+                try:
+                    obj, _ = decoder.raw_decode(text[i:])
+                    return obj
+                except json.JSONDecodeError:
+                    continue
+        raise
+
+
 class GoogleProvider(LLMProvider):
     """Google Gemini provider using the REST API via httpx."""
 
@@ -126,7 +147,7 @@ class GoogleProvider(LLMProvider):
                 lines[1:-1] if lines[-1].startswith("```") else lines[1:]
             )
 
-        return json.loads(text)
+        return _loads_first_json(text)
 
     async def test_connection(self) -> bool:
         model = self.model or "gemini-2.0-flash"
