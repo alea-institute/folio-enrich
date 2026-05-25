@@ -131,6 +131,14 @@ async def lifespan(app: FastAPI):
     # Startup: eager-load FOLIO ontology and embedding index before accepting requests
     logger.info("Loading FOLIO ontology and building embedding index...")
     await _index_folio_embeddings()
+
+    # Seed pre-baked demo jobs so demo-mode exports resolve server-side
+    try:
+        from app.services.demo_seed import seed_demo_jobs
+        await seed_demo_jobs()
+    except Exception:
+        logger.warning("Demo job seeding failed (exports in demo mode may 404)", exc_info=True)
+
     cleanup_task = asyncio.create_task(_periodic_job_cleanup())
     owl_update_task = asyncio.create_task(_periodic_owl_update_check())
     yield
