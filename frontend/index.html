@@ -3198,6 +3198,80 @@
 
   /* Concepts list alternatives indicator */
   .concept-alt-indicator { font-size: 10px; color: var(--accent); margin-left: 6px; }
+  /* ===== Try-an-Exemplar demo mode ===== */
+  .demo-toggle-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 2px 0 10px;
+    flex-wrap: wrap;
+  }
+  .demo-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    padding: 4px 11px;
+    border-radius: 999px;
+    border: 1px solid var(--accent);
+    background: transparent;
+    color: var(--accent);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .demo-toggle::before {
+    content: "";
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0.4;
+    transition: opacity 0.15s;
+  }
+  .demo-toggle:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .demo-toggle[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .demo-toggle[aria-pressed="true"]::before { opacity: 1; background: #fff; }
+  .demo-toggle-hint { font-size: 10px; color: var(--text-dim); }
+
+  /* Superimposed DEMO badge on the 22 exemplar buttons when demo mode is active */
+  #demoExemplars .sample-btn { position: relative; }
+  #demoExemplars.demo-mode .sample-btn { border-color: var(--accent); }
+  #demoExemplars.demo-mode .sample-btn::after {
+    content: "DEMO";
+    position: absolute;
+    top: -6px; right: -4px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    line-height: 1;
+    padding: 2px 3px;
+    border-radius: 3px;
+    pointer-events: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+  }
+
+  /* Transient toast for demo fallback / status messages */
+  .demo-toast {
+    position: fixed;
+    bottom: 22px; left: 50%;
+    transform: translateX(-50%) translateY(10px);
+    background: var(--surface2, #2a2a2a);
+    color: var(--text, #fff);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 13px;
+    max-width: 80vw;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.4);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    z-index: 10000;
+  }
+  .demo-toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
 </style>
 <script>
 (function() {
@@ -3311,8 +3385,6 @@
       </svg>
       New
     </button>
-    <button class="header-btn" onclick="openDemos()" title="Open pre-enriched demo exemplars in new tabs">Demo</button>
-    <button class="header-btn" id="resetDemoBtn" onclick="resetDemo()" style="display:none" title="Reset demo to original state">Reset Demo</button>
     <button class="header-btn detail-toggle" id="detailToggleBtn" onclick="toggleDetailPanel()" title="Toggle concept detail panel">Detail</button>
   </div>
 </header>
@@ -3402,6 +3474,15 @@
       <textarea id="docInput" placeholder="Paste your legal document text here..."></textarea>
 
       <!-- Sample documents -->
+      <div class="demo-toggle-bar">
+        <button type="button" id="demoToggleBtn" class="demo-toggle" aria-pressed="false"
+                aria-label="Demo mode: load instant pre-enriched results, no API key needed"
+                title="Demo mode: click any exemplar below for instant pre-enriched results — no API key, no cost, no wait"
+                onclick="toggleDemoMode()">Demo</button>
+        <span class="demo-toggle-hint" id="demoToggleHint">Instant pre-enriched results — no API key needed</span>
+        <span class="sr-only" id="demoLive" aria-live="polite"></span>
+      </div>
+      <div id="demoExemplars">
       <div style="margin-top:12px">
         <label style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--accent)">Rich Enrichment</label>
 
@@ -3455,6 +3536,7 @@
           <button class="secondary sample-btn" onclick="loadSample('patent')">Patent Application</button>
         </div>
       </div>
+      </div><!-- /#demoExemplars -->
 
       <div style="margin-top:8px">
         <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-dim)">Narratives</label>
@@ -3807,19 +3889,6 @@
   </div>
 </div>
 
-<!-- Demo Links Modal (popup blocker fallback) -->
-<div class="modal-overlay" id="demoLinksModal">
-  <div class="modal" style="max-width:520px">
-    <h3>Demo Exemplars</h3>
-    <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px">Pre-enriched documents showcasing FOLIO Enrich features. Click to open:</p>
-    <div id="demoLinksList" style="display:flex;flex-direction:column;gap:6px;max-height:360px;overflow-y:auto"></div>
-    <div class="modal-actions" style="margin-top:16px">
-      <button class="primary" onclick="openAllDemoTabs()">Open All Tabs</button>
-      <button class="secondary" onclick="document.getElementById('demoLinksModal').classList.remove('visible')">Close</button>
-    </div>
-  </div>
-</div>
-
 <!-- Entity Graph Modal -->
 <div class="graph-modal-overlay" id="graphModal">
   <div class="graph-modal-header">
@@ -3880,9 +3949,19 @@ let _llmBannerDismissed = false; // per-session flag (not persisted)
 let _llmBannerSymbolicOnce = false; // true if user chose "continue without AI" for next enrichment
 
 // Demo mode state
-let isDemoMode = false;
+let isDemoMode = false;          // a pre-baked demo result is currently displayed
+let demoModeOn = false;          // the "Demo" toggle is active (session-scoped, not persisted)
 let currentDemoSlug = null;
-let originalDemoCache = null;  // deep clone for Reset Demo
+let originalDemoCache = null;    // deep clone of the loaded demo (for clean re-hydrate)
+
+// The 22 exemplars (Rich Enrichment + Quick Start) that have pre-baked demo JSON.
+const EXEMPLAR_DEMO_SLUGS = new Set([
+  'rich_lit_timekeeping','rich_ma_timekeeping','rich_re_timekeeping',
+  'rich_motion','rich_order','rich_contract','rich_advisory',
+  'motion','complaint','opinion','appellate','injunction','settlement',
+  'contract','nda','lease','employment','merger',
+  'advice_litigation','advice_regulatory','regulatory','patent',
+]);
 
 // ==============================================
 // Session Cache — persist pipeline results across reloads
@@ -4163,18 +4242,82 @@ const SAMPLES = {
 // Demo Exemplars
 // ==============================================
 
-const DEMO_CATALOG = [
-  { slug: 'litigation',     title: 'Litigation',      description: 'Citations, Rule 12(b)(6), negligence/contract' },
-  { slug: 'transactional',  title: 'Transactional',   description: 'Corporate entities, IP, contract terms' },
-  { slug: 'advisory',       title: 'Advisory',        description: 'Multi-area risk analysis memo' },
-  { slug: 'regulatory',     title: 'Regulatory',      description: 'Government agencies, compliance' },
-  { slug: 'timekeeping',    title: 'Timekeeping',     description: 'Billing narratives, event verbs' },
-  { slug: 'multi-branch',   title: 'Multi-Branch',    description: '8+ FOLIO branches, stacked borders' },
-  { slug: 'individuals',    title: 'Individuals',     description: 'Citations, money, dates, addresses' },
-  { slug: 'property-verbs', title: 'Property Verbs',  description: 'Granted/denied/reversed verbs' },
-  { slug: 'synonyms',       title: 'Synonyms',        description: 'DUI/DWI, AV/Self-Driving variants' },
-  { slug: 'kitchen-sink',   title: 'Kitchen Sink',    description: 'Bankruptcy order — every feature' },
-];
+// Transient toast for demo fallback / status messages (no toast helper existed).
+let _demoToastTimer = null;
+function showDemoToast(msg) {
+  let el = document.getElementById('demoToast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'demoToast';
+    el.className = 'demo-toast';
+    el.setAttribute('role', 'status');
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  // force reflow so re-triggering the transition works
+  void el.offsetWidth;
+  el.classList.add('visible');
+  clearTimeout(_demoToastTimer);
+  _demoToastTimer = setTimeout(() => el.classList.remove('visible'), 3200);
+}
+
+function announceDemo(msg) {
+  const live = document.getElementById('demoLive');
+  if (live) live.textContent = msg;
+}
+
+// Toggle "Demo mode": superimpose DEMO badges on the 22 exemplars and route their
+// clicks to instant pre-baked results. Session-scoped — never persisted (presentation
+// intent, not a user preference).
+function setDemoMode(on, { announce = true } = {}) {
+  demoModeOn = on;
+  const wrap = document.getElementById('demoExemplars');
+  if (wrap) wrap.classList.toggle('demo-mode', on);
+  const btn = document.getElementById('demoToggleBtn');
+  if (btn) btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  const hint = document.getElementById('demoToggleHint');
+  if (hint) hint.textContent = on
+    ? 'Click any badged exemplar for instant results'
+    : 'Instant pre-enriched results — no API key needed';
+  if (announce) announceDemo(on
+    ? 'Demo mode on. Click an exemplar for instant pre-enriched results.'
+    : 'Demo mode off.');
+}
+
+function toggleDemoMode() {
+  setDemoMode(!demoModeOn);
+}
+
+// Fetch and hydrate a pre-baked exemplar; fall back to lean prefill on any failure.
+async function loadDemoExemplar(slug, { pushUrl = true } = {}) {
+  try {
+    const resp = await fetch('/static/demos/' + encodeURIComponent(slug) + '.json');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const payload = await resp.json();
+    const cache = payload.cache;
+    if (!cache || !cache.job) throw new Error('malformed demo payload');
+    if (payload.demo) cache._demoMeta = payload.demo;
+    hydrateFromDemo(cache, slug);
+    // Reflect in the URL so refresh / back / sharing reproduce this demo.
+    if (pushUrl) {
+      try {
+        const url = window.location.pathname + '?demo=' + encodeURIComponent(slug);
+        history.pushState({ demo: slug }, '', url);
+      } catch (e) { /* ignore */ }
+    }
+    // Move focus to the results region for keyboard/AT users.
+    const focusTarget = document.querySelector('.panel-right .panel-header h2')
+      || document.getElementById('annotatedText');
+    if (focusTarget) {
+      focusTarget.setAttribute('tabindex', '-1');
+      focusTarget.focus({ preventScroll: false });
+    }
+  } catch (e) {
+    console.warn('Demo load failed for', slug, e);
+    showDemoToast('Demo unavailable — loading the document text instead.');
+    prefillSample(slug);
+  }
+}
 
 async function tryLoadDemo() {
   const params = new URLSearchParams(window.location.search);
@@ -4221,6 +4364,7 @@ function hydrateFromDemo(cache, slug) {
   accumulatedAnnotations = cache.annotations || [];
   accumulatedIndividuals = cache.individuals || [];
   accumulatedProperties = cache.properties || [];
+  accumulatedTriples = cache.triples || [];
   normalizedText = cache.normalizedText || null;
   activityEntries = cache.activity || [];
   uploadedFilename = cache.filename || null;
@@ -4236,8 +4380,8 @@ function hydrateFromDemo(cache, slug) {
   const title = meta ? meta.title : slug;
   document.title = 'FOLIO Enrich \u2014 Demo: ' + title;
 
-  // Show reset button
-  document.getElementById('resetDemoBtn').style.display = '';
+  // Reflect demo mode in the toggle + badges
+  setDemoMode(true, { announce: false });
 
   // Render
   renderResults(currentJob);
@@ -4250,37 +4394,49 @@ function hydrateFromDemo(cache, slug) {
   cacheState();
 }
 
-function openDemos() {
-  // Show modal with clickable links — browsers block window.open() in loops
-  const list = document.getElementById('demoLinksList');
-  list.innerHTML = DEMO_CATALOG.map(d => {
-    const url = window.location.pathname + '?demo=' + encodeURIComponent(d.slug);
-    return '<a href="' + url + '" target="_blank" style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:6px;text-decoration:none;color:var(--text);font-size:13px;transition:background 0.15s"'
-      + ' onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'var(--surface)\'">'
-      + '<strong style="min-width:100px">' + escapeHtml(d.title) + '</strong>'
-      + '<span style="color:var(--text-dim);font-size:11px">' + escapeHtml(d.description) + '</span>'
-      + '</a>';
-  }).join('');
-  document.getElementById('demoLinksModal').classList.add('visible');
+// Reset rendered output while preserving the document text (used when a user starts
+// editing a demo's text — the baked annotations no longer match, so clear them).
+function clearResultsOnly() {
+  document.getElementById('annotatedText').innerHTML = '';
+  document.getElementById('annotatedText').style.display = 'none';
+  document.getElementById('emptyState').style.display = 'block';
+  document.getElementById('conceptsList').innerHTML = '';
+  document.getElementById('triplesList').innerHTML = '';
+  document.getElementById('metadataDisplay').innerHTML = '';
+  document.getElementById('exportButtons').innerHTML = '';
+  document.getElementById('tooltip')?.classList.remove('visible');
+  currentJobId = null;
+  currentJob = null;
+  closeSSE();
+  accumulatedAnnotations = [];
+  accumulatedIndividuals = [];
+  accumulatedProperties = [];
+  accumulatedTriples = [];
+  accumulatedPOS = null;
+  activityEntries = [];
+  setStatus('Ready', 'idle');
+  renderProgressStages('pending');
 }
 
-function openAllDemoTabs() {
-  document.getElementById('demoLinksModal').classList.remove('visible');
-  // Click each link with a stagger to reduce popup blocker triggers
-  let i = 0;
-  function openNext() {
-    if (i >= DEMO_CATALOG.length) return;
-    const d = DEMO_CATALOG[i++];
-    const url = window.location.pathname + '?demo=' + encodeURIComponent(d.slug);
-    window.open(url, '_blank');
-    setTimeout(openNext, 100);
-  }
-  openNext();
-}
-
-function resetDemo() {
-  if (!originalDemoCache || !currentDemoSlug) return;
-  hydrateFromDemo(JSON.parse(JSON.stringify(originalDemoCache)), currentDemoSlug);
+// Exit the currently displayed demo. Soft lockdown: editing the textarea or clicking
+// Enrich consciously leaves demo mode and runs the real pipeline. Clears demo session
+// state and, optionally, the stale rendered results.
+function exitDemoMode({ clearResults = false } = {}) {
+  if (!isDemoMode && !currentDemoSlug) return;
+  isDemoMode = false;
+  currentDemoSlug = null;
+  originalDemoCache = null;
+  document.title = 'FOLIO Enrich';
+  // Drop ?demo= from the URL so refresh / back no longer reload the demo.
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('demo')) {
+      params.delete('demo');
+      const qs = params.toString();
+      history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : ''));
+    }
+  } catch (e) { /* ignore */ }
+  if (clearResults) clearResultsOnly();
 }
 
 // ==============================================
@@ -4325,6 +4481,29 @@ async function init() {
   if (!demoLoaded && !restoreState()) {
     renderProgressStages('pending');
   }
+
+  // Editing a demo's text exits demo mode (baked annotations no longer match the text).
+  // Programmatic .value sets (prefill/hydrate) do not fire 'input', so this only reacts
+  // to genuine user typing.
+  const docInputEl = document.getElementById('docInput');
+  if (docInputEl) {
+    docInputEl.addEventListener('input', () => {
+      if (isDemoMode) {
+        exitDemoMode({ clearResults: true });
+        showDemoToast('Exited demo — edit freely, then run a live enrichment.');
+      }
+    });
+  }
+
+  // Back/forward navigation between demos and the live app.
+  window.addEventListener('popstate', () => {
+    const slug = new URLSearchParams(window.location.search).get('demo');
+    if (slug) {
+      if (slug !== currentDemoSlug) loadDemoExemplar(slug, { pushUrl: false });
+    } else if (isDemoMode) {
+      exitDemoMode({ clearResults: true });
+    }
+  });
 
   checkHealth();
   setInterval(checkHealth, 10000);
@@ -5608,6 +5787,9 @@ function toggleDebugMode() {
 async function submitEnrichment() {
   let content = document.getElementById('docInput').value.trim();
   if (!content) return;
+
+  // Soft lockdown: running a live enrichment consciously exits demo mode.
+  if (isDemoMode) exitDemoMode();
 
   // LLM banner gate: show once per session when no AI key is configured
   if (!_llmBannerDismissed && !isLlmConfigured()) {
@@ -10956,15 +11138,38 @@ function toggleUncertain() {
   );
 }
 
-function loadSample(name) {
+function prefillSample(name) {
   const ta = document.getElementById('docInput');
   ta.value = SAMPLES[name] || '';
   uploadedFilename = null;
   applyDebugTruncation();
 }
 
+function loadSample(name) {
+  // In demo mode, the 22 pre-baked exemplars load instant results (no LLM, no cost).
+  if (demoModeOn && EXEMPLAR_DEMO_SLUGS.has(name)) {
+    loadDemoExemplar(name);
+    return;
+  }
+  prefillSample(name);
+}
+
 function clearAll() {
   clearCache();
+  // Fully reset demo mode (Clear exits any active demo).
+  isDemoMode = false;
+  currentDemoSlug = null;
+  originalDemoCache = null;
+  setDemoMode(false, { announce: false });
+  document.title = 'FOLIO Enrich';
+  try {
+    const _p = new URLSearchParams(window.location.search);
+    if (_p.has('demo')) {
+      _p.delete('demo');
+      const _qs = _p.toString();
+      history.replaceState(null, '', window.location.pathname + (_qs ? '?' + _qs : ''));
+    }
+  } catch (e) { /* ignore */ }
   const ta = document.getElementById('docInput');
   ta.value = '';
   ta.placeholder = 'Paste your legal document text here...';
