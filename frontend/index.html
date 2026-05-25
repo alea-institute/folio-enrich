@@ -1280,6 +1280,15 @@
     field-sizing: content;
   }
 
+  /* Document Input is a FIXED-height box: it does not auto-grow to content (prefill/
+     paste), so the buttons below never shift. Long content scrolls inside; the user
+     can still expand it manually via the drag handle (resize:vertical, inherited). */
+  #docInput {
+    field-sizing: fixed;
+    height: 120px;
+    overflow-y: auto;
+  }
+
   textarea:focus { outline: none; border-color: var(--accent); }
 
   /* Clickable status chip (e.g. LLM settings) */
@@ -4220,8 +4229,6 @@ function hydrateFromDemo(cache, slug) {
 
   if (cache.docInput) {
     document.getElementById('docInput').value = cache.docInput;
-    const ta = document.getElementById('docInput');
-    if (ta._autoResize) ta._autoResize();
   }
 
   // Set title
@@ -5534,7 +5541,6 @@ async function processFile(file) {
       const base64 = reader.result.split(',')[1];
       ta.value = base64;
       ta.placeholder = `File loaded: ${file.name} (${(file.size/1024).toFixed(1)} KB)`;
-      if (ta._autoResize) ta._autoResize();
     };
     reader.readAsDataURL(file);
   } else {
@@ -5542,7 +5548,6 @@ async function processFile(file) {
     const text = await file.text();
     ta.value = text;
     applyDebugTruncation();
-    if (ta._autoResize) ta._autoResize();
   }
 }
 
@@ -10956,7 +10961,6 @@ function loadSample(name) {
   ta.value = SAMPLES[name] || '';
   uploadedFilename = null;
   applyDebugTruncation();
-  if (ta._autoResize) ta._autoResize();
 }
 
 function clearAll() {
@@ -10964,7 +10968,6 @@ function clearAll() {
   const ta = document.getElementById('docInput');
   ta.value = '';
   ta.placeholder = 'Paste your legal document text here...';
-  if (ta._autoResize) ta._autoResize();
   document.getElementById('annotatedText').innerHTML = '';
   document.getElementById('annotatedText').style.display = 'none';
   document.getElementById('emptyState').style.display = 'block';
@@ -11317,22 +11320,8 @@ document.querySelectorAll('.status-chip.clickable').forEach(chip => {
   if (typeof renderAnnotationsSummary === 'function') renderAnnotationsSummary();
 })();
 
-// ==============================================
-// Auto-resize textarea (fallback for browsers without field-sizing: content)
-// ==============================================
-
-(function() {
-  const ta = document.getElementById('docInput');
-  if (ta && !CSS.supports('field-sizing', 'content')) {
-    function autoResize() {
-      ta.style.height = 'auto';
-      ta.style.height = Math.min(ta.scrollHeight, window.innerHeight * 0.6) + 'px';
-    }
-    ta.addEventListener('input', autoResize);
-    // Expose for programmatic value changes (loadSample, clearAll)
-    ta._autoResize = autoResize;
-  }
-})();
+// #docInput is intentionally a FIXED-height box (see the #docInput CSS rule): it does
+// not auto-resize to its content. Users expand it manually via the resize handle.
 
 // ==============================================
 // Init
