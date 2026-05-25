@@ -27,7 +27,10 @@ class Settings(BaseSettings):
 
     # LLM — global defaults (used when per-task overrides are not set)
     llm_provider: str = "google"
-    llm_model: str = "gemini-3-flash-preview"  # Gemini 3 Flash (requires a Google API key)
+    # Empty = use the provider's own default model, so an env that pins only
+    # FOLIO_ENRICH_LLM_PROVIDER still resolves a valid model. For the default
+    # provider (google) this resolves to gemini-3-flash-preview (Gemini 3 Flash).
+    llm_model: str = ""
     openai_api_key: str = ""
     anthropic_api_key: str = ""
     google_api_key: str = ""
