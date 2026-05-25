@@ -3,6 +3,7 @@ FROM python:3.13-slim
 # Install system deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app/backend
@@ -24,7 +25,12 @@ COPY frontend/ /app/frontend/
 RUN useradd -m -r appuser && \
     mkdir -p /home/appuser/.folio-enrich/jobs && \
     chown -R appuser:appuser /home/appuser
-USER appuser
+
+# Entrypoint runs as root to fix Railway volume ownership (volumes mount root-owned),
+# then drops to appuser via gosu. Volume is mounted at /home/appuser/.folio-enrich.
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 
 ENV FOLIO_ENRICH_JOBS_DIR=/home/appuser/.folio-enrich/jobs
 
