@@ -16,6 +16,7 @@ _FALLBACK_MODELS: list[ModelInfo] = [
     ModelInfo(id="claude-sonnet-4-5-20250929", name="Claude Sonnet 4.5", context_window=200000),
     ModelInfo(id="claude-sonnet-4-6", name="Claude Sonnet 4.6", context_window=200000),
     ModelInfo(id="claude-opus-4-6", name="Claude Opus 4.6", context_window=200000),
+    ModelInfo(id="claude-opus-4-7", name="Claude Opus 4.7", context_window=200000),
 ]
 
 

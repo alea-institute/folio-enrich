@@ -26,8 +26,8 @@ class Settings(BaseSettings):
     chunk_overlap_chars: int = 200
 
     # LLM — global defaults (used when per-task overrides are not set)
-    llm_provider: str = "ollama"
-    llm_model: str = ""  # empty = adaptive tier selection for Ollama
+    llm_provider: str = "google"
+    llm_model: str = "gemini-3-flash-preview"  # Gemini 3 Flash (requires a Google API key)
     openai_api_key: str = ""
     anthropic_api_key: str = ""
     google_api_key: str = ""

@@ -205,11 +205,11 @@ class TestConfigPerTaskSettings:
         assert s.llm_synthetic_model == ""
 
     def test_env_override(self, monkeypatch):
-        monkeypatch.setenv("FOLIO_ENRICH_LLM_CONCEPT_PROVIDER", "google")
-        monkeypatch.setenv("FOLIO_ENRICH_LLM_CONCEPT_MODEL", "gemini-2.5-flash")
+        monkeypatch.setenv("FOLIO_ENRICH_LLM_CONCEPT_PROVIDER", "openai")
+        monkeypatch.setenv("FOLIO_ENRICH_LLM_CONCEPT_MODEL", "gpt-4o")
         from app.config import Settings
         s = Settings()
-        assert s.llm_concept_provider == "google"
-        assert s.llm_concept_model == "gemini-2.5-flash"
-        # Global unchanged (default is now "ollama")
-        assert s.llm_provider == "ollama"
+        assert s.llm_concept_provider == "openai"
+        assert s.llm_concept_model == "gpt-4o"
+        # Per-task override must not bleed into the global default (now "google").
+        assert s.llm_provider == "google"

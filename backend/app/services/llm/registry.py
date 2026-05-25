@@ -68,7 +68,8 @@ REQUIRES_API_KEY: dict[LLMProviderType, bool] = {
 }
 
 # Well-known models per provider (shown without API key; refresh fetches live).
-# Ordered: oldest/cheapest → newest/most powerful.
+# Ordered: oldest/cheapest → newest/most powerful (except Google, which pins the
+# default Gemini 3 Flash first so it heads the model dropdown).
 KNOWN_MODELS: dict[LLMProviderType, list[ModelInfo]] = {
     LLMProviderType.openai: [
         ModelInfo(id="gpt-4o-mini", name="GPT-4o Mini", context_window=128000),
@@ -79,20 +80,25 @@ KNOWN_MODELS: dict[LLMProviderType, list[ModelInfo]] = {
         ModelInfo(id="o4-mini", name="o4 Mini", context_window=200000),
         ModelInfo(id="gpt-4.1", name="GPT-4.1", context_window=1047576),
         ModelInfo(id="o3", name="o3", context_window=200000),
+        ModelInfo(id="gpt-5.5", name="GPT-5.5", context_window=400000),
     ],
     LLMProviderType.anthropic: [
         ModelInfo(id="claude-haiku-4-5-20251001", name="Claude Haiku 4.5", context_window=200000),
         ModelInfo(id="claude-sonnet-4-5-20250929", name="Claude Sonnet 4.5", context_window=200000),
         ModelInfo(id="claude-sonnet-4-6", name="Claude Sonnet 4.6", context_window=200000),
         ModelInfo(id="claude-opus-4-6", name="Claude Opus 4.6", context_window=200000),
+        ModelInfo(id="claude-opus-4-7", name="Claude Opus 4.7", context_window=200000),
     ],
     LLMProviderType.google: [
+        # Gemini 3 Flash is pinned FIRST — it is the app-wide default model.
+        ModelInfo(id="gemini-3-flash-preview", name="Gemini 3 Flash", context_window=200000),
         ModelInfo(id="gemini-2.5-flash-lite", name="Gemini 2.5 Flash-Lite", context_window=1048576),
         ModelInfo(id="gemini-2.5-flash", name="Gemini 2.5 Flash", context_window=1048576),
-        ModelInfo(id="gemini-3-flash-preview", name="Gemini 3 Flash", context_window=200000),
         ModelInfo(id="gemini-2.5-pro", name="Gemini 2.5 Pro", context_window=1048576),
         ModelInfo(id="gemini-3-pro-preview", name="Gemini 3 Pro", context_window=1048576),
+        ModelInfo(id="gemini-3.1-flash-lite", name="Gemini 3.1 Flash Lite", context_window=1048576),
         ModelInfo(id="gemini-3.1-pro-preview", name="Gemini 3.1 Pro", context_window=1048576),
+        ModelInfo(id="gemini-3.5-flash", name="Gemini 3.5 Flash", context_window=1048576),
     ],
     LLMProviderType.mistral: [
         ModelInfo(id="mistral-small-latest", name="Mistral Small 3.2", context_window=128000),
