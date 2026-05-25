@@ -45,18 +45,59 @@ _TRACKED_SOURCE_DIRS = [
     "app/services/llm/",
 ]
 
+# Only pipeline code that actually affects enrichment OUTPUT is mtime-tracked. The
+# generator scripts (generate_demos/demo_documents/extract_exemplars) are scaffolding and
+# the exemplar text + ontology are content-hashed instead (see .owl-version/.samples-version),
+# so editing the generator or unrelated index.html UI no longer false-positives staleness.
 _TRACKED_SOURCE_FILES = [
     "app/pipeline/orchestrator.py",
     "app/models/annotation.py",
     "app/models/document.py",
     "app/models/job.py",
-    "scripts/demo_documents.py",
-    "scripts/extract_exemplars.py",
-    "scripts/generate_demos.py",
 ]
 
-# Frontend file holding the canonical SAMPLES exemplar texts (single source of truth).
-_FRONTEND_INDEX = BACKEND_ROOT.parent / "frontend" / "index.html"
+
+def _compute_samples_hash() -> str | None:
+    """Stable hash of the 22 exemplar source texts (None if Node unavailable)."""
+    try:
+        import hashlib
+
+        from scripts.extract_exemplars import extract_exemplar_texts
+
+        texts = extract_exemplar_texts()
+        blob = json.dumps(texts, sort_keys=True, ensure_ascii=False).encode("utf-8")
+        return hashlib.sha256(blob).hexdigest()[:16]
+    except Exception:
+        return None
+
+
+def _compute_pipeline_hash() -> str | None:
+    """Content hash of enrichment-affecting pipeline code.
+
+    Hashing content (not mtime) makes freshness robust: app startup, ``git checkout``,
+    ``git merge``, and ``git pull`` all bump file mtimes without changing behavior, which
+    made the old mtime comparison false-positive demos as stale.
+    """
+    try:
+        import hashlib
+
+        files: list[Path] = []
+        for rel_dir in _TRACKED_SOURCE_DIRS:
+            d = BACKEND_ROOT / rel_dir
+            if d.is_dir():
+                files.extend(d.rglob("*.py"))
+        for rel_file in _TRACKED_SOURCE_FILES:
+            f = BACKEND_ROOT / rel_file
+            if f.is_file():
+                files.append(f)
+
+        h = hashlib.sha256()
+        for p in sorted(set(files), key=lambda x: str(x)):
+            h.update(str(p.relative_to(BACKEND_ROOT)).encode("utf-8"))
+            h.update(p.read_bytes())
+        return h.hexdigest()[:16]
+    except Exception:
+        return None
 
 
 def get_staleness_info() -> tuple[bool, str]:
@@ -73,74 +114,41 @@ def get_staleness_info() -> tuple[bool, str]:
     if missing:
         return True, f"Missing demo files: {', '.join(missing)}"
 
-    # --- 2. Earliest generated_at across all demos ---
-    earliest_generated: datetime | None = None
-    for slug in expected_slugs:
-        demo_path = DEMOS_DIR / f"{slug}.json"
-        try:
-            data = json.loads(demo_path.read_text())
-            ts = datetime.fromisoformat(data["demo"]["generated_at"])
-            if earliest_generated is None or ts < earliest_generated:
-                earliest_generated = ts
-        except (json.JSONDecodeError, KeyError, ValueError) as exc:
-            return True, f"Cannot parse {slug}.json: {exc}"
+    # Freshness is purely content-based (OWL + exemplar text + pipeline code hashes). The
+    # previous mtime approach false-positived because app startup and git operations bump
+    # file mtimes without changing behavior.
 
-    if earliest_generated is None:
-        return True, "No valid generated_at timestamps found in demo files"
-
-    # --- 3. Latest mtime across tracked source dirs/files ---
-    latest_source_mtime = 0.0
-    latest_source_path = ""
-
-    for rel_dir in _TRACKED_SOURCE_DIRS:
-        dir_path = BACKEND_ROOT / rel_dir
-        if not dir_path.is_dir():
-            continue
-        for p in dir_path.rglob("*.py"):
-            mt = p.stat().st_mtime
-            if mt > latest_source_mtime:
-                latest_source_mtime = mt
-                latest_source_path = str(p.relative_to(BACKEND_ROOT))
-
-    for rel_file in _TRACKED_SOURCE_FILES:
-        file_path = BACKEND_ROOT / rel_file
-        if not file_path.is_file():
-            continue
-        mt = file_path.stat().st_mtime
-        if mt > latest_source_mtime:
-            latest_source_mtime = mt
-            latest_source_path = str(file_path.relative_to(BACKEND_ROOT))
-
-    # --- 4. OWL cache file ---
+    # --- 4. OWL ontology content version ---
     try:
-        from app.services.folio.owl_cache import _CACHE_FILE
+        from app.services.folio.owl_cache import get_owl_content_hash
 
-        if _CACHE_FILE.exists():
-            mt = _CACHE_FILE.stat().st_mtime
-            if mt > latest_source_mtime:
-                latest_source_mtime = mt
-                latest_source_path = str(_CACHE_FILE)
-    except ImportError:
-        pass  # Non-fatal — skip OWL cache check
+        sidecar = DEMOS_DIR / ".owl-version"
+        if sidecar.exists():
+            gen_hash = sidecar.read_text().strip()
+            cur_hash = get_owl_content_hash()
+            if gen_hash and cur_hash and gen_hash != cur_hash:
+                return True, (
+                    f"FOLIO ontology changed since generation "
+                    f"(generated against {gen_hash}, current {cur_hash})"
+                )
+    except Exception:
+        pass  # Non-fatal — skip OWL version check
 
-    # --- 4b. Frontend SAMPLES source (canonical exemplar text) ---
-    if _FRONTEND_INDEX.is_file():
-        mt = _FRONTEND_INDEX.stat().st_mtime
-        if mt > latest_source_mtime:
-            latest_source_mtime = mt
-            latest_source_path = str(_FRONTEND_INDEX)
+    # --- 4b. Exemplar source text version (content hash, not index.html mtime) ---
+    sidecar = DEMOS_DIR / ".samples-version"
+    if sidecar.exists():
+        gen_hash = sidecar.read_text().strip()
+        cur_hash = _compute_samples_hash()
+        if gen_hash and cur_hash and gen_hash != cur_hash:
+            return True, "Exemplar source text changed since generation (SAMPLES edited)"
 
-    # --- 5. Compare ---
-    if latest_source_mtime == 0.0:
-        return False, "No tracked source files found — assuming fresh"
-
-    latest_source_dt = datetime.fromtimestamp(latest_source_mtime, tz=timezone.utc)
-    if latest_source_dt > earliest_generated:
-        delta = latest_source_dt - earliest_generated
-        return True, (
-            f"Source '{latest_source_path}' modified {delta} after "
-            f"earliest demo timestamp ({earliest_generated.isoformat()})"
-        )
+    # --- 5. Pipeline code version (content hash — robust to mtime/git touches) ---
+    sidecar = DEMOS_DIR / ".pipeline-version"
+    if sidecar.exists():
+        gen_hash = sidecar.read_text().strip()
+        cur_hash = _compute_pipeline_hash()
+        if gen_hash and cur_hash and gen_hash != cur_hash:
+            return True, "Pipeline code changed since generation"
 
     return False, "All demos are up-to-date"
 
@@ -313,6 +321,19 @@ async def main() -> None:
         tmp_path = Path(tmp_dir)
         for slug, doc_info in docs.items():
             await generate_demo(slug, doc_info, tmp_path, llm, task_llms)
+
+    # Record the input versions these demos were generated against (freshness check).
+    try:
+        from app.services.folio.owl_cache import get_owl_content_hash
+        (DEMOS_DIR / ".owl-version").write_text(get_owl_content_hash())
+    except Exception:
+        logger.warning("Could not write .owl-version sidecar", exc_info=True)
+    samples_hash = _compute_samples_hash()
+    if samples_hash:
+        (DEMOS_DIR / ".samples-version").write_text(samples_hash)
+    pipeline_hash = _compute_pipeline_hash()
+    if pipeline_hash:
+        (DEMOS_DIR / ".pipeline-version").write_text(pipeline_hash)
 
     logger.info("Done — %d demo file(s) written to %s", len(docs), DEMOS_DIR)
 
