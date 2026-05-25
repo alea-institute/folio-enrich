@@ -28,7 +28,7 @@ See: .planning/PROJECT.md
 Phase: 03
 Plan: Not started
 Status: Milestone complete
-Last activity: 2026-05-23
+Last activity: 2026-05-25 - Completed quick task 260525-c1x: latest LLMs + default Gemini 3 Flash
 
 Progress: [██████████] 100%
 
@@ -65,6 +65,7 @@ None.
 |---|-------------|------|--------|-----------|
 | 260522-uot | Consolidate Nouns/Verbs/Individuals layer toggles under one "Annotations" disclosure chip (Parts of Speech kept separate) | 2026-05-23 | 9369907 | [260522-uot-consolidate-nouns-verbs-individuals-laye](./quick/260522-uot-consolidate-nouns-verbs-individuals-laye/) |
 | 260523-box | Shorten UI labels: Show Thinking→Thinking, Debug Mode→Debug, pipeline stages to one-word forms (fit on one line) | 2026-05-23 | (see commit) | [260523-box-shorten-ui-labels-show-thinking-debug-mo](./quick/260523-box-shorten-ui-labels-show-thinking-debug-mo/) |
+| 260525-c1x | Update providers to latest LLMs (GPT-5.5, Claude Opus 4.7, Gemini 3.5 Flash / 3.1 Flash Lite) and default to Gemini 3 Flash (top of list) | 2026-05-25 | (see commit) | [260525-c1x-update-providers-to-latest-llms-and-defa](./quick/260525-c1x-update-providers-to-latest-llms-and-defa/) |
 
 ## Session Continuity
 
