@@ -19,8 +19,12 @@ logger = logging.getLogger(__name__)
 _CONFIDENCE = {
     ("preferred", True): 0.90,   # multi-word preferred label
     ("preferred", False): 0.72,  # single-word preferred label
+    ("lemma_preferred", True): 0.85,   # multi-word lemma of a preferred label
+    ("lemma_preferred", False): 0.68,  # single-word lemma of a preferred label (e.g. "agreement"->"Agreements")
     ("alternative", True): 0.65, # multi-word alternative label
     ("alternative", False): 0.35,  # single-word alternative label — high false-positive rate
+    ("lemma_alternative", True): 0.60,   # multi-word lemma of an alternative label
+    ("lemma_alternative", False): 0.33,  # single-word lemma of an alternative label
     ("translation", True): 0.60,   # multi-word translation
     ("translation", False): 0.30,  # single-word translation
 }

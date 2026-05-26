@@ -160,7 +160,7 @@ class ReconciliationStage(PipelineStage):
                 continue
 
             # VERB/ADV used for a noun-sense concept → penalize
-            if pos in ("VERB", "ADV") and concept.match_type == "alternative":
+            if pos in ("VERB", "ADV") and concept.match_type in ("alternative", "lemma_alternative"):
                 concept.confidence = max(0.0, concept.confidence - penalty)
                 adjusted += 1
                 record_lineage(

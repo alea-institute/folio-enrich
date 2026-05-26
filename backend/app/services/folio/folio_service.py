@@ -2,14 +2,33 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 
 from app.services.folio.branch_config import (
     EXCLUDED_BRANCHES,
     get_branch_color,
     get_branch_display_name,
 )
+from app.services.folio.match_tier import is_higher_priority, lemma_type_for
 
 logger = logging.getLogger(__name__)
+
+# Bump when the lemma rules or denylist change, so the disk cache (keyed by
+# owl_hash + this version) is not served stale after a logic change.
+LEMMA_VERSION = "1"
+_LEMMA_CACHE_DIR = Path.home() / ".folio-enrich" / "cache" / "lemmas"
+
+# Legal pluralia-tantum / terms of art whose singular has a *different* meaning.
+# These must never be lemma-merged (e.g. "damages" = monetary remedy != "damage"
+# = harm). Checked against both the original label and the computed lemma so
+# neither direction creates a spurious match. Conservative by design.
+_LEMMA_DENYLIST: frozenset[str] = frozenset({
+    "damages", "damage", "costs", "cost", "proceedings", "proceeding",
+    "goods", "good", "arms", "arm", "premises", "savings", "saving",
+    "findings", "finding", "securities", "minutes", "minute",
+    "holdings", "holding", "pleadings", "pleading", "articles", "article",
+    "data", "datum", "leaves", "leave", "wills", "will", "means",
+})
 
 
 def _translation_matching_enabled() -> bool:
@@ -85,6 +104,7 @@ class FolioService:
         self._labels_multi_cache: dict[str, list[LabelInfo]] | None = None
         self._property_labels_cache: dict[str, PropertyLabelInfo] | None = None
         self._branch_map: dict[str, str] | None = None
+        self._lemma_map: dict[str, str] | None = None
 
     @classmethod
     def get_instance(cls) -> FolioService:
@@ -115,10 +135,11 @@ class FolioService:
         self._branch_map = None
         self._build_branch_map()
 
-        # Rebuild label caches
+        # Rebuild label caches (lemma map re-keys to the new owl_hash on demand)
         self._labels_cache = None
         self._labels_multi_cache = None
         self._property_labels_cache = None
+        self._lemma_map = None
         self.get_all_labels()
         self.get_all_labels_multi()
         self.get_all_property_labels()
@@ -219,85 +240,181 @@ class FolioService:
         except (KeyError, Exception):
             return None
 
+    @staticmethod
+    def _is_excluded_concept(fc: FOLIOConcept) -> bool:
+        """True if a concept should never be indexed as a matchable label.
+
+        Filters excluded branches, deprecated concepts, and editorial dupes/
+        placeholders whose marker lives in the label text (mirrors the property
+        index filter at get_all_property_labels). The "DUPE of `License`" concept
+        (RCiAtR0akBA7apMyfjy515B) is caught here by its preferred label.
+        """
+        if fc.branch in EXCLUDED_BRANCHES:
+            return True
+        if fc.deprecated:
+            return True
+        pl = fc.preferred_label or ""
+        up = pl.upper()
+        if "DUPE" in up or up.startswith("ZZZ:"):
+            return True
+        return False
+
+    @staticmethod
+    def _primary_and_alt_labels(fc: FOLIOConcept):
+        """Yield (raw_label, base_label_type) for the labels eligible for lemma keys."""
+        if fc.preferred_label:
+            yield fc.preferred_label, "preferred"
+        if fc.folio_pref_label:
+            yield fc.folio_pref_label, "preferred"
+        for alt in fc.alternative_labels:
+            if alt:
+                yield alt, "alternative"
+
+    def _lemma_cache_path(self) -> Path:
+        from app.services.folio.owl_cache import get_owl_content_hash
+        h = get_owl_content_hash() or "nohash"
+        return _LEMMA_CACHE_DIR / f"labels_{h}_v{LEMMA_VERSION}.pkl"
+
+    def _load_lemma_cache(self) -> dict[str, str] | None:
+        try:
+            path = self._lemma_cache_path()
+            if path.exists():
+                import pickle
+                with open(path, "rb") as f:
+                    data = pickle.load(f)
+                if isinstance(data, dict):
+                    logger.info("Loaded %d label lemmas from cache", len(data))
+                    return data
+        except Exception:
+            logger.debug("Lemma cache load failed", exc_info=True)
+        return None
+
+    def _save_lemma_cache(self, lemma_map: dict[str, str]) -> None:
+        try:
+            path = self._lemma_cache_path()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            import pickle
+            with open(path, "wb") as f:
+                pickle.dump(lemma_map, f)
+        except Exception:
+            logger.debug("Lemma cache save failed", exc_info=True)
+
+    def _compute_label_lemmas(self) -> dict[str, str]:
+        """Map single-word label (lowercased) -> its lemma, for reachability.
+
+        Computed once per ontology version (disk-cached by owl_hash + LEMMA_VERSION)
+        and memoized in-process. Only single-word labels (>3 chars, lemma >2 chars,
+        not on the legal terms-of-art denylist) whose lemma differs are included.
+        This is what lets the singular surface form "Agreement" reach the
+        plural-labelled concept "Agreements".
+        """
+        if self._lemma_map is not None:
+            return self._lemma_map
+
+        cached = self._load_lemma_cache()
+        if cached is not None:
+            self._lemma_map = cached
+            return cached
+
+        folio = self._get_folio()
+        candidates: set[str] = set()
+        for concept in folio.classes:
+            try:
+                fc = self._to_folio_concept(concept)
+                if self._is_excluded_concept(fc):
+                    continue
+                for raw, _ in self._primary_and_alt_labels(fc):
+                    low = raw.lower()
+                    if " " in low or len(low) <= 3 or low in _LEMMA_DENYLIST:
+                        continue
+                    candidates.add(low)
+            except Exception:
+                continue
+
+        lemma_map: dict[str, str] = {}
+        try:
+            from app.services.nlp.spacy_singleton import get_spacy_tokenizer
+            nlp = get_spacy_tokenizer()
+            # Noun lemmatization (Agreements->agreement) requires the tagger +
+            # attribute_ruler; without them the lemmatizer silently lowercases.
+            if not {"tagger", "attribute_ruler"} <= set(nlp.pipe_names):
+                logger.warning(
+                    "spaCy pipeline missing tagger/attribute_ruler (%s); "
+                    "skipping lemma normalization", nlp.pipe_names,
+                )
+                self._lemma_map = {}
+                return {}
+            for doc in nlp.pipe(sorted(candidates), batch_size=512):
+                original = doc.text.lower()
+                lemma = (doc[0].lemma_.lower() if len(doc) else original)
+                if lemma != original and len(lemma) > 2 and lemma not in _LEMMA_DENYLIST:
+                    lemma_map[original] = lemma
+        except Exception:
+            logger.warning("Lemma normalization failed; proceeding without lemma keys", exc_info=True)
+            self._lemma_map = {}
+            return {}
+
+        self._lemma_map = lemma_map
+        self._save_lemma_cache(lemma_map)
+        logger.info("Computed %d label lemmas for reachability", len(lemma_map))
+        return lemma_map
+
+    @staticmethod
+    def _maybe_set(labels: dict[str, LabelInfo], key: str, fc: FOLIOConcept,
+                   label_type: str, matched_label: str) -> None:
+        """Set labels[key] only if label_type out-ranks the existing entry.
+
+        Single source of priority truth lives in match_tier; this preserves the
+        original "preferred > alternative > hidden > translation" behaviour and
+        slots lemma tiers in between (lemma_preferred beats alternative).
+        """
+        existing = labels.get(key)
+        if existing is None or is_higher_priority(label_type, existing.label_type):
+            labels[key] = LabelInfo(concept=fc, label_type=label_type, matched_label=matched_label)
+
     def get_all_labels(self) -> dict[str, LabelInfo]:
         """Return a mapping of all concept labels to LabelInfo with type metadata.
 
-        Preferred labels take priority: if a label is both a preferred label for
-        one concept and an alt label for another, the preferred entry wins.
+        Priority (highest first): preferred > lemma_preferred > alternative >
+        lemma_alternative > hidden > translation. A lemma-of-a-preferred-label
+        (e.g. "agreement" from "Agreements") therefore out-ranks an exact
+        alternative match (e.g. "Agreement" on "License (Agreement)").
         """
         if self._labels_cache is not None:
             return self._labels_cache
 
         folio = self._get_folio()
+        lemma_map = self._compute_label_lemmas()
         labels: dict[str, LabelInfo] = {}
 
         for concept in folio.classes:
             try:
                 fc = self._to_folio_concept(concept)
-
-                # Skip concepts from excluded branches
-                if fc.branch in EXCLUDED_BRANCHES:
+                if self._is_excluded_concept(fc):
                     continue
 
-                # Skip deprecated concepts
-                if fc.deprecated:
-                    continue
-
-                # Index preferred label (always wins over alt)
                 pref = fc.preferred_label
                 if pref:
-                    key = pref.lower()
-                    labels[key] = LabelInfo(
-                        concept=fc,
-                        label_type="preferred",
-                        matched_label=pref,
-                    )
-
-                # Index FOLIO prefLabel (same priority as preferred)
+                    self._maybe_set(labels, pref.lower(), fc, "preferred", pref)
                 if fc.folio_pref_label:
-                    pref_key = fc.folio_pref_label.lower()
-                    if pref_key not in labels or labels[pref_key].label_type != "preferred":
-                        labels[pref_key] = LabelInfo(
-                            concept=fc,
-                            label_type="preferred",
-                            matched_label=fc.folio_pref_label,
-                        )
-
-                # Index alternative labels (only if not already a preferred label)
+                    self._maybe_set(labels, fc.folio_pref_label.lower(), fc, "preferred", fc.folio_pref_label)
                 for alt in fc.alternative_labels:
                     if alt:
-                        key = alt.lower()
-                        if key not in labels or labels[key].label_type != "preferred":
-                            labels[key] = LabelInfo(
-                                concept=fc,
-                                label_type="alternative",
-                                matched_label=alt,
-                            )
-
-                # Index hidden label (only if not already preferred or alternative)
+                        self._maybe_set(labels, alt.lower(), fc, "alternative", alt)
                 if fc.hidden_label:
-                    key = fc.hidden_label.lower()
-                    if key not in labels or labels[key].label_type not in ("preferred", "alternative"):
-                        labels[key] = LabelInfo(
-                            concept=fc,
-                            label_type="hidden",
-                            matched_label=fc.hidden_label,
-                        )
-
-                # Index translations when enabled
+                    self._maybe_set(labels, fc.hidden_label.lower(), fc, "hidden", fc.hidden_label)
                 if _translation_matching_enabled() and fc.translations:
                     pref_lower = pref.lower() if pref else ""
                     for _lang, trans_text in fc.translations.items():
-                        if trans_text:
-                            tkey = trans_text.lower()
-                            if tkey == pref_lower:
-                                continue
-                            if tkey not in labels or labels[tkey].label_type not in ("preferred", "alternative", "hidden"):
-                                labels[tkey] = LabelInfo(
-                                    concept=fc,
-                                    label_type="translation",
-                                    matched_label=trans_text,
-                                )
+                        if trans_text and trans_text.lower() != pref_lower:
+                            self._maybe_set(labels, trans_text.lower(), fc, "translation", trans_text)
+
+                # Lemma keys for reachability (singular/plural). lemma_map only
+                # holds labels whose lemma is safe to add (denylist-filtered).
+                for raw, base_type in self._primary_and_alt_labels(fc):
+                    lemma = lemma_map.get(raw.lower())
+                    if lemma:
+                        self._maybe_set(labels, lemma, fc, lemma_type_for(base_type), raw)
             except Exception:
                 continue
 
@@ -309,77 +426,65 @@ class FolioService:
         """Return a mapping of label text to ALL matching concepts.
 
         Unlike get_all_labels() which keeps only one concept per label,
-        this returns every concept that has the label (as preferred, alt, or hidden).
-        Within each list, preferred labels sort first; entries are deduplicated by IRI.
+        this returns every concept that has the label (as preferred, alt, lemma,
+        hidden, or translation). Within each list, higher-priority tiers sort
+        first; entries are deduplicated by IRI.
         """
         if self._labels_multi_cache is not None:
             return self._labels_multi_cache
 
         folio = self._get_folio()
+        lemma_map = self._compute_label_lemmas()
         labels: dict[str, list[LabelInfo]] = {}
 
         for concept in folio.classes:
             try:
                 fc = self._to_folio_concept(concept)
-
-                if fc.branch in EXCLUDED_BRANCHES:
+                if self._is_excluded_concept(fc):
                     continue
 
-                # Skip deprecated concepts
-                if fc.deprecated:
-                    continue
-
-                # Index preferred label
                 pref = fc.preferred_label
                 if pref:
-                    key = pref.lower()
-                    labels.setdefault(key, []).append(LabelInfo(
+                    labels.setdefault(pref.lower(), []).append(LabelInfo(
                         concept=fc, label_type="preferred", matched_label=pref,
                     ))
-
-                # Index FOLIO prefLabel
                 if fc.folio_pref_label:
-                    pref_key = fc.folio_pref_label.lower()
-                    labels.setdefault(pref_key, []).append(LabelInfo(
+                    labels.setdefault(fc.folio_pref_label.lower(), []).append(LabelInfo(
                         concept=fc, label_type="preferred", matched_label=fc.folio_pref_label,
                     ))
-
-                # Index alternative labels
                 for alt in fc.alternative_labels:
                     if alt:
-                        key = alt.lower()
-                        labels.setdefault(key, []).append(LabelInfo(
+                        labels.setdefault(alt.lower(), []).append(LabelInfo(
                             concept=fc, label_type="alternative", matched_label=alt,
                         ))
-
-                # Index hidden label
                 if fc.hidden_label:
-                    key = fc.hidden_label.lower()
-                    labels.setdefault(key, []).append(LabelInfo(
+                    labels.setdefault(fc.hidden_label.lower(), []).append(LabelInfo(
                         concept=fc, label_type="hidden", matched_label=fc.hidden_label,
                     ))
-
-                # Index translations when enabled
                 if _translation_matching_enabled() and fc.translations:
                     pref_lower = (fc.preferred_label or "").lower()
                     for _lang, trans_text in fc.translations.items():
-                        if trans_text:
-                            tkey = trans_text.lower()
-                            if tkey == pref_lower:
-                                continue
-                            labels.setdefault(tkey, []).append(LabelInfo(
+                        if trans_text and trans_text.lower() != pref_lower:
+                            labels.setdefault(trans_text.lower(), []).append(LabelInfo(
                                 concept=fc, label_type="translation", matched_label=trans_text,
                             ))
+
+                # Lemma entries for reachability.
+                for raw, base_type in self._primary_and_alt_labels(fc):
+                    lemma = lemma_map.get(raw.lower())
+                    if lemma:
+                        labels.setdefault(lemma, []).append(LabelInfo(
+                            concept=fc, label_type=lemma_type_for(base_type), matched_label=raw,
+                        ))
             except Exception:
                 continue
 
-        # Deduplicate by IRI within each label key; sort preferred first
-        _type_order = {"preferred": 0, "alternative": 1, "hidden": 2, "translation": 3}
+        # Deduplicate by IRI within each label key; higher-priority tiers first.
+        from app.services.folio.match_tier import label_type_rank
         for key, entries in labels.items():
             seen_iris: set[str] = set()
             deduped: list[LabelInfo] = []
-            # Sort so preferred comes first, then dedup by IRI
-            entries.sort(key=lambda e: _type_order.get(e.label_type, 9))
+            entries.sort(key=lambda e: label_type_rank(e.label_type))
             for entry in entries:
                 if entry.concept.iri not in seen_iris:
                     seen_iris.add(entry.concept.iri)
