@@ -2368,7 +2368,7 @@
      (accent + pulse) and a green fill bar + a live "N / 8" count "walk" left→right
      as the backend advances. Built ONCE as stable DOM; only state classes and the
      fill width / inline values mutate per tick (NO innerHTML rebuild) so the motion
-     is real, not a class swap. Tiny abbreviated labels stay visible under every
+     is real, not a class swap. Short stage labels stay visible under every
      node (compact ≠ hidden); the active stage's full name + description appear in
      the status row below the track. The ⤢ toggle reveals a full vertical legend.
      Visibility + collapse are driven by [data-phase] on #pplWrap. */
@@ -2433,7 +2433,7 @@
     50%      { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 6%, transparent); }
   }
 
-  /* tiny abbreviated labels, centered under each node, ALWAYS visible */
+  /* stage labels, centered under each node, ALWAYS visible */
   .ppl-step-label {
     position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
     font-size: 9px; line-height: 1; white-space: nowrap; color: var(--text-dim);
@@ -6187,14 +6187,14 @@ async function fetchFinalJob() {
 // match — branch_judge_stage sets JUDGING before string_match_stage sets MATCHING — then
 // a Finalize node absorbs the post-match tail: extracting_individuals/properties etc).
 const PPL_STAGES = [
-  { key: 'ingesting',   abbr: 'Ing' },
-  { key: 'normalizing', abbr: 'Nrm' },
-  { key: 'enriching',   abbr: 'Str' },
-  { key: 'identifying', abbr: 'LLM' },
-  { key: 'resolving',   abbr: 'Res' },
-  { key: 'judging',     abbr: 'Jdg' },
-  { key: 'matching',    abbr: 'Mat' },
-  { key: 'finalize',    abbr: 'Fin' },
+  { key: 'ingesting',   label: 'Ingest' },
+  { key: 'normalizing', label: 'Normalize' },
+  { key: 'enriching',   label: 'String' },
+  { key: 'identifying', label: 'LLM' },
+  { key: 'resolving',   label: 'Resolve' },
+  { key: 'judging',     label: 'Judge' },
+  { key: 'matching',    label: 'Match' },
+  { key: 'finalize',    label: 'Finalize' },
 ];
 const PPL_LAST = PPL_STAGES.length - 1;
 // Backend JobStatus -> visual station index. Any UNKNOWN status falls back to Finalize
@@ -6238,7 +6238,7 @@ const PipelineJourney = {
       const name = STAGE_LABELS[s.key] || s.key;
       return `<li class="ppl-step todo" data-key="${s.key}" role="button" tabindex="0" aria-expanded="false"`
         + ` aria-label="${escapeHtml(name + ': show what this stage did')}"><span class="ppl-node"></span>`
-        + `<span class="ppl-step-label">${escapeHtml(s.abbr)}</span></li>`;
+        + `<span class="ppl-step-label">${escapeHtml(s.label)}</span></li>`;
     }).join('');
     // Wire click/keyboard once (event delegation survives innerHTML rebuilds of the <li>s).
     if (!this._wired) {
