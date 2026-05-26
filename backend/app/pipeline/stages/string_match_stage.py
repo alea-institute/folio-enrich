@@ -25,6 +25,24 @@ class StringMatchStage(PipelineStage):
         return "string_matching"
 
     @staticmethod
+    def _alt_label_owned_by_other_primary(alt: str, rc_iri: str, folio_labels: dict) -> bool:
+        """True if ``alt`` is the primary (preferred/lemma-primary) label of a DIFFERENT concept.
+
+        Prevents a concept's alt-label from being expanded into a match pattern when that
+        same surface form is the canonical label of another concept. e.g. "License (Agreement)"
+        carries "Agreement" as an alt-label, but "Agreement" is the (lemma-)primary label of
+        the Agreements/Contracts concept — so a bare "Agreement" span must not be re-tagged as
+        License via alt-label expansion. (See the "Agreement"->"License" precision fix.)
+        """
+        from app.services.folio.match_tier import PRIMARY_LABEL_TYPES
+        info = folio_labels.get(alt.lower())
+        return bool(
+            info is not None
+            and info.label_type in PRIMARY_LABEL_TYPES
+            and info.concept.iri != rc_iri
+        )
+
+    @staticmethod
     def _is_safe_alt_label(label: str) -> bool:
         """Check if an alt label is safe to add to the automaton (not a common false positive)."""
         if len(label) <= 3:
@@ -50,22 +68,30 @@ class StringMatchStage(PipelineStage):
         # Track which text patterns are in the automaton (add each text once)
         text_patterns_added: set[str] = set()
 
+        # Label index used to refuse expanding an alt-label that is another concept's
+        # canonical (primary/lemma-primary) label — see _alt_label_owned_by_other_primary.
+        from app.services.folio.folio_service import FolioService
+        folio_labels = FolioService.get_instance().get_all_labels()
+
         for rc in resolved_concepts:
-            key = (rc["concept_text"].lower(), rc.get("folio_iri", ""))
+            rc_iri = rc.get("folio_iri", "")
+            key = (rc["concept_text"].lower(), rc_iri)
             if key not in concept_map or rc["confidence"] > concept_map[key]["confidence"]:
                 concept_map[key] = rc
 
             # Also add alt labels and hidden label as patterns pointing to same data
             alt_labels = rc.get("folio_alt_labels") or []
             for alt in alt_labels:
-                alt_key = (alt.lower(), rc.get("folio_iri", ""))
-                if alt_key not in concept_map and self._is_safe_alt_label(alt):
+                alt_key = (alt.lower(), rc_iri)
+                if (alt_key not in concept_map and self._is_safe_alt_label(alt)
+                        and not self._alt_label_owned_by_other_primary(alt, rc_iri, folio_labels)):
                     concept_map[alt_key] = rc
 
             hidden = rc.get("folio_hidden_label") or ""
             if hidden:
-                hidden_key = (hidden.lower(), rc.get("folio_iri", ""))
-                if hidden_key not in concept_map and self._is_safe_alt_label(hidden):
+                hidden_key = (hidden.lower(), rc_iri)
+                if (hidden_key not in concept_map and self._is_safe_alt_label(hidden)
+                        and not self._alt_label_owned_by_other_primary(hidden, rc_iri, folio_labels)):
                     concept_map[hidden_key] = rc
 
         # Build a text→list[dict] map for multi-branch annotation creation

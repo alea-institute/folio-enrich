@@ -146,6 +146,55 @@ class TestLemmaIndexMechanism:
 
 
 # --------------------------------------------------------------------------- #
+# Fast: StringMatch alt-label expansion guard
+# --------------------------------------------------------------------------- #
+class TestAltLabelExpansionGuard:
+    """Prevents 'License (Agreement)' (whose alt-label is 'Agreement') from being
+    expanded onto bare 'Agreement' spans, since 'Agreement' is the (lemma-)primary
+    label of the Agreements concept. This is the LLM-path half of the fix: an LLM
+    phrase like 'this Agreement:' can resolve to License, and without the guard
+    StringMatch would re-tag every bare 'Agreement' as License."""
+
+    def _labels(self):
+        from app.services.folio.folio_service import FOLIOConcept, LabelInfo
+        agreements = FOLIOConcept(
+            iri="iri:agreements", preferred_label="Agreements",
+            alternative_labels=[], definition="", branch="Document / Artifact", parent_iris=[])
+        return {
+            "agreement": LabelInfo(concept=agreements, label_type="lemma_preferred",
+                                   matched_label="Agreements"),
+            "accord": LabelInfo(concept=agreements, label_type="alternative",
+                                matched_label="Accord"),
+        }
+
+    def test_alt_label_of_other_primary_is_refused(self):
+        from app.pipeline.stages.string_match_stage import StringMatchStage
+        labels = self._labels()
+        # License (different IRI) tries to expand its 'Agreement' alt-label → refused.
+        assert StringMatchStage._alt_label_owned_by_other_primary(
+            "Agreement", "iri:license", labels) is True
+
+    def test_own_primary_label_not_refused(self):
+        from app.pipeline.stages.string_match_stage import StringMatchStage
+        labels = self._labels()
+        # Agreements expanding its own surface form → allowed.
+        assert StringMatchStage._alt_label_owned_by_other_primary(
+            "Agreement", "iri:agreements", labels) is False
+
+    def test_alt_label_owned_only_as_alternative_not_refused(self):
+        from app.pipeline.stages.string_match_stage import StringMatchStage
+        labels = self._labels()
+        # 'accord' is only an *alternative* of another concept → not a canonical owner → allowed.
+        assert StringMatchStage._alt_label_owned_by_other_primary(
+            "Accord", "iri:license", labels) is False
+
+    def test_unknown_label_not_refused(self):
+        from app.pipeline.stages.string_match_stage import StringMatchStage
+        assert StringMatchStage._alt_label_owned_by_other_primary(
+            "Zzqq", "iri:license", self._labels()) is False
+
+
+# --------------------------------------------------------------------------- #
 # Slow: real-ontology regression eval set (the gate)
 # --------------------------------------------------------------------------- #
 @pytest.mark.slow
