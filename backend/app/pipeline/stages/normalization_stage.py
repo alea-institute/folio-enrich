@@ -27,6 +27,7 @@ class NormalizationStage(PipelineStage):
 
         log = job.result.metadata.setdefault("activity_log", [])
         n_chunks = len(canonical.chunks)
-        n_sentences = len(canonical.sentences)
+        # Sentences live on each TextChunk, not on CanonicalText.
+        n_sentences = sum(len(c.sentences) for c in canonical.chunks)
         log.append({"ts": datetime.now(timezone.utc).isoformat(), "stage": self.name, "msg": f"Normalized into {n_chunks} chunks, {n_sentences} sentences"})
         return job
