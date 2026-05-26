@@ -32,7 +32,12 @@ content-based freshness check, PROD local embeddings, and a normalization-stage 
 - **`extract_exemplars.py` needs Node** (generation/tests only — NOT app runtime; the app never imports it, so PROD/Docker don't need Node).
 
 ## Open items
-- **Railway volume `folio-enrich-volume`** (150MB, **detached** — harmless): detach+delete were issued repeatedly (CLI returns success) but it lingers in `railway volume list`. Confirm it's gone in the Railway dashboard.
+- **Two detached orphan volumes remain** (`folio-enrich-volume` id `84e73acc…` + `folio-enrich-volume-VzhL` id `d6767a38…`, both `service=None`, ~150MB each — **harmless, just clutter**). The Railway **CLI `volume delete` is non-functional here**: it prints `Volume "…" deleted` and exits 0 but the volume persists in `railway volume list` (same id). Likely 2FA-gated — `volume delete --help` lists `--2fa-code` "required if 2FA is enabled in non-interactive mode"; without it the delete is silently rejected. To actually delete: either the **Railway dashboard** (click the detached volume node → delete; safe now they're detached, won't trigger a service redeploy), or **`railway volume delete --volume <name> --2fa-code <code> --yes`** if 2FA is on. (Update 2026-05-25.)
+
+### ⚠️ DEV must stay volume-less — attaching ANY volume crashes it (learned the hard way 2026-05-25)
+- **What works / doesn't on volumes:** CLI `volume delete` = no-op (see above). CLI `volume detach` + `railway redeploy --service folio-enrich --yes` = **works** and is how you recover. DEV came back `200` ~30s after redeploy.
+- **Why a volume kills DEV:** Railway mounts fresh volumes as **root**, app runs as **`appuser`**. The `gosu` chown entrypoint that fixed this was removed in revert `6b58898`. So a volume at `/home/appuser/.folio-enrich` → `JobStore()` `mkdir` → `PermissionError: [Errno 13] … /home/appuser/.folio-enrich/jobs` → crash loop → 502.
+- **Railway dashboard gotcha:** a staged "Edited / 1 Change" on the service card can be an *add-volume* op, not a delete. Deploying it **adds & mounts** a volume → outage. Read the staged change carefully before clicking Deploy; for volume cleanup, act on the **volume node** itself, not the service.
 - **DEV local embeddings (deferred by decision):** if ever wanted, host the prebuilt `.pkl` (R2/GitHub release) + download at startup, or pre-seed a volume from it. Not worth it for a keyless test env; PROD has embeddings.
 - **Standalone executables** (GitHub Actions PyInstaller, `.github/workflows/build.yml`) run without local embeddings by design (torch would bloat the binary) — graceful degradation, no regression.
 
