@@ -7,6 +7,7 @@ from app.services.folio.concept_detail import (
     _build_hierarchy_path,
     _extract_iri_hash,
     _get_all_parents,
+    _true_synonyms,
     build_entity_graph,
     lookup_concept_detail,
 )
@@ -25,6 +26,7 @@ class FakeOWLClass:
         see_also=None,
         examples=None,
         translations=None,
+        hidden_label=None,
     ):
         self.iri = iri
         self.label = label
@@ -35,6 +37,7 @@ class FakeOWLClass:
         self.see_also = see_also or []
         self.examples = examples or []
         self.translations = translations or {}
+        self.hidden_label = hidden_label or ""
 
 
 class FakeFOLIO:
@@ -122,6 +125,35 @@ class TestLookupConceptDetail:
         result = lookup_concept_detail(mock_folio, "CHILD1")
         assert "DWI Defense" in result.synonyms
 
+    def test_synonyms_exclude_translations(self):
+        """Translations duplicated into alt_labels must not leak into synonyms,
+        and the translations dict itself must stay intact."""
+        leaky = FakeOWLClass(
+            iri="https://folio.openlegalstandard.org/CFL",
+            label="Commercial Finance Law",
+            alt_labels=[
+                "Commercial Finance",
+                "Commercial Finance Law",
+                "Derecho de Finanzas Comerciales",
+                "Handelsfinanzrecht",
+                "商业金融法",
+                "COMF",
+            ],
+            translations={
+                "en-gb": "Commercial Finance Law",
+                "es-es": "Derecho de Finanzas Comerciales",
+                "de-de": "Handelsfinanzrecht",
+                "zh-cn": "商业金融法",
+            },
+            hidden_label="COMF",
+            sub_class_of=["http://www.w3.org/2002/07/owl#Thing"],
+        )
+        folio = FakeFOLIO([leaky])
+        result = lookup_concept_detail(folio, "CFL")
+        assert result.synonyms == ["Commercial Finance"]
+        assert len(result.translations) == 4
+        assert result.translations["de-de"] == "Handelsfinanzrecht"
+
     def test_returns_children(self, mock_folio):
         result = lookup_concept_detail(mock_folio, "PARENT")
         assert len(result.children) == 2
@@ -151,6 +183,68 @@ class TestLookupConceptDetail:
     def test_has_branch_color(self, mock_folio):
         result = lookup_concept_detail(mock_folio, "CHILD1")
         assert result.branch_color  # Should have some color
+
+
+class TestTrueSynonyms:
+    def test_commercial_finance_law_example(self):
+        result = _true_synonyms(
+            alternative_labels=[
+                "Commercial Finance",
+                "Commercial Finance Law",
+                "Derecho de Finanzas Comerciales",
+                "Handelsfinanzrecht",
+                "商业金融法",
+                "COMF",
+            ],
+            translations={
+                "en-gb": "Commercial Finance Law",
+                "es-es": "Derecho de Finanzas Comerciales",
+                "de-de": "Handelsfinanzrecht",
+                "zh-cn": "商业金融法",
+            },
+            hidden_label="COMF",
+            label="Commercial Finance Law",
+        )
+        assert result == ["Commercial Finance"]
+
+    def test_normalized_comparison_excludes_casing_and_whitespace_variants(self):
+        result = _true_synonyms(
+            alternative_labels=["commercial  finance  law", "Real Synonym"],
+            translations={},
+            hidden_label="",
+            label="Commercial Finance Law",
+        )
+        assert result == ["Real Synonym"]
+
+    def test_preserves_original_text_and_order(self):
+        result = _true_synonyms(
+            alternative_labels=["Beta", "Alpha", "Gamma"],
+            translations={},
+            hidden_label="",
+            label="Concept",
+        )
+        assert result == ["Beta", "Alpha", "Gamma"]
+
+    def test_drops_normalized_duplicates(self):
+        result = _true_synonyms(
+            alternative_labels=["Foo Bar", "foo bar", "Baz"],
+            translations={},
+            hidden_label="",
+            label="Concept",
+        )
+        assert result == ["Foo Bar", "Baz"]
+
+    def test_all_excluded_returns_empty(self):
+        result = _true_synonyms(
+            alternative_labels=["Translation", "CODE", "Self Label"],
+            translations={"es-es": "Translation"},
+            hidden_label="CODE",
+            label="Self Label",
+        )
+        assert result == []
+
+    def test_empty_inputs(self):
+        assert _true_synonyms([], {}, "", "") == []
 
 
 class TestBuildEntityGraph:
