@@ -1,101 +1,126 @@
-# Part D — Upstream FOLIO ontology data cleanup
+# Part D — FOLIO ontology cleanup for the "Agreement" precision bug
 
-**Repo:** `alea-institute/FOLIO` (the OWL ontology source — **not** this codebase)
-**Context:** Belt-and-suspenders cleanup for the "Agreement" → "License (Agreement)"
-precision bug. The app-side fix (folio-enrich `fix(folio): resolve "Agreement"…`,
-commit `fb3497c`) already resolves the bug robustly via lemma reachability + index
-priority, so these edits are **not urgent** — but they remove the bad data at the
-source and benefit every FOLIO consumer (not just Enrich).
-
-Verified against live FOLIO data on 2026-05-26.
+**This is a self-contained handoff for a Claude Code session working in the
+`alea-institute/FOLIO` ontology repo** (not folio-enrich). Open this file there, or
+paste it as a prompt. It needs no prior context.
 
 ---
 
-## Edit 1 — Re-home the singular "Agreement" alt-label off "License (Agreement)"
+## Goal
 
-**Concept:** `License (Agreement)` — IRI
-`https://folio.openlegalstandard.org/RKKRGOkIme6pnG2BSePt1Z`
+The string **"Agreement"** is being mis-linked to the concept **"License (Agreement)"**
+instead of the **"Agreements / Contracts"** concept. Root cause is in the ontology data:
+the singular "Agreement" is an `skos:altLabel` of *License (Agreement)*, while the
+*Agreements/Contracts* concept only carries the **plural** "Agreements". Plus there's a
+stray duplicate placeholder concept that also claims "Agreement".
 
-**Current state:**
-```
-skos:prefLabel  (none)
-rdfs:label      "License (Agreement)"
-skos:altLabel   "Agreement", "Licence", "Licencia", "License", "Licença",
-                "Lizenz", "רישיון", "लाइसेंस", "ライセンス", "许可证"
-branch          Objectives
-```
+The downstream app (folio-enrich) already has a code-level workaround, but these three
+edits fix the data at the source and benefit **every** FOLIO consumer. Make them in the
+ontology and ship a new ontology release.
 
-**Problem:** the bare singular `skos:altLabel "Agreement"` makes any mention of
-"Agreement" resolvable to *License*. A license is a *kind of* agreement, not a
-synonym for "Agreement".
+## Before you edit — find the source of truth
 
-**Change:** **remove** `skos:altLabel "Agreement"` from this concept. Keep
-"Licence"/"License"/translations. (Leave "License (Agreement)" as the rdfs:label.)
+The published artifact is **`FOLIO.owl`** (RDF/XML, ~18 MB) at the repo root, loaded by
+consumers from the repo's default branch. **First determine whether `FOLIO.owl` is
+hand-maintained or generated** from another source (Protégé project, `.ttl`, CSV/sheets,
+a build script, etc.):
 
----
+- Check the repo `README`, a `Makefile`/build scripts, and for non-`.owl` source files.
+- If `FOLIO.owl` is **generated**, edit the upstream source and regenerate — do **not**
+  hand-edit the generated `.owl` (it will be overwritten).
+- If `FOLIO.owl` **is** the source of truth, edit it directly (it's large — use targeted
+  search/replace on the exact anchors below; don't load the whole file into context).
 
-## Edit 2 — Add the singular "Agreement" to the Agreements/Contracts concept (optional but recommended)
-
-**Concept:** `Agreements` / `Contracts` — IRI
-`https://folio.openlegalstandard.org/R88D8i8AcSTUig2X3yPbFHg`
-
-**Current state:**
-```
-rdfs:label       "Agreements"           (plural)
-skos:prefLabel   "Contracts"
-skos:altLabel    "Accords", "Acordos", "Acuerdos", "Agreements",
-                 "Vereinbarungen", "הסכמים", "समझौते", "协议", "合意書"
-branch           Document / Artifact
-```
-
-**Problem:** the singular surface form "Agreement" is not a label here at all — it's
-only reachable via lemma inference (which the app now does). Adding it as an explicit
-alt-label makes the mapping correct in the data itself, independent of any consumer's
-normalization.
-
-**Change:** **add** `skos:altLabel "Agreement"` (singular) to this concept.
+The three target concepts are identified by their IRI suffix. Each lives in an
+`<owl:Class rdf:about="https://folio.openlegalstandard.org/<IRI>">` element.
 
 ---
 
-## Edit 3 — Remove or deprecate the DUPE placeholder concept
+## Edit 1 — Remove the singular "Agreement" alt-label from *License (Agreement)*
 
-**Concept:** IRI
-`https://folio.openlegalstandard.org/RCiAtR0akBA7apMyfjy515B`
+**IRI:** `https://folio.openlegalstandard.org/RKKRGOkIme6pnG2BSePt1Z`
 
-**Current state:**
+Current markup (real, abridged):
+```xml
+<owl:Class rdf:about="https://folio.openlegalstandard.org/RKKRGOkIme6pnG2BSePt1Z">
+  <rdfs:label>License (Agreement)</rdfs:label>
+  <skos:altLabel>Agreement</skos:altLabel>          <!-- ← DELETE this line -->
+  <skos:altLabel xml:lang="en-gb">Licence</skos:altLabel>
+  <skos:altLabel>License</skos:altLabel>
+  ...
+</owl:Class>
 ```
-rdfs:label / prefLabel   "DUPE of `License `"
-skos:altLabel            "Agreement"
-branch                   (empty)
-owl:deprecated           (not set)
+
+**Action:** delete the single line `<skos:altLabel>Agreement</skos:altLabel>` **within
+this class only**. Keep "License", "Licence", and all translations. (Note: there are many
+bare `<skos:altLabel>Agreement</skos:altLabel>` lines across the file for different
+concepts — only remove the one inside the `RKKRGOkIme6pnG2BSePt1Z` class. Anchor your edit
+on the class's `rdf:about` to be safe.)
+
+## Edit 2 — Add the singular "Agreement" to *Agreements / Contracts* (recommended)
+
+**IRI:** `https://folio.openlegalstandard.org/R88D8i8AcSTUig2X3yPbFHg`
+
+Current markup:
+```xml
+<owl:Class rdf:about="https://folio.openlegalstandard.org/R88D8i8AcSTUig2X3yPbFHg">
+  <rdfs:label>Agreements</rdfs:label>
+  <skos:altLabel xml:lang="en-gb">Agreements</skos:altLabel>
+  <skos:prefLabel>Contracts</skos:prefLabel>
+  ...
+</owl:Class>
 ```
 
-**Problem:** an editorial duplicate placeholder that leaked into matching because it
-isn't flagged `owl:deprecated` and has no branch. It also carries the misleading
-"Agreement" alt-label.
+**Action:** add a singular alt-label inside this class:
+```xml
+  <skos:altLabel>Agreement</skos:altLabel>
+```
+This makes the singular surface form map to the correct concept *in the data* (not just
+via the consumer's lemma inference). The bare (no `xml:lang`) form matches the file's
+default-language convention used elsewhere in this class.
 
-**Change:** **delete** this concept, or if it must be retained for history, set
-`owl:deprecated true` and remove the `skos:altLabel "Agreement"`.
-*(The app already filters any concept whose label contains "DUPE", but fixing the
-source is cleaner.)*
+## Edit 3 — Delete (or deprecate) the duplicate placeholder concept
+
+**IRI:** `https://folio.openlegalstandard.org/RCiAtR0akBA7apMyfjy515B`
+
+Current markup:
+```xml
+<owl:Class rdf:about="https://folio.openlegalstandard.org/RCiAtR0akBA7apMyfjy515B">
+  <rdfs:label>DUPE of `License `</rdfs:label>
+  <skos:altLabel>Agreement</skos:altLabel>
+  ...
+</owl:Class>
+```
+
+This is an editorial duplicate (note the `DUPE of` label and that it carries the same
+"Agreement" alt-label). **Action — pick one:**
+- **Preferred:** delete the entire `<owl:Class …RCiAtR0akBA7apMyfjy515B …> … </owl:Class>`
+  element. Then grep the file for `RCiAtR0akBA7apMyfjy515B` and remove/redirect any
+  dangling references to it (e.g. `rdfs:subClassOf`, `owl:someValuesFrom`) so the OWL
+  stays valid.
+- **If deletion is risky:** keep it but mark it deprecated and strip the bad label —
+  remove the `<skos:altLabel>Agreement</skos:altLabel>` line and add
+  `<owl:deprecated rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</owl:deprecated>`.
 
 ---
 
-## How the running app picks up these changes
+## Verify
 
-`folio-enrich` loads FOLIO from the GitHub `main` branch and caches the OWL locally.
-After the ontology repo updates:
-- A fresh process start, or the in-app `_reload()` path (ontology-update flow),
-  rebuilds the label index and re-keys the lemma disk cache by the new `owl_hash`.
-- No code change needed in folio-enrich.
+1. **Targeted checks (no full-file load):**
+   - `RKKRGOkIme6pnG2BSePt1Z` class no longer contains `<skos:altLabel>Agreement</skos:altLabel>`.
+   - `R88D8i8AcSTUig2X3yPbFHg` class now contains `<skos:altLabel>Agreement</skos:altLabel>`.
+   - `RCiAtR0akBA7apMyfjy515B` is gone (or deprecated + no "Agreement" label), and no
+     dangling references remain.
+2. **XML well-formedness:** `python -c "import lxml.etree as e; e.parse('FOLIO.owl')"`
+   (or `xmllint --noout FOLIO.owl`) — must parse cleanly.
+3. **Regenerate** if `FOLIO.owl` is generated (run the repo's build), then re-verify.
+4. **Release/commit** per the repo's normal process so consumers pick up the new version.
 
-## Verify after applying
+## After release — refresh folio-enrich
 
-In `folio-enrich/backend`:
-```bash
-.venv/bin/python -m pytest tests/test_disambiguation_eval.py -m slow -v
-```
-The anchor tests should still pass. With Edits 1–2 applied, `"agreement"` will be a
-direct alt/pref match (not just a lemma match), so `get_all_labels()["agreement"].label_type`
-becomes `"alternative"`/`"preferred"` rather than `"lemma_preferred"` — update
-`test_anchor_agreement_resolves_to_agreements` if you assert on the tier.
+In the folio-enrich repo, the ontology is fetched from GitHub and cached by content hash;
+a process restart (or the in-app reload path) picks up the new version. Then re-run its
+regression eval — `cd backend && .venv/bin/python -m pytest tests/test_disambiguation_eval.py -m slow -v`
+— and update the one tier assertion: with Edits 1–2 applied, `"agreement"` becomes a
+direct alt/pref match, so `get_all_labels()["agreement"].label_type` will be
+`"alternative"`/`"preferred"` rather than `"lemma_preferred"`.
