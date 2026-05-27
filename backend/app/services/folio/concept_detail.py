@@ -8,6 +8,7 @@ graph exploration.
 from __future__ import annotations
 
 import logging
+import re
 
 from app.models.graph_models import (
     ConceptDetail,
@@ -19,6 +20,44 @@ from app.models.graph_models import (
 from app.services.folio.branch_config import get_branch_color
 
 logger = logging.getLogger(__name__)
+
+_WS_RE = re.compile(r"\s+")
+
+
+def _norm_label(s: str) -> str:
+    """Normalize a label for comparison only: trim, collapse internal whitespace, casefold."""
+    return _WS_RE.sub(" ", (s or "").strip()).casefold()
+
+
+def _true_synonyms(
+    alternative_labels: list[str],
+    translations: dict[str, str],
+    hidden_label: str,
+    label: str,
+) -> list[str]:
+    """Return true synonyms from a concept's ``alternative_labels``.
+
+    folio-python folds every ``skos:altLabel`` into one ``alternative_labels`` list,
+    including ``xml:lang``-tagged translations, plus the ``skos:hiddenLabel`` code.
+    True synonyms are what remains after removing the translation values, the hidden
+    code, and the concept's own label. Comparison is normalized (case/whitespace
+    insensitive); the original text and order of surviving synonyms are preserved,
+    and normalized-duplicate entries are dropped.
+    """
+    excluded = {_norm_label(v) for v in (translations or {}).values()}
+    if hidden_label:
+        excluded.add(_norm_label(hidden_label))
+    if label:
+        excluded.add(_norm_label(label))
+    out: list[str] = []
+    seen: set[str] = set()
+    for alt in alternative_labels or []:
+        key = _norm_label(alt)
+        if not key or key in excluded or key in seen:
+            continue
+        seen.add(key)
+        out.append(alt)
+    return out
 
 
 def _extract_iri_hash(iri: str) -> str:
@@ -264,7 +303,12 @@ def lookup_concept_detail(folio, iri_hash: str) -> ConceptDetail | None:
         iri_hash=iri_hash,
         definition=owl_class.definition,
         preferred_label=pref_label_val,
-        synonyms=owl_class.alternative_labels or [],
+        synonyms=_true_synonyms(
+            owl_class.alternative_labels or [],
+            translations,
+            getattr(owl_class, "hidden_label", "") or "",
+            owl_class.label or "",
+        ),
         branch=branch_name,
         branch_color=get_branch_color(branch_name),
         hierarchy_path=hierarchy_paths[0] if hierarchy_paths else [],
