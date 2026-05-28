@@ -3060,9 +3060,11 @@
   .settings-header-actions .btn-save:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 
   .settings-section-label {
-    font-size: 11px; font-weight: 600; text-transform: uppercase;
-    letter-spacing: 0.5px; color: var(--text-dim); margin-bottom: 10px;
+    font-size: 13px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.6px; color: var(--accent); margin-bottom: 12px;
+    padding-bottom: 6px; border-bottom: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
   }
+  .settings-section-label:not(:first-of-type) { margin-top: 18px; }
 
   /* Theme swatches */
   .theme-swatches { display: flex; gap: 10px; margin-bottom: 16px; }
@@ -3723,7 +3725,7 @@
 <div class="modal-overlay" id="settingsModal">
   <div class="modal" style="max-width:560px">
     <div class="settings-header">
-      <h3>LLM Provider Settings</h3>
+      <h3>Settings</h3>
       <div class="settings-header-actions">
         <button class="btn-cancel" onclick="closeSettings()">Cancel</button>
         <button class="btn-save" onclick="saveSettings()">Save &amp; Close</button>
