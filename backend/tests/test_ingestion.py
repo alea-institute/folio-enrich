@@ -140,3 +140,73 @@ class TestExtractEndpoint:
             json={"content": "not-a-real-base64-pdf", "filename": "broken.pdf"},
         )
         assert r.status_code == 422
+
+    async def test_extract_html_strips_markup(self, client):
+        html = (
+            "<html><head><style>p{color:red}</style></head>"
+            "<body><h1>Lease</h1><p>Tenant shall pay rent.</p></body></html>"
+        )
+        r = await client.post(
+            "/enrich/extract", json={"content": html, "filename": "page.html"}
+        )
+        assert r.status_code == 200
+        text = r.json()["text"]
+        assert "Tenant shall pay rent." in text
+        assert "<" not in text and "color:red" not in text  # tags + CSS gone
+
+    async def test_extract_eml_parses_headers_and_body(self, client):
+        eml = (
+            "From: alice@example.com\nTo: bob@example.com\n"
+            "Subject: Settlement Offer\nDate: Mon, 1 Jan 2024 10:00:00 -0000\n\n"
+            "We propose to settle for $50,000.\n"
+        )
+        r = await client.post(
+            "/enrich/extract", json={"content": eml, "filename": "mail.eml"}
+        )
+        assert r.status_code == 200
+        text = r.json()["text"]
+        assert "Subject: Settlement Offer" in text
+        assert "We propose to settle for $50,000." in text
+
+    async def test_extract_rtf_strips_control_codes(self, client):
+        rtf = (
+            r"{\rtf1\ansi\deff0 {\fonttbl {\f0 Times;}}"
+            r"\f0\fs24 Arbitration shall occur in New York.\par}"
+        )
+        b64 = base64.b64encode(rtf.encode()).decode()
+        r = await client.post(
+            "/enrich/extract", json={"content": b64, "filename": "doc.rtf"}
+        )
+        assert r.status_code == 200
+        text = r.json()["text"]
+        assert "Arbitration shall occur in New York." in text
+        assert "\\rtf" not in text and "fonttbl" not in text
+
+    async def test_extract_docx_returns_paragraph_text(self, client):
+        import io
+
+        from docx import Document
+
+        d = Document()
+        d.add_paragraph("CONFIDENTIALITY AGREEMENT")
+        d.add_paragraph("The Receiving Party shall protect Confidential Information.")
+        buf = io.BytesIO()
+        d.save(buf)
+        b64 = base64.b64encode(buf.getvalue()).decode()
+        r = await client.post(
+            "/enrich/extract", json={"content": b64, "filename": "nda.docx"}
+        )
+        assert r.status_code == 200
+        text = r.json()["text"]
+        assert "CONFIDENTIALITY AGREEMENT" in text
+        assert "Confidential Information" in text
+
+    async def test_extract_markdown_strips_formatting(self, client):
+        md = "# Master Agreement\n\nAcme **Corp** agrees to *indemnify* Beta LLC."
+        r = await client.post(
+            "/enrich/extract", json={"content": md, "filename": "note.md"}
+        )
+        assert r.status_code == 200
+        text = r.json()["text"]
+        assert "Master Agreement" in text
+        assert "**" not in text and "#" not in text
