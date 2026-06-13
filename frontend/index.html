@@ -6142,7 +6142,22 @@ function updateAnnotationInView(data) {
   rerenderAnnotatedText();
 }
 
+// Streaming emits annotation/individual/property events in tight bursts. Each
+// one triggers a full innerHTML rebuild of the annotated text, so a burst can
+// rebuild ~8×/250ms — wasteful, flickery, and it shifts spans under the user's
+// pointer. Coalesce bursts into one rebuild per animation frame; the final,
+// authoritative render still comes from renderResults() on `complete`.
+let _rerenderScheduled = false;
 function rerenderAnnotatedText() {
+  if (_rerenderScheduled) return;
+  _rerenderScheduled = true;
+  requestAnimationFrame(() => {
+    _rerenderScheduled = false;
+    _rerenderAnnotatedTextNow();
+  });
+}
+
+function _rerenderAnnotatedTextNow() {
   if (!currentJobId) return;
   // Build annotation objects compatible with renderAnnotatedText
   const annotations = accumulatedAnnotations.map(a => ({
@@ -6695,21 +6710,33 @@ function renderAnnotatedText(text, annotations, individuals, properties) {
     }
   });
 
-  // Add click handlers for annotation spans
-  container.querySelectorAll('.annotation-span').forEach(el => {
-    el.addEventListener('click', (e) => { e.stopPropagation(); showTooltip(e, el); });
-  });
-  // Add click handlers for individual spans
-  container.querySelectorAll('.individual-span').forEach(el => {
-    el.addEventListener('click', (e) => { e.stopPropagation(); showIndividualTooltip(e, el); });
-  });
-  // Add click handlers for property spans
-  container.querySelectorAll('.property-span').forEach(el => {
-    el.addEventListener('click', (e) => { e.stopPropagation(); showPropertyTooltip(e, el); });
-  });
+  // Click handling is delegated to the container (attached once), not bound
+  // per-span. During streaming the container's innerHTML is rebuilt on every
+  // SSE event (~8×/250ms); per-span listeners die on each rebuild, and a click
+  // whose mousedown landed on a now-replaced span is otherwise lost — which is
+  // why clicking a freshly-streamed annotation "did nothing". A single listener
+  // on the stable container survives every rebuild and resolves the span under
+  // the pointer at click time.
+  _ensureSpanClickDelegation(container);
 
   // Apply clean/classic view mode and layer visibility
   _syncViewMode();
+}
+
+let _spanClickDelegated = false;
+function _ensureSpanClickDelegation(container) {
+  if (_spanClickDelegated) return;
+  _spanClickDelegated = true;
+  container.addEventListener('click', (e) => {
+    // Innermost wins (property → individual → annotation), mirroring the old
+    // per-span stopPropagation order for nested spans.
+    const propEl = e.target.closest('.property-span');
+    if (propEl && container.contains(propEl)) { e.stopPropagation(); showPropertyTooltip(e, propEl); return; }
+    const indEl = e.target.closest('.individual-span');
+    if (indEl && container.contains(indEl)) { e.stopPropagation(); showIndividualTooltip(e, indEl); return; }
+    const annEl = e.target.closest('.annotation-span');
+    if (annEl && container.contains(annEl)) { e.stopPropagation(); showTooltip(e, annEl); return; }
+  });
 }
 
 /** Count unique pipeline stages that created or confirmed this annotation (from lineage). */
