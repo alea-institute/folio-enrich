@@ -11,7 +11,7 @@ from sse_starlette.sse import EventSourceResponse
 from app.models.document import DocumentInput
 from app.models.job import Job, JobStatus
 from app.pipeline.orchestrator import PipelineOrchestrator, TaskLLMs
-from app.services.ingestion.registry import detect_format
+from app.services.ingestion.registry import detect_format, ingest
 from app.services.streaming.sse import job_event_stream
 from app.storage.job_store import JobStore
 
@@ -89,6 +89,29 @@ async def create_enrichment(req: EnrichRequest) -> dict:
     # Run pipeline in background
     asyncio.create_task(orchestrator.run(job))
     return {"job_id": str(job.id), "status": job.status.value}
+
+
+class ExtractRequest(BaseModel):
+    content: str
+    format: str | None = None
+    filename: str | None = None
+
+
+@router.post("/extract")
+async def extract_text(req: ExtractRequest) -> dict:
+    """Decode an uploaded document (e.g. base64 PDF/DOCX) into plain text.
+
+    Used by the frontend so the editor shows readable text instead of the
+    raw base64 blob after a binary file is uploaded.
+    """
+    fmt = req.format or detect_format(req.filename, req.content).value
+    doc = DocumentInput(content=req.content, format=fmt, filename=req.filename)
+    try:
+        text = ingest(doc)
+    except Exception as exc:  # noqa: BLE001 — surface a clean error to the UI
+        logger.warning("Text extraction failed for %s", req.filename, exc_info=True)
+        raise HTTPException(status_code=422, detail=f"Could not extract text: {exc}") from exc
+    return {"text": text, "format": fmt, "filename": req.filename}
 
 
 @router.get("/branches")

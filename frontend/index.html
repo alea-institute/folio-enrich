@@ -5719,14 +5719,36 @@ async function processFile(file) {
 
   const ta = document.getElementById('docInput');
   if (['pdf', 'docx', 'doc', 'rtf', 'msg'].includes(ext)) {
-    // Read as base64
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = reader.result.split(',')[1];
-      ta.value = base64;
-      ta.placeholder = `File loaded: ${file.name} (${(file.size/1024).toFixed(1)} KB)`;
-    };
-    reader.readAsDataURL(file);
+    // Binary formats: send base64 to the backend, which decodes + extracts the
+    // plain text (PyMuPDF etc.) and returns readable text for the editor — so
+    // the user sees the document, not the raw base64 blob.
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    const prevValue = ta.value;
+    ta.value = '';
+    ta.placeholder = `Extracting text from ${file.name}…`;
+    try {
+      const r = await fetch(`${API}/enrich/extract`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: base64, filename: file.name }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.detail || `Extraction failed (${r.status})`);
+      }
+      const data = await r.json();
+      ta.value = data.text || '';
+      ta.placeholder = `Extracted from ${file.name} (${(file.size/1024).toFixed(1)} KB) — edit before enriching if needed.`;
+      applyDebugTruncation();
+    } catch (e) {
+      ta.value = prevValue;
+      ta.placeholder = `Could not extract text from ${file.name}: ${e.message}`;
+    }
   } else {
     // Read as text
     const text = await file.text();
