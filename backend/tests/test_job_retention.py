@@ -81,6 +81,36 @@ class TestConcurrencyLimits:
         assert await store.count_active() == 0
 
     @pytest.mark.asyncio
+    async def test_fail_orphaned_jobs_reconciles_non_terminal(self, tmp_path: Path):
+        store = JobStore(base_dir=tmp_path / "jobs")
+
+        # In-progress jobs from a previous process (no asyncio task alive)
+        in_progress = []
+        for status in (JobStatus.MATCHING, JobStatus.RESOLVING, JobStatus.PENDING):
+            job = Job(input=DocumentInput(content="orphan"))
+            job.status = status
+            await store.save(job)
+            in_progress.append(job)
+
+        # A genuinely completed job must be left untouched
+        done = Job(input=DocumentInput(content="done"))
+        done.status = JobStatus.COMPLETED
+        await store.save(done)
+
+        reconciled = await store.fail_orphaned_jobs()
+        assert reconciled == 3
+
+        # All previously non-terminal jobs are now failed, so nothing blocks new work
+        assert await store.count_active() == 0
+        for job in in_progress:
+            reloaded = await store.load(job.id)
+            assert reloaded.status == JobStatus.FAILED
+            assert reloaded.error == "Job interrupted by server restart"
+
+        # The completed job is preserved as-is
+        assert (await store.load(done.id)).status == JobStatus.COMPLETED
+
+    @pytest.mark.asyncio
     async def test_count_active_marks_stale_jobs_as_failed(self, tmp_path: Path):
         store = JobStore(base_dir=tmp_path / "jobs")
 

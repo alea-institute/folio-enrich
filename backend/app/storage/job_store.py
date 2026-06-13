@@ -91,6 +91,35 @@ class JobStore:
                 continue
         return count
 
+    async def fail_orphaned_jobs(self) -> int:
+        """Mark every non-terminal job as failed. Called once at startup.
+
+        A job's pipeline runs in an in-process asyncio task that does not
+        survive a restart/redeploy. Any job still in a non-terminal state when
+        the process boots is therefore orphaned — it will never progress, yet
+        it keeps counting toward ``max_concurrent_jobs``. On platforms that
+        redeploy often (Railway), these pile up until new jobs are blocked with
+        "Too many concurrent jobs". Reconcile them to ``failed`` so the active
+        count reflects reality. Returns the number reconciled.
+        """
+        terminal = ("completed", "failed")
+        reconciled = 0
+        for path in self.base_dir.glob("*.json"):
+            try:
+                data = json.loads(path.read_text())
+                if data.get("status", "") in terminal:
+                    continue
+                data["status"] = "failed"
+                data["error"] = "Job interrupted by server restart"
+                data["updated_at"] = datetime.now(timezone.utc).isoformat()
+                path.write_text(json.dumps(data, indent=2))
+                reconciled += 1
+            except Exception:
+                continue
+        if reconciled:
+            logger.info("Reconciled %d orphaned job(s) to failed at startup", reconciled)
+        return reconciled
+
     async def cleanup_expired(self, retention_days: int | None = None) -> int:
         """Delete jobs older than retention period. Returns count of deleted jobs."""
         if retention_days is None:
