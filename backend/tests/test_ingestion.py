@@ -108,3 +108,35 @@ class TestPDFIngestorPypdf:
             from app.services.ingestion import pdf_ingestor
 
             assert pdf_ingestor._PDF_BACKEND == "pypdf"
+
+
+@pytest.mark.asyncio
+class TestExtractEndpoint:
+    """The /enrich/extract endpoint backs the upload UI: a base64 binary
+    document in, readable plain text out (never the raw base64 blob)."""
+
+    async def test_extract_pdf_returns_plain_text(self, client):
+        r = await client.post(
+            "/enrich/extract",
+            json={"content": _MINI_PDF_B64, "filename": "test.pdf"},
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert "Hello World" in body["text"]
+        assert body["format"] == "pdf"
+        assert not body["text"].startswith("JVBER")  # not the base64 blob
+
+    async def test_extract_passes_through_plain_text(self, client):
+        r = await client.post(
+            "/enrich/extract",
+            json={"content": "Plain contract text.", "filename": "memo.txt"},
+        )
+        assert r.status_code == 200
+        assert r.json()["text"] == "Plain contract text."
+
+    async def test_extract_invalid_pdf_returns_422(self, client):
+        r = await client.post(
+            "/enrich/extract",
+            json={"content": "not-a-real-base64-pdf", "filename": "broken.pdf"},
+        )
+        assert r.status_code == 422
