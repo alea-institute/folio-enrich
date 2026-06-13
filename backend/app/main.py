@@ -139,6 +139,16 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.warning("Demo job seeding failed (exports in demo mode may 404)", exc_info=True)
 
+    # Reconcile jobs orphaned by the previous process: their pipeline tasks
+    # died with that process but their files are still non-terminal, so they
+    # would keep counting toward max_concurrent_jobs ("Too many concurrent
+    # jobs"). Fail them so the active count starts clean after every restart.
+    try:
+        from app.storage.job_store import JobStore
+        await JobStore().fail_orphaned_jobs()
+    except Exception:
+        logger.warning("Orphaned-job reconciliation failed", exc_info=True)
+
     cleanup_task = asyncio.create_task(_periodic_job_cleanup())
     owl_update_task = asyncio.create_task(_periodic_owl_update_check())
     yield
