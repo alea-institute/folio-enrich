@@ -89,6 +89,10 @@ def _check_llm() -> dict:
 
     if provider in _LOCAL_PROVIDERS:
         has_key = True
+    elif settings.require_user_api_key:
+        # Bring-your-own-key mode: the server key (if any) is never used to serve
+        # requests, so report the LLM as unconfigured — users supply their own key.
+        has_key = False
     else:
         attr = _KEY_ATTRS.get(provider)
         has_key = bool(getattr(settings, attr, "")) if attr else False

@@ -41,6 +41,14 @@ class Settings(BaseSettings):
     xai_api_key: str = ""
     github_models_api_key: str = ""
 
+    # Bring-your-own-key enforcement. When True, the server-stored API keys are
+    # NEVER used to serve enrichment requests — every request must supply its own
+    # key. Set this on public deployments (e.g. PROD) so anonymous visitors can't
+    # spend the operator's key. Leave False for self-hosted/trusted instances
+    # where a shared server key is intended. See backend/app/api/routes/settings.py
+    # (_get_api_key_for_provider) for where the fallback is gated.
+    require_user_api_key: bool = False
+
     # Per-task LLM overrides (empty = use global llm_provider/llm_model)
     llm_classifier_provider: str = ""
     llm_classifier_model: str = ""

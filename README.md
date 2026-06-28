@@ -217,6 +217,7 @@ All settings use environment variables with the `FOLIO_ENRICH_` prefix. Managed 
 | `FOLIO_ENRICH_OPENAI_API_KEY` | — | OpenAI API key |
 | `FOLIO_ENRICH_ANTHROPIC_API_KEY` | — | Anthropic API key |
 | `FOLIO_ENRICH_GOOGLE_API_KEY` | — | Google Gemini API key |
+| `FOLIO_ENRICH_REQUIRE_USER_API_KEY` | `false` | Bring-your-own-key mode. When `true`, a server-stored API key is **never** used to serve enrichment requests — every visitor must supply their own key. Set this on public deployments so anonymous users can't spend the operator's key. |
 
 #### Per-Task LLM Overrides
 
