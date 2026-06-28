@@ -1,7 +1,7 @@
 ---
 title: Harden BYOK Mode — Stop Public Key Drain (consistency + client-side persistence)
 type: fix
-status: active
+status: completed
 date: 2026-06-28
 branch: claude/prod-api-key-prepopulation-itf21w
 pr: 2
