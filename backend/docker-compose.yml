@@ -9,6 +9,9 @@ services:
       - FOLIO_ENRICH_LLM_MODEL=gpt-4o-mini
       - FOLIO_ENRICH_OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - FOLIO_ENRICH_ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # Bring-your-own-key enforcement. Set to true on PUBLIC deployments so a
+      # server-stored key is never used to serve anonymous enrichment requests.
+      - FOLIO_ENRICH_REQUIRE_USER_API_KEY=${FOLIO_ENRICH_REQUIRE_USER_API_KEY:-false}
       - FOLIO_ENRICH_CORS_ORIGINS=["http://localhost:3000"]
     volumes:
       - folio-jobs:/home/appuser/.folio-enrich/jobs
