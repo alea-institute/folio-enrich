@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from app.api.routes.settings import _get_api_key_for_provider
 from app.config import settings
 from app.models.llm_models import LLMProviderType
-from app.services.llm.registry import get_provider
+from app.services.llm.registry import REQUIRES_API_KEY, get_provider
 from app.services.testing.synthetic_generator import DOC_TYPES, SyntheticGenerator
 
 router = APIRouter(prefix="/synthetic", tags=["synthetic"])
@@ -16,6 +16,9 @@ class SyntheticRequest(BaseModel):
     doc_type: str = "Motion to Dismiss"
     length: str = "medium"
     jurisdiction: str = "Federal"
+    # Request-supplied key. Required in bring-your-own-key mode, where the
+    # server never falls back to a stored key (mirrors the enrich endpoint).
+    api_key: str | None = None
 
 
 @router.post("")
@@ -35,17 +38,32 @@ async def generate_synthetic(req: SyntheticRequest) -> dict:
         if provider_name == "lm_studio":
             provider_name = "lmstudio"
         provider_type = LLMProviderType(provider_name)
-        api_key = _get_api_key_for_provider(provider_type)
+        api_key = _get_api_key_for_provider(provider_type, req.api_key)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid LLM provider: {e}")
+
+    # Graceful guard: in BYOK mode (or any unconfigured provider) there is no
+    # server key to fall back on, so refuse with an actionable 400 instead of a
+    # provider auth 500. Mirrors enrich.py / orchestrator._make_llm.
+    if REQUIRES_API_KEY.get(provider_type, True) and not api_key:
+        raise HTTPException(
+            status_code=400,
+            detail="An API key is required. Add your API key to generate documents.",
+        )
+
+    try:
         llm = get_provider(
             provider_type,
             api_key=api_key,
             model=model or None,
         )
+        generator = SyntheticGenerator(llm)
+        text = await generator.generate(req.doc_type, req.length, req.jurisdiction)
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"LLM provider unavailable: {e}")
+        raise HTTPException(status_code=502, detail=f"Synthetic generation failed: {e}")
 
-    generator = SyntheticGenerator(llm)
-    text = await generator.generate(req.doc_type, req.length, req.jurisdiction)
     return {"document": text, "doc_type": req.doc_type, "length": req.length}
 
 

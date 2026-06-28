@@ -38,14 +38,26 @@ _API_KEY_ATTRS: dict[LLMProviderType, str] = {
     LLMProviderType.github_models: "github_models_api_key",
 }
 
+# Settings attribute names for every API key (single source of truth, derived
+# from the provider→attr map above). Used when persisting keys via PUT /settings.
+_API_KEY_FIELDS: tuple[str, ...] = tuple(_API_KEY_ATTRS.values())
+
 
 def _get_api_key_for_provider(
     provider_type: LLMProviderType,
     explicit_key: str | None = None,
 ) -> str | None:
-    """Resolve the API key: explicit > stored in settings > None."""
+    """Resolve the API key: explicit > stored in settings > None.
+
+    When ``settings.require_user_api_key`` is enabled, the stored server key is
+    NOT used as a fallback — only an explicit (request-supplied) key is honored.
+    This keeps anonymous visitors on public deployments from spending the
+    operator's key.
+    """
     if explicit_key:
         return explicit_key
+    if settings.require_user_api_key:
+        return None
     attr = _API_KEY_ATTRS.get(provider_type)
     if attr:
         return getattr(settings, attr, None) or None
@@ -96,18 +108,25 @@ _TASK_LLM_FIELDS = (
 
 @router.get("")
 async def get_settings() -> dict:
+    # In bring-your-own-key mode the stored server keys are never used to serve
+    # requests, so report them as unset — the UI then prompts for a user key
+    # instead of showing "key saved".
+    def _key_set(value: str) -> bool:
+        return bool(value) and not settings.require_user_api_key
+
     result = {
         "llm_provider": settings.llm_provider,
         "llm_model": settings.llm_model,
-        "openai_api_key_set": bool(settings.openai_api_key),
-        "anthropic_api_key_set": bool(settings.anthropic_api_key),
-        "google_api_key_set": bool(settings.google_api_key),
-        "mistral_api_key_set": bool(settings.mistral_api_key),
-        "cohere_api_key_set": bool(settings.cohere_api_key),
-        "meta_llama_api_key_set": bool(settings.meta_llama_api_key),
-        "groq_api_key_set": bool(settings.groq_api_key),
-        "xai_api_key_set": bool(settings.xai_api_key),
-        "github_models_api_key_set": bool(settings.github_models_api_key),
+        "require_user_api_key": settings.require_user_api_key,
+        "openai_api_key_set": _key_set(settings.openai_api_key),
+        "anthropic_api_key_set": _key_set(settings.anthropic_api_key),
+        "google_api_key_set": _key_set(settings.google_api_key),
+        "mistral_api_key_set": _key_set(settings.mistral_api_key),
+        "cohere_api_key_set": _key_set(settings.cohere_api_key),
+        "meta_llama_api_key_set": _key_set(settings.meta_llama_api_key),
+        "groq_api_key_set": _key_set(settings.groq_api_key),
+        "xai_api_key_set": _key_set(settings.xai_api_key),
+        "github_models_api_key_set": _key_set(settings.github_models_api_key),
         "max_chunk_chars": settings.max_chunk_chars,
         "chunk_overlap_chars": settings.chunk_overlap_chars,
         "max_upload_size": settings.max_upload_size,
@@ -139,21 +158,16 @@ async def update_settings(update: SettingsUpdate) -> dict:
         settings.llm_provider = update.llm_provider
     if update.llm_model is not None:
         settings.llm_model = update.llm_model
-    # Update any provided API keys
-    for fld in (
-        "openai_api_key",
-        "anthropic_api_key",
-        "google_api_key",
-        "mistral_api_key",
-        "cohere_api_key",
-        "meta_llama_api_key",
-        "groq_api_key",
-        "xai_api_key",
-        "github_models_api_key",
-    ):
-        val = getattr(update, fld, None)
-        if val is not None:
-            setattr(settings, fld, val)
+    # Update any provided API keys — but NEVER persist a server-side key in
+    # bring-your-own-key mode. On a public deployment the singleton settings are
+    # shared across all visitors, so storing one user's key there is exactly the
+    # leak BYOK exists to prevent. In BYOK mode keys are sent per-request only
+    # (and persisted client-side in the browser); the server never holds one.
+    if not settings.require_user_api_key:
+        for fld in _API_KEY_FIELDS:
+            val = getattr(update, fld, None)
+            if val is not None:
+                setattr(settings, fld, val)
     # Update per-task LLM overrides
     for task in _TASK_LLM_FIELDS:
         for suffix in ("provider", "model"):
