@@ -3449,11 +3449,11 @@
     <div class="llm-banner" id="llmBanner" style="display:none">
       <div class="llm-banner-title">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="var(--accent)" stroke-width="1.5"/><line x1="8" y1="5" x2="8" y2="9" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="11.5" r="0.75" fill="var(--accent)"/></svg>
-        No AI provider configured
+        <span id="llmBannerTitleText">No AI provider configured</span>
       </div>
-      <div>FOLIO's symbolic AI (pattern matching, ontology lookup, dependency parsing) works great without a cloud key. For deeper concept extraction, you can add one.</div>
+      <div id="llmBannerBody">FOLIO's symbolic AI (pattern matching, ontology lookup, dependency parsing) works great without a cloud key. For deeper concept extraction, you can add one.</div>
       <div class="llm-banner-actions">
-        <button class="btn-configure" onclick="llmBannerConfigure()">Configure AI Provider</button>
+        <button class="btn-configure" id="llmBannerConfigureBtn" onclick="llmBannerConfigure()">Configure AI Provider</button>
         <button class="btn-symbolic" onclick="llmBannerSymbolic()">Continue without AI &#8594;</button>
       </div>
     </div>
@@ -3949,6 +3949,29 @@ let debugMode = localStorage.getItem('debugMode') === 'true';
 let showThinking = localStorage.getItem('showThinking') === 'true';
 let _llmBannerDismissed = false; // per-session flag (not persisted)
 let _llmBannerSymbolicOnce = false; // true if user chose "continue without AI" for next enrichment
+// Bring-your-own-key mode (FOLIO_ENRICH_REQUIRE_USER_API_KEY). When true, the
+// server never stores or serves a key — each visitor supplies their own. We
+// persist the user's key in THIS browser's localStorage (never sent to /settings)
+// and pass it per-request instead.
+let _requireUserKey = false;
+
+function _localKeyName(provider) { return 'folio_enrich_api_key_' + (provider || ''); }
+function loadLocalKey(provider) {
+  try { return localStorage.getItem(_localKeyName(provider)) || ''; } catch { return ''; }
+}
+function saveLocalKey(provider, key) {
+  try {
+    if (key) localStorage.setItem(_localKeyName(provider), key);
+    else localStorage.removeItem(_localKeyName(provider));
+  } catch {}
+}
+// Restore the inline key for the active provider from this browser's storage.
+function restoreLocalKeyForProvider() {
+  if (!_requireUserKey) return;
+  const provider = document.getElementById('providerSelect').value;
+  const k = loadLocalKey(provider);
+  if (k) document.getElementById('apiKeyInput').value = k;
+}
 
 // Demo mode state
 let isDemoMode = false;          // a pre-baked demo result is currently displayed
@@ -4127,7 +4150,26 @@ function isLlmConfigured() {
 
 function showLlmBanner() {
   const banner = document.getElementById('llmBanner');
-  if (banner) banner.style.display = '';
+  if (!banner) return;
+  // BYOK deployments require the visitor's own key — make the call to action
+  // explicit rather than the generic "no provider configured" message.
+  const titleEl = document.getElementById('llmBannerTitleText');
+  const bodyEl = document.getElementById('llmBannerBody');
+  const btnEl = document.getElementById('llmBannerConfigureBtn');
+  if (_requireUserKey) {
+    if (titleEl) titleEl.textContent = 'Add your API key';
+    if (bodyEl) bodyEl.textContent =
+      'This site uses your own LLM key — add it to enable AI extraction. It stays in your browser and is never stored on the server. FOLIO’s symbolic AI still works without a key.';
+    if (btnEl) btnEl.textContent = 'Add your API key';
+  } else {
+    if (titleEl) titleEl.textContent = 'No AI provider configured';
+    if (bodyEl) bodyEl.textContent =
+      'FOLIO’s symbolic AI (pattern matching, ontology lookup, dependency parsing) works great without a cloud key. For deeper concept extraction, you can add one.';
+    if (btnEl) btnEl.textContent = 'Configure AI Provider';
+  }
+  banner.setAttribute('role', 'status');
+  banner.setAttribute('aria-live', 'polite');
+  banner.style.display = '';
 }
 
 function hideLlmBanner() {
@@ -4905,6 +4947,7 @@ async function loadSettings() {
     const r = await fetch(`${API}/settings`);
     if (!r.ok) return;
     const data = await r.json();
+    _requireUserKey = !!data.require_user_api_key;
     if (data.llm_provider) {
       document.getElementById('providerSelect').value = data.llm_provider;
       onProviderChange();
@@ -4912,6 +4955,8 @@ async function loadSettings() {
         document.getElementById('modelSelect').value = data.llm_model;
       }
     }
+    // BYOK: re-hydrate the inline key from this browser (the server holds none).
+    restoreLocalKeyForProvider();
     updateLLMSummary();
   } catch (e) {
     console.error('Failed to load settings:', e);
@@ -4978,6 +5023,21 @@ function populateSettingsCards() {
     </div>`;
   }
   container.innerHTML = html;
+
+  // BYOK: re-hydrate each key field from this browser's storage so the user
+  // sees their key is remembered (the server never holds one to report).
+  if (_requireUserKey) {
+    for (const [name] of cloudProviders) {
+      const input = document.getElementById(`settingsKey_${name}`);
+      const stored = loadLocalKey(name);
+      if (input) {
+        if (stored) input.value = stored;
+        input.placeholder = stored
+          ? 'Saved in this browser — enter new to replace'
+          : 'Your API key (stays in this browser)';
+      }
+    }
+  }
 
   // Populate model selects and costs
   for (const [name] of cloudProviders) {
@@ -5102,13 +5162,19 @@ async function saveSettings() {
     if (tierMedium) body.ollama_model_medium = tierMedium.value;
     if (tierComplex) body.ollama_model_complex = tierComplex.value;
 
-    // Collect API keys from all provider cards
+    // Collect API keys from all provider cards. In BYOK mode keys are persisted
+    // in this browser only (never sent to the server); otherwise they're saved
+    // to the shared server settings as before.
     const cloudProviders = Object.entries(providersData).filter(([_, m]) => m.requires_api_key !== false);
     for (const [name] of cloudProviders) {
       const input = document.getElementById(`settingsKey_${name}`);
       if (input && input.value) {
-        const keyField = _providerKeyField(name);
-        if (keyField) body[keyField] = input.value;
+        if (_requireUserKey) {
+          saveLocalKey(name, input.value);
+        } else {
+          const keyField = _providerKeyField(name);
+          if (keyField) body[keyField] = input.value;
+        }
       }
     }
 
@@ -5850,11 +5916,17 @@ async function submitEnrichment() {
   renderProgressStages('pending');
 
   try {
-    // Save provider/model/key to backend settings first
+    // Save provider/model to backend settings first. The key is handled
+    // differently per mode: in BYOK it stays in THIS browser (localStorage) and
+    // is only sent per-request below — never persisted server-side.
     const settingsBody = { llm_provider: provider, llm_model: model };
     if (apiKey) {
-      const keyField = _providerKeyField(provider);
-      if (keyField) settingsBody[keyField] = apiKey;
+      if (_requireUserKey) {
+        saveLocalKey(provider, apiKey);
+      } else {
+        const keyField = _providerKeyField(provider);
+        if (keyField) settingsBody[keyField] = apiKey;
+      }
     }
     await fetch(`${API}/settings`, {
       method: 'PUT',

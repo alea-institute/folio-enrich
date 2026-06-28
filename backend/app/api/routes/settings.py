@@ -38,6 +38,10 @@ _API_KEY_ATTRS: dict[LLMProviderType, str] = {
     LLMProviderType.github_models: "github_models_api_key",
 }
 
+# Settings attribute names for every API key (single source of truth, derived
+# from the provider→attr map above). Used when persisting keys via PUT /settings.
+_API_KEY_FIELDS: tuple[str, ...] = tuple(_API_KEY_ATTRS.values())
+
 
 def _get_api_key_for_provider(
     provider_type: LLMProviderType,
@@ -154,21 +158,16 @@ async def update_settings(update: SettingsUpdate) -> dict:
         settings.llm_provider = update.llm_provider
     if update.llm_model is not None:
         settings.llm_model = update.llm_model
-    # Update any provided API keys
-    for fld in (
-        "openai_api_key",
-        "anthropic_api_key",
-        "google_api_key",
-        "mistral_api_key",
-        "cohere_api_key",
-        "meta_llama_api_key",
-        "groq_api_key",
-        "xai_api_key",
-        "github_models_api_key",
-    ):
-        val = getattr(update, fld, None)
-        if val is not None:
-            setattr(settings, fld, val)
+    # Update any provided API keys — but NEVER persist a server-side key in
+    # bring-your-own-key mode. On a public deployment the singleton settings are
+    # shared across all visitors, so storing one user's key there is exactly the
+    # leak BYOK exists to prevent. In BYOK mode keys are sent per-request only
+    # (and persisted client-side in the browser); the server never holds one.
+    if not settings.require_user_api_key:
+        for fld in _API_KEY_FIELDS:
+            val = getattr(update, fld, None)
+            if val is not None:
+                setattr(settings, fld, val)
     # Update per-task LLM overrides
     for task in _TASK_LLM_FIELDS:
         for suffix in ("provider", "model"):
