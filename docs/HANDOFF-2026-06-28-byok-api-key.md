@@ -99,11 +99,41 @@ handoff.) To update Python deps if ever needed:
 
 DEV (Railway) is identical in behavior — set the same env var there if you want DEV protected too.
 
+## Hardening folded into PR #2 (2026-06-28, second pass)
+
+A follow-up code review (`docs/plans/2026-06-28-001-fix-byok-harden-public-key-drain-plan.md`)
+found three gaps in the first pass and they were fixed **on this same branch / PR**:
+
+1. **Key storage is now blocked server-side in BYOK mode.** `PUT /settings` previously still
+   wrote a visitor's key into the shared `settings` singleton (the frontend `PUT`s it on every
+   enrich). BYOK ignored it for *serving*, but the secret still landed in shared memory.
+   `update_settings` now skips all `*_api_key` writes when `require_user_api_key` is on
+   (non-key fields still update). **"The server never holds a servable key" is now literally
+   true.**
+2. **Key persistence moved server-global → per-browser `localStorage`.** The frontend no longer
+   `PUT`s the key in BYOK mode; it stores the key in the visitor's own browser
+   (`folio_enrich_api_key_<provider>`) and sends it per-request only. The owner keeps
+   cross-session convenience on their own machine; nothing shared is stored.
+3. **`/synthetic` parity.** `SyntheticRequest` now accepts `api_key`, resolves it via the same
+   choke point, and returns a clean **400** ("Add your API key...") instead of an unhandled 500
+   when no key is available in BYOK mode.
+4. **Explicit UX.** The setup banner now reads **"Add your API key"** (title + button + body
+   explaining the key stays in the browser) when BYOK is on, instead of the generic
+   "No AI provider configured".
+
+Tests: 4 new cases in `backend/tests/test_require_user_api_key.py` (no-op key persistence in
+BYOK, key persistence when off, synthetic 400, synthetic honors explicit key). Full backend
+suite: **720 passed**, 38 heavy-dep tests deselected, 0 failures. No new dependencies.
+
+**Rollout decision (resolved):** enable BYOK on **PROD and DEV**, and **keep** the Gemini env
+key (used only for the owner's own server-side Test Connection; the public can't spend it, and
+client-side `localStorage` now covers the owner's cross-session convenience).
+
 ## Decisions still open
-- **Keep vs. remove the PROD `FOLIO_ENRICH_GOOGLE_API_KEY`** (see step 3).
-- **Apply the flag to DEV (Railway) as well?** User said DEV and PROD "should be identical".
 - **Default posture:** kept the flag default-`false` so self-hosters aren't broken. If a future
   build wants public-safe-by-default, flip the default and let trusted instances opt out.
+- **Bare-metal PROD restart mechanism** (systemd? supervisor?) — still needs confirming before
+  the operator sets the env var and restarts.
 
 ## Notes / caveats
 - No per-user auth exists, so BYOK mode means **nobody** (including the owner) gets the server

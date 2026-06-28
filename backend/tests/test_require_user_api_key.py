@@ -82,3 +82,63 @@ async def test_providers_endpoint_hides_key_when_required(client, google_key_con
     resp = await client.get("/settings/providers")
     data = resp.json()
     assert data["providers"]["google"]["api_key_set"] is False
+
+
+async def test_put_settings_does_not_persist_key_when_required(client, google_key_configured):
+    """Flag on: PUT /settings never writes a server-side key (defense in depth).
+
+    On a public deployment the settings singleton is shared across visitors, so
+    storing one user's key there is the very leak BYOK prevents. Non-key fields
+    must still update.
+    """
+    settings.require_user_api_key = True
+    settings.google_api_key = "original-server-key"
+    resp = await client.put(
+        "/settings",
+        json={"google_api_key": "attacker-supplied-key", "llm_provider": "anthropic"},
+    )
+    assert resp.status_code == 200
+    assert settings.google_api_key == "original-server-key"  # unchanged
+    assert settings.llm_provider == "anthropic"  # non-key field still updates
+
+
+async def test_put_settings_persists_key_when_not_required(client, google_key_configured):
+    """Default (flag off): PUT /settings persists the key as before (regression)."""
+    settings.require_user_api_key = False
+    resp = await client.put("/settings", json={"google_api_key": "new-stored-key"})
+    assert resp.status_code == 200
+    assert settings.google_api_key == "new-stored-key"
+
+
+async def test_synthetic_requires_key_when_required(client, google_key_configured):
+    """Flag on, no key: /synthetic returns an actionable 400, not a 500."""
+    settings.require_user_api_key = True
+    resp = await client.post("/synthetic", json={"doc_type": "Motion to Dismiss"})
+    assert resp.status_code == 400
+    assert "API key" in resp.json()["detail"]
+
+
+async def test_synthetic_honors_explicit_key_when_required(
+    client, google_key_configured, monkeypatch
+):
+    """Flag on: an explicit (request) key is honored and reaches the provider."""
+    settings.require_user_api_key = True
+    captured: dict = {}
+
+    def fake_get_provider(provider_type, api_key=None, model=None):
+        captured["api_key"] = api_key
+        return object()
+
+    async def fake_generate(self, doc_type="", length="", jurisdiction=""):
+        return "SYNTHETIC DOC"
+
+    monkeypatch.setattr("app.api.routes.synthetic.get_provider", fake_get_provider)
+    monkeypatch.setattr(
+        "app.api.routes.synthetic.SyntheticGenerator.generate", fake_generate
+    )
+    resp = await client.post(
+        "/synthetic", json={"doc_type": "Motion to Dismiss", "api_key": "user-key"}
+    )
+    assert resp.status_code == 200
+    assert captured["api_key"] == "user-key"
+    assert resp.json()["document"] == "SYNTHETIC DOC"
