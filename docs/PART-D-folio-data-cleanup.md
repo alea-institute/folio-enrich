@@ -94,12 +94,11 @@ Current markup:
 
 This is an editorial duplicate (note the `DUPE of` label and that it carries the same
 "Agreement" alt-label). **Action — pick one:**
-- **Preferred:** delete the entire `<owl:Class …RCiAtR0akBA7apMyfjy515B …> … </owl:Class>`
+- **Preferred:** Deprecate the entire `<owl:Class …RCiAtR0akBA7apMyfjy515B …> … </owl:Class>`
   element. Then grep the file for `RCiAtR0akBA7apMyfjy515B` and remove/redirect any
   dangling references to it (e.g. `rdfs:subClassOf`, `owl:someValuesFrom`) so the OWL
   stays valid.
-- **If deletion is risky:** keep it but mark it deprecated and strip the bad label —
-  remove the `<skos:altLabel>Agreement</skos:altLabel>` line and add
+- **AltLabel Removal:** Remove the `<skos:altLabel>Agreement</skos:altLabel>` line and add
   `<owl:deprecated rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</owl:deprecated>`.
 
 ---
@@ -109,12 +108,11 @@ This is an editorial duplicate (note the `DUPE of` label and that it carries the
 1. **Targeted checks (no full-file load):**
    - `RKKRGOkIme6pnG2BSePt1Z` class no longer contains `<skos:altLabel>Agreement</skos:altLabel>`.
    - `R88D8i8AcSTUig2X3yPbFHg` class now contains `<skos:altLabel>Agreement</skos:altLabel>`.
-   - `RCiAtR0akBA7apMyfjy515B` is gone (or deprecated + no "Agreement" label), and no
+   - `RCiAtR0akBA7apMyfjy515B` is deprecated + no "Agreement" label, and no
      dangling references remain.
 2. **XML well-formedness:** `python -c "import lxml.etree as e; e.parse('FOLIO.owl')"`
    (or `xmllint --noout FOLIO.owl`) — must parse cleanly.
-3. **Regenerate** if `FOLIO.owl` is generated (run the repo's build), then re-verify.
-4. **Release/commit** per the repo's normal process so consumers pick up the new version.
+3. **Release/commit** per the repo's normal process so consumers pick up the new version.
 
 ## After release — refresh folio-enrich
 

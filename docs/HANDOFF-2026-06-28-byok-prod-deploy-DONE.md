@@ -1,8 +1,17 @@
-# 🔴 PENDING PROD DEPLOY — Enable BYOK to stop public key drain (2026-06-28)
+# ✅ DONE — BYOK enabled on PROD; public key drain closed (deployed 2026-06-29)
 
-**Status: code merged, DEV done, PROD NOT done — blocked on SSH access (Mike on vacation).**
-When SSH to PROD is available again, this is a **one-command** fix. Read the TL;DR, run the
-command, done.
+**Status: COMPLETE.** SSH was unblocked on 2026-06-29 (Mike whitelisted the home IP), the deploy
+script ran, and `verify-byok.sh` returned **PASS**. Live PROD: `require_user_api_key=true`,
+`google_api_key_set=false`, `health.llm=no_api_key`, `/synthetic` no-key → **400** (was 200),
+`/synthetic` + user key → 502 (passes the guard, reaches Google). `.env` backed up at
+`backend/.env.bak-2026-06-29-150606`; the Gemini key was **kept** (it now only powers the
+owner's in-app "Test Connection" — the public can no longer spend it).
+
+**Rollback (if ever needed):** restore the backup and restart —
+`cd /home/ubuntu/folio-enrich && cp backend/.env.bak-2026-06-29-150606 backend/.env && sudo -n systemctl restart folio-enrich`.
+
+The rest of this doc is the historical runbook. `scripts/deploy-byok-prod.sh` is idempotent and
+safe to re-run (e.g., after a server rebuild).
 
 ---
 
