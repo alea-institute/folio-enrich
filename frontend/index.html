@@ -4807,15 +4807,30 @@ async function checkHealth() {
       // Ollama-specific chip — delegate to dedicated updater
       await updateOllamaChip();
     } else {
-      const modelShort = (l.model || '').split('/').pop();
-      if (l.status === 'configured') {
+      // BYOK: the server holds no key by design, so /health always reports
+      // no_api_key. The real key lives in THIS browser (localStorage, sent
+      // per-request) and health can't see it — so drive the chip from the
+      // local key instead, otherwise it would wrongly read "Not Configured"
+      // even after the user adds a working key (Test → Connected).
+      const activeProvider = document.getElementById('providerSelect').value;
+      const localKey = (document.getElementById('apiKeyInput').value || loadLocalKey(activeProvider));
+      const localModel = (document.getElementById('modelSelect') || {}).value || '';
+      if (_requireUserKey && localKey) {
+        const m = (localModel || l.model || '').split('/').pop();
+        setChip('chipLLM', 'green',
+          m || 'Configured',
+          `LLM: ${activeProvider}${localModel ? ' / ' + localModel : ''} — using your key (stored in this browser, sent per-request)`);
+      } else if (l.status === 'configured') {
+        const modelShort = (l.model || '').split('/').pop();
         setChip('chipLLM', 'green',
           modelShort,
           `LLM: ${l.provider} / ${l.model} — API key configured`);
       } else if (l.status === 'no_api_key') {
         setChip('chipLLM', 'orange',
           'Not Configured',
-          `LLM: ${l.provider} / ${l.model} — No API key set. EntityRuler-only mode. Click to configure.`);
+          _requireUserKey
+            ? `LLM: ${activeProvider} — add your API key to enable AI extraction (stays in your browser).`
+            : `LLM: ${l.provider} / ${l.model} — No API key set. EntityRuler-only mode. Click to configure.`);
       } else {
         setChip('chipLLM', 'red', 'Error', l.message || 'LLM error');
       }
