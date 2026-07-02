@@ -54,8 +54,10 @@ def build_branch_detail(
     """Build enriched branch descriptions using actual concept definitions and examples.
 
     Falls back to BRANCH_EXAMPLES if the ontology service is unavailable or the
-    ontology exposes no FOLIO-style branches (e.g. Canon), which is a graceful
-    quality fallback (Canon then uses the compact BRANCH_LIST).
+    ontology exposes no FOLIO-style branches. NOTE: BRANCH_LIST / BRANCH_EXAMPLES
+    are FOLIO's legal taxonomy, so a non-FOLIO ontology (e.g. Canon) currently
+    inherits FOLIO branch scaffolding here — a known limitation. Deriving each
+    ontology's own branches is deferred (see CANON_SPEC.excluded_branches).
     """
     try:
         from app.services.folio.folio_service import FolioService

@@ -37,7 +37,7 @@ class ReconciliationStage(PipelineStage):
         # must not reconcile against FOLIO vectors — fall back to non-embedding
         # reconciliation (graceful degradation).
         emb = self.reconciler._embedding_service
-        if emb is not None and emb.matches_ontology(job.ontology):
+        if emb is not None and emb.matches_ontology(job.ontology) and emb.index_size > 0:
             results = self.reconciler.reconcile_with_embedding_triage(ruler_concepts, llm_concepts)
         else:
             results = self.reconciler.reconcile(ruler_concepts, llm_concepts)
