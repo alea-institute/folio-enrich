@@ -5,7 +5,7 @@ import logging
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sse_starlette.sse import EventSourceResponse
 
 from app.models.document import DocumentInput
@@ -26,10 +26,26 @@ class EnrichRequest(BaseModel):
     content: str
     format: str | None = None
     filename: str | None = None
+    # Which ontology to enrich against (default FOLIO). Validated against the
+    # enabled set so an unknown/disabled id is rejected deterministically rather
+    # than falling through to a registry miss deep in the pipeline.
+    ontology: str = "folio"
     # Optional per-request LLM configuration
     llm_provider: str | None = None
     llm_model: str | None = None
     api_key: str | None = None
+
+    @field_validator("ontology")
+    @classmethod
+    def _validate_ontology(cls, v: str) -> str:
+        from app.config import settings
+        if not v:
+            return settings.default_ontology
+        if v not in settings.enabled_ontologies:
+            raise ValueError(
+                f"Unknown or disabled ontology '{v}'. Enabled: {settings.enabled_ontologies}"
+            )
+        return v
 
 
 def _get_llm_for_request(req: EnrichRequest):
@@ -77,7 +93,7 @@ async def create_enrichment(req: EnrichRequest) -> dict:
         )
 
     fmt = req.format or detect_format(req.filename, req.content).value
-    doc = DocumentInput(content=req.content, format=fmt, filename=req.filename)
+    doc = DocumentInput(content=req.content, format=fmt, filename=req.filename, ontology=req.ontology)
     job = Job(input=doc)
     await _job_store.save(job)
 

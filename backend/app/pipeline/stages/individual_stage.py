@@ -119,7 +119,7 @@ class EarlyIndividualStage(PipelineStage):
 
         # Resolve missing IRIs on class links via FOLIO ontology lookup
         try:
-            folio_svc = FolioService.get_instance()
+            folio_svc = FolioService.get_instance(job.ontology)
             _resolve_class_link_iris(job.result.individuals, folio_svc)
         except Exception:
             logger.warning("Class link IRI resolution failed", exc_info=True)
@@ -197,7 +197,7 @@ class LLMIndividualStage(PipelineStage):
 
         # Resolve missing IRIs on class links via FOLIO ontology lookup
         try:
-            folio_svc = FolioService.get_instance()
+            folio_svc = FolioService.get_instance(job.ontology)
             _resolve_class_link_iris(job.result.individuals, folio_svc)
         except Exception:
             logger.warning("Class link IRI resolution failed", exc_info=True)

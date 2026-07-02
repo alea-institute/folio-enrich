@@ -19,6 +19,10 @@ class DocumentInput(BaseModel):
     content: str
     format: DocumentFormat = DocumentFormat.PLAIN_TEXT
     filename: str | None = None
+    # Which ontology to enrich against. Single source of truth read by every
+    # pipeline stage via job.input.ontology. Defaults to "folio" so existing
+    # persisted jobs/demos deserialize unchanged.
+    ontology: str = "folio"
 
 
 class TextElement(BaseModel):
