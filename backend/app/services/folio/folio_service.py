@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,7 +11,7 @@ from app.services.folio.branch_config import (
 )
 from app.services.folio.match_tier import is_higher_priority, lemma_type_for
 from app.services.ontology.records import ConceptRecord
-from app.services.ontology.spec import FOLIO_SPEC, OntologySpec
+from app.services.ontology.spec import FOLIO_SPEC, OntologyCoords, OntologySpec
 
 logger = logging.getLogger(__name__)
 
@@ -144,16 +145,52 @@ class FolioService:
 
         coords = self._spec.coords
         if coords.source_type == "http":
-            # folio-python's direct http fetch is un-sized/un-timed/un-guarded.
-            # The plan mandates a hardened, size-capped, checksum-verified ingestion
-            # path (Phase 2 Security) as the sole loader for third-party OWL. Refuse
-            # the raw path until that lands, so flipping enabled_ontologies alone
-            # cannot trigger an unguarded fetch.
-            raise NotImplementedError(
-                f"Ontology '{self._spec.id}' uses source_type='http', which requires "
-                "the hardened OWL ingestion path (Phase 2). Not yet available."
-            )
+            return self._load_http_via_hardened_ingestion(coords)
         return FOLIO(github_repo_branch=coords.repo_branch)
+
+    def _load_http_via_hardened_ingestion(self, coords: OntologyCoords):
+        """Load an http-source ontology WITHOUT folio-python ever fetching.
+
+        The app is the sole ingestion point: download + size-cap + DOCTYPE-reject +
+        hardened-parse + checksum-verify, write the validated bytes into the exact
+        local cache file folio-python reads, then construct with use_cache=True so
+        load_owl reads the cache and never hits the network (its direct http fetch
+        is un-sized/un-timed/un-guarded and must not run in prod).
+        """
+        from folio import FOLIO
+
+        from app.services.ontology.ingestion import OWLIngestionError, fetch_and_validate_owl
+
+        # Integrity is mandatory for third-party http sources: without a pinned
+        # checksum a force-push/compromise of the remote file would be accepted.
+        if not coords.owl_sha256:
+            raise OWLIngestionError(
+                f"http-source ontology '{self._spec.id}' must pin coords.owl_sha256"
+            )
+
+        data, _sha = fetch_and_validate_owl(coords.owl_url, expected_sha256=coords.owl_sha256)
+
+        # Mirror folio-python's cache scheme exactly: ~/.folio/cache/http/
+        # {blake2b(url)}.owl. folio reads this file as utf-8 text; OWL is utf-8, so
+        # writing the validated raw bytes round-trips.
+        cache_hash = hashlib.blake2b(coords.owl_url.encode()).hexdigest()
+        cache_file = Path.home() / ".folio" / "cache" / "http" / f"{cache_hash}.owl"
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        tmp = cache_file.with_name(cache_file.name + ".tmp")
+        tmp.write_bytes(data)
+        tmp.replace(cache_file)  # atomic
+
+        # FAIL CLOSED: only construct FOLIO if it will read our pre-seeded cache.
+        # folio-python's load_owl falls back to an UN-hardened http fetch on a cache
+        # miss; if its cache-path scheme ever diverges from ours (version change),
+        # refuse rather than let that unguarded fetch run.
+        seeded = FOLIO.load_cache(source_type="http", http_url=coords.owl_url)
+        if not seeded:
+            raise OWLIngestionError(
+                f"Pre-seeded cache not read back by folio-python for '{self._spec.id}' "
+                "(cache-path scheme mismatch); refusing to fall back to an unguarded fetch"
+            )
+        return FOLIO(source_type="http", http_url=coords.owl_url, use_cache=True)
 
     def _get_folio(self):
         if self._folio is None:
