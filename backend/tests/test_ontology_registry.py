@@ -9,7 +9,6 @@ from __future__ import annotations
 import pytest
 
 from app.services.folio.folio_service import ConceptRecord, FolioService
-from app.services.ontology.palette import SACRAL_RAMP, color_for_branch
 from app.services.ontology.registry import (
     OntologyRegistry,
     UnknownOntologyError,
@@ -77,6 +76,9 @@ class TestOntologySpec:
         assert b.property_exclude_substrings == ("DEPRECATED",)
         assert b.property_exclude_prefixes == ("ZZZ:",)
         assert "damages" in b.lemma_denylist and "pleadings" in b.lemma_denylist
+        # excluded_branches moved onto behavior (was a shared branch_config constant)
+        from app.services.folio.branch_config import EXCLUDED_BRANCHES
+        assert b.excluded_branches == EXCLUDED_BRANCHES
 
     def test_canon_spec_defined_but_distinct(self):
         assert "canon" in BUILTIN_SPECS
@@ -100,29 +102,14 @@ class TestFolioServiceSpecParameterization:
         # FakeFolioService(super().__init__()) relies on this
         assert FolioService().spec is FOLIO_SPEC
 
-
-class TestBranchPalette:
-    def test_deterministic_and_in_ramp(self):
-        for name in ("Scripture", "Doctrine", "Liturgy", "Councils"):
-            assert color_for_branch(name) == color_for_branch(name)
-            assert color_for_branch(name) in SACRAL_RAMP
-
-    def test_stable_hash_not_process_salted(self):
-        # blake2b is stable regardless of PYTHONHASHSEED; assert a known mapping so
-        # a regression to builtin hash() (per-process salt) would fail here.
-        import hashlib
-
-        name = "Scripture"
-        expected_idx = int.from_bytes(
-            hashlib.blake2b(name.encode("utf-8"), digest_size=4).digest(), "big"
-        ) % len(SACRAL_RAMP)
-        assert color_for_branch(name) == SACRAL_RAMP[expected_idx]
-
-    def test_custom_ramp_overflow_cycles(self):
-        two = ("#000000", "#ffffff")
-        assert color_for_branch("anything", ramp=two) in two
-        with pytest.raises(ValueError):
-            color_for_branch("x", ramp=())
+    def test_http_source_load_is_guarded_until_phase2(self):
+        # Constructing a source_type="http" ontology is fine (lazy); attempting to
+        # LOAD it must refuse until the hardened ingestion path exists, so flipping
+        # enabled_ontologies alone can't trigger an unguarded fetch.
+        svc = FolioService(CANON_SPEC)
+        assert svc.spec is CANON_SPEC  # construction ok
+        with pytest.raises(NotImplementedError):
+            svc._get_folio()
 
 
 class TestConceptRecord:

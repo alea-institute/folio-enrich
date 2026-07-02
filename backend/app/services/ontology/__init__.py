@@ -7,6 +7,7 @@ ontology (the Catholic Semantic Canon) is added as another registry entry.
 See docs/plans/2026-07-01-002-feat-multi-ontology-catholic-canon-plan.md.
 """
 
+from app.services.ontology.records import ConceptRecord
 from app.services.ontology.registry import OntologyRegistry, get_registry
 from app.services.ontology.spec import (
     BUILTIN_SPECS,
@@ -21,6 +22,7 @@ __all__ = [
     "BUILTIN_SPECS",
     "CANON_SPEC",
     "FOLIO_SPEC",
+    "ConceptRecord",
     "OntologyBehavior",
     "OntologyCoords",
     "OntologyRegistry",
