@@ -140,13 +140,32 @@ class ConceptResolver:
             ))
         return resolved_list[:max_candidates]
 
+    def _cached_multi_search(self, folio_raw, concept_text, branch, top_n, get_branch_fn):
+        """multi_strategy_search with a cross-request result cache on the FolioService
+        singleton. Same query + ontology → identical results, so this only removes
+        redundant search work (no precision/recall change). Returns a shallow copy so
+        callers that sort the list in place can't corrupt the cache."""
+        from app.services.folio.search import multi_strategy_search
+
+        cache = getattr(self.folio, "_search_cache", None)
+        key = (concept_text.lower(), (branch or "").lower(), top_n)
+        if cache is not None and key in cache:
+            return list(cache[key])
+        results = multi_strategy_search(
+            folio_raw, concept_text, branch=branch or None, top_n=top_n,
+            get_branch_fn=get_branch_fn,
+        )
+        if cache is not None:
+            if len(cache) >= 20000:  # simple unbounded-growth guard
+                cache.clear()
+            cache[key] = results
+        return list(results)
+
     def _multi_strategy_resolve_all(
         self, concept_text: str, branch: str, top_n: int = 5
     ) -> list[tuple[FOLIOConcept, float]]:
         """Return all scored results from multi-strategy search."""
         try:
-            from app.services.folio.search import multi_strategy_search
-
             folio_raw = self.folio._get_folio()
 
             def _get_branch(folio_inst, iri_hash: str) -> str:
@@ -155,9 +174,8 @@ class ConceptResolver:
                     return self.folio._get_branch(owl_class.iri, [])
                 return ""
 
-            results = multi_strategy_search(
-                folio_raw, concept_text, branch=branch or None, top_n=top_n,
-                get_branch_fn=_get_branch,
+            results = self._cached_multi_search(
+                folio_raw, concept_text, branch, top_n, _get_branch
             )
             if not results:
                 return []
@@ -194,8 +212,6 @@ class ConceptResolver:
     ) -> tuple[FOLIOConcept | None, float]:
         """Use multi-strategy search to find the best matching concept."""
         try:
-            from app.services.folio.search import multi_strategy_search
-
             folio_raw = self.folio._get_folio()
 
             def _get_branch(folio_inst, iri_hash: str) -> str:
@@ -205,9 +221,8 @@ class ConceptResolver:
                     return self.folio._get_branch(owl_class.iri, [])
                 return ""
 
-            results = multi_strategy_search(
-                folio_raw, concept_text, branch=branch or None, top_n=5,
-                get_branch_fn=_get_branch,
+            results = self._cached_multi_search(
+                folio_raw, concept_text, branch, 5, _get_branch
             )
             if not results:
                 return None, 0.0
