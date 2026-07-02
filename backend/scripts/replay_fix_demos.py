@@ -132,10 +132,12 @@ async def replay_one(slug: str, folio, emb, dry_run: bool) -> bool:
 
     if changed and not dry_run:
         from scripts.generate_demos import build_cache_payload
+        from scripts.slim_demos import slim_demo_cache
         raw["cache"] = build_cache_payload(job, raw["cache"].get("docInput", ""))
         # Preserve original demo wrapper (name/title/description); note the replay.
         raw.setdefault("demo", {})["replayed_at"] = __import__("datetime").datetime.now(
             __import__("datetime").timezone.utc).isoformat()
+        slim_demo_cache(raw)
         path.write_text(json.dumps(raw, separators=(",", ":"), default=str))
     return changed
 

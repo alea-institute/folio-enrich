@@ -263,7 +263,11 @@ async def generate_demo(slug: str, doc_info: dict, tmp_dir: Path, llm, task_llms
         "cache": cache,
     }
 
-    # Write to frontend/demos/ (compact — these are machine-served, not hand-edited)
+    # Write to frontend/demos/ (compact — these are machine-served, not hand-edited).
+    # Slim inline data the frontend re-hydrates by IRI so demos are born small.
+    from scripts.slim_demos import slim_demo_cache
+
+    slim_demo_cache(demo_json)
     out_path = DEMOS_DIR / f"{slug}.json"
     out_path.write_text(json.dumps(demo_json, separators=(",", ":"), default=str))
 
