@@ -12,6 +12,7 @@ import json
 import logging
 import sys
 import tempfile
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -31,6 +32,19 @@ logger = logging.getLogger(__name__)
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 DEMOS_DIR = BACKEND_ROOT.parent / "frontend" / "demos"
+
+# Stable namespace for deterministic demo job ids: uuid5(DEMO_NS, "<ontology>:<slug>").
+# This keeps a demo's job id constant across re-bakes (so seeding/protected-id logic and
+# any client-cached ids stay valid). FOLIO demos are not re-baked here, so their existing
+# (random) ids are unaffected — only ontologies baked via this path get deterministic ids.
+DEMO_NS = uuid.uuid5(uuid.NAMESPACE_URL, "folio-enrich/demos")
+
+
+def _demo_path(ontology: str, slug: str) -> Path:
+    """Where a demo JSON lives. FOLIO stays flat; others go in a per-ontology subdir."""
+    if ontology == "folio":
+        return DEMOS_DIR / f"{slug}.json"
+    return DEMOS_DIR / ontology / f"{slug}.json"
 
 # Paths whose changes should trigger demo regeneration.
 _TRACKED_SOURCE_DIRS = [
@@ -67,6 +81,18 @@ def _compute_samples_hash() -> str | None:
         texts = extract_exemplar_texts()
         blob = json.dumps(texts, sort_keys=True, ensure_ascii=False).encode("utf-8")
         return hashlib.sha256(blob).hexdigest()[:16]
+    except Exception:
+        return None
+
+
+def _compute_canon_samples_hash() -> str | None:
+    """Stable hash of canon_samples.js content (None if the file is unavailable)."""
+    try:
+        import hashlib
+
+        from scripts.canon_exemplars import CANON_SAMPLES_JS
+
+        return hashlib.sha256(CANON_SAMPLES_JS.read_bytes()).hexdigest()[:16]
     except Exception:
         return None
 
@@ -153,24 +179,47 @@ def get_staleness_info() -> tuple[bool, str]:
     return False, "All demos are up-to-date"
 
 
-async def init_services() -> None:
-    """Initialize FOLIO ontology and embedding index (mirrors app lifespan)."""
-    from app.services.folio.owl_cache import ensure_owl_fresh
+async def init_services(ontology: str = "folio") -> None:
+    """Initialize the target ontology and its embedding index (mirrors app lifespan).
+
+    For FOLIO this is byte-identical to the original path (``ensure_owl_fresh`` + the
+    FOLIO embedding index). For any other ontology we skip ``ensure_owl_fresh`` (it is
+    FOLIO-only) and instead build the service via ``FolioService.get_instance(ontology)``
+    — which triggers that ontology's validated OWL load — then rebuild the embedding index
+    *against that service* and tag it with ``ontology_id=ontology`` so the semantic stages'
+    ``matches_ontology`` check passes during the bake.
+    """
     from app.services.folio.folio_service import FolioService
     from app.services.embedding.service import EmbeddingService
 
     loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, ensure_owl_fresh)
 
-    folio_service = FolioService.get_instance()
+    if ontology == "folio":
+        from app.services.folio.owl_cache import ensure_owl_fresh
+        await loop.run_in_executor(None, ensure_owl_fresh)
+
+    svc = FolioService.get_instance(ontology)
     embedding_service = EmbeddingService.get_instance()
-    await loop.run_in_executor(None, embedding_service.index_folio_labels, folio_service)
-    logger.info("Services initialized — %d embedding vectors", embedding_service.index_size)
+    # Embedding index is optional: if the local provider (sentence-transformers) is
+    # unavailable, degrade gracefully like the app lifespan / DEV path — the semantic
+    # stages skip embeddings and rule/string/LLM matching still produce rich demos.
+    try:
+        await loop.run_in_executor(
+            None, lambda: embedding_service.index_folio_labels(svc, ontology_id=ontology)
+        )
+    except Exception as e:
+        logger.warning("Embedding index build failed (non-fatal, semantic stages will degrade): %s", e)
+    logger.info(
+        "Services initialized for '%s' — %d embedding vectors",
+        ontology, embedding_service.index_size,
+    )
 
-    # Build FAISS index (optional — skip if it fails)
+    # Build FAISS index (optional — skip if it fails), tagged for this ontology.
     try:
         from app.services.embedding.service import build_embedding_index
-        await loop.run_in_executor(None, build_embedding_index, folio_service)
+        await loop.run_in_executor(
+            None, lambda: build_embedding_index(svc, ontology_id=ontology)
+        )
     except Exception as e:
         logger.warning("FAISS index build failed (non-fatal): %s", e)
 
@@ -224,14 +273,20 @@ def build_cache_payload(job: Job, doc_text: str) -> dict:
     }
 
 
-async def generate_demo(slug: str, doc_info: dict, tmp_dir: Path, llm, task_llms: TaskLLMs) -> None:
+async def generate_demo(
+    slug: str, doc_info: dict, tmp_dir: Path, llm, task_llms: TaskLLMs,
+    ontology: str = "folio",
+) -> None:
     """Run one document through the pipeline and save demo JSON."""
     logger.info("Generating demo: %s (%s)", slug, doc_info["title"])
 
-    # Create job
+    # Create job. Deterministic id keeps the demo's job id stable across re-bakes.
     job = Job(
-        input=DocumentInput(content=doc_info["text"], format=DocumentFormat.PLAIN_TEXT),
+        input=DocumentInput(
+            content=doc_info["text"], format=DocumentFormat.PLAIN_TEXT, ontology=ontology,
+        ),
     )
+    job.id = uuid.uuid5(DEMO_NS, f"{ontology}:{slug}")
 
     # Use temp job store
     job_store = JobStore(base_dir=tmp_dir)
@@ -268,7 +323,8 @@ async def generate_demo(slug: str, doc_info: dict, tmp_dir: Path, llm, task_llms
     from scripts.slim_demos import slim_demo_cache
 
     slim_demo_cache(demo_json)
-    out_path = DEMOS_DIR / f"{slug}.json"
+    out_path = _demo_path(ontology, slug)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(demo_json, separators=(",", ":"), default=str))
 
     ann_count = len(job.result.annotations)
@@ -290,9 +346,48 @@ def _arg_value(flag: str) -> str | None:
     return None
 
 
+def _write_sidecars(ontology: str) -> None:
+    """Write the freshness sidecars for an ontology into its demo dir.
+
+    FOLIO keeps the flat ``frontend/demos`` dir and its OWL/exemplar hashes. Non-FOLIO
+    ontologies use their per-ontology subdir; ``.owl-version`` uses the pinned spec
+    ``owl_sha256`` (the FOLIO-only ``get_owl_content_hash()`` does not apply), and
+    ``.samples-version`` hashes that ontology's samples module.
+    """
+    if ontology == "folio":
+        sidecar_dir = DEMOS_DIR
+    else:
+        sidecar_dir = DEMOS_DIR / ontology
+    sidecar_dir.mkdir(parents=True, exist_ok=True)
+
+    if ontology == "folio":
+        try:
+            from app.services.folio.owl_cache import get_owl_content_hash
+            (sidecar_dir / ".owl-version").write_text(get_owl_content_hash())
+        except Exception:
+            logger.warning("Could not write .owl-version sidecar", exc_info=True)
+        samples_hash = _compute_samples_hash()
+    else:
+        try:
+            from app.services.ontology.spec import BUILTIN_SPECS
+            owl_sha = BUILTIN_SPECS[ontology].coords.owl_sha256
+            if owl_sha:
+                (sidecar_dir / ".owl-version").write_text(owl_sha)
+        except Exception:
+            logger.warning("Could not write .owl-version sidecar for %s", ontology, exc_info=True)
+        samples_hash = _compute_canon_samples_hash() if ontology == "canon" else None
+
+    if samples_hash:
+        (sidecar_dir / ".samples-version").write_text(samples_hash)
+    pipeline_hash = _compute_pipeline_hash()
+    if pipeline_hash:
+        (sidecar_dir / ".pipeline-version").write_text(pipeline_hash)
+
+
 async def main() -> None:
     from scripts.demo_documents import load_demo_documents
 
+    ontology = _arg_value("--ontology") or "folio"
     DEMOS_DIR.mkdir(parents=True, exist_ok=True)
 
     # --- Resolve LLM config (default: app provider = google / Gemini 3 Flash) ---
@@ -312,34 +407,24 @@ async def main() -> None:
 
     # --- Resolve which exemplars to generate ---
     only = _arg_value("--only")
-    docs = load_demo_documents()
+    docs = load_demo_documents(ontology)
     if only:
         if only not in docs:
             raise SystemExit(f"--only '{only}' is not a known exemplar slug. Choices: {', '.join(docs)}")
         docs = {only: docs[only]}
 
-    logger.info("Initializing FOLIO services...")
-    await init_services()
+    logger.info("Initializing services for ontology '%s'...", ontology)
+    await init_services(ontology)
 
     with tempfile.TemporaryDirectory(prefix="folio_demo_") as tmp_dir:
         tmp_path = Path(tmp_dir)
         for slug, doc_info in docs.items():
-            await generate_demo(slug, doc_info, tmp_path, llm, task_llms)
+            await generate_demo(slug, doc_info, tmp_path, llm, task_llms, ontology=ontology)
 
     # Record the input versions these demos were generated against (freshness check).
-    try:
-        from app.services.folio.owl_cache import get_owl_content_hash
-        (DEMOS_DIR / ".owl-version").write_text(get_owl_content_hash())
-    except Exception:
-        logger.warning("Could not write .owl-version sidecar", exc_info=True)
-    samples_hash = _compute_samples_hash()
-    if samples_hash:
-        (DEMOS_DIR / ".samples-version").write_text(samples_hash)
-    pipeline_hash = _compute_pipeline_hash()
-    if pipeline_hash:
-        (DEMOS_DIR / ".pipeline-version").write_text(pipeline_hash)
+    _write_sidecars(ontology)
 
-    logger.info("Done — %d demo file(s) written to %s", len(docs), DEMOS_DIR)
+    logger.info("Done — %d demo file(s) written for '%s'", len(docs), ontology)
 
 
 if __name__ == "__main__":

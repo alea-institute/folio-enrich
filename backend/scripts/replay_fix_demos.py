@@ -34,7 +34,12 @@ logger = logging.getLogger("replay")
 logger.setLevel(logging.INFO)
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
-DEMOS_DIR = BACKEND_ROOT.parent / "frontend" / "demos"
+DEMOS_ROOT = BACKEND_ROOT.parent / "frontend" / "demos"
+
+
+def _demos_dir(ontology: str) -> Path:
+    """FOLIO reads/writes the flat demos dir; other ontologies use a subdir."""
+    return DEMOS_ROOT if ontology == "folio" else DEMOS_ROOT / ontology
 
 
 def _arg(flag: str) -> str | None:
@@ -44,21 +49,33 @@ def _arg(flag: str) -> str | None:
     return None
 
 
-async def _init_services():
-    from app.services.folio.owl_cache import ensure_owl_fresh, get_owl_content_hash
+async def _init_services(ontology: str = "folio"):
     from app.services.folio.folio_service import FolioService
     from app.services.embedding.service import EmbeddingService
 
     loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, ensure_owl_fresh)
-    folio = FolioService.get_instance()
+
+    if ontology == "folio":
+        from app.services.folio.owl_cache import ensure_owl_fresh, get_owl_content_hash
+        await loop.run_in_executor(None, ensure_owl_fresh)
+        owl_hash = get_owl_content_hash()
+    else:
+        # Non-FOLIO: skip ensure_owl_fresh (FOLIO-only). Match the bake, which indexed
+        # with owl_hash="" and ontology_id=<ontology>.
+        owl_hash = ""
+
+    folio = FolioService.get_instance(ontology)
     folio.get_all_labels()
     folio.get_all_labels_multi()
-    owl_hash = get_owl_content_hash()
     emb = EmbeddingService.get_instance()
     # Loads the cached label embeddings (frozen to the original bake's OWL hash).
-    await loop.run_in_executor(None, emb.index_folio_labels, folio, owl_hash)
-    logger.info("Services ready — %d embedding vectors (owl %s)", emb.index_size, owl_hash)
+    await loop.run_in_executor(
+        None, lambda: emb.index_folio_labels(folio, owl_hash, ontology_id=ontology)
+    )
+    logger.info(
+        "Services ready for '%s' — %d embedding vectors (owl %s)",
+        ontology, emb.index_size, owl_hash or "n/a",
+    )
     return folio, emb
 
 
@@ -81,7 +98,7 @@ def _concept_summary(job) -> dict:
     }
 
 
-async def replay_one(slug: str, folio, emb, dry_run: bool) -> bool:
+async def replay_one(slug: str, folio, emb, dry_run: bool, ontology: str = "folio") -> bool:
     """Recompute one demo's deterministic concepts. Returns True if it changed."""
     from app.models.job import Job
     from app.pipeline.stages.entity_ruler_stage import EntityRulerStage
@@ -91,7 +108,7 @@ async def replay_one(slug: str, folio, emb, dry_run: bool) -> bool:
     from app.pipeline.stages.dependency_stage import TripleEnrichmentStage
     from app.pipeline.stages.individual_stage import _resolve_class_link_iris
 
-    path = DEMOS_DIR / f"{slug}.json"
+    path = _demos_dir(ontology) / f"{slug}.json"
     raw = json.loads(path.read_text())
     job = Job.model_validate(raw["cache"]["job"])
     before = _concept_summary(job)
@@ -145,16 +162,23 @@ async def replay_one(slug: str, folio, emb, dry_run: bool) -> bool:
 async def main() -> None:
     dry_run = "--dry-run" in sys.argv
     only = _arg("--only")
-    folio, emb = await _init_services()
+    ontology = _arg("--ontology") or "folio"
+    folio, emb = await _init_services(ontology)
 
-    from scripts.demo_documents import DEMO_DOCUMENTS
-    slugs = [only] if only else list(DEMO_DOCUMENTS.keys())
+    if ontology == "folio":
+        from scripts.demo_documents import DEMO_DOCUMENTS
+        all_slugs = list(DEMO_DOCUMENTS.keys())
+    else:
+        from scripts.demo_documents import load_demo_documents
+        all_slugs = list(load_demo_documents(ontology).keys())
+    slugs = [only] if only else all_slugs
 
-    logger.info("Replaying %d demo(s)%s\n", len(slugs), " [DRY RUN]" if dry_run else "")
+    logger.info("Replaying %d demo(s) for '%s'%s\n", len(slugs), ontology,
+                " [DRY RUN]" if dry_run else "")
     changed_slugs = []
     for slug in slugs:
         try:
-            if await replay_one(slug, folio, emb, dry_run):
+            if await replay_one(slug, folio, emb, dry_run, ontology=ontology):
                 changed_slugs.append(slug)
         except Exception:
             logger.exception("  [%s] FAILED", slug)
@@ -166,7 +190,7 @@ async def main() -> None:
         from scripts.generate_demos import _compute_pipeline_hash
         ph = _compute_pipeline_hash()
         if ph:
-            (DEMOS_DIR / ".pipeline-version").write_text(ph)
+            (_demos_dir(ontology) / ".pipeline-version").write_text(ph)
             logger.info("Updated .pipeline-version -> %s", ph)
 
 
