@@ -131,6 +131,9 @@ class ResolutionStage(PipelineStage):
         except Exception:
             return
 
+        # Build (sentence, definition) pairs first, then embed them in ONE batch
+        # instead of two encodes per concept — same similarities, one forward pass.
+        pending: list[tuple[dict, str, str]] = []
         for rd in resolved_concepts:
             definition = rd.get("folio_definition") or ""
             if not definition:
@@ -150,12 +153,20 @@ class ResolutionStage(PipelineStage):
             else:
                 sentence = concept_text
 
-            try:
-                sim = self._embedding_service.similarity(sentence, definition)
-                sim = max(0.0, min(1.0, sim))  # clamp
-            except Exception:
-                continue
+            pending.append((rd, sentence, definition))
 
+        if not pending:
+            return
+
+        try:
+            sims = self._embedding_service.similarity_batch(
+                [(sentence, definition) for _, sentence, definition in pending]
+            )
+        except Exception:
+            return
+
+        for (rd, _sentence, _definition), sim in zip(pending, sims):
+            sim = max(0.0, min(1.0, sim))  # clamp
             search_score = rd.get("confidence", 0.5)
             blended = round(search_score * 0.6 + sim * 0.4, 4)
             rd["confidence"] = blended

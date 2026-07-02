@@ -10,6 +10,8 @@ class TestApplyEmbeddingContextScores:
         mock_emb = MagicMock()
         mock_emb.index_size = index_size
         mock_emb.similarity.return_value = similarity_value
+        # Embedding-context scoring is now batched via similarity_batch().
+        mock_emb.similarity_batch.side_effect = lambda pairs: [similarity_value] * len(pairs)
         return ResolutionStage(embedding_service=mock_emb), mock_emb
 
     def test_blends_60_40(self):
@@ -53,11 +55,11 @@ class TestApplyEmbeddingContextScores:
         concepts = [{"concept_text": "test", "folio_definition": "", "confidence": 0.80}]
         stage._apply_embedding_context_scores(concepts, "Some text about test.")
         assert concepts[0]["confidence"] == 0.80
-        mock_emb.similarity.assert_not_called()
+        mock_emb.similarity_batch.assert_not_called()
 
     def test_handles_similarity_exception(self):
         stage, mock_emb = self._make_stage()
-        mock_emb.similarity.side_effect = Exception("embedding error")
+        mock_emb.similarity_batch.side_effect = Exception("embedding error")
         concepts = [{"concept_text": "test", "folio_definition": "def", "confidence": 0.80}]
         stage._apply_embedding_context_scores(concepts, "Some text about test.")
         # Confidence unchanged on exception
@@ -72,10 +74,10 @@ class TestApplyEmbeddingContextScores:
         }]
         # Concept text not in the document
         stage._apply_embedding_context_scores(concepts, "This document is about something else entirely.")
-        # similarity called with concept_text as sentence fallback
-        mock_emb.similarity.assert_called_once()
-        call_args = mock_emb.similarity.call_args[0]
-        assert call_args[0] == "habeas corpus"  # fell back to concept_text
+        # similarity_batch called with the concept_text as the sentence fallback
+        mock_emb.similarity_batch.assert_called_once()
+        pairs = mock_emb.similarity_batch.call_args[0][0]
+        assert pairs[0][0] == "habeas corpus"  # fell back to concept_text
 
     def test_clamps_similarity_above_1(self):
         stage, mock_emb = self._make_stage(similarity_value=1.5)

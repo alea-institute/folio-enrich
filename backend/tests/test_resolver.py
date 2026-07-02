@@ -116,3 +116,56 @@ class TestConceptResolver:
         # Falls back to search_by_label("court") which finds Court
         assert result is not None
         assert result.folio_concept.preferred_label == "Court"
+
+
+class TestMultiSearchCache:
+    """The cross-request multi_strategy_search cache must return identical results
+    and avoid re-running the search for a repeated (text, branch, top_n)."""
+
+    class _MiniFolio(FolioService):
+        def __init__(self):
+            super().__init__()
+
+        def _get_folio(self):
+            return object()  # dummy graph; multi_strategy_search is monkeypatched
+
+        def _get_branch(self, iri, parents):
+            return "Objectives"
+
+    def test_repeat_query_is_cache_hit_with_identical_results(self, monkeypatch):
+        calls = {"n": 0}
+
+        def fake_search(folio_raw, concept_text, branch=None, top_n=5, get_branch_fn=None):
+            calls["n"] += 1
+            return [{
+                "iri": "https://folio.openlegalstandard.org/R1",
+                "label": "Foo", "synonyms": [], "definition": "d",
+                "branch": "Objectives", "score": 90,
+            }]
+
+        monkeypatch.setattr("app.services.folio.search.multi_strategy_search", fake_search)
+        r = ConceptResolver(self._MiniFolio())
+
+        a = r._multi_strategy_resolve_all("foo bar", "", 5)
+        b = r._multi_strategy_resolve_all("foo bar", "", 5)
+
+        assert calls["n"] == 1  # second call served from cache
+        assert [(c.iri, round(s, 4)) for c, s in a] == [(c.iri, round(s, 4)) for c, s in b]
+
+    def test_cache_returns_copy_safe_against_inplace_sort(self, monkeypatch):
+        """_multi_strategy_resolve_all sorts results in place when a branch hint is
+        given; the cache must hand out copies so it isn't corrupted."""
+        def fake_search(folio_raw, concept_text, branch=None, top_n=5, get_branch_fn=None):
+            return [
+                {"iri": "iri/A", "label": "A", "synonyms": [], "definition": "",
+                 "branch": "Other", "score": 95},
+                {"iri": "iri/B", "label": "B", "synonyms": [], "definition": "",
+                 "branch": "Objectives", "score": 80},
+            ]
+
+        monkeypatch.setattr("app.services.folio.search.multi_strategy_search", fake_search)
+        r = ConceptResolver(self._MiniFolio())
+        # branch hint triggers in-place sort of the returned list
+        first = r._multi_strategy_resolve_all("q", "Objectives", 5)
+        second = r._multi_strategy_resolve_all("q", "Objectives", 5)
+        assert [c.iri for c, _ in first] == [c.iri for c, _ in second]

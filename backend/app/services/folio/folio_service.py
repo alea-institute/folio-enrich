@@ -105,6 +105,13 @@ class FolioService:
         self._property_labels_cache: dict[str, PropertyLabelInfo] | None = None
         self._branch_map: dict[str, str] | None = None
         self._lemma_map: dict[str, str] | None = None
+        # Cross-request cache of multi-strategy search results, keyed by
+        # (concept_text.lower(), branch.lower(), top_n). Results depend only on
+        # the query and the loaded ontology, so caching is exact (no precision/
+        # recall change) — it just avoids re-running the same label/embedding
+        # search for the legal terms that recur across documents. Bounded; cleared
+        # on ontology reload.
+        self._search_cache: dict[tuple[str, str, int], list] = {}
 
     @classmethod
     def get_instance(cls) -> FolioService:
@@ -140,6 +147,7 @@ class FolioService:
         self._labels_multi_cache = None
         self._property_labels_cache = None
         self._lemma_map = None
+        self._search_cache = {}  # stale after an ontology swap
         self.get_all_labels()
         self.get_all_labels_multi()
         self.get_all_property_labels()
