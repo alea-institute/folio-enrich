@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import logging
+from datetime import datetime, timezone
 
 from app.models.annotation import Annotation, ConceptMatch, Span
 from app.models.job import Job, JobStatus
@@ -37,9 +39,13 @@ def _match_confidence(match: EntityRulerMatch) -> float:
 
 
 class EntityRulerStage(PipelineStage):
-    def __init__(self, ruler: FOLIOEntityRuler | None = None, embedding_service=None) -> None:
+    def __init__(self, ruler: FOLIOEntityRuler | None = None, embedding_service=None, job_store=None) -> None:
         self.ruler = ruler or FOLIOEntityRuler()
         self._embedding_service = embedding_service
+        # Optional: lets this stage flush the fast deterministic annotations
+        # mid-execute so the UI renders them immediately, before the slower
+        # semantic (embedding) pass runs. When None, no early flush happens.
+        self._job_store = job_store
         self._patterns_loaded = False
         self._iri_to_branch: dict[str, str] = {}
         self._iri_to_concept: dict[str, object] = {}  # IRI → FOLIOConcept
@@ -142,41 +148,57 @@ class EntityRulerStage(PipelineStage):
                 "folio_iri": match.entity_id,
             }
 
-        # Semantic EntityRuler: find near-matches missed by exact matching
-        semantic_matches = []
-        if self._embedding_service is not None and self._embedding_service.index_size > 0:
-            known_spans = {(m.start_char, m.end_char) for m in matches}
-            semantic_ruler = SemanticEntityRuler(self._embedding_service)
-            semantic_matches = semantic_ruler.find_semantic_matches(full_text, known_spans)
-            for sm in semantic_matches:
-                sm_fc = self._iri_to_concept.get(sm.iri)
-                sm_label = sm_fc.preferred_label if sm_fc else sm.matched_label
-                ruler_concepts.append(
-                    ConceptMatch(
-                        concept_text=sm.text,
-                        folio_iri=sm.iri,
-                        folio_label=sm_label,
-                        confidence=sm.similarity,
-                        source="semantic_ruler",
-                    ).model_dump()
-                )
-            if semantic_matches:
-                logger.info(
-                    "SemanticEntityRuler found %d additional matches for job %s",
-                    len(semantic_matches), job.id,
-                )
-
+        # --- Commit the FAST deterministic (Aho-Corasick) annotations first, then
+        # flush, so the UI renders them immediately — before the slower semantic
+        # (embedding) pass below. Progressive rendering stays snappy even with
+        # embeddings enabled. ---
         job.result.metadata["ruler_concepts"] = ruler_concepts
         job.result.metadata["ruler_match_types"] = match_types
 
-        # Create preliminary annotations from matches for progressive rendering
-        preliminary_annotations = self._build_preliminary_annotations(
+        deterministic_annotations = self._build_preliminary_annotations(
             matches, full_text, sentence_index
         )
-        # Add semantic match annotations (reuse results from above)
+        job.result.annotations = self._dedupe_annotations(deterministic_annotations)
+
+        # Early flush: persist deterministic tags now so the SSE stream emits them
+        # without waiting for the embedding pass.
+        if self._job_store is not None:
+            job.updated_at = datetime.now(timezone.utc)
+            try:
+                await self._job_store.save(job)
+            except Exception as e:
+                logger.warning("EntityRuler early flush failed for job %s: %s", job.id, e)
+
+        # --- Semantic EntityRuler: near-matches missed by exact matching. This
+        # embeds many n-grams + FAISS-searches — CPU-bound, so run it OFF the
+        # event loop (asyncio.to_thread) so it doesn't block the SSE poller or the
+        # rest of the parallel phase. A failure here must NOT drop the
+        # deterministic annotations already committed above. ---
+        semantic_matches = []
+        if self._embedding_service is not None and self._embedding_service.index_size > 0:
+            known_spans = {(m.start_char, m.end_char) for m in matches}
+            try:
+                semantic_ruler = SemanticEntityRuler(self._embedding_service)
+                semantic_matches = await asyncio.to_thread(
+                    semantic_ruler.find_semantic_matches, full_text, known_spans
+                )
+            except Exception as e:
+                logger.warning("SemanticEntityRuler skipped for job %s: %s", job.id, e)
+                semantic_matches = []
+
+        semantic_annotations: list[Annotation] = []
         for sm in semantic_matches:
             sm_fc = self._iri_to_concept.get(sm.iri)
             sm_label = sm_fc.preferred_label if sm_fc else sm.matched_label
+            ruler_concepts.append(
+                ConceptMatch(
+                    concept_text=sm.text,
+                    folio_iri=sm.iri,
+                    folio_label=sm_label,
+                    confidence=sm.similarity,
+                    source="semantic_ruler",
+                ).model_dump()
+            )
             ann = Annotation(
                 span=Span(
                     start=sm.start, end=sm.end, text=sm.text,
@@ -196,12 +218,39 @@ class EntityRulerStage(PipelineStage):
                 detail=f"Semantic match to '{sm.matched_label}' (similarity={sm.similarity:.2f})",
                 confidence=sm.similarity,
             )
-            preliminary_annotations.append(ann)
+            semantic_annotations.append(ann)
 
-        # Resolve overlapping spans: allow containment, resolve partial overlaps
-        preliminary_annotations.sort(key=lambda a: (a.span.start, -(a.span.end - a.span.start)))
+        if semantic_matches:
+            logger.info(
+                "SemanticEntityRuler found %d additional matches for job %s",
+                len(semantic_matches), job.id,
+            )
+            # Keep ruler_concepts metadata in sync (now includes semantic matches)
+            # and merge the semantic annotations with the committed deterministic
+            # set, re-deduping overlaps.
+            job.result.metadata["ruler_concepts"] = ruler_concepts
+            job.result.annotations = self._dedupe_annotations(
+                list(job.result.annotations) + semantic_annotations
+            )
+
+        # Activity log
+        preferred = sum(1 for m in matches if m.match_type == "preferred")
+        alternative = len(matches) - preferred
+        msg = f"Found {len(ruler_concepts)} matches ({preferred} preferred, {alternative} alternative)"
+        if semantic_matches:
+            msg += f" + {len(semantic_matches)} semantic"
+        log = job.result.metadata.setdefault("activity_log", [])
+        log.append({"ts": datetime.now(timezone.utc).isoformat(), "stage": self.name, "msg": msg})
+
+        logger.info("EntityRuler found %d total matches for job %s", len(ruler_concepts), job.id)
+        return job
+
+    @staticmethod
+    def _dedupe_annotations(annotations: list[Annotation]) -> list[Annotation]:
+        """Resolve overlapping spans: allow containment, resolve partial overlaps (longer wins)."""
+        annotations = sorted(annotations, key=lambda a: (a.span.start, -(a.span.end - a.span.start)))
         deduped: list[Annotation] = []
-        for ann in preliminary_annotations:
+        for ann in annotations:
             dominated = False
             for i, kept in enumerate(deduped):
                 if ann.span.start >= kept.span.end or ann.span.end <= kept.span.start:
@@ -211,9 +260,9 @@ class EntityRulerStage(PipelineStage):
                     dominated = True
                     break
                 # Containment (either direction) — allow both
-                if (ann.span.start >= kept.span.start and ann.span.end <= kept.span.end):
+                if ann.span.start >= kept.span.start and ann.span.end <= kept.span.end:
                     continue
-                if (kept.span.start >= ann.span.start and kept.span.end <= ann.span.end):
+                if kept.span.start >= ann.span.start and kept.span.end <= ann.span.end:
                     continue
                 # Partial overlap — longer wins
                 ann_len = ann.span.end - ann.span.start
@@ -225,21 +274,7 @@ class EntityRulerStage(PipelineStage):
             if not dominated:
                 deduped.append(ann)
         deduped.sort(key=lambda a: (a.span.start, -(a.span.end - a.span.start)))
-
-        job.result.annotations = deduped
-
-        # Activity log
-        from datetime import datetime, timezone
-        preferred = sum(1 for m in matches if m.match_type == "preferred")
-        alternative = len(matches) - preferred
-        msg = f"Found {len(ruler_concepts)} matches ({preferred} preferred, {alternative} alternative)"
-        if semantic_matches:
-            msg += f" + {len(semantic_matches)} semantic"
-        log = job.result.metadata.setdefault("activity_log", [])
-        log.append({"ts": datetime.now(timezone.utc).isoformat(), "stage": self.name, "msg": msg})
-
-        logger.info("EntityRuler found %d total matches for job %s", len(ruler_concepts), job.id)
-        return job
+        return deduped
 
     def _build_preliminary_annotations(
         self, matches: list[EntityRulerMatch], full_text: str,
