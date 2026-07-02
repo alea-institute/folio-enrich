@@ -122,6 +122,12 @@ class Settings(BaseSettings):
 
     # Candidates
     max_candidates: int = 5
+    # Skip the (expensive) backup/runner-up multi-strategy search for concepts that
+    # already resolved to a definitive exact FOLIO IRI. Their "alternatives" are just
+    # other labels sharing a word (measured noisy) and this search is the dominant
+    # resolution cost. Backups are still computed for genuinely ambiguous concepts
+    # (those resolved via fuzzy search, i.e. no exact IRI).
+    skip_backups_for_exact_matches: bool = True
 
     # Job management
     job_retention_days: int = 30
