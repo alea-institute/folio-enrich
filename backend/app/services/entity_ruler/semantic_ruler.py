@@ -41,6 +41,50 @@ class SemanticEntityRuler:
         self._embedding_service = embedding_service
         self.threshold = threshold
 
+    @staticmethod
+    def _word_offsets(text: str) -> list[tuple[int, int]]:
+        """(start, end) char offsets of each whitespace-delimited token, one pass.
+
+        Lets us derive n-gram spans in O(1) from word positions instead of an
+        O(len(text)) ``str.find`` per candidate — and yields *correct* offsets even
+        when words are separated by newlines or runs of spaces (the old ``find``
+        on a single-spaced phrase silently dropped those n-grams).
+        """
+        offsets: list[tuple[int, int]] = []
+        i, n = 0, len(text)
+        while i < n:
+            while i < n and text[i].isspace():
+                i += 1
+            if i >= n:
+                break
+            start = i
+            while i < n and not text[i].isspace():
+                i += 1
+            offsets.append((start, i))
+        return offsets
+
+    def _collect_candidates(
+        self, text: str, known_spans: set[tuple[int, int]]
+    ) -> list[tuple[str, int, int]]:
+        """Candidate n-grams (2-4 words) with correct char offsets, minus known
+        spans and all-stopword phrases. Returns (normalized_phrase, start, end)."""
+        offsets = self._word_offsets(text)
+        words = [text[s:e] for s, e in offsets]
+        candidates: list[tuple[str, int, int]] = []
+        num_words = len(words)
+        for n in range(2, 5):
+            for i in range(num_words - n + 1):
+                start = offsets[i][0]
+                end = offsets[i + n - 1][1]
+                # Overlaps an exact-match span? (same test as before)
+                if any(s <= start < e or s < end <= e for s, e in known_spans):
+                    continue
+                tokens = words[i : i + n]
+                if all(t.lower() in _SEMANTIC_STOPWORDS for t in tokens):
+                    continue
+                candidates.append((" ".join(tokens), start, end))
+        return candidates
+
     def find_semantic_matches(
         self, text: str, known_spans: set[tuple[int, int]]
     ) -> list[SemanticMatch]:
@@ -51,51 +95,34 @@ class SemanticEntityRuler:
         if self._embedding_service is None or self._embedding_service.index_size == 0:
             return []
 
-        # Phase 1: Collect all candidate n-grams, filtering known spans
-        words = text.split()
-        candidates = []  # (phrase, start, end)
-
-        for n in range(2, 5):
-            pos = 0
-            for i in range(len(words) - n + 1):
-                phrase = " ".join(words[i : i + n])
-                start = text.find(phrase, pos)
-                if start == -1:
-                    continue
-                end = start + len(phrase)
-                pos = start + 1
-
-                if any(
-                    s <= start < e or s < end <= e
-                    for s, e in known_spans
-                ):
-                    continue
-
-                # Skip candidates where every token is a common stopword
-                tokens = phrase.lower().split()
-                if all(t in _SEMANTIC_STOPWORDS for t in tokens):
-                    continue
-
-                candidates.append((phrase, start, end))
-
+        # Phase 1: candidate n-grams with correct O(1) offsets.
+        candidates = self._collect_candidates(text, known_spans)
         if not candidates:
             return []
 
-        # Phase 2: Batch embed all candidates in a single forward pass
-        phrases = [c[0] for c in candidates]
-        batch_results = self._embedding_service.search_batch(phrases, top_k=1)
+        # Phase 2: embed each DISTINCT phrase once, then reuse its result for every
+        # occurrence. Legal text repeats phrases heavily ("the Agreement", "the
+        # parties", "Confidential Information"), so this shrinks the neural forward
+        # pass without changing which spans are considered — same matches, less work.
+        unique_phrases = list({phrase for phrase, _, _ in candidates})
+        batch_results = self._embedding_service.search_batch(unique_phrases, top_k=1)
+        best_by_phrase = {
+            phrase: (results[0] if results else None)
+            for phrase, results in zip(unique_phrases, batch_results)
+        }
 
-        # Phase 3: Filter by threshold
+        # Phase 3: filter by threshold (unchanged semantics).
         matches = []
-        for (phrase, start, end), results in zip(candidates, batch_results):
-            if results and results[0].score >= self.threshold:
+        for phrase, start, end in candidates:
+            top = best_by_phrase.get(phrase)
+            if top and top.score >= self.threshold:
                 matches.append(SemanticMatch(
-                    text=phrase,
+                    text=text[start:end],
                     start=start,
                     end=end,
-                    matched_label=results[0].label,
-                    similarity=results[0].score,
-                    iri=results[0].metadata.get("iri", ""),
+                    matched_label=top.label,
+                    similarity=top.score,
+                    iri=top.metadata.get("iri", ""),
                 ))
 
         return matches
