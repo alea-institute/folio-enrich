@@ -136,6 +136,15 @@ class Settings(BaseSettings):
     # are unavailable (e.g. DEV/Railway) — backups pass through unchanged.
     backup_semantic_filter_enabled: bool = True
     backup_semantic_relevance_threshold: float = 0.45  # TUNE against captured sims
+    # Structural branch-coherence bonus: a backup sharing a FOLIO branch with the
+    # primary is far more likely a genuine alternative sense (e.g. "Court" primary in
+    # "Forums and Venues" → "Court Forum" same branch = real; "Court Costs" in
+    # "Objectives" = word-collision noise). The embedding score alone can't see this.
+    # Added to the backup's similarity ONLY for the keep/drop decision (displayed
+    # confidence stays the honest raw similarity). Because it is additive to the
+    # residual sim, a modest bonus rescues the good same-branch outlier without
+    # re-admitting lower-sim same-branch noise. Set 0.0 to disable. TUNE on PROD.
+    backup_branch_coherence_bonus: float = 0.12
 
     # Job management
     job_retention_days: int = 30
