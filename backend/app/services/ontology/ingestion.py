@@ -51,21 +51,31 @@ def _assert_safe_url(url: str) -> None:
         )
     if parsed.username or parsed.password:
         raise OWLIngestionError("OWL URL must not embed credentials")
-    # Resolve + reject private/loopback/link-local/metadata targets (SSRF).
+    # Resolve + reject any non-global target (SSRF): private, loopback, link-local,
+    # reserved, multicast, and shared/CGNAT (100.64/10) — `not is_global` covers all
+    # and future ranges. NB: this is best-effort vs DNS rebinding (httpx re-resolves
+    # at connect time); mitigated because the host allowlist is GitHub-owned.
     try:
         for info in socket.getaddrinfo(host, parsed.port or 443, proto=socket.IPPROTO_TCP):
             ip = ipaddress.ip_address(info[4][0])
-            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
-                raise OWLIngestionError(f"OWL host '{host}' resolves to a blocked address {ip}")
+            if not ip.is_global:
+                raise OWLIngestionError(f"OWL host '{host}' resolves to a non-global address {ip}")
     except socket.gaierror as exc:
         raise OWLIngestionError(f"OWL host '{host}' did not resolve: {exc}") from exc
 
 
 def _reject_doctype(data: bytes) -> None:
-    # A valid OWL RDF/XML document never needs a DOCTYPE. Rejecting it neutralizes
-    # entity-expansion DoS + external-entity XXE + SSRF-via-DTD, independent of the
-    # libxml2 version's default entity handling.
-    if b"<!doctype" in data[:8192].lower() or b"<!doctype" in data.lower():
+    # A valid OWL RDF/XML document never needs a DOCTYPE. Rejecting it is
+    # defense-in-depth against entity-expansion DoS / external-entity XXE / SSRF-via-
+    # DTD; the hardened parser (resolve_entities=False, no_network, load_dtd=False)
+    # is the primary guarantee even if an exotic encoding slips a DOCTYPE past this
+    # byte scan. A DOCTYPE is only legal in the XML prolog, so scanning the leading
+    # bytes is sufficient and avoids lowercasing the whole ~14-18 MB payload. Handle
+    # a UTF-16 BOM by stripping interleaved NULs from the prolog slice before matching.
+    prolog = data[:8192]
+    if prolog.startswith((b"\xff\xfe", b"\xfe\xff")):
+        prolog = prolog.replace(b"\x00", b"")
+    if b"<!doctype" in prolog.lower():
         raise OWLIngestionError("OWL contains a DOCTYPE declaration — rejected")
 
 
@@ -103,12 +113,23 @@ def fetch_and_validate_owl(url: str, expected_sha256: str | None = None) -> tupl
             _READ_TIMEOUT, connect=_CONNECT_TIMEOUT,
         )) as client:
             with client.stream("GET", url) as resp:
+                # follow_redirects=False + raise_for_status only catches 4xx/5xx, so
+                # reject a 3xx explicitly (clear error, no silent redirect-following).
+                if resp.is_redirect:
+                    raise OWLIngestionError(
+                        f"OWL URL returned redirect {resp.status_code} (not allowed)"
+                    )
                 resp.raise_for_status()
                 declared = resp.headers.get("Content-Length")
-                if declared and int(declared) > MAX_OWL_BYTES:
-                    raise OWLIngestionError(
-                        f"OWL Content-Length {declared} exceeds cap {MAX_OWL_BYTES}"
-                    )
+                if declared:
+                    try:
+                        declared_n = int(declared)
+                    except ValueError:
+                        declared_n = -1  # malformed header -> rely on the stream cap
+                    if declared_n > MAX_OWL_BYTES:
+                        raise OWLIngestionError(
+                            f"OWL Content-Length {declared} exceeds cap {MAX_OWL_BYTES}"
+                        )
                 for chunk in resp.iter_bytes(_CHUNK):
                     total += len(chunk)
                     if total > MAX_OWL_BYTES:

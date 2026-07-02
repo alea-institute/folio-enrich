@@ -19,5 +19,9 @@ def require_admin(x_admin_token: str | None = Header(default=None)) -> None:
     token = settings.admin_token
     if not token:
         return
-    if not x_admin_token or not hmac.compare_digest(x_admin_token, token):
+    # Encode to bytes so a non-ASCII configured token can't raise TypeError (500)
+    # instead of a clean 403.
+    if not x_admin_token or not hmac.compare_digest(
+        x_admin_token.encode("utf-8"), token.encode("utf-8")
+    ):
         raise HTTPException(status_code=403, detail="Valid X-Admin-Token required")
