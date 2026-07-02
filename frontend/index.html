@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="mixed">
+<html lang="en" data-theme="mixed" data-ontology="folio">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -512,6 +512,28 @@
     --branch-default: #5c6070;
   }
 
+  /* ══════════ ONTOLOGY REBRAND: CANON ══════════
+     Light rebrand for the Catholic Semantic Canon. FOLIO (the default) is left
+     untouched. Higher specificity ([data-theme][data-ontology]) so the crimson
+     ACTION accent wins across all three theme blocks. The IDENTITY gold is only
+     applied to the wordmark. Palette swap is a plain var reassignment — no
+     transition is declared here, so it applies instantly with no motion. */
+  [data-theme][data-ontology="canon"] { --accent: #c34455; --accent-dim: #9c2d3b; }
+  /* Mixed theme redefines --accent to a hardcoded blue on its light panels/modals;
+     re-assert crimson there so the swap is cohesive across every theme (AC). */
+  [data-ontology="canon"][data-theme="mixed"] .panel-right,
+  [data-ontology="canon"][data-theme="mixed"] .panel-detail,
+  [data-ontology="canon"][data-theme="mixed"] .modal,
+  [data-ontology="canon"][data-theme="mixed"] .concept-tooltip,
+  [data-ontology="canon"][data-theme="mixed"] .graph-modal-overlay {
+    --accent: #c34455; --accent-dim: #9c2d3b;
+  }
+  [data-ontology="canon"] header h1 span { color: #c9a227; }         /* gold brand-mark */
+  [data-ontology="canon"] header h1 {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    letter-spacing: .01em;
+  }
+
   * { margin:0; padding:0; box-sizing:border-box; }
 
   body {
@@ -658,6 +680,48 @@
     border-color: var(--accent-dim);
     color: var(--white);
   }
+
+  /* ── Ontology switcher (disclosure trigger + menu popover) ──
+     Trigger reuses .header-btn box metrics so it sits quietly next to the theme
+     toggle. The popover mirrors .system-popover's anchored, fixed, viewport-clamped
+     styling; rows are role="menuitemradio". No animation on the palette swap. */
+  .ontology-btn { gap: 5px; }
+  .ontology-btn .ont-caret { font-size: 9px; opacity: 0.6; }
+  .ontology-btn:hover .ont-caret { opacity: 0.9; }
+  .ontology-btn[aria-expanded="true"] .ont-caret { transform: rotate(180deg); }
+  .ontology-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .ontology-btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+
+  .ontology-popover {
+    position: fixed;
+    top: 44px;
+    background: var(--surface3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+    z-index: 100;
+    min-width: 200px;
+    max-width: calc(100vw - 16px);
+    padding: 6px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .ontology-popover[hidden] { display: none; }
+  .ontology-popover:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .ontology-option {
+    display: flex; align-items: center; gap: 8px;
+    width: 100%; padding: 7px 12px; border-radius: 6px;
+    font-size: 12px; color: var(--text); cursor: pointer;
+    background: transparent; border: none; text-align: left;
+  }
+  .ontology-option:hover, .ontology-option:focus-visible {
+    background: var(--surface2); outline: none;
+  }
+  .ontology-option .ont-check {
+    width: 14px; flex-shrink: 0; color: var(--accent);
+    opacity: 0; font-weight: 700;
+  }
+  .ontology-option[aria-checked="true"] .ont-check { opacity: 1; }
+  .ontology-option[aria-checked="true"] { font-weight: 600; }
 
   /* Main layout */
   main {
@@ -3282,6 +3346,17 @@
   document.documentElement.setAttribute('data-theme', t);
   document.documentElement.style.setProperty('color-scheme', t === 'light' ? 'light' : 'dark');
 })();
+(function() {
+  // Resolve ontology BEFORE first paint so the palette/brand never flash.
+  // Precedence: ?ontology= query param > localStorage > 'folio'. Allowlist only
+  // the ontologies we ship a palette for; anything else falls back to 'folio'.
+  var allow = { folio: 1, canon: 1 };
+  var o = null;
+  try { o = new URLSearchParams(location.search).get('ontology'); } catch (e) {}
+  if (!o) { try { o = localStorage.getItem('ontology'); } catch (e) {} }
+  if (!o || !allow[o]) o = 'folio';
+  document.documentElement.setAttribute('data-ontology', o);
+})();
 </script>
 </head>
 <body>
@@ -3375,6 +3450,30 @@
     </div>
   </div>
   <div class="header-right">
+    <!-- Ontology switcher (ARIA disclosure; mirrors the System chip pattern).
+         Trigger + menu popover in source order so SR users reach the menu next.
+         Options are hydrated from GET /ontologies on init (static FOLIO+Canon
+         fallback below). Switching applies a light rebrand + sends ?ontology to
+         the backend at submit time. -->
+    <button class="header-btn ontology-btn" id="ontologyBtn" type="button"
+            aria-haspopup="true" aria-expanded="false" aria-controls="ontologyPopover"
+            title="Choose ontology">
+      <span id="ontologyBtnLabel">Ontology</span>
+      <span class="ont-caret" aria-hidden="true">&#9662;</span>
+    </button>
+    <div class="ontology-popover" id="ontologyPopover" role="menu"
+         aria-label="Choose ontology" tabindex="-1" hidden>
+      <button class="ontology-option" type="button" role="menuitemradio"
+              aria-checked="true" data-ontology-id="folio" tabindex="-1">
+        <span class="ont-check" aria-hidden="true">&#10003;</span>
+        <span class="ont-name">FOLIO</span>
+      </button>
+      <button class="ontology-option" type="button" role="menuitemradio"
+              aria-checked="false" data-ontology-id="canon" tabindex="-1">
+        <span class="ont-check" aria-hidden="true">&#10003;</span>
+        <span class="ont-name">Catholic Semantic Canon</span>
+      </button>
+    </div>
     <button class="header-btn" id="themeToggleBtn" onclick="cycleTheme()" title="Theme: Mixed (click for Dark)">&#9681;</button>
     <label class="toggle">
       <input type="checkbox" id="hideUncertainToggle" checked onchange="toggleUncertain()" role="switch" aria-checked="true">
@@ -3955,6 +4054,23 @@ let _llmBannerSymbolicOnce = false; // true if user chose "continue without AI" 
 // and pass it per-request instead.
 let _requireUserKey = false;
 
+// ── Ontology switcher state ──
+// activeOntology is seeded from the <html data-ontology> attribute that the
+// pre-paint resolver already set (URL param > localStorage > 'folio'). ONTOLOGIES
+// and ONTOLOGY_ALLOW start with a static FOLIO+Canon fallback and are replaced
+// once GET /ontologies hydrates. _finalJobTimer holds the orphaned post-complete
+// re-fetch so an ontology switch can cancel it.
+let activeOntology = document.documentElement.getAttribute('data-ontology') || 'folio';
+let ONTOLOGIES = {
+  folio: { display_name: 'FOLIO', default: true },
+  canon: { display_name: 'Catholic Semantic Canon', default: false },
+};
+let ONTOLOGY_ALLOW = new Set(['folio', 'canon']);
+let _canonFontInjected = false;
+let _ontologyPopoverOpen = false;
+let _ontologyOutsideClickHandler = null;
+let _finalJobTimer = null;
+
 function _localKeyName(provider) { return 'folio_enrich_api_key_' + (provider || ''); }
 function loadLocalKey(provider) {
   try { return localStorage.getItem(_localKeyName(provider)) || ''; } catch { return ''; }
@@ -4008,6 +4124,7 @@ function cacheState() {
       activity: activityEntries,
       docInput: document.getElementById('docInput')?.value || '',
       filename: uploadedFilename,
+      ontology: activeOntology,
     }));
   } catch (e) { /* quota exceeded — ignore */ }
 }
@@ -4023,6 +4140,13 @@ function restoreState() {
     if (!raw) return false;
     const cache = JSON.parse(raw);
     if (!cache.jobId || !cache.job) return false;
+
+    // Carry the restored job's ontology so its results render under the right brand.
+    // Applied BEFORE currentJob* are set (below) so a differing cached ontology can't
+    // trip applyOntology's "switching with rendered results" clear path. The pre-paint
+    // resolver already set the palette from localStorage; this keeps in-memory state +
+    // masthead/title consistent with the cached job.
+    if (cache.ontology) applyOntology(cache.ontology, { push: false, persist: false });
 
     currentJobId = cache.jobId;
     currentJob = cache.job;
@@ -4135,6 +4259,240 @@ function updateThemeSwatches(theme) {
   document.querySelectorAll('.theme-swatch').forEach(s => {
     s.classList.toggle('active', s.dataset.themeValue === theme);
   });
+}
+
+// ── Ontology System ──
+// FOLIO is the default and stays visually/behaviorally identical. Canon applies a
+// light rebrand (crimson accent + gold wordmark + serif) driven entirely by the
+// [data-ontology] attribute + CSS; JS only swaps the attribute, the masthead text,
+// the document title, and syncs the switcher chrome. The chosen ontology is sent to
+// the backend at submit time (capture-at-submit) and mirrored into ?ontology= for
+// shareable URLs.
+
+function ontologyBrand(id) { return id === 'canon' ? 'CatholicOS' : 'FOLIO'; }
+function ontologyShortName(id) { return id === 'canon' ? 'Canon' : 'FOLIO'; }
+function ontologyDisplayName(id) {
+  return (ONTOLOGIES[id] && ONTOLOGIES[id].display_name)
+    || (id === 'canon' ? 'Catholic Semantic Canon' : 'FOLIO');
+}
+
+// Are there rendered pipeline results on screen? Used to decide whether an ontology
+// switch must clear the results pane first (so stale spans aren't recolored by the
+// global palette vars for a frame).
+function hasRenderedResults() {
+  return !!currentJob || !!currentJobId ||
+    (Array.isArray(accumulatedAnnotations) && accumulatedAnnotations.length > 0);
+}
+
+// Lazy-load the Canon serif wordmark font on first switch only (never for FOLIO).
+function injectCanonFont() {
+  if (_canonFontInjected) return;
+  _canonFontInjected = true;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap';
+  document.head.appendChild(link);
+}
+
+// Reflect activeOntology into the switcher chrome, masthead wordmark, and title.
+// Masthead + title use fixed brand strings ("CatholicOS Enrich" / "FOLIO Enrich");
+// the menu option labels use display_name from GET /ontologies.
+function syncOntologyUI() {
+  const id = activeOntology;
+  const lbl = document.getElementById('ontologyBtnLabel');
+  if (lbl) lbl.textContent = ontologyShortName(id);
+  document.querySelectorAll('#ontologyPopover .ontology-option').forEach(opt => {
+    opt.setAttribute('aria-checked', opt.dataset.ontologyId === id ? 'true' : 'false');
+  });
+  // Masthead wordmark: rebuild as [text brand + space, <span>Enrich</span>] via DOM
+  // (textContent only — no innerHTML of any dynamic string).
+  const h1 = document.querySelector('header h1');
+  if (h1) {
+    let span = h1.querySelector('span');
+    if (!span) span = document.createElement('span');
+    h1.textContent = ontologyBrand(id) + ' ';   // wipes children (incl. detached span)
+    h1.appendChild(span);
+    span.textContent = 'Enrich';
+  }
+  document.title = ontologyBrand(id) + ' Enrich';
+}
+
+// Apply an ontology. Idempotent + pure for the no-op case. push → sync ?ontology=
+// into the URL via replaceState (no new history entry); persist → localStorage.
+function applyOntology(id, { push = true, persist = true } = {}) {
+  if (!ONTOLOGY_ALLOW.has(id)) {
+    const bad = id;
+    id = 'folio';
+    if (typeof showDemoToast === 'function') showDemoToast(`Unknown ontology "${bad}" — showing FOLIO.`);
+    else console.warn('Unknown ontology:', bad);
+  }
+  const switching = id !== activeOntology;
+  const domReflects = document.documentElement.getAttribute('data-ontology') === id;
+  if (!switching && domReflects) {
+    // Nothing to swap — just make sure the chrome matches (covers the first init call).
+    syncOntologyUI();
+    return;
+  }
+  // On a real switch with results on screen, clear FIRST, THEN swap the palette so
+  // the global CSS vars never recolor stale spans for a frame. clearAll() is the
+  // existing New/Clear path (also cancels timers + closes the SSE stream).
+  if (switching && hasRenderedResults()) clearAll();
+  document.documentElement.setAttribute('data-ontology', id);
+  if (id === 'canon') injectCanonFont();
+  activeOntology = id;
+  syncOntologyUI();
+  if (persist) { try { localStorage.setItem('ontology', id); } catch (e) {} }
+  if (push) {
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.set('ontology', id);   // preserves other params (e.g. demo)
+      history.replaceState(history.state, '', u.pathname + u.search + u.hash);
+    } catch (e) {}
+  }
+}
+
+// Disable the switcher while a job is streaming (AC-7). Combined with capture-at-
+// submit, a job in flight keeps its ontology + branding.
+function setOntologySwitcherDisabled(disabled) {
+  const btn = document.getElementById('ontologyBtn');
+  if (!btn) return;
+  if (disabled) {
+    btn.setAttribute('aria-disabled', 'true');
+    btn.setAttribute('disabled', '');
+    if (_ontologyPopoverOpen) closeOntologyPopover(false);
+  } else {
+    btn.removeAttribute('aria-disabled');
+    btn.removeAttribute('disabled');
+  }
+}
+
+// ── Ontology switcher disclosure (mirrors the System status popover) ──
+function openOntologyPopover() {
+  const pop = document.getElementById('ontologyPopover');
+  const btn = document.getElementById('ontologyBtn');
+  if (!pop || !btn) return;
+  if (btn.getAttribute('aria-disabled') === 'true') return;
+  pop.hidden = false;
+  btn.setAttribute('aria-expanded', 'true');
+  _ontologyPopoverOpen = true;
+  // Anchor the fixed popover under the trigger and clamp inside the viewport.
+  const rect = btn.getBoundingClientRect();
+  const maxLeft = window.innerWidth - pop.offsetWidth - 8;
+  pop.style.left = Math.round(Math.max(8, Math.min(rect.left, maxLeft))) + 'px';
+  // Move focus to the checked option (or first) for keyboard users.
+  const target = pop.querySelector('.ontology-option[aria-checked="true"]')
+    || pop.querySelector('.ontology-option');
+  if (target) target.focus();
+  _ontologyOutsideClickHandler = (e) => {
+    if (!pop.contains(e.target) && !btn.contains(e.target)) closeOntologyPopover(false);
+  };
+  setTimeout(() => {
+    if (_ontologyPopoverOpen) document.addEventListener('click', _ontologyOutsideClickHandler);
+  }, 0);
+}
+
+function closeOntologyPopover(restoreFocus = true) {
+  const pop = document.getElementById('ontologyPopover');
+  const btn = document.getElementById('ontologyBtn');
+  if (pop) pop.hidden = true;
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+  _ontologyPopoverOpen = false;
+  if (_ontologyOutsideClickHandler) {
+    document.removeEventListener('click', _ontologyOutsideClickHandler);
+    _ontologyOutsideClickHandler = null;
+  }
+  if (restoreFocus && btn) btn.focus();
+}
+
+function toggleOntologyPopover() {
+  if (_ontologyPopoverOpen) closeOntologyPopover();
+  else openOntologyPopover();
+}
+
+// Rebuild the menuitemradio options from the hydrated ontology list (replaces the
+// static FOLIO+Canon fallback markup). DOM-built, textContent only.
+function buildOntologyMenu(list) {
+  const pop = document.getElementById('ontologyPopover');
+  if (!pop || !Array.isArray(list) || !list.length) return;
+  pop.textContent = '';
+  list.forEach(o => {
+    const opt = document.createElement('button');
+    opt.type = 'button';
+    opt.className = 'ontology-option';
+    opt.setAttribute('role', 'menuitemradio');
+    opt.setAttribute('aria-checked', o.id === activeOntology ? 'true' : 'false');
+    opt.setAttribute('tabindex', '-1');
+    opt.dataset.ontologyId = o.id;
+    const chk = document.createElement('span');
+    chk.className = 'ont-check';
+    chk.setAttribute('aria-hidden', 'true');
+    chk.textContent = '✓';
+    const name = document.createElement('span');
+    name.className = 'ont-name';
+    name.textContent = o.display_name || o.id;
+    opt.appendChild(chk);
+    opt.appendChild(name);
+    pop.appendChild(opt);
+  });
+}
+
+// Wire the trigger + menu once (click, keyboard nav). Enter/Space on the <button>
+// trigger and options fire click natively, so only arrow/Home/End need handling.
+function wireOntologySwitcher() {
+  const btn = document.getElementById('ontologyBtn');
+  const pop = document.getElementById('ontologyPopover');
+  if (!btn || !pop) return;
+  btn.addEventListener('click', (e) => { e.preventDefault(); toggleOntologyPopover(); });
+  pop.addEventListener('click', (e) => {
+    const opt = e.target.closest('.ontology-option');
+    if (!opt) return;
+    const id = opt.dataset.ontologyId;
+    closeOntologyPopover();
+    applyOntology(id);
+  });
+  pop.addEventListener('keydown', (e) => {
+    const opts = Array.from(pop.querySelectorAll('.ontology-option'));
+    if (!opts.length) return;
+    const idx = opts.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown') { e.preventDefault(); opts[(idx + 1) % opts.length].focus(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); opts[(idx - 1 + opts.length) % opts.length].focus(); }
+    else if (e.key === 'Home') { e.preventDefault(); opts[0].focus(); }
+    else if (e.key === 'End') { e.preventDefault(); opts[opts.length - 1].focus(); }
+  });
+}
+
+// Hydrate ontologies from the backend; fall back to static FOLIO+Canon on failure.
+async function loadOntologies() {
+  let data = null;
+  try {
+    const r = await fetch(`${API}/ontologies`);
+    if (r.ok) {
+      const j = await r.json();
+      if (j && Array.isArray(j.ontologies) && j.ontologies.length) data = j;
+    }
+  } catch (e) { /* offline / error — keep the static fallback */ }
+  if (data) {
+    ONTOLOGIES = {};
+    ONTOLOGY_ALLOW = new Set();
+    data.ontologies.forEach(o => {
+      ONTOLOGIES[o.id] = { display_name: o.display_name || o.id, default: !!o.default };
+      ONTOLOGY_ALLOW.add(o.id);
+    });
+    buildOntologyMenu(data.ontologies);
+  }
+  // The pre-paint resolver silently maps an unknown ?ontology= to 'folio' (no toast
+  // is possible before paint). Surface it now so a bad shared link is explained.
+  let urlOnt = null;
+  try { urlOnt = new URLSearchParams(location.search).get('ontology'); } catch (e) {}
+  if (urlOnt && !ONTOLOGY_ALLOW.has(urlOnt) && typeof showDemoToast === 'function') {
+    showDemoToast(`Unknown ontology "${urlOnt}" — showing FOLIO.`);
+  }
+  // The pre-paint resolver may have set an ontology the (now-known) allowlist rejects.
+  if (!ONTOLOGY_ALLOW.has(activeOntology)) {
+    applyOntology('folio', { push: false, persist: false });
+  } else {
+    syncOntologyUI();
+  }
 }
 
 // ── LLM Setup Banner ──
@@ -4501,6 +4859,14 @@ async function init() {
   updateThemeToggle(currentTheme);
   updateThemeSwatches(currentTheme);
 
+  // Ontology switcher: wire controls + reflect the pre-paint-resolved ontology into
+  // the masthead/title/chrome immediately (data-ontology is already on <html>), then
+  // hydrate the real ontology list from the backend (async, non-blocking).
+  wireOntologySwitcher();
+  syncOntologyUI();
+  if (activeOntology === 'canon') injectCanonFont();
+  loadOntologies();
+
   // Restore UI state immediately (before any async calls)
   if (showThinking) applyShowThinkingStyle(document.getElementById('showThinkingBtn'), true);
   if (debugMode) applyDebugBtnStyle(document.getElementById('debugModeBtn'), true);
@@ -4544,6 +4910,10 @@ async function init() {
 
   // Back/forward navigation between demos and the live app.
   window.addEventListener('popstate', () => {
+    // Re-resolve the ontology from the URL (shareable ?ontology=). No push/persist
+    // — the URL is already authoritative for this history entry.
+    const params = new URLSearchParams(window.location.search);
+    applyOntology(params.get('ontology') || 'folio', { push: false, persist: false });
     const slug = new URLSearchParams(window.location.search).get('demo');
     if (slug) {
       if (slug !== currentDemoSlug) loadDemoExemplar(slug, { pushUrl: false });
@@ -5951,6 +6321,8 @@ async function submitEnrichment() {
 
     const body = { content };
     if (uploadedFilename) body.filename = uploadedFilename;
+    // Capture-at-submit: the job runs under whatever ontology is active right now.
+    body.ontology = activeOntology;
     if (_llmBannerSymbolicOnce) {
       // Symbolic AI only — don't send LLM provider/model/key
       // Backend LLM stages will skip gracefully when no provider is configured
@@ -6042,6 +6414,8 @@ function resetButton() {
 
 function startSSE() {
   closeSSE();
+  // Lock the ontology for the life of the stream (AC-7). Re-enabled in closeSSE().
+  setOntologySwitcherDisabled(true);
   accumulatedAnnotations = [];
   accumulatedIndividuals = [];
   accumulatedProperties = [];
@@ -6155,8 +6529,10 @@ function startSSE() {
     setStatus(`Completed: ${data.total_annotations} annotations${indSuffix}${propSuffix}${triSuffix}`, 'completed');
     // Fetch final job for full render (concepts list, metadata, triples, exports)
     fetchFinalJob();
-    // Re-fetch after delay to pick up post-pipeline assessments (e.g., areas of law)
-    setTimeout(() => fetchFinalJob(), 4000);
+    // Re-fetch after delay to pick up post-pipeline assessments (e.g., areas of law).
+    // Store the handle so an ontology switch / clearAll can cancel a stale repaint.
+    if (_finalJobTimer) clearTimeout(_finalJobTimer);
+    _finalJobTimer = setTimeout(() => { _finalJobTimer = null; fetchFinalJob(); }, 4000);
   });
 
   eventSource.addEventListener('error', (e) => {
@@ -6179,6 +6555,14 @@ function closeSSE() {
     eventSource.close();
     eventSource = null;
   }
+  // Cancel any pending post-complete re-fetch so a stale job can't repaint after
+  // the stream ends (e.g. after an ontology switch).
+  if (_finalJobTimer) {
+    clearTimeout(_finalJobTimer);
+    _finalJobTimer = null;
+  }
+  // The stream is done — the ontology can be changed again (AC-7).
+  setOntologySwitcherDisabled(false);
 }
 
 function renderActivityLog() {
@@ -6288,9 +6672,13 @@ function _rerenderAnnotatedTextNow() {
 }
 
 async function fetchFinalJob() {
+  // Capture the job at entry; if it changes across the await (New/Clear or an
+  // ontology switch), bail so a stale job can't repaint under a new palette.
+  const jobId = currentJobId;
   try {
-    const r = await fetch(`${API}/enrich/${currentJobId}`);
+    const r = await fetch(`${API}/enrich/${jobId}`);
     if (!r.ok) return;
+    if (currentJobId !== jobId) return;
     const job = await r.json();
     currentJob = job;
     accumulatedIndividuals = job.result?.individuals || [];
@@ -11629,6 +12017,11 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 // Close modals on Escape
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
+    // Ontology switcher popover (non-modal disclosure) closes first.
+    if (_ontologyPopoverOpen) {
+      closeOntologyPopover();
+      return;
+    }
     // Annotations layer popover (non-modal disclosure) closes first.
     if (_annotationsPopoverOpen) {
       closeAnnotationsPopover();
