@@ -109,6 +109,7 @@ class PipelineConfig:
 def build_pipeline_config(
     llm: LLMProvider | None = None,
     task_llms: TaskLLMs | None = None,
+    job_store=None,
 ) -> PipelineConfig:
     """Build a PipelineConfig with parallel EntityRuler and LLM stages.
 
@@ -130,7 +131,7 @@ def build_pipeline_config(
             IngestionStage(),
             NormalizationStage(),
         ],
-        entity_ruler=EntityRulerStage(embedding_service=embedding_service),
+        entity_ruler=EntityRulerStage(embedding_service=embedding_service, job_store=job_store),
     )
 
     if concept_llm is not None:
@@ -375,7 +376,7 @@ class PipelineOrchestrator:
             self.stages = stages
         else:
             # New parallel mode: build PipelineConfig
-            self._config = build_pipeline_config(llm, task_llms=task_llms)
+            self._config = build_pipeline_config(llm, task_llms=task_llms, job_store=self.job_store)
             self.stages = build_stages(llm, task_llms=task_llms)  # kept for backward compat
 
     async def run(self, job: Job) -> Job:
