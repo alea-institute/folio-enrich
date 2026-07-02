@@ -31,6 +31,9 @@ class OntologyCoords:
     source_type: str  # "github" | "http"
     repo_branch: str = "main"
     owl_url: str = ""
+    # Pinned SHA-256 of the expected OWL (http sources). Verified by the hardened
+    # ingestion path before the bytes are handed to folio-python. Empty = no pin.
+    owl_sha256: str = ""
 
 
 @dataclass(frozen=True)
@@ -112,6 +115,8 @@ CANON_SPEC = OntologySpec(
             "https://raw.githubusercontent.com/CatholicOS/ontology-semantic-canon/"
             "main/sources/ontology-semantic-canon.owl"
         ),
+        # Pinned by the Phase 0 spike (backend/scripts/validate_canon_owl.py).
+        owl_sha256="add8b2b140273b197b759f8945b4f5aa66ecb1ec801fcc69431f1b4baaf59f24",
     ),
     behavior=OntologyBehavior(
         prefix_strip=(),

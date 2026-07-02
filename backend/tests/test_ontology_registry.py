@@ -102,14 +102,45 @@ class TestFolioServiceSpecParameterization:
         # FakeFolioService(super().__init__()) relies on this
         assert FolioService().spec is FOLIO_SPEC
 
-    def test_http_source_load_is_guarded_until_phase2(self):
-        # Constructing a source_type="http" ontology is fine (lazy); attempting to
-        # LOAD it must refuse until the hardened ingestion path exists, so flipping
-        # enabled_ontologies alone can't trigger an unguarded fetch.
+    def test_http_source_construction_is_lazy(self):
+        # Constructing a source_type="http" ontology does not fetch anything.
         svc = FolioService(CANON_SPEC)
-        assert svc.spec is CANON_SPEC  # construction ok
-        with pytest.raises(NotImplementedError):
-            svc._get_folio()
+        assert svc.spec is CANON_SPEC
+        assert svc._folio is None  # not loaded
+
+    def test_http_source_without_checksum_refuses(self):
+        # Integrity is mandatory for http sources — no pin => refuse to load
+        # (raises before any network I/O).
+        from app.services.ontology.ingestion import OWLIngestionError
+        from app.services.ontology.spec import (
+            OntologyBehavior,
+            OntologyCoords,
+            OntologySpec,
+        )
+
+        spec = OntologySpec(
+            id="unpinned",
+            display_name="Unpinned",
+            base_iri="https://x/",
+            coords=OntologyCoords(
+                source_type="http",
+                owl_url="https://raw.githubusercontent.com/a/b/main/c.owl",
+                owl_sha256="",  # no pin
+            ),
+            behavior=OntologyBehavior(),
+        )
+        with pytest.raises(OWLIngestionError, match="pin"):
+            FolioService(spec)._get_folio()
+
+    @pytest.mark.slow
+    def test_http_source_loads_via_hardened_ingestion(self):
+        # Loading an http ontology goes through the app's hardened ingestion
+        # (download + size cap + DOCTYPE reject + checksum) then reads the local
+        # cache — folio-python never does its own unguarded fetch.
+        svc = FolioService(CANON_SPEC)
+        folio = svc._get_folio()
+        assert len(folio.classes) > 14000
+        assert len(svc.get_all_labels()) > 10000
 
 
 class TestConceptRecord:

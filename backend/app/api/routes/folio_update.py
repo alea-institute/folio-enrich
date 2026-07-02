@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from app.api.auth import require_admin
 from app.services.folio.owl_cache import get_owl_status
 from app.services.folio.owl_updater import OWLUpdateManager
 
@@ -37,7 +38,7 @@ async def update_status() -> dict:
     }
 
 
-@router.post("/check")
+@router.post("/check", dependencies=[Depends(require_admin)])
 async def check_update() -> dict:
     """Trigger immediate HEAD probe for OWL freshness."""
     manager = OWLUpdateManager.get_instance()
@@ -48,7 +49,7 @@ async def check_update() -> dict:
     }
 
 
-@router.post("/apply")
+@router.post("/apply", dependencies=[Depends(require_admin)])
 async def apply_update() -> dict:
     """Apply pending update: download → reload → re-index."""
     manager = OWLUpdateManager.get_instance()
@@ -60,7 +61,7 @@ async def apply_update() -> dict:
     }
 
 
-@router.post("/rollback")
+@router.post("/rollback", dependencies=[Depends(require_admin)])
 async def rollback_update() -> dict:
     """Roll back to previous OWL version and reload."""
     manager = OWLUpdateManager.get_instance()

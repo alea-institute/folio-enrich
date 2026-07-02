@@ -123,8 +123,21 @@ async def _stop_ollama() -> None:
         logger.warning("Failed to stop Ollama", exc_info=True)
 
 
+def _warn_insecure_admin_config() -> None:
+    """A public deploy (require_user_api_key) with no admin_token leaves the
+    mutating OWL-update routes (fetch/reload/rollback) open — warn loudly."""
+    if app_settings.require_user_api_key and not app_settings.admin_token:
+        logger.warning(
+            "SECURITY: require_user_api_key is set (public posture) but admin_token "
+            "is empty — /folio/update/{check,apply,rollback} are UNAUTHENTICATED. "
+            "Set FOLIO_ENRICH_ADMIN_TOKEN to gate them.",
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _warn_insecure_admin_config()
+
     # Startup: detect/start Ollama if configured
     await _manage_ollama()
 
