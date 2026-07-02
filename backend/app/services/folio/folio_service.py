@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from typing import NamedTuple
 
 from app.services.folio.branch_config import (
     EXCLUDED_BRANCHES,
@@ -10,6 +11,7 @@ from app.services.folio.branch_config import (
     get_branch_display_name,
 )
 from app.services.folio.match_tier import is_higher_priority, lemma_type_for
+from app.services.ontology.spec import FOLIO_SPEC, OntologySpec
 
 logger = logging.getLogger(__name__)
 
@@ -18,17 +20,21 @@ logger = logging.getLogger(__name__)
 LEMMA_VERSION = "1"
 _LEMMA_CACHE_DIR = Path.home() / ".folio-enrich" / "cache" / "lemmas"
 
-# Legal pluralia-tantum / terms of art whose singular has a *different* meaning.
-# These must never be lemma-merged (e.g. "damages" = monetary remedy != "damage"
-# = harm). Checked against both the original label and the computed lemma so
-# neither direction creates a spurious match. Conservative by design.
-_LEMMA_DENYLIST: frozenset[str] = frozenset({
-    "damages", "damage", "costs", "cost", "proceedings", "proceeding",
-    "goods", "good", "arms", "arm", "premises", "savings", "saving",
-    "findings", "finding", "securities", "minutes", "minute",
-    "holdings", "holding", "pleadings", "pleading", "articles", "article",
-    "data", "datum", "leaves", "leave", "wills", "will", "means",
-})
+# Back-compat alias: the legal terms-of-art lemma denylist now lives per-ontology
+# on the ontology spec (app.services.ontology.spec). FolioService reads it from
+# self._spec.behavior; this alias preserves any external importers.
+_LEMMA_DENYLIST: frozenset[str] = FOLIO_SPEC.behavior.lemma_denylist
+
+
+class ConceptRecord(NamedTuple):
+    """Neutral concept record for consumers that only need raw label data
+    (e.g. the embedding index builder) — so they never reach through the service
+    into the underlying folio-python graph via ``_get_folio()``."""
+
+    iri: str
+    label: str
+    definition: str
+    examples: list[str]
 
 
 def _translation_matching_enabled() -> bool:
@@ -94,11 +100,18 @@ class PropertyLabelInfo:
 
 
 class FolioService:
-    """Singleton wrapper around folio-python for ontology access."""
+    """Ontology read service: a wrapper around folio-python for label/concept/
+    property/branch access.
 
-    _instance: FolioService | None = None
+    Parameterized by an :class:`OntologySpec` (defaults to FOLIO) so the same class
+    serves any folio-python-loadable ontology. Instances are owned and cached
+    per-ontology by the :class:`~app.services.ontology.registry.OntologyRegistry`;
+    use :meth:`get_instance` (which delegates to the registry) rather than
+    constructing directly.
+    """
 
-    def __init__(self) -> None:
+    def __init__(self, spec: OntologySpec | None = None) -> None:
+        self._spec: OntologySpec = spec or FOLIO_SPEC
         self._folio = None
         self._labels_cache: dict[str, LabelInfo] | None = None
         self._labels_multi_cache: dict[str, list[LabelInfo]] | None = None
@@ -114,27 +127,49 @@ class FolioService:
         self._search_cache: dict[tuple[str, str, int], list] = {}
 
     @classmethod
-    def get_instance(cls) -> FolioService:
-        if cls._instance is None:
-            cls._instance = FolioService()
-        return cls._instance
+    def get_instance(cls, ontology_id: str | None = None) -> FolioService:
+        """Return the registry-owned service for an ontology (default: FOLIO).
+
+        Kept as a classmethod for backward compatibility with the ~19 existing
+        no-arg call sites; delegates to the ontology registry so there is a single
+        cached instance per ontology.
+        """
+        from app.services.ontology.registry import get_registry
+
+        return get_registry().get_service(ontology_id)
+
+    @property
+    def spec(self) -> OntologySpec:
+        return self._spec
+
+    @property
+    def ontology_id(self) -> str:
+        return self._spec.id
+
+    def _load_folio(self):
+        """Construct the folio-python FOLIO object for this ontology's coords."""
+        from folio import FOLIO
+
+        coords = self._spec.coords
+        if coords.source_type == "http":
+            return FOLIO(source_type="http", http_url=coords.owl_url)
+        return FOLIO(github_repo_branch=coords.repo_branch)
 
     def _get_folio(self):
         if self._folio is None:
-            from folio import FOLIO
-
-            self._folio = FOLIO(github_repo_branch="main")
+            self._folio = self._load_folio()
             self._build_branch_map()
-            logger.info("FOLIO ontology loaded with %d concepts", len(self._folio.classes))
+            logger.info(
+                "Ontology '%s' loaded with %d concepts",
+                self._spec.id, len(self._folio.classes),
+            )
         return self._folio
 
     def _reload(self) -> dict:
-        """Reload FOLIO from updated disk cache. Thread-safe via GIL attribute swap."""
-        from folio import FOLIO
-
+        """Reload the ontology from updated disk cache. Thread-safe via GIL attribute swap."""
         old_count = len(self._folio.classes) if self._folio else 0
 
-        new_folio = FOLIO(github_repo_branch="main")
+        new_folio = self._load_folio()
 
         # Build new caches from the new FOLIO instance
         old_folio = self._folio
@@ -248,22 +283,23 @@ class FolioService:
         except (KeyError, Exception):
             return None
 
-    @staticmethod
-    def _is_excluded_concept(fc: FOLIOConcept) -> bool:
+    def _is_excluded_concept(self, fc: FOLIOConcept) -> bool:
         """True if a concept should never be indexed as a matchable label.
 
         Filters excluded branches, deprecated concepts, and editorial dupes/
         placeholders whose marker lives in the label text (mirrors the property
-        index filter at get_all_property_labels). The "DUPE of `License`" concept
-        (RCiAtR0akBA7apMyfjy515B) is caught here by its preferred label.
+        index filter at get_all_property_labels). The marker sets are per-ontology
+        (spec.behavior); FOLIO's are ``DUPE``/``ZZZ:``, matched case-insensitively.
         """
         if fc.branch in EXCLUDED_BRANCHES:
             return True
         if fc.deprecated:
             return True
-        pl = fc.preferred_label or ""
-        up = pl.upper()
-        if "DUPE" in up or up.startswith("ZZZ:"):
+        up = (fc.preferred_label or "").upper()
+        behavior = self._spec.behavior
+        if any(sub in up for sub in behavior.concept_exclude_substrings):
+            return True
+        if any(up.startswith(pre) for pre in behavior.concept_exclude_prefixes):
             return True
         return False
 
@@ -325,6 +361,7 @@ class FolioService:
             return cached
 
         folio = self._get_folio()
+        denylist = self._spec.behavior.lemma_denylist
         candidates: set[str] = set()
         for concept in folio.classes:
             try:
@@ -333,7 +370,7 @@ class FolioService:
                     continue
                 for raw, _ in self._primary_and_alt_labels(fc):
                     low = raw.lower()
-                    if " " in low or len(low) <= 3 or low in _LEMMA_DENYLIST:
+                    if " " in low or len(low) <= 3 or low in denylist:
                         continue
                     candidates.add(low)
             except Exception:
@@ -355,7 +392,7 @@ class FolioService:
             for doc in nlp.pipe(sorted(candidates), batch_size=512):
                 original = doc.text.lower()
                 lemma = (doc[0].lemma_.lower() if len(doc) else original)
-                if lemma != original and len(lemma) > 2 and lemma not in _LEMMA_DENYLIST:
+                if lemma != original and len(lemma) > 2 and lemma not in denylist:
                     lemma_map[original] = lemma
         except Exception:
             logger.warning("Lemma normalization failed; proceeding without lemma keys", exc_info=True)
@@ -504,10 +541,11 @@ class FolioService:
         logger.info("Indexed %d FOLIO multi-labels (%d total entries)", len(labels), total_entries)
         return labels
 
-    @staticmethod
-    def _strip_prefix(label: str) -> str:
-        """Strip namespace prefixes like 'folio:', 'utbms:', 'oasis:' from a label."""
-        for prefix in ("folio:", "utbms:", "oasis:"):
+    def _strip_prefix(self, label: str) -> str:
+        """Strip this ontology's namespace prefixes (e.g. 'folio:', 'utbms:',
+        'oasis:' for FOLIO) from a label. Prefix list is per-ontology; property
+        match keys depend on this, so it is not a shared constant."""
+        for prefix in self._spec.behavior.prefix_strip:
             if label.startswith(prefix):
                 return label[len(prefix):]
         return label
@@ -522,14 +560,17 @@ class FolioService:
             return self._property_labels_cache
 
         folio = self._get_folio()
+        behavior = self._spec.behavior
         labels: dict[str, PropertyLabelInfo] = {}
 
         for prop in folio.object_properties:
             try:
                 fp = self._to_folio_property(prop)
 
-                # Skip deprecated properties
-                if "DEPRECATED" in fp.label or fp.label.startswith("ZZZ:"):
+                # Skip deprecated/placeholder properties (markers are per-ontology).
+                if any(sub in fp.label for sub in behavior.property_exclude_substrings):
+                    continue
+                if any(fp.label.startswith(pre) for pre in behavior.property_exclude_prefixes):
                     continue
 
                 # Index clean preferred label
@@ -558,8 +599,26 @@ class FolioService:
         logger.info("Indexed %d FOLIO property labels", len(labels))
         return labels
 
+    def iter_concepts(self):
+        """Yield neutral :class:`ConceptRecord`s for every concept.
+
+        Lets consumers that only need raw label/definition/examples (e.g. the
+        embedding index builder) avoid reaching through the service into the
+        folio-python graph. Values match the raw ontology fields (rdfs:label with
+        skos:prefLabel fallback), so downstream embeddings are unchanged.
+        """
+        folio = self._get_folio()
+        for concept in folio.classes:
+            label = getattr(concept, "label", None) or getattr(concept, "preferred_label", "") or ""
+            yield ConceptRecord(
+                iri=getattr(concept, "iri", "") or "",
+                label=label,
+                definition=getattr(concept, "definition", "") or "",
+                examples=list(getattr(concept, "examples", []) or []),
+            )
+
     def get_concept_count(self) -> int:
-        """Return the number of FOLIO concepts (classes)."""
+        """Return the number of concepts (classes) in this ontology."""
         folio = self._get_folio()
         return len(folio.classes)
 

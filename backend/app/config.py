@@ -107,6 +107,13 @@ class Settings(BaseSettings):
     folio_auto_update: bool = True
     folio_update_check_interval_hours: int = 24
 
+    # Multi-ontology (see docs/plans/2026-07-01-002-feat-multi-ontology-...).
+    # FOLIO is the default and, for now, the only ENABLED ontology; the Catholic
+    # Semantic Canon spec exists but is only loaded once "canon" is appended here
+    # (a later phase wires request threading, per-ontology OWL update, and demos).
+    default_ontology: str = "folio"
+    enabled_ontologies: list[str] = ["folio"]
+
     # Translation matching — index FOLIO translations for text matching
     translation_matching_enabled: bool = False
 

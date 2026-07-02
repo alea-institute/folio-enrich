@@ -611,9 +611,11 @@ class TestFolioServiceProperties:
 
     def test_prefix_stripping(self):
         from app.services.folio.folio_service import FolioService
-        assert FolioService._strip_prefix("folio:reversed") == "reversed"
-        assert FolioService._strip_prefix("utbms:Research") == "Research"
-        assert FolioService._strip_prefix("affirmed") == "affirmed"
+        # Prefix list is now per-ontology (spec.behavior), so this is an instance method.
+        svc = FolioService()
+        assert svc._strip_prefix("folio:reversed") == "reversed"
+        assert svc._strip_prefix("utbms:Research") == "Research"
+        assert svc._strip_prefix("affirmed") == "affirmed"
 
     def test_property_labels_cached(self, folio_service):
         labels1 = folio_service.get_all_property_labels()
