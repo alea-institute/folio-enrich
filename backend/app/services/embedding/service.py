@@ -171,6 +171,24 @@ class EmbeddingService:
         else:
             self._embeddings = None
 
+    @staticmethod
+    def _top_k_indices(scores: np.ndarray, top_k: int) -> np.ndarray:
+        """Indices of the top_k highest scores, descending.
+
+        Uses argpartition (O(M)) then sorts only the k winners, instead of a full
+        argsort (O(M log M)) over the whole ~18k-concept index. Returns the exact
+        same indices/order as ``np.argsort(scores)[::-1][:top_k]`` — a pure speedup
+        with no effect on which concepts match or their ranking.
+        """
+        n = scores.shape[0]
+        k = min(top_k, n)
+        if k <= 0:
+            return np.empty(0, dtype=int)
+        if k >= n:
+            return np.argsort(scores)[::-1]
+        part = np.argpartition(scores, n - k)[-k:]
+        return part[np.argsort(scores[part])[::-1]]
+
     def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
         if self._embeddings is None or len(self._labels) == 0:
             return []
@@ -180,7 +198,7 @@ class EmbeddingService:
 
         # Cosine similarity (embeddings are already normalized)
         scores = self._embeddings @ query_vec
-        top_indices = np.argsort(scores)[::-1][:top_k]
+        top_indices = self._top_k_indices(scores, top_k)
 
         results = []
         for idx in top_indices:
@@ -207,7 +225,7 @@ class EmbeddingService:
         results = []
         for i in range(len(queries)):
             scores = all_scores[i]
-            top_indices = np.argsort(scores)[::-1][:top_k]
+            top_indices = self._top_k_indices(scores, top_k)
             query_results = []
             for idx in top_indices:
                 query_results.append(
