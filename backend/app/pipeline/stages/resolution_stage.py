@@ -165,6 +165,7 @@ class ResolutionStage(PipelineStage):
 
         filter_backups = settings.backup_semantic_filter_enabled
         threshold = settings.backup_semantic_relevance_threshold
+        branch_bonus = settings.backup_branch_coherence_bonus
 
         # One flat batch of (sentence, text) pairs across every primary definition and
         # (when enabled) every backup candidate — one forward pass scores both.
@@ -208,10 +209,17 @@ class ResolutionStage(PipelineStage):
                     "detail": f"Embedding similarity={sim:.2f}, blended 60/40 (was {search_score:.2f})",
                     "confidence": blended,
                 })
-            elif sim >= threshold:
-                rescored = dict(bc)
-                rescored["confidence"] = min(sim, rd.get("confidence", 1.0))
-                survivors.setdefault(id(rd), []).append((sim, rescored))
+            else:  # backup — gate on similarity plus a structural branch-coherence bonus
+                shares_branch = bool(
+                    set(bc.get("branches") or []) & set(rd.get("branches") or [])
+                )
+                effective = sim + (branch_bonus if shares_branch else 0.0)
+                if effective >= threshold:
+                    rescored = dict(bc)
+                    # Displayed confidence stays the honest raw similarity (capped at
+                    # primary) — the branch bonus only influences keep/drop, not score.
+                    rescored["confidence"] = min(sim, rd.get("confidence", 1.0))
+                    survivors.setdefault(id(rd), []).append((sim, rescored))
 
         if not filter_backups:
             return
