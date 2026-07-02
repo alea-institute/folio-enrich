@@ -48,6 +48,7 @@ class HierarchyPathEntry(BaseModel):
 
     label: str
     iri_hash: str
+    iri: str | None = None
 
 
 class ConceptDetail(BaseModel):
