@@ -46,23 +46,60 @@ BRANCH_LIST = "\n".join(
 )
 
 
+# Neutral, ontology-agnostic scaffold used when a non-FOLIO ontology exposes no
+# derivable top-level branches (or its service fails to load). It deliberately
+# names NO branches — a prompt must never be handed another ontology's taxonomy,
+# so we fall back to generic "classify into this ontology's own top categories"
+# guidance rather than FOLIO's legal BRANCH_LIST.
+_NEUTRAL_BRANCH_SCAFFOLD: str = (
+    "This ontology's top-level categories are not enumerated here. "
+    "Classify each concept into the single most appropriate top-level category "
+    "of this ontology, judging by the concept's meaning."
+)
+
+
 def build_branch_detail(
     max_concepts_per_branch: int = 8,
     max_total_chars: int = 8000,
     ontology_id: str = "folio",
 ) -> str:
-    """Build enriched branch descriptions using actual concept definitions and examples.
+    """Build enriched branch descriptions for an ontology's concept/branch prompts.
 
-    Falls back to BRANCH_EXAMPLES if the ontology service is unavailable or the
-    ontology exposes no FOLIO-style branches. NOTE: BRANCH_LIST / BRANCH_EXAMPLES
-    are FOLIO's legal taxonomy, so a non-FOLIO ontology (e.g. Canon) currently
-    inherits FOLIO branch scaffolding here — a known limitation. Deriving each
-    ontology's own branches is deferred (see CANON_SPEC.excluded_branches).
+    Branch categories are ontology-specific and must not leak across ontologies:
+
+    * **FOLIO** (the registry default) uses its own legal taxonomy verbatim —
+      ``FOLIO_BRANCHES`` / ``BRANCH_LIST`` / ``BRANCH_EXAMPLES`` enriched with real
+      concept definitions and examples. This path is byte-identical to the original.
+    * **Any other ontology** (e.g. the Catholic Semantic Canon) derives its OWN
+      top-level branches from its OWL (roots under ``owl:Thing`` + a few notable
+      children), so a Canon prompt presents Event / Actor / Document — never FOLIO's
+      legal branches.
+    * **Non-FOLIO ontologies with no derivable branches** (or a failed/absent
+      service) get a neutral, taxonomy-free scaffold — never FOLIO's ``BRANCH_LIST``.
+
+    Derivation is lazy and failure-tolerant: any error yields the neutral scaffold
+    rather than crashing a prompt build.
+    """
+    ontology_id = ontology_id or "folio"
+    if ontology_id == "folio":
+        return _build_folio_branch_detail(max_concepts_per_branch, max_total_chars)
+    return _build_nonfolio_branch_detail(ontology_id, max_concepts_per_branch, max_total_chars)
+
+
+def _build_folio_branch_detail(
+    max_concepts_per_branch: int = 8,
+    max_total_chars: int = 8000,
+) -> str:
+    """FOLIO branch detail — byte-identical to the original build_branch_detail.
+
+    Uses FOLIO's legal taxonomy (FOLIO_BRANCHES / BRANCH_EXAMPLES) enriched with
+    real concept definitions/examples, falling back to BRANCH_LIST if the FOLIO
+    service is unavailable.
     """
     try:
         from app.services.folio.folio_service import FolioService
         from app.services.folio.branch_config import EXCLUDED_BRANCHES
-        folio = FolioService.get_instance(ontology_id)
+        folio = FolioService.get_instance("folio")
         folio_obj = folio._get_folio()
         branches_dict = folio_obj.get_folio_branches(max_depth=16)
     except Exception:
@@ -124,6 +161,120 @@ def build_branch_detail(
         total_chars += len(branch_line)
 
     return "\n".join(lines)
+
+
+def _branch_label_excluded(label: str, spec) -> bool:
+    """Apply an ontology's editorial exclusion rules to a candidate branch label.
+
+    Mirrors FolioService concept exclusion: matched on the UPPERCASED label. Lets
+    Canon's ``ZZZ``-prefixed / ``DUPE`` editorial roots drop out of the branch list.
+    """
+    upper = (label or "").upper()
+    behavior = getattr(spec, "behavior", None)
+    if behavior is None:
+        return False
+    if any(upper.startswith(p.upper()) for p in behavior.concept_exclude_prefixes):
+        return True
+    if any(s.upper() in upper for s in behavior.concept_exclude_substrings):
+        return True
+    return False
+
+
+def _derive_branch_detail(
+    folio_obj,
+    spec,
+    init_branch_roots,
+    max_children: int = 8,
+    max_total_chars: int = 8000,
+) -> str | None:
+    """Derive an ontology-native branch list from its OWL top-level roots.
+
+    Reuses ``_init_branch_roots`` (concept_detail.py) to find roots under
+    ``owl:Thing``. That helper always injects FOLIO's own type IRIs; those are NOT
+    classes in a non-FOLIO ontology, so ``folio_obj[iri]`` resolves to ``None`` and
+    they are filtered out — only THIS ontology's real roots survive. Each surviving
+    root is presented with its definition and a few notable child labels as examples.
+
+    Returns ``None`` when the ontology exposes no derivable roots (caller then uses
+    the neutral scaffold).
+    """
+    roots = init_branch_roots(folio_obj)  # {full_iri: display_name}
+
+    real_roots: list[tuple[object, str]] = []
+    for iri, name in roots.items():
+        cls = folio_obj[iri]
+        if cls is None:
+            # Phantom root (e.g. an injected FOLIO type IRI not present here).
+            continue
+        display = getattr(cls, "label", "") or name or ""
+        if not display or _branch_label_excluded(display, spec):
+            continue
+        real_roots.append((cls, display))
+
+    if not real_roots:
+        return None
+
+    real_roots.sort(key=lambda t: (t[1] or "").casefold())
+
+    lines: list[str] = []
+    total_chars = 0
+    for cls, name in real_roots:
+        defn = (getattr(cls, "definition", "") or "").strip()
+        header = f"- {name}"
+        if defn:
+            header += f": {defn[:160]}"
+
+        child_labels: list[str] = []
+        for child_iri in (getattr(cls, "parent_class_of", None) or []):
+            child = folio_obj[child_iri]
+            if child is None:
+                continue
+            clabel = getattr(child, "label", "") or ""
+            if not clabel or _branch_label_excluded(clabel, spec):
+                continue
+            child_labels.append(clabel)
+            if len(child_labels) >= max_children:
+                break
+
+        block = header
+        if child_labels:
+            block += f"\n  Examples: {', '.join(child_labels)}"
+
+        if total_chars + len(block) > max_total_chars:
+            break
+        lines.append(block)
+        total_chars += len(block)
+
+    return "\n".join(lines) if lines else None
+
+
+def _build_nonfolio_branch_detail(
+    ontology_id: str,
+    max_concepts_per_branch: int = 8,
+    max_total_chars: int = 8000,
+) -> str:
+    """Derive a non-FOLIO ontology's own branches; neutral scaffold on any failure."""
+    try:
+        from app.services.folio.concept_detail import _init_branch_roots
+        from app.services.folio.folio_service import FolioService
+
+        service = FolioService.get_instance(ontology_id)
+        folio_obj = service._get_folio()
+        detail = _derive_branch_detail(
+            folio_obj,
+            service.spec,
+            _init_branch_roots,
+            max_children=max_concepts_per_branch,
+            max_total_chars=max_total_chars,
+        )
+    except Exception:
+        logger.debug(
+            "Branch derivation failed for ontology '%s'; using neutral scaffold",
+            ontology_id,
+            exc_info=True,
+        )
+        return _NEUTRAL_BRANCH_SCAFFOLD
+    return detail or _NEUTRAL_BRANCH_SCAFFOLD
 
 
 def get_branch_detail(ontology_id: str = "folio") -> str:
