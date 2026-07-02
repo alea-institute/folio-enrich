@@ -102,14 +102,21 @@ class TestFolioServiceSpecParameterization:
         # FakeFolioService(super().__init__()) relies on this
         assert FolioService().spec is FOLIO_SPEC
 
-    def test_http_source_load_is_guarded_until_phase2(self):
-        # Constructing a source_type="http" ontology is fine (lazy); attempting to
-        # LOAD it must refuse until the hardened ingestion path exists, so flipping
-        # enabled_ontologies alone can't trigger an unguarded fetch.
+    def test_http_source_construction_is_lazy(self):
+        # Constructing a source_type="http" ontology does not fetch anything.
         svc = FolioService(CANON_SPEC)
-        assert svc.spec is CANON_SPEC  # construction ok
-        with pytest.raises(NotImplementedError):
-            svc._get_folio()
+        assert svc.spec is CANON_SPEC
+        assert svc._folio is None  # not loaded
+
+    @pytest.mark.slow
+    def test_http_source_loads_via_hardened_ingestion(self):
+        # Loading an http ontology goes through the app's hardened ingestion
+        # (download + size cap + DOCTYPE reject + checksum) then reads the local
+        # cache — folio-python never does its own unguarded fetch.
+        svc = FolioService(CANON_SPEC)
+        folio = svc._get_folio()
+        assert len(folio.classes) > 14000
+        assert len(svc.get_all_labels()) > 10000
 
 
 class TestConceptRecord:

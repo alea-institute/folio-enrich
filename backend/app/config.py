@@ -114,6 +114,12 @@ class Settings(BaseSettings):
     default_ontology: str = "folio"
     enabled_ontologies: list[str] = ["folio"]
 
+    # Admin token gating the mutating OWL-update routes (check/apply/rollback),
+    # which trigger network fetches + runtime hot-reloads. When set, those routes
+    # require a matching X-Admin-Token header; when empty (local/trusted), they are
+    # unauthenticated. Set on public deployments. Mirrors require_user_api_key.
+    admin_token: str = ""
+
     # Translation matching — index FOLIO translations for text matching
     translation_matching_enabled: bool = False
 
