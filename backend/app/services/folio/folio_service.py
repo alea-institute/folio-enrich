@@ -3,14 +3,13 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NamedTuple
 
 from app.services.folio.branch_config import (
-    EXCLUDED_BRANCHES,
     get_branch_color,
     get_branch_display_name,
 )
 from app.services.folio.match_tier import is_higher_priority, lemma_type_for
+from app.services.ontology.records import ConceptRecord
 from app.services.ontology.spec import FOLIO_SPEC, OntologySpec
 
 logger = logging.getLogger(__name__)
@@ -25,16 +24,9 @@ _LEMMA_CACHE_DIR = Path.home() / ".folio-enrich" / "cache" / "lemmas"
 # self._spec.behavior; this alias preserves any external importers.
 _LEMMA_DENYLIST: frozenset[str] = FOLIO_SPEC.behavior.lemma_denylist
 
-
-class ConceptRecord(NamedTuple):
-    """Neutral concept record for consumers that only need raw label data
-    (e.g. the embedding index builder) — so they never reach through the service
-    into the underlying folio-python graph via ``_get_folio()``."""
-
-    iri: str
-    label: str
-    definition: str
-    examples: list[str]
+# ConceptRecord moved to app.services.ontology.records (neutral, ontology-agnostic);
+# re-exported here for backward compatibility with existing importers.
+__all__ = ["ConceptRecord", "FOLIOConcept", "FOLIOProperty", "FolioService", "LabelInfo"]
 
 
 def _translation_matching_enabled() -> bool:
@@ -152,7 +144,15 @@ class FolioService:
 
         coords = self._spec.coords
         if coords.source_type == "http":
-            return FOLIO(source_type="http", http_url=coords.owl_url)
+            # folio-python's direct http fetch is un-sized/un-timed/un-guarded.
+            # The plan mandates a hardened, size-capped, checksum-verified ingestion
+            # path (Phase 2 Security) as the sole loader for third-party OWL. Refuse
+            # the raw path until that lands, so flipping enabled_ontologies alone
+            # cannot trigger an unguarded fetch.
+            raise NotImplementedError(
+                f"Ontology '{self._spec.id}' uses source_type='http', which requires "
+                "the hardened OWL ingestion path (Phase 2). Not yet available."
+            )
         return FOLIO(github_repo_branch=coords.repo_branch)
 
     def _get_folio(self):
@@ -166,7 +166,13 @@ class FolioService:
         return self._folio
 
     def _reload(self) -> dict:
-        """Reload the ontology from updated disk cache. Thread-safe via GIL attribute swap."""
+        """Reload the ontology from its updated disk cache.
+
+        NOTE: this mutates several fields in sequence (folio, branch map, label
+        caches); a concurrent reader mid-reload can observe half-rebuilt state. It
+        is safe today only because the OWL updater waits for zero active jobs before
+        calling it. Build-then-swap (single atomic rebind) is scheduled for Phase 2.
+        """
         old_count = len(self._folio.classes) if self._folio else 0
 
         new_folio = self._load_folio()
@@ -219,7 +225,7 @@ class FolioService:
         for ft_key, classes in branches_dict.items():
             branch_key = ft_key.name if hasattr(ft_key, "name") else str(ft_key).split(".")[-1]
             display_name = get_branch_display_name(branch_key)
-            if display_name in EXCLUDED_BRANCHES:
+            if display_name in self._spec.behavior.excluded_branches:
                 continue
             color = get_branch_color(display_name)
             result.append({
@@ -291,12 +297,12 @@ class FolioService:
         index filter at get_all_property_labels). The marker sets are per-ontology
         (spec.behavior); FOLIO's are ``DUPE``/``ZZZ:``, matched case-insensitively.
         """
-        if fc.branch in EXCLUDED_BRANCHES:
+        behavior = self._spec.behavior
+        if fc.branch in behavior.excluded_branches:
             return True
         if fc.deprecated:
             return True
         up = (fc.preferred_label or "").upper()
-        behavior = self._spec.behavior
         if any(sub in up for sub in behavior.concept_exclude_substrings):
             return True
         if any(up.startswith(pre) for pre in behavior.concept_exclude_prefixes):
@@ -464,7 +470,7 @@ class FolioService:
                 continue
 
         self._labels_cache = labels
-        logger.info("Indexed %d FOLIO labels", len(labels))
+        logger.info("Indexed %d %s labels", len(labels), self._spec.display_name)
         return labels
 
     def get_all_labels_multi(self) -> dict[str, list[LabelInfo]]:
@@ -538,7 +544,8 @@ class FolioService:
 
         self._labels_multi_cache = labels
         total_entries = sum(len(v) for v in labels.values())
-        logger.info("Indexed %d FOLIO multi-labels (%d total entries)", len(labels), total_entries)
+        logger.info("Indexed %d %s multi-labels (%d total entries)",
+                    len(labels), self._spec.display_name, total_entries)
         return labels
 
     def _strip_prefix(self, label: str) -> str:
@@ -596,7 +603,7 @@ class FolioService:
                 continue
 
         self._property_labels_cache = labels
-        logger.info("Indexed %d FOLIO property labels", len(labels))
+        logger.info("Indexed %d %s property labels", len(labels), self._spec.display_name)
         return labels
 
     def iter_concepts(self):
@@ -604,15 +611,15 @@ class FolioService:
 
         Lets consumers that only need raw label/definition/examples (e.g. the
         embedding index builder) avoid reaching through the service into the
-        folio-python graph. Values match the raw ontology fields (rdfs:label with
-        skos:prefLabel fallback), so downstream embeddings are unchanged.
+        folio-python graph. ``label`` is the raw ``rdfs:label`` (may be empty); the
+        builder falls back to the IRI hash — matching the pre-registry behavior
+        exactly (no skos:prefLabel fallback), so embedding vectors are unchanged.
         """
         folio = self._get_folio()
         for concept in folio.classes:
-            label = getattr(concept, "label", None) or getattr(concept, "preferred_label", "") or ""
             yield ConceptRecord(
                 iri=getattr(concept, "iri", "") or "",
-                label=label,
+                label=getattr(concept, "label", None) or "",
                 definition=getattr(concept, "definition", "") or "",
                 examples=list(getattr(concept, "examples", []) or []),
             )

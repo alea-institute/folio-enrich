@@ -15,8 +15,12 @@ from __future__ import annotations
 
 import logging
 import threading
+from typing import TYPE_CHECKING
 
 from app.services.ontology.spec import BUILTIN_SPECS, OntologySpec
+
+if TYPE_CHECKING:
+    from app.services.folio.folio_service import FolioService
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +36,7 @@ class OntologyRegistry:
             default_id = next(iter(specs)) if specs else "folio"
         self._specs = dict(specs)
         self._default_id = default_id
-        self._services: dict[str, object] = {}
+        self._services: dict[str, FolioService] = {}
         self._global_lock = threading.Lock()
         self._key_locks: dict[str, threading.Lock] = {}
 
@@ -69,7 +73,7 @@ class OntologyRegistry:
         with self._global_lock:
             return self._key_locks.setdefault(ontology_id, threading.Lock())
 
-    def get_service(self, ontology_id: str | None = None):
+    def get_service(self, ontology_id: str | None = None) -> "FolioService":
         """Return the (lazily built, cached) ontology read service for an id.
 
         Per-key double-checked locking: the fast path is a lock-free dict read; the
