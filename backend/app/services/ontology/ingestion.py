@@ -40,6 +40,86 @@ class OWLIngestionError(Exception):
     """Raised when an OWL download fails a security or integrity gate."""
 
 
+# Namespaced element tags for the AC-3 label-coverage gate (Clark notation).
+_OWL_TAG = "{http://www.w3.org/2002/07/owl#}Class"
+_RDFS_LABEL_TAG = "{http://www.w3.org/2000/01/rdf-schema#}label"
+_RDF_ABOUT = "{http://www.w3.org/1999/02/22-rdf-syntax-ns#}about"
+
+
+def label_coverage_stats(data: bytes, offender_cap: int = 20) -> tuple[int, int, list[str]]:
+    """Return (named_classes, missing_label, sample_offender_iris) for an OWL.
+
+    Mirrors the Phase 0 spike (scripts/validate_canon_owl.py ``raw_class_stats``):
+    counts ``owl:Class`` elements with an ``rdf:about`` (named classes) and how many
+    of those lack an ``rdfs:label``. folio-python silently drops label-less classes,
+    so this measures how much of the ontology would survive the load. Anonymous
+    restrictions / blank nodes (no ``rdf:about``) are ignored. Offender IRIs are
+    collected up to ``offender_cap`` for a clear error message. Uses the same hardened
+    parser as :func:`_validate_xml`.
+    """
+    from lxml import etree
+
+    parser = etree.XMLParser(
+        resolve_entities=False,
+        no_network=True,
+        load_dtd=False,
+        dtd_validation=False,
+        huge_tree=False,
+        remove_comments=True,
+    )
+    root = etree.fromstring(data, parser=parser)
+    named = 0
+    missing = 0
+    offenders: list[str] = []
+    for cls in root.iter(_OWL_TAG):
+        about = cls.get(_RDF_ABOUT)
+        if not about:
+            continue  # anonymous restriction / blank node
+        named += 1
+        if cls.find(_RDFS_LABEL_TAG) is None:
+            missing += 1
+            if len(offenders) < offender_cap:
+                offenders.append(about)
+    return named, missing, offenders
+
+
+def assert_label_coverage(data: bytes, min_coverage: float, ontology_id: str) -> None:
+    """Raise OWLIngestionError if OWL label coverage < ``min_coverage`` percent.
+
+    Fail-open on a gate-computation error (log a warning, do not block the load); the
+    gate exists to catch a *silent* upstream regression, not to be a second XML
+    validator — the hardened parse in :func:`fetch_and_validate_owl` already ran.
+    Fail-closed only on a genuine coverage violation.
+    """
+    try:
+        named, missing, offenders = label_coverage_stats(data)
+    except Exception as exc:  # noqa: BLE001 - fail open on gate-computation error
+        logger.warning(
+            "Label-coverage gate could not parse OWL for '%s' (%s); allowing load",
+            ontology_id, exc,
+        )
+        return
+    if named == 0:
+        logger.warning(
+            "Label-coverage gate found no named owl:Class for '%s'; allowing load",
+            ontology_id,
+        )
+        return
+    retention = (named - missing) / named * 100
+    if retention < min_coverage:
+        sample = ", ".join(offenders) or "(none captured)"
+        raise OWLIngestionError(
+            f"OWL for '{ontology_id}' failed rdfs:label coverage gate: "
+            f"{retention:.2f}% < {min_coverage:.2f}% required "
+            f"({missing} of {named} named classes lack rdfs:label). "
+            f"Sample offenders: {sample}"
+        )
+    logger.info(
+        "Label-coverage gate passed for '%s': %.2f%% (>= %.2f%%)",
+        ontology_id, retention, min_coverage,
+    )
+
+
 def _assert_safe_url(url: str) -> None:
     parsed = urlparse(url)
     if parsed.scheme != "https":

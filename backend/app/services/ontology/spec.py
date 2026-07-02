@@ -67,6 +67,11 @@ class OntologySpec:
     base_iri: str
     coords: OntologyCoords
     behavior: OntologyBehavior
+    # AC-3 build gate: minimum % of named owl:Class carrying an rdfs:label. Classes
+    # without a label are silently dropped by folio-python, so a bad upstream OWL
+    # would quietly shrink the ontology. When set, the http load path refuses an OWL
+    # whose label coverage falls below this. None disables the gate (FOLIO path).
+    min_label_coverage: float | None = None
 
 
 # Legal pluralia-tantum / terms of art whose singular has a *different* meaning.
@@ -133,6 +138,9 @@ CANON_SPEC = OntologySpec(
             "http://webprotege.stanford.edu/",
         ),
     ),
+    # Phase 0 measured ~99.9% label coverage; gate below 99% so a regressed upstream
+    # OWL (many label-less classes silently dropped) fails the load loudly.
+    min_label_coverage=99.0,
 )
 
 

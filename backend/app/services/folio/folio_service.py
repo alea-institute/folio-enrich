@@ -159,7 +159,11 @@ class FolioService:
         """
         from folio import FOLIO
 
-        from app.services.ontology.ingestion import OWLIngestionError, fetch_and_validate_owl
+        from app.services.ontology.ingestion import (
+            OWLIngestionError,
+            assert_label_coverage,
+            fetch_and_validate_owl,
+        )
 
         # Integrity is mandatory for third-party http sources: without a pinned
         # checksum a force-push/compromise of the remote file would be accepted.
@@ -169,6 +173,12 @@ class FolioService:
             )
 
         data, _sha = fetch_and_validate_owl(coords.owl_url, expected_sha256=coords.owl_sha256)
+
+        # AC-3 build gate: refuse an OWL whose rdfs:label coverage regressed (folio-
+        # python silently drops label-less classes). Only runs when the spec opts in;
+        # FOLIO (min_label_coverage=None, and a different load path anyway) is untouched.
+        if self._spec.min_label_coverage is not None:
+            assert_label_coverage(data, self._spec.min_label_coverage, self._spec.id)
 
         # Mirror folio-python's cache scheme exactly: ~/.folio/cache/http/
         # {blake2b(url)}.owl. folio reads this file as utf-8 text; OWL is utf-8, so

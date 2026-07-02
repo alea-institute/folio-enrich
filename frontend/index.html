@@ -518,7 +518,7 @@
      ACTION accent wins across all three theme blocks. The IDENTITY gold is only
      applied to the wordmark. Palette swap is a plain var reassignment — no
      transition is declared here, so it applies instantly with no motion. */
-  [data-theme][data-ontology="canon"] { --accent: #c34455; --accent-dim: #9c2d3b; }
+  [data-theme][data-ontology="canon"] { --accent: #856404; --accent-dim: #5e4a03; }
   /* Mixed theme redefines --accent to a hardcoded blue on its light panels/modals;
      re-assert crimson there so the swap is cohesive across every theme (AC). */
   [data-ontology="canon"][data-theme="mixed"] .panel-right,
@@ -526,9 +526,9 @@
   [data-ontology="canon"][data-theme="mixed"] .modal,
   [data-ontology="canon"][data-theme="mixed"] .concept-tooltip,
   [data-ontology="canon"][data-theme="mixed"] .graph-modal-overlay {
-    --accent: #c34455; --accent-dim: #9c2d3b;
+    --accent: #856404; --accent-dim: #5e4a03;
   }
-  [data-ontology="canon"] header h1 span { color: #c9a227; }         /* gold brand-mark */
+  [data-ontology="canon"] header h1 span { color: #a8841a; }         /* gold brand-mark */
   [data-ontology="canon"] header h1 {
     font-family: 'Cormorant Garamond', Georgia, serif;
     letter-spacing: .01em;
@@ -3555,7 +3555,7 @@
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="var(--accent)" stroke-width="1.5"/><line x1="8" y1="5" x2="8" y2="9" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="11.5" r="0.75" fill="var(--accent)"/></svg>
         <span id="llmBannerTitleText">No AI provider configured</span>
       </div>
-      <div id="llmBannerBody">FOLIO's symbolic AI (pattern matching, ontology lookup, dependency parsing) works great without a cloud key. For deeper concept extraction, you can add one.</div>
+      <div id="llmBannerBody">The ontology's symbolic AI (pattern matching, ontology lookup, dependency parsing) works great without a cloud key. For deeper concept extraction, you can add one.</div>
       <div class="llm-banner-actions">
         <button class="btn-configure" id="llmBannerConfigureBtn" onclick="llmBannerConfigure()">Configure AI Provider</button>
         <button class="btn-symbolic" onclick="llmBannerSymbolic()">Continue without AI &#8594;</button>
@@ -3746,7 +3746,7 @@
         </div>
         <div class="empty-state" id="emptyState">
           <h3>No annotations yet</h3>
-          <p>Paste a legal document and click "Enrich Document" to see FOLIO annotations.</p>
+          <p>Paste a legal document and click "Enrich Document" to see annotations.</p>
         </div>
         <div class="annotated-text" id="annotatedText" style="display:none"></div>
       </div>
@@ -4228,11 +4228,11 @@ const STAGE_LABELS = {
 const STAGE_TOOLTIPS = {
   ingesting: 'Parse the uploaded document (PDF, DOCX, HTML, MD, TXT, RTF, EML…) into plain text.',
   normalizing: 'Clean and normalize the extracted text — whitespace, encoding, structure — for analysis.',
-  enriching: 'Tag FOLIO concepts with the EntityRuler dictionary and extract early individuals, properties, and triples (run in parallel).',
-  identifying: 'An LLM identifies additional FOLIO concept candidates from surrounding context.',
-  resolving: 'Reconcile the candidate tags and resolve each to a canonical FOLIO ontology IRI.',
+  enriching: 'Tag ontology concepts with the EntityRuler dictionary and extract early individuals, properties, and triples (run in parallel).',
+  identifying: 'An LLM identifies additional ontology concept candidates from surrounding context.',
+  resolving: 'Reconcile the candidate tags and resolve each to a canonical ontology IRI.',
   judging: 'An LLM judges ambiguous matches and picks the correct ontology branch.',
-  matching: 'String-match labels to the best-fitting FOLIO concepts and re-rank the candidates.',
+  matching: 'String-match labels to the best-fitting ontology concepts and re-rank the candidates.',
   finalize: 'Link individuals and properties, enrich triples, and assemble the final results.'
 };
 
@@ -4256,11 +4256,22 @@ function branchSlug(displayName) {
     .replace(/-+/g, '-');
 }
 
+// Deterministic color for branch names without a dedicated --branch-* CSS var
+// (e.g. Canon branches / overflow). djb2 hash → hue; S/L matches the backend
+// palette (60%/42%) so live and exported colors stay visually consistent.
+function stableBranchColor(name) {
+  let hash = 5381;
+  for (let i = 0; i < name.length; i++) {
+    hash = ((hash << 5) + hash + name.charCodeAt(i)) | 0;
+  }
+  const hue = ((hash % 360) + 360) % 360;
+  return `hsl(${hue}, 60%, 42%)`;
+}
+
 function getBranchColor(displayName) {
   if (!displayName) return getThemeColor('branch-default') || '#8b8fa3';
   return getThemeColor('branch-' + branchSlug(displayName))
-    || getThemeColor('branch-default')
-    || '#8b8fa3';
+    || stableBranchColor(displayName);
 }
 
 function setTheme(theme) {
@@ -11305,7 +11316,7 @@ function renderTriples(triples, isFirstClass) {
   let html = `<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
     <span style="font-size:12px;color:var(--text-dim)">${triples.length} triples</span>
     <button class="filter-btn active" onclick="filterTriples('all',this)" style="font-size:11px;padding:2px 8px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);cursor:pointer">All (${triples.length})</button>
-    <button class="filter-btn" onclick="filterTriples('linked',this)" style="font-size:11px;padding:2px 8px;border-radius:12px;border:1px solid var(--border);background:transparent;cursor:pointer">FOLIO-Linked (${linked.length})</button>
+    <button class="filter-btn" onclick="filterTriples('linked',this)" style="font-size:11px;padding:2px 8px;border-radius:12px;border:1px solid var(--border);background:transparent;cursor:pointer">${ontologyShortName(activeOntology)}-Linked (${linked.length})</button>
     <button class="filter-btn" onclick="filterTriples('unlinked',this)" style="font-size:11px;padding:2px 8px;border-radius:12px;border:1px solid var(--border);background:transparent;cursor:pointer">Unlinked (${unlinked.length})</button>
   </div>`;
   html += '<div id="triplesListInner" style="font-size:12px">';

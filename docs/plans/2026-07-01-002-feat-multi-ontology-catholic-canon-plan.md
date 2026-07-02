@@ -233,27 +233,27 @@ The Canon OWL is third-party, network-delivered, parsed-as-data across 14 stages
 ## Acceptance Criteria
 
 ### Functional
-- [ ] **AC-1 (relaxed):** A Canon job's result + all 13 exports contain **zero cross-ontology IRI / base-IRI / branch / namespace literals** (FOLIO IRIs, `folio.openlegalstandard.org`, FOLIO branch names). Legacy `folio_*` *schema keys* are a documented neutral constant, out of scope. Verified per exporter.
-- [ ] **AC-2:** Concurrent FOLIO+Canon requests return non-cross-contaminated concepts/branches/embeddings.
-- [ ] **AC-3:** A Canon OWL violating the `rdfs:label` gate fails the build loudly (names offenders).
-- [ ] **AC-4:** Precedence `?ontology=` > localStorage > FOLIO default; deep links (incl. demo links) pre-resolve before first paint (no flash).
-- [ ] **AC-5:** `?ontology=` disabled and `?demo=<foreign-slug>` resolve to a safe labeled state; server rejects unknown `ontology` with 400 listing enabled.
-- [ ] **AC-7:** Switching ontology with a job in flight doesn't alter that job's ontology, streamed-result branding, or export labeling (switcher disabled while streaming).
-- [ ] **AC-8:** Canon branch roots each map to a **stable** (`blake2b`) color with defined overflow; identical across workers/restarts.
-- [ ] **AC-9:** Demo seeding uses `uuid5((ontology,slug))`; `seeded == demo_file_count` (both ontologies, `rglob`), no overwrite.
-- [ ] Loading a Canon `?demo=` auto-switches + rebrands; cross-links resolve against the demo's ontology.
+- [x] **AC-1 (relaxed):** A Canon job's result + all 13 exports contain **zero cross-ontology IRI / base-IRI / branch / namespace literals** (FOLIO IRIs, `folio.openlegalstandard.org`, FOLIO branch names). Legacy `folio_*` *schema keys* are a documented neutral constant, out of scope. Verified per exporter.
+- [x] **AC-2:** Concurrent FOLIO+Canon requests return non-cross-contaminated concepts/branches/embeddings.
+- [x] **AC-3:** A Canon OWL violating the `rdfs:label` gate fails the build loudly (names offenders).
+- [x] **AC-4:** Precedence `?ontology=` > localStorage > FOLIO default; deep links (incl. demo links) pre-resolve before first paint (no flash).
+- [x] **AC-5:** `?ontology=` disabled and `?demo=<foreign-slug>` resolve to a safe labeled state; server rejects unknown `ontology` with 400 listing enabled.
+- [x] **AC-7:** Switching ontology with a job in flight doesn't alter that job's ontology, streamed-result branding, or export labeling (switcher disabled while streaming).
+- [x] **AC-8:** Canon branch roots each map to a **stable** (`blake2b`) color with defined overflow; identical across workers/restarts.
+- [x] **AC-9:** Demo seeding uses `uuid5((ontology,slug))`; `seeded == demo_file_count` (both ontologies, `rglob`), no overwrite.
+- [x] Loading a Canon `?demo=` auto-switches + rebrands; cross-links resolve against the demo's ontology.
 
 ### Non-Functional
-- [ ] **AC-6:** Embeddings-off (DEV) Canon degrades identically to FOLIO's path.
-- [ ] No FOLIO regression (existing 600+ tests green); legacy persisted jobs read/export as FOLIO.
-- [ ] Switcher: keyboard-accessible, `menuitemradio` roles, focus-visible ring, `prefers-reduced-motion`-safe.
-- [ ] Memory: ≤ 2 resident ontologies, exactly one MiniLM; RSS ceiling met.
+- [x] **AC-6:** Embeddings-off (DEV) Canon degrades identically to FOLIO's path.
+- [x] No FOLIO regression (existing 600+ tests green); legacy persisted jobs read/export as FOLIO.
+- [x] Switcher: keyboard-accessible, `menuitemradio` roles, focus-visible ring, `prefers-reduced-motion`-safe.
+- [x] Memory: ≤ 2 resident ontologies, exactly one MiniLM; RSS ceiling met.
 
 ### Security (Quality Gate)
-- [ ] **S1–S5** (DOCTYPE reject · size-cap no-OOM · checksum keeps previous · host allowlist · authz on mutating routes).
+- [x] **S1–S5** (DOCTYPE reject · size-cap no-OOM · checksum keeps previous · host allowlist · authz on mutating routes).
 
 ### Integration Tests
-- [ ] **IT-1** concurrency/no-leakage (Phase 2 gate) · **IT-2** real Canon OWL load + path parity · **IT-3** `uuid5`/`rglob` collision+seed-count unit · **IT-4** Canon embeddings-off returns results · **IT-5** Canon job → 13 formats, no stray cross-ontology literals · **Legacy** fixture exports as FOLIO.
+- [x] **IT-1** concurrency/no-leakage (Phase 2 gate) · **IT-2** real Canon OWL load + path parity · **IT-3** `uuid5`/`rglob` collision+seed-count unit · **IT-4** Canon embeddings-off returns results · **IT-5** Canon job → 13 formats, no stray cross-ontology literals · **Legacy** fixture exports as FOLIO.
 
 ---
 

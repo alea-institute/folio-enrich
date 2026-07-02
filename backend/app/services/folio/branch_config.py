@@ -53,11 +53,21 @@ _NAME_TO_KEY = {v["name"]: k for k, v in BRANCH_CONFIG.items()}
 
 
 def get_branch_color(branch_name: str) -> str:
-    """Get the hex color for a branch display name."""
+    """Get the hex color for a branch display name.
+
+    FOLIO's 27 curated branches are looked up first (unchanged, byte-identical). Any
+    other branch (e.g. an auto-derived Canon branch) gets a deterministic stable
+    color from the AC-8 overflow palette instead of a flat gray, so distinct branches
+    render as distinct colors. Empty/unknown names keep the neutral gray.
+    """
     key = _NAME_TO_KEY.get(branch_name)
     if key:
         return BRANCH_CONFIG[key]["color"]
-    return "#4a5568"  # fallback dark gray
+    if not branch_name:
+        return "#4a5568"  # neutral gray for empty/None
+    from app.services.ontology.palette import stable_color
+
+    return stable_color(branch_name)
 
 
 def get_branch_display_name(key: str) -> str:
