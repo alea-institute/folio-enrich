@@ -71,18 +71,30 @@ async def main(text: str) -> None:
         if rd.get("_backup_candidates"):
             resolved.append(rd)
 
-    # Print raw sims per backup using the SAME sentence-context extraction the filter uses.
-    print(f"\n{'='*80}\nBackup semantic-relevance sims (threshold candidate: "
-          f"{settings.backup_semantic_relevance_threshold})\n{'='*80}")
+    # Print raw sims per backup using the SAME sentence-context extraction the filter
+    # uses, plus the branch-coherence bonus and the effective (gating) score so the
+    # threshold AND the bonus can be tuned together.
+    threshold = settings.backup_semantic_relevance_threshold
+    bonus = settings.backup_branch_coherence_bonus
+    print(f"\n{'='*80}\nBackup filter tuning — threshold={threshold}, branch_bonus={bonus}\n"
+          f"  eff = sim + bonus when the backup shares the primary's branch\n{'='*80}")
     for rd in resolved:
         sentence = stage._sentence_context(text, rd.get("concept_text", ""))
         backups = rd.get("_backup_candidates", [])
         pairs = [(sentence, b.get("folio_definition") or b.get("folio_label") or "") for b in backups]
         sims = embedding_service.similarity_batch(pairs)
-        print(f"\n{rd['concept_text']!r} -> {rd['folio_label']}")
-        for b, sim in sorted(zip(backups, sims), key=lambda t: t[1], reverse=True):
-            mark = "KEEP" if sim >= settings.backup_semantic_relevance_threshold else "drop"
-            print(f"  [{mark}] sim={sim:5.2f}  {b['folio_label']}")
+        primary_branches = set(rd.get("branches") or [])
+        rows = []
+        for b, sim in zip(backups, sims):
+            shares = bool(set(b.get("branches") or []) & primary_branches)
+            eff = sim + (bonus if shares else 0.0)
+            rows.append((b, sim, shares, eff))
+        print(f"\n{rd['concept_text']!r} -> {rd['folio_label']}  [{'/'.join(primary_branches) or '?'}]")
+        for b, sim, shares, eff in sorted(rows, key=lambda r: r[3], reverse=True):
+            mark = "KEEP" if eff >= threshold else "drop"
+            flag = "+branch" if shares else "       "
+            print(f"  [{mark}] sim={sim:5.2f} {flag} eff={eff:5.2f}  {b['folio_label']} "
+                  f"[{'/'.join(b.get('branches') or []) or '?'}]")
 
 
 if __name__ == "__main__":

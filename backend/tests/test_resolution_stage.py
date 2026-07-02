@@ -273,3 +273,47 @@ class TestSemanticBackupFilter:
         assert "_backup_candidates" not in concepts[0]
         # primary blend still applied: 0.90 * 0.6 + 0.5 * 0.4 = 0.74
         assert abs(concepts[0]["confidence"] - 0.74) < 1e-4
+
+    def test_branch_bonus_rescues_same_branch_outlier(self, monkeypatch):
+        from app.config import settings
+        monkeypatch.setattr(settings, "backup_branch_coherence_bonus", 0.12)
+        stage, _ = self._make_stage(sim_map={"forum": 0.35, "costs": 0.36})
+        # Primary lives in "Forums and Venues"; Court Forum shares it, Court Costs doesn't.
+        concept = self._concept([
+            self._backup("Court Forum", "The forum in which a legal action is heard"),
+            self._backup("Court Costs", "The costs and fees assessed in litigation"),
+        ])
+        concept["branches"] = ["Forums and Venues"]
+        concept["_backup_candidates"][0]["branches"] = ["Forums and Venues"]  # Court Forum
+        concept["_backup_candidates"][1]["branches"] = ["Objectives"]         # Court Costs
+        stage._apply_embedding_context_scores([concept], "The Court shall have jurisdiction.")
+        # Forum: 0.35 + 0.12 = 0.47 >= 0.45 kept; Costs: 0.36 (no bonus) < 0.45 dropped
+        assert [b["folio_label"] for b in concept["_backup_candidates"]] == ["Court Forum"]
+        # displayed confidence stays the honest raw sim (0.35), NOT the boosted 0.47
+        assert abs(concept["_backup_candidates"][0]["confidence"] - 0.35) < 1e-4
+
+    def test_branch_bonus_does_not_rescue_lower_sim_same_branch_noise(self, monkeypatch):
+        from app.config import settings
+        monkeypatch.setattr(settings, "backup_branch_coherence_bonus", 0.12)
+        stage, _ = self._make_stage(sim_map={"forum": 0.35, "circuit": 0.31})
+        concept = self._concept([
+            self._backup("Court Forum", "The forum in which a legal action is heard"),
+            self._backup("Circuit Court", "A specific circuit court in a county"),
+        ])
+        concept["branches"] = ["Forums and Venues"]
+        for b in concept["_backup_candidates"]:
+            b["branches"] = ["Forums and Venues"]  # both same branch as primary
+        stage._apply_embedding_context_scores([concept], "The Court shall have jurisdiction.")
+        # Forum: 0.35+0.12=0.47 kept; Circuit: 0.31+0.12=0.43 < 0.45 dropped (lower base sim)
+        assert [b["folio_label"] for b in concept["_backup_candidates"]] == ["Court Forum"]
+
+    def test_branch_bonus_disabled_drops_outlier(self, monkeypatch):
+        from app.config import settings
+        monkeypatch.setattr(settings, "backup_branch_coherence_bonus", 0.0)
+        stage, _ = self._make_stage(sim_map={"forum": 0.35})
+        concept = self._concept([self._backup("Court Forum", "The forum for a legal action")])
+        concept["branches"] = ["Forums and Venues"]
+        concept["_backup_candidates"][0]["branches"] = ["Forums and Venues"]
+        stage._apply_embedding_context_scores([concept], "The Court shall have jurisdiction.")
+        # No bonus: 0.35 < 0.45 → dropped, key removed
+        assert "_backup_candidates" not in concept
