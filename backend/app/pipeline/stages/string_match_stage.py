@@ -71,7 +71,7 @@ class StringMatchStage(PipelineStage):
         # Label index used to refuse expanding an alt-label that is another concept's
         # canonical (primary/lemma-primary) label — see _alt_label_owned_by_other_primary.
         from app.services.folio.folio_service import FolioService
-        folio_labels = FolioService.get_instance().get_all_labels()
+        folio_labels = FolioService.get_instance(job.ontology).get_all_labels()
 
         for rc in resolved_concepts:
             rc_iri = rc.get("folio_iri", "")

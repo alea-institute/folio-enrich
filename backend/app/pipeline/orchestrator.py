@@ -379,7 +379,27 @@ class PipelineOrchestrator:
             self._config = build_pipeline_config(llm, task_llms=task_llms, job_store=self.job_store)
             self.stages = build_stages(llm, task_llms=task_llms)  # kept for backward compat
 
+    @staticmethod
+    def _stamp_ontology(job: Job) -> None:
+        """Stamp the result with which ontology this job is enriched against.
+
+        Read from job.input.ontology (the request already validated it against the
+        enabled set); falls back to the registry default if anything is off.
+        """
+        from app.services.ontology.registry import UnknownOntologyError, get_registry
+
+        registry = get_registry()
+        ontology_id = job.ontology or registry.default_id
+        try:
+            spec = registry.get_spec(ontology_id)
+        except UnknownOntologyError:
+            spec = registry.get_spec(registry.default_id)
+        job.result.ontology_id = spec.id
+        job.result.ontology_name = spec.display_name
+        job.result.base_iri = spec.base_iri
+
     async def run(self, job: Job) -> Job:
+        self._stamp_ontology(job)
         if self._config is not None:
             return await self._run_parallel(job)
         return await self._run_flat(job)
