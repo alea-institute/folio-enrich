@@ -25,7 +25,9 @@ class LLMConceptStage(PipelineStage):
             return job
 
         chunks = job.result.canonical_text.chunks
-        results = await self.identifier.identify_concepts_batch(chunks)
+        results = await self.identifier.identify_concepts_batch(
+            chunks, ontology_id=job.ontology
+        )
 
         # Store raw LLM concepts in metadata for later reconciliation
         llm_concepts: dict[str, list[dict]] = {}

@@ -174,8 +174,14 @@ class EntityRulerStage(PipelineStage):
         # event loop (asyncio.to_thread) so it doesn't block the SSE poller or the
         # rest of the parallel phase. A failure here must NOT drop the
         # deterministic annotations already committed above. ---
+        # The startup index is FOLIO's; a job for another ontology must not
+        # semantic-match against FOLIO vectors — skip (graceful degradation).
         semantic_matches = []
-        if self._embedding_service is not None and self._embedding_service.index_size > 0:
+        if (
+            self._embedding_service is not None
+            and self._embedding_service.matches_ontology(job.ontology)
+            and self._embedding_service.index_size > 0
+        ):
             known_spans = {(m.start_char, m.end_char) for m in matches}
             try:
                 semantic_ruler = SemanticEntityRuler(self._embedding_service)

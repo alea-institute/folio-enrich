@@ -54,3 +54,27 @@ class TestBranchJudge:
         ])
         assert len(results) == 2
         assert all(r["branch"] == "Event" for r in results)
+
+    @pytest.mark.asyncio
+    async def test_judge_threads_ontology_into_lookups(self, monkeypatch):
+        # PR #14: a Canon job must look concepts/branches up in Canon, not FOLIO.
+        seen: dict[str, str] = {}
+
+        def fake_get_instance(ontology_id=None):
+            seen["service_ontology"] = ontology_id
+            raise RuntimeError("stop before network")  # _build_folio_context swallows this
+
+        def fake_branch_detail(ontology_id="folio"):
+            seen["branch_ontology"] = ontology_id
+            return "BRANCHES"
+
+        import app.services.concept.branch_judge as bj
+        from app.services.folio.folio_service import FolioService
+
+        monkeypatch.setattr(FolioService, "get_instance", staticmethod(fake_get_instance))
+        monkeypatch.setattr(bj, "get_branch_detail", fake_branch_detail)
+
+        judge = BranchJudge(FakeBranchLLM())
+        await judge.judge("Eucharist", "The Eucharist is central.", ["Event"], ontology_id="canon")
+        assert seen["service_ontology"] == "canon"
+        assert seen["branch_ontology"] == "canon"
