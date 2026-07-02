@@ -38,12 +38,15 @@ class EnrichRequest(BaseModel):
     @field_validator("ontology")
     @classmethod
     def _validate_ontology(cls, v: str) -> str:
-        from app.config import settings
+        # Validate against the registry (single source of truth) — an id present in
+        # settings.enabled_ontologies but with no spec is not actually loadable.
+        from app.services.ontology.registry import get_registry
+        reg = get_registry()
         if not v:
-            return settings.default_ontology
-        if v not in settings.enabled_ontologies:
+            return reg.default_id
+        if not reg.has(v):
             raise ValueError(
-                f"Unknown or disabled ontology '{v}'. Enabled: {settings.enabled_ontologies}"
+                f"Unknown or disabled ontology '{v}'. Enabled: {reg.enabled_ids()}"
             )
         return v
 

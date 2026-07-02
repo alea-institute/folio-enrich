@@ -90,3 +90,15 @@ class TestOntologiesRoutes:
         r = client.get("/ontologies/canon")
         assert r.status_code == 404
         assert "Enabled" in r.json()["detail"]
+
+
+class TestEnrichRouteOntologyBoundary:
+    def test_post_enrich_rejects_disabled_ontology_422(self):
+        # End-to-end: a bad ontology is a 422 at the route, not a 500 deep in the pipeline
+        r = client.post("/enrich", json={"content": "hello", "ontology": "canon"})
+        assert r.status_code == 422
+        assert "folio" in r.text  # enabled list surfaced in the error
+
+    def test_post_enrich_rejects_unknown_ontology_422(self):
+        r = client.post("/enrich", json={"content": "hello", "ontology": "bogus"})
+        assert r.status_code == 422

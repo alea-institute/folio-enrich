@@ -4,6 +4,12 @@ import enum
 
 from pydantic import BaseModel, Field
 
+# Historical/default ontology for the models layer. Intentionally a literal (pydantic
+# field defaults must be class-def-time constants) and intentionally NOT
+# settings.default_ontology: every legacy persisted job was FOLIO, so the on-disk
+# default must reflect that regardless of a deployment's configured default.
+DEFAULT_ONTOLOGY = "folio"
+
 
 class DocumentFormat(str, enum.Enum):
     PLAIN_TEXT = "plain_text"
@@ -20,9 +26,10 @@ class DocumentInput(BaseModel):
     format: DocumentFormat = DocumentFormat.PLAIN_TEXT
     filename: str | None = None
     # Which ontology to enrich against. Single source of truth read by every
-    # pipeline stage via job.input.ontology. Defaults to "folio" so existing
-    # persisted jobs/demos deserialize unchanged.
-    ontology: str = "folio"
+    # pipeline stage via job.input.ontology. Validated at the request boundary
+    # (EnrichRequest.ontology); defaults so existing persisted jobs deserialize
+    # unchanged. Not re-validated here (persisted model — must always deserialize).
+    ontology: str = DEFAULT_ONTOLOGY
 
 
 class TextElement(BaseModel):

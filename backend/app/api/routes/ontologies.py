@@ -44,9 +44,9 @@ async def get_ontology(ontology_id: str) -> dict:
     """Metadata for one enabled ontology."""
     try:
         return _spec_payload(ontology_id)
-    except UnknownOntologyError:
+    except UnknownOntologyError as exc:
         enabled = get_registry().enabled_ids()
         raise HTTPException(
             status_code=404,
             detail=f"Unknown or disabled ontology '{ontology_id}'. Enabled: {enabled}",
-        )
+        ) from exc

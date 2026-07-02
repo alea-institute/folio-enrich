@@ -185,6 +185,7 @@ async def job_event_stream(
                     "job_id": str(job.id),
                     "status": job.status.value,
                     "ontology_id": job.result.ontology_id,
+                    "ontology_name": job.result.ontology_name,
                     "base_iri": job.result.base_iri,
                     "total_annotations": len(job.result.annotations),
                     "total_individuals": len(job.result.individuals),
