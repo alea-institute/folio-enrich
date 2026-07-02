@@ -3301,9 +3301,12 @@
   .demo-toggle-hint { font-size: 10px; color: var(--text-dim); }
 
   /* Superimposed DEMO badge on the 22 exemplar buttons when demo mode is active */
-  #demoExemplars .sample-btn { position: relative; }
-  #demoExemplars.demo-mode .sample-btn { border-color: var(--accent); }
-  #demoExemplars.demo-mode .sample-btn::after {
+  #demoExemplars .sample-btn,
+  #demoExemplarsCanon .sample-btn { position: relative; }
+  #demoExemplars.demo-mode .sample-btn,
+  #demoExemplarsCanon.demo-mode .sample-btn { border-color: var(--accent); }
+  #demoExemplars.demo-mode .sample-btn::after,
+  #demoExemplarsCanon.demo-mode .sample-btn::after {
     content: "DEMO";
     position: absolute;
     top: -6px; right: -4px;
@@ -3358,6 +3361,8 @@
   document.documentElement.setAttribute('data-ontology', o);
 })();
 </script>
+<!-- Canon exemplar source texts → window.CANON_SAMPLES (served from frontend/demos/) -->
+<script src="/static/demos/canon_samples.js"></script>
 </head>
 <body>
 
@@ -3638,6 +3643,32 @@
         </div>
       </div>
       </div><!-- /#demoExemplars -->
+
+      <div id="demoExemplarsCanon" hidden>
+      <div style="margin-top:12px">
+        <label style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--accent)">Canon Exemplars</label>
+
+        <label style="font-size:10px;font-weight:600;letter-spacing:0.3px;color:var(--text-dim);margin-top:6px;display:block">Scripture</label>
+        <div class="sample-grid" style="margin-top:3px">
+          <button class="secondary sample-btn" onclick="loadCanonSample('nativity')" title="Douay-Rheims — Nativity and Adoration of the Magi">The Nativity &amp; the Magi</button>
+        </div>
+
+        <label style="font-size:10px;font-weight:600;letter-spacing:0.3px;color:var(--text-dim);margin-top:6px;display:block">Doctrine</label>
+        <div class="sample-grid" style="margin-top:3px">
+          <button class="secondary sample-btn" onclick="loadCanonSample('sacraments')" title="Baltimore Catechism — seven sacraments &amp; grace">The Seven Sacraments</button>
+        </div>
+
+        <label style="font-size:10px;font-weight:600;letter-spacing:0.3px;color:var(--text-dim);margin-top:6px;display:block">Councils</label>
+        <div class="sample-grid" style="margin-top:3px">
+          <button class="secondary sample-btn" onclick="loadCanonSample('trent_eucharist')" title="Council of Trent, Session XIII — Transubstantiation">Trent: The Eucharist</button>
+        </div>
+
+        <label style="font-size:10px;font-weight:600;letter-spacing:0.3px;color:var(--text-dim);margin-top:6px;display:block">Social Doctrine</label>
+        <div class="sample-grid" style="margin-top:3px">
+          <button class="secondary sample-btn" onclick="loadCanonSample('rerum_novarum')" title="Leo XIII, 1891 — labour, property, justice">Rerum Novarum</button>
+        </div>
+      </div>
+      </div><!-- /#demoExemplarsCanon -->
 
       <div style="margin-top:8px">
         <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-dim)">Narratives</label>
@@ -4315,6 +4346,12 @@ function syncOntologyUI() {
     span.textContent = 'Enrich';
   }
   document.title = ontologyBrand(id) + ' Enrich';
+  // Choose WHICH exemplar grid is shown for the active ontology. This only picks the
+  // grid — it does not open/close the demo panel (demo-mode gating is unchanged).
+  const fg = document.getElementById('demoExemplars');
+  const cg = document.getElementById('demoExemplarsCanon');
+  if (fg) fg.hidden = (id === 'canon');
+  if (cg) cg.hidden = (id !== 'canon');
 }
 
 // True while a job is in flight (streaming OR poll fallback). Same predicate the
@@ -4346,6 +4383,11 @@ function applyOntology(id, { push = true, persist = true } = {}) {
   // the global CSS vars never recolor stale spans for a frame. clearAll() is the
   // existing New/Clear path (also cancels timers + closes the SSE stream).
   if (switching && hasRenderedResults()) clearAll();
+  // Concept detail cache is keyed by iri_hash only (no ontology) — drop it on a real
+  // switch so FOLIO hierarchy/graph never bleeds into a Canon session (and vice versa).
+  if (switching && typeof _conceptDetailCache !== 'undefined') {
+    for (const k in _conceptDetailCache) delete _conceptDetailCache[k];
+  }
   document.documentElement.setAttribute('data-ontology', id);
   if (id === 'canon') injectCanonFont();
   activeOntology = id;
@@ -4692,6 +4734,8 @@ function setDemoMode(on, { announce = true } = {}) {
   demoModeOn = on;
   const wrap = document.getElementById('demoExemplars');
   if (wrap) wrap.classList.toggle('demo-mode', on);
+  const wrapCanon = document.getElementById('demoExemplarsCanon');
+  if (wrapCanon) wrapCanon.classList.toggle('demo-mode', on);
   const btn = document.getElementById('demoToggleBtn');
   if (btn) btn.setAttribute('aria-pressed', on ? 'true' : 'false');
   const hint = document.getElementById('demoToggleHint');
@@ -4707,10 +4751,19 @@ function toggleDemoMode() {
   setDemoMode(!demoModeOn);
 }
 
+// Build the static demo JSON URL, namespaced by ontology. FOLIO stays flat at
+// /static/demos/<slug>.json; other ontologies nest under /static/demos/<ontology>/.
+function demoUrl(slug, ontology = activeOntology) {
+  const base = '/static/demos/';
+  return (ontology && ontology !== 'folio')
+    ? base + encodeURIComponent(ontology) + '/' + encodeURIComponent(slug) + '.json'
+    : base + encodeURIComponent(slug) + '.json';
+}
+
 // Fetch and hydrate a pre-baked exemplar; fall back to lean prefill on any failure.
 async function loadDemoExemplar(slug, { pushUrl = true } = {}) {
   try {
-    const resp = await fetch('/static/demos/' + encodeURIComponent(slug) + '.json');
+    const resp = await fetch(demoUrl(slug));
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const payload = await resp.json();
     const cache = payload.cache;
@@ -4720,8 +4773,11 @@ async function loadDemoExemplar(slug, { pushUrl = true } = {}) {
     // Reflect in the URL so refresh / back / sharing reproduce this demo.
     if (pushUrl) {
       try {
-        const url = window.location.pathname + '?demo=' + encodeURIComponent(slug);
-        history.pushState({ demo: slug }, '', url);
+        const u = new URL(window.location.href);
+        u.searchParams.set('demo', slug);
+        if (activeOntology && activeOntology !== 'folio') u.searchParams.set('ontology', activeOntology);
+        else u.searchParams.delete('ontology');
+        history.pushState({ demo: slug }, '', u.pathname + u.search);
       } catch (e) { /* ignore */ }
     }
     // Move focus to the results region for keyboard/AT users.
@@ -4743,6 +4799,13 @@ async function tryLoadDemo() {
   const slug = params.get('demo');
   if (!slug) return false;
 
+  // Resolve the ontology from the URL BEFORE building the demo URL, so a Canon
+  // deep-link fetches from the Canon dir and renders under Canon branding.
+  const urlOntology = params.get('ontology') || 'folio';
+  if (ONTOLOGY_ALLOW.has(urlOntology) && urlOntology !== activeOntology) {
+    applyOntology(urlOntology, { push: false, persist: true });
+  }
+
   // Try sessionStorage first (refresh support)
   const cacheKey = 'folio_demo_cache_' + slug;
   let demoData = null;
@@ -4754,7 +4817,7 @@ async function tryLoadDemo() {
   // If no cache, fetch the static JSON
   if (!demoData) {
     try {
-      const resp = await fetch('/static/demos/' + encodeURIComponent(slug) + '.json');
+      const resp = await fetch(demoUrl(slug));
       if (!resp.ok) {
         console.warn('Demo not found:', slug);
         return false;
@@ -4800,7 +4863,7 @@ function hydrateFromDemo(cache, slug) {
   // Set title
   const meta = cache._demoMeta;
   const title = meta ? meta.title : slug;
-  document.title = 'FOLIO Enrich \u2014 Demo: ' + title;
+  document.title = ontologyBrand(activeOntology) + ' Enrich \u2014 Demo: ' + title;
 
   // Reflect demo mode in the toggle + badges
   setDemoMode(true, { announce: false });
@@ -4848,7 +4911,7 @@ function exitDemoMode({ clearResults = false } = {}) {
   isDemoMode = false;
   currentDemoSlug = null;
   originalDemoCache = null;
-  document.title = 'FOLIO Enrich';
+  document.title = ontologyBrand(activeOntology) + ' Enrich';
   // Drop ?demo= from the URL so refresh / back no longer reload the demo.
   try {
     const params = new URLSearchParams(window.location.search);
@@ -8791,6 +8854,14 @@ document.addEventListener('click', (e) => {
 // ==============================================
 
 const _conceptDetailCache = {};  // iri_hash → detail object
+
+// Append the active ontology to a concept endpoint path so tooltips / detail / graph
+// hydrate against the ontology the user is viewing (path may already carry a query).
+function conceptUrl(path) {
+  const sep = path.includes('?') ? '&' : '?';
+  return `${API}${path}${sep}ontology=${encodeURIComponent(activeOntology)}`;
+}
+
 let _currentDetailIriHash = null;
 let _currentDetailAnnId = null;
 let _graphDirection = 'TB';
@@ -8863,6 +8934,42 @@ function resetDetailPanel() {
   _currentDetailAnnId = null;
 }
 
+// Build a detail object from the baked concept fields carried on the annotation, for
+// when endpoint hydration fails. Canon concepts 404 on GET /concepts/{hash} because
+// folio-python only indexes FOLIO classes by bare hash; the baked concept still holds
+// folio_* fields (kept by demo-slim + exporter-protected). Shaped to match what
+// renderDetailInfo reads (label/definition/synonyms/examples/source/…). Ancestry + DAG
+// have no baked data, so those renderers get a bare object and draw an empty state.
+// Returns null when the baked concept is unavailable (keeps the old error behavior).
+function fallbackDetailFromBaked(annId) {
+  const annData = annId ? _annotationDataById[annId] : null;
+  const c = annData && annData.concepts && annData.concepts[0];
+  if (!c) return null;
+  if (!c.folio_label && !c.folio_definition && !c.folio_iri) return null;
+  const seeAlso = (c.folio_see_also || []).map(iri => {
+    const h = (iri || '').split('/').pop();
+    return { iri_hash: h, label: h };
+  });
+  return {
+    iri: c.folio_iri || null,
+    label: c.folio_label || c.concept_text || '',
+    definition: c.folio_definition || null,
+    synonyms: c.folio_alt_labels || null,
+    examples: c.folio_examples || null,
+    translations: c.translations || null,
+    notes: c.folio_notes || null,
+    comment: c.folio_comment || null,
+    description: c.folio_description || null,
+    source: c.folio_source || null,
+    editorial_note: c.folio_editorial_note || null,
+    history_note: c.folio_history_note || null,
+    country: c.folio_country || null,
+    deprecated: c.folio_deprecated || null,
+    related: seeAlso.length ? seeAlso : null,
+    branch: (c.branches && c.branches[0]) || null,
+  };
+}
+
 async function loadConceptDetail(iriHash, annId) {
   if (!iriHash) return;
 
@@ -8885,7 +8992,7 @@ async function loadConceptDetail(iriHash, annId) {
   try {
     let detail = _conceptDetailCache[iriHash];
     if (!detail) {
-      const resp = await fetch(`${API}/concepts/${iriHash}`);
+      const resp = await fetch(conceptUrl(`/concepts/${iriHash}`));
       if (!resp.ok) throw new Error('Failed to load concept');
       detail = await resp.json();
       _conceptDetailCache[iriHash] = detail;
@@ -8912,11 +9019,29 @@ async function loadConceptDetail(iriHash, annId) {
     document.getElementById('detailToggleBtn').classList.add('has-content');
   } catch (e) {
     console.error('loadConceptDetail error:', e, 'iriHash:', iriHash);
-    if (_currentDetailIriHash === iriHash) {
+    if (_currentDetailIriHash !== iriHash) return;
+    // Endpoint hydration failed (Canon concepts 404 — see fallbackDetailFromBaked).
+    // Render the baked concept fields so the panel stays useful (label/definition/
+    // examples/synonyms/branch), just without the endpoint-only ancestry + DAG.
+    const fallback = fallbackDetailFromBaked(annId);
+    if (fallback) {
       loading.style.display = 'none';
-      empty.style.display = 'block';
-      empty.textContent = 'Failed to load concept details';
+      content.style.display = 'block';
+      renderAncestryTree(fallback);   // no hierarchy paths → empty, no error
+      renderDetailInfo(fallback);
+      renderDetailAlternatives(annId);
+      renderDetailLineage(annId);
+      renderDetailIndividuals(annId);
+      renderDetailDag(fallback);      // no parents/siblings/children → empty, no error
+      renderDetailNotes(iriHash, annId);
+      renderDetailGraphButton(iriHash, fallback.label);
+      renderDetailDismissBtn(annId);
+      document.getElementById('detailToggleBtn').classList.add('has-content');
+      return;
     }
+    loading.style.display = 'none';
+    empty.style.display = 'block';
+    empty.textContent = 'Failed to load concept details';
   }
 }
 
@@ -8957,7 +9082,7 @@ async function toggleAltsInHierarchy(event) {
       await Promise.all(missing.map(async (alt) => {
         const h = alt.folio_iri.split('/').pop();
         try {
-          const resp = await fetch(`${API}/concepts/${h}`);
+          const resp = await fetch(conceptUrl(`/concepts/${h}`));
           if (resp.ok) _conceptDetailCache[h] = await resp.json();
         } catch { /* skip */ }
       }));
@@ -9431,7 +9556,7 @@ async function buildConceptsTabTree(annotations, individuals) {
       const resp = await fetch(`${API}/concepts/batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ iri_hashes: needed.slice(0, 100) }),
+        body: JSON.stringify({ iri_hashes: needed.slice(0, 100), ontology: activeOntology }),
       });
       if (resp.ok) {
         const data = await resp.json();
@@ -9444,7 +9569,7 @@ async function buildConceptsTabTree(annotations, individuals) {
         const resp2 = await fetch(`${API}/concepts/batch`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ iri_hashes: needed.slice(100, 200) }),
+          body: JSON.stringify({ iri_hashes: needed.slice(100, 200), ontology: activeOntology }),
         });
         if (resp2.ok) {
           const data2 = await resp2.json();
@@ -10318,7 +10443,7 @@ function closeGraphModal() {
 
 async function loadGraphData(iriHash) {
   const desc = _graphShowDescendants ? 2 : 0;
-  const resp = await fetch(`${API}/concepts/${iriHash}/graph?ancestors_depth=5&descendants_depth=${desc}`);
+  const resp = await fetch(`${API}/concepts/${iriHash}/graph?ancestors_depth=5&descendants_depth=${desc}&ontology=${encodeURIComponent(activeOntology)}`);
   if (!resp.ok) {
     const msg = resp.status === 429 ? 'Rate limit exceeded — please wait a moment and try again'
       : resp.status === 404 ? 'Concept not found' : `Server error (${resp.status})`;
@@ -10681,7 +10806,7 @@ async function handleGraphNodeClick(iriHash) {
     // Expand: fetch 1-hop neighbors and merge
     _graphExpandedNodes.add(iriHash);
     try {
-      const newData = await fetch(`${API}/concepts/${iriHash}/graph?ancestors_depth=1&descendants_depth=1`);
+      const newData = await fetch(`${API}/concepts/${iriHash}/graph?ancestors_depth=1&descendants_depth=1&ontology=${encodeURIComponent(activeOntology)}`);
       if (newData.ok) {
         const extra = await newData.json();
         mergeGraphData(extra);
@@ -10763,7 +10888,7 @@ async function toggleDescendants() {
       for (const expandedId of _graphExpandedNodes) {
         if (expandedId !== _graphFocusIriHash) {
           try {
-            const resp = await fetch(`${API}/concepts/${expandedId}/graph?ancestors_depth=1&descendants_depth=1`);
+            const resp = await fetch(`${API}/concepts/${expandedId}/graph?ancestors_depth=1&descendants_depth=1&ontology=${encodeURIComponent(activeOntology)}`);
             if (resp.ok) mergeGraphData(await resp.json());
           } catch (_) {}
         }
@@ -11731,6 +11856,21 @@ function loadSample(name) {
     return;
   }
   prefillSample(name);
+}
+
+// Canon exemplars have their own pre-baked demos + source texts (window.CANON_SAMPLES).
+const CANON_EXEMPLAR_DEMO_SLUGS = new Set(['nativity','sacraments','trent_eucharist','rerum_novarum']);
+function loadCanonSample(slug) {
+  // In demo mode, load the instant pre-baked Canon result (mirrors loadSample).
+  if (demoModeOn && CANON_EXEMPLAR_DEMO_SLUGS.has(slug)) {
+    loadDemoExemplar(slug);
+    return;
+  }
+  // Otherwise prefill the document input from the Canon source text (mirrors prefillSample).
+  const ta = document.getElementById('docInput');
+  ta.value = (window.CANON_SAMPLES && window.CANON_SAMPLES[slug]) || '';
+  uploadedFilename = null;
+  applyDebugTruncation();
 }
 
 function clearAll() {

@@ -13,19 +13,33 @@ the frontend's inline ``SAMPLES`` object — the single source of truth for exem
 
 from __future__ import annotations
 
+from scripts.canon_exemplars import CANON_EXEMPLAR_SLUGS, CANON_META, extract_canon_texts
 from scripts.extract_exemplars import EXEMPLAR_META, EXEMPLAR_SLUGS, extract_exemplar_texts
 
 # Metadata only (no text) — cheap to import; keys define the expected demo slugs.
 DEMO_DOCUMENTS: dict[str, dict] = {slug: dict(EXEMPLAR_META[slug]) for slug in EXEMPLAR_SLUGS}
 
 
-def load_demo_documents() -> dict[str, dict]:
-    """Return ``{slug: {title, description, group, text}}`` for all 22 exemplars.
+def load_demo_documents(ontology: str = "folio") -> dict[str, dict]:
+    """Return ``{slug: {title, description, group, text}}`` for an ontology's exemplars.
 
-    Text is extracted from the frontend SAMPLES object at call time (requires Node).
+    - ``folio`` (default): the 22 FOLIO exemplars, text extracted from the frontend
+      inline SAMPLES object (requires Node).
+    - ``canon``: the four Catholic Semantic Canon exemplars, text extracted from
+      ``frontend/demos/canon_samples.js`` (requires Node).
+
+    Any other ontology id raises ``ValueError``.
     """
-    texts = extract_exemplar_texts()
-    return {
-        slug: {**EXEMPLAR_META[slug], "text": texts[slug]}
-        for slug in EXEMPLAR_SLUGS
-    }
+    if ontology == "folio":
+        texts = extract_exemplar_texts()
+        return {
+            slug: {**EXEMPLAR_META[slug], "text": texts[slug]}
+            for slug in EXEMPLAR_SLUGS
+        }
+    if ontology == "canon":
+        texts = extract_canon_texts()
+        return {
+            slug: {**CANON_META[slug], "text": texts[slug]}
+            for slug in CANON_EXEMPLAR_SLUGS
+        }
+    raise ValueError(f"No demo documents defined for ontology '{ontology}'")
