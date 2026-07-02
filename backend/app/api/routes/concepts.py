@@ -14,26 +14,27 @@ router = APIRouter(prefix="/concepts", tags=["concepts"])
 MAX_BATCH_SIZE = 100
 
 
-def _get_folio():
-    """Get the raw FOLIO instance."""
+def _get_folio(ontology_id: str | None = None):
+    """Get the raw ontology instance (defaults to FOLIO)."""
     from app.services.folio.folio_service import FolioService
-    return FolioService.get_instance()._get_folio()
+    return FolioService.get_instance(ontology_id)._get_folio()
 
 
 class BatchRequest(BaseModel):
     iri_hashes: list[str] = Field(..., max_length=MAX_BATCH_SIZE)
+    ontology: str = "folio"
 
 
 @router.post("/batch")
 async def get_concepts_batch(body: BatchRequest) -> dict:
-    """Look up multiple FOLIO concepts by IRI hash in one call.
+    """Look up multiple concepts by IRI hash in one call.
 
     Returns a mapping of iri_hash → detail for each found concept.
     Unknown hashes are silently omitted.
     """
     from app.services.folio.concept_detail import lookup_concept_detail
 
-    folio = _get_folio()
+    folio = _get_folio(body.ontology)
     results: dict[str, dict] = {}
     for iri_hash in body.iri_hashes[:MAX_BATCH_SIZE]:
         detail = lookup_concept_detail(folio, iri_hash)
@@ -43,11 +44,11 @@ async def get_concepts_batch(body: BatchRequest) -> dict:
 
 
 @router.get("/{iri_hash}")
-async def get_concept_detail(iri_hash: str) -> dict:
-    """Look up a FOLIO concept by IRI hash with full detail."""
+async def get_concept_detail(iri_hash: str, ontology: str = "folio") -> dict:
+    """Look up a concept by IRI hash with full detail."""
     from app.services.folio.concept_detail import lookup_concept_detail
 
-    folio = _get_folio()
+    folio = _get_folio(ontology)
     detail = lookup_concept_detail(folio, iri_hash)
     if detail is None:
         raise HTTPException(status_code=404, detail=f"Concept not found: {iri_hash}")
@@ -61,11 +62,12 @@ async def get_concept_graph(
     descendants_depth: int = 2,
     max_nodes: int = 200,
     include_see_also: bool = True,
+    ontology: str = "folio",
 ) -> dict:
-    """Build an entity graph around a FOLIO concept via BFS."""
+    """Build an entity graph around a concept via BFS."""
     from app.services.folio.concept_detail import build_entity_graph
 
-    folio = _get_folio()
+    folio = _get_folio(ontology)
     graph = build_entity_graph(
         folio, iri_hash,
         ancestors_depth=ancestors_depth,
