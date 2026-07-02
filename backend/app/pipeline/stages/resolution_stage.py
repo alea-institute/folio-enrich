@@ -18,9 +18,18 @@ logger = logging.getLogger(__name__)
 
 
 class ResolutionStage(PipelineStage):
-    def __init__(self, resolver: ConceptResolver | None = None, embedding_service=None) -> None:
+    def __init__(
+        self,
+        resolver: ConceptResolver | None = None,
+        embedding_service=None,
+        registry_embeddings: bool = False,
+    ) -> None:
         self.resolver = resolver or ConceptResolver()
         self._embedding_service = embedding_service
+        # When True (production), fetch the per-ontology embedding service from the
+        # registry at run time so a Canon job scores against Canon vectors. When
+        # False (tests/back-compat), the injected embedding_service is used verbatim.
+        self._registry_embeddings = registry_embeddings
 
     @property
     def name(self) -> str:
@@ -249,6 +258,13 @@ class ResolutionStage(PipelineStage):
         # resolves against Canon concepts, not FOLIO's.
         from app.services.folio.folio_service import FolioService
         self.resolver.folio = FolioService.get_instance(job.ontology)
+
+        # Bind the embedding service built for THIS job's ontology (Canon jobs score
+        # against Canon vectors, FOLIO jobs against FOLIO's). The matches_ontology
+        # gate inside _apply_embedding_context_scores then passes as a safety assert.
+        if self._registry_embeddings:
+            from app.services.ontology.registry import get_embedding_service
+            self._embedding_service = get_embedding_service(job.ontology)
 
         # Prefer reconciled concepts (merged ruler + LLM); fall back to individual sources
         reconciled = job.result.metadata.get("reconciled_concepts", [])

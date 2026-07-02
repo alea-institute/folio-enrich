@@ -30,6 +30,7 @@ async def _index_folio_embeddings() -> None:
         from app.services.folio.owl_cache import ensure_owl_fresh, get_owl_content_hash
         from app.services.folio.folio_service import FolioService
         from app.services.embedding.service import EmbeddingService, build_embedding_index
+        from app.services.ontology.registry import get_registry
 
         # Ensure OWL cache is fresh before FOLIO init reads it
         loop = asyncio.get_event_loop()
@@ -37,15 +38,21 @@ async def _index_folio_embeddings() -> None:
 
         owl_hash = get_owl_content_hash()
 
+        registry = get_registry()
+        default_id = registry.default_id
         folio_service = FolioService.get_instance()
-        embedding_service = EmbeddingService.get_instance()
-        # Run the heavy encoding in a thread to avoid blocking the event loop
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(
-            None, embedding_service.index_folio_labels, folio_service, owl_hash,
+        # Build ONLY the default (FOLIO) embedding service via the registry — using
+        # the shared provider and the registry's per-ontology cache. Canon (and any
+        # other ontology) stays lazy: a FOLIO-only deploy pays no Canon cost here.
+        # Run the heavy encoding in a thread to avoid blocking the event loop.
+        embedding_service = await loop.run_in_executor(
+            None, registry.get_embedding_service, default_id,
         )
+        # Seed the legacy singleton so EmbeddingService.get_instance() callers
+        # (health route, OWL updater re-index) share the registry-owned FOLIO service.
+        EmbeddingService._instance = embedding_service
         logger.info("FOLIO embedding index ready (%d vectors)", embedding_service.index_size)
-        # Also build the FAISS-backed index for semantic search
+        # Also build the FAISS-backed index for semantic search (FOLIO-only, unchanged)
         await loop.run_in_executor(None, build_embedding_index, folio_service, owl_hash)
     except Exception:
         logger.warning("Failed to pre-compute FOLIO embeddings — semantic features disabled", exc_info=True)

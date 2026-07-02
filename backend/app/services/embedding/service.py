@@ -144,11 +144,14 @@ class EmbeddingService:
 
     _instance: EmbeddingService | None = None
 
-    def __init__(self) -> None:
+    def __init__(self, provider=None) -> None:
         self._labels: list[str] = []
         self._metadata: list[dict] = []
         self._embeddings: np.ndarray | None = None
-        self._provider = None
+        # When a provider is supplied (the registry shares ONE MiniLM across every
+        # per-ontology service), reuse it — otherwise lazily create a local one on
+        # first use (preserves direct callers/tests that never touch the registry).
+        self._provider = provider
         # The ontology this index was built for. The startup singleton is built
         # from FOLIO (main._index_folio_embeddings), so default "folio". A job for
         # a different ontology must NOT score its candidates against these vectors —
