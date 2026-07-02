@@ -109,6 +109,51 @@ class TestEntityRulerAnnotations:
         assert ann.id  # has a valid id
 
     @pytest.mark.asyncio
+    async def test_deterministic_tags_flush_early_and_survive_semantic_failure(self):
+        """Deterministic (Aho-Corasick) annotations must be committed and flushed
+        BEFORE the slow semantic pass, and must survive a semantic-ruler failure.
+
+        Regression: the semantic embedding step used to run synchronously ahead of
+        the annotation commit, so (a) fast deterministic tags weren't streamed until
+        it finished, and (b) any semantic exception (e.g. missing sentence-transformers)
+        wiped ALL annotations for the job.
+        """
+        mock_ruler = MagicMock()
+        mock_ruler.find_matches.return_value = [
+            EntityRulerMatch(
+                text="breach of contract", start_char=4, end_char=22,
+                label="FOLIO_CONCEPT", entity_id="https://lmss.sali.org/R1234",
+                match_type="preferred",
+            ),
+        ]
+        # Non-empty embedding index so the semantic branch is exercised.
+        fake_embed = MagicMock()
+        fake_embed.index_size = 5
+
+        # Record how many annotations existed at each early-flush save().
+        flush_counts: list[int] = []
+        job_store = MagicMock()
+        job_store.save = AsyncMock(side_effect=lambda j: flush_counts.append(len(j.result.annotations)))
+
+        stage = EntityRulerStage(ruler=mock_ruler, embedding_service=fake_embed, job_store=job_store)
+        stage._patterns_loaded = True
+
+        job = Job()
+        job.result.canonical_text = _make_canonical("The breach of contract was clear.")
+
+        # Semantic ruler blows up (as when sentence-transformers is unavailable).
+        with patch("app.pipeline.stages.entity_ruler_stage.SemanticEntityRuler") as MockSem:
+            MockSem.return_value.find_semantic_matches.side_effect = RuntimeError("no sentence-transformers")
+            result = await stage.execute(job)
+
+        # Deterministic annotation survived the semantic failure.
+        assert len(result.result.annotations) == 1
+        assert result.result.annotations[0].concepts[0].source == "entity_ruler"
+        # Early flush happened, and the deterministic tag was already present at flush time.
+        assert job_store.save.await_count >= 1
+        assert flush_counts and flush_counts[0] == 1
+
+    @pytest.mark.asyncio
     async def test_resolves_overlapping_spans_containment(self):
         """Contained spans should both be kept (contract inside breach of contract)."""
         mock_ruler = MagicMock()
