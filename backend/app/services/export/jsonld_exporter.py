@@ -16,6 +16,12 @@ class JSONLDExporter(ExporterBase):
         return "application/ld+json"
 
     def export(self, job: Job) -> str:
+        # Ontology-neutral prefix: FOLIO jobs keep the "folio" prefix bound to the
+        # FOLIO base IRI (byte-identical output); Canon jobs use "canon" bound to the
+        # Canon base IRI. Both the @context entry and every payload key derive from
+        # these so no ontology's base IRI leaks into another ontology's export.
+        p = job.result.ontology_id  # e.g. "folio" | "canon"
+
         annotations_ld = []
         for ann in job.result.annotations:
             for concept in ann.concepts:
@@ -37,7 +43,7 @@ class JSONLDExporter(ExporterBase):
                             "@id": concept.folio_iri or "",
                             "skos:prefLabel": concept.folio_label or concept.concept_text,
                             "skos:definition": concept.folio_definition or "",
-                            "folio:branch": concept.branches[0] if concept.branches else "",
+                            f"{p}:branch": concept.branches[0] if concept.branches else "",
                             "skos:altLabel": concept.folio_alt_labels or None,
                             "skos:example": concept.folio_examples or None,
                             "rdfs:seeAlso": concept.folio_see_also or None,
@@ -64,16 +70,16 @@ class JSONLDExporter(ExporterBase):
                         "oa:exact": ind.mention_text,
                     },
                 },
-                "folio:individualType": ind.individual_type,
+                f"{p}:individualType": ind.individual_type,
                 "schema:confidence": ind.confidence,
-                "folio:source": ind.source,
+                f"{p}:source": ind.source,
                 "rdf:type": [
                     {
                         k: v
                         for k, v in {
                             "@id": cl.folio_iri or "",
                             "skos:prefLabel": cl.folio_label or "",
-                            "folio:branch": cl.branch,
+                            f"{p}:branch": cl.branch,
                         }.items()
                         if v
                     }
@@ -81,7 +87,7 @@ class JSONLDExporter(ExporterBase):
                 ],
             }
             if ind.normalized_form:
-                ind_obj["folio:normalizedForm"] = ind.normalized_form
+                ind_obj[f"{p}:normalizedForm"] = ind.normalized_form
             if ind.url:
                 ind_obj["schema:url"] = ind.url
             individuals_ld.append(ind_obj)
@@ -101,7 +107,7 @@ class JSONLDExporter(ExporterBase):
                     },
                 },
                 "schema:confidence": prop.confidence,
-                "folio:source": prop.source,
+                f"{p}:source": prop.source,
             }
             if prop.folio_iri:
                 prop_obj["@id"] = prop.folio_iri
@@ -125,22 +131,22 @@ class JSONLDExporter(ExporterBase):
                 "rdf:subject": t.subject,
                 "rdf:predicate": t.predicate,
                 "rdf:object": t.object,
-                "folio:sentence": t.sentence,
-                "folio:voice": t.voice,
+                f"{p}:sentence": t.sentence,
+                f"{p}:voice": t.voice,
                 "schema:confidence": t.confidence,
             }
-            # Link to FOLIO IRIs if available
+            # Link to ontology IRIs if available
             for link in t.subject_links:
                 if link.folio_iri:
-                    triple_obj["folio:subjectIRI"] = link.folio_iri
+                    triple_obj[f"{p}:subjectIRI"] = link.folio_iri
                     break
             for link in t.object_links:
                 if link.folio_iri:
-                    triple_obj["folio:objectIRI"] = link.folio_iri
+                    triple_obj[f"{p}:objectIRI"] = link.folio_iri
                     break
             for link in t.predicate_links:
                 if link.folio_iri:
-                    triple_obj["folio:predicateIRI"] = link.folio_iri
+                    triple_obj[f"{p}:predicateIRI"] = link.folio_iri
                     break
             triples_ld.append(triple_obj)
 
@@ -150,7 +156,7 @@ class JSONLDExporter(ExporterBase):
                 "owl": "http://www.w3.org/2002/07/owl#",
                 "skos": "http://www.w3.org/2004/02/skos/core#",
                 "schema": "http://schema.org/",
-                "folio": "https://folio.openlegalstandard.org/",
+                p: job.result.base_iri,
                 "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
                 "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
                 "dc": "http://purl.org/dc/elements/1.1/",

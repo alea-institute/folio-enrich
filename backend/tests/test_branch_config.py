@@ -48,9 +48,17 @@ class TestBranchConfig:
         color = get_branch_color("Area of Law")
         assert color == "#1a5276"
 
-    def test_get_branch_color_unknown_returns_fallback(self):
+    def test_get_branch_color_empty_returns_gray_fallback(self):
+        # Empty/None names keep the neutral gray fallback.
+        assert get_branch_color("") == "#4a5568"
+
+    def test_get_branch_color_unknown_returns_stable_nongray(self):
+        # AC-8: a non-FOLIO branch now gets a deterministic overflow-palette color
+        # (not the flat gray), stable across calls.
         color = get_branch_color("Nonexistent Branch")
-        assert color == "#4a5568"
+        assert color != "#4a5568"
+        assert color.startswith("#") and len(color) == 7
+        assert get_branch_color("Nonexistent Branch") == color
 
     def test_get_branch_display_name_known(self):
         assert get_branch_display_name("ACTOR_PLAYER") == "Actor / Player"

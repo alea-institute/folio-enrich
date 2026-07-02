@@ -18,9 +18,13 @@ class RDFExporter(ExporterBase):
         from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, SKOS, XSD
 
         g = Graph()
-        FOLIO = Namespace("https://folio.openlegalstandard.org/")
+        # Derive the ontology namespace + prefix from the job result so exports are
+        # ontology-neutral (FOLIO for FOLIO jobs, Canon for Canon jobs, etc.) rather
+        # than hardcoding the FOLIO base IRI. The urn:folio-enrich: URN below is the
+        # app name (not the ontology) and stays as-is.
+        NS = Namespace(job.result.base_iri)
         OA = Namespace("http://www.w3.org/ns/oa#")
-        g.bind("folio", FOLIO)
+        g.bind(job.result.ontology_id, NS)
         g.bind("oa", OA)
         g.bind("skos", SKOS)
 
@@ -52,7 +56,7 @@ class RDFExporter(ExporterBase):
         for i, ind in enumerate(job.result.individuals):
             ind_uri = URIRef(f"urn:folio-enrich:job:{job.id}:ind:{i}")
             g.add((ind_uri, RDF.type, OWL.NamedIndividual))
-            g.add((doc_uri, FOLIO.hasIndividual, ind_uri))
+            g.add((doc_uri, NS.hasIndividual, ind_uri))
             g.add((ind_uri, RDFS.label, Literal(ind.name)))
 
             # Target span
@@ -71,7 +75,7 @@ class RDFExporter(ExporterBase):
         for i, prop in enumerate(job.result.properties):
             prop_uri = URIRef(prop.folio_iri) if prop.folio_iri else URIRef(f"urn:folio-enrich:job:{job.id}:prop:{i}")
             g.add((prop_uri, RDF.type, OWL.ObjectProperty))
-            g.add((doc_uri, FOLIO.hasProperty, prop_uri))
+            g.add((doc_uri, NS.hasProperty, prop_uri))
             if prop.folio_label:
                 g.add((prop_uri, RDFS.label, Literal(prop.folio_label)))
 
@@ -94,20 +98,20 @@ class RDFExporter(ExporterBase):
         for i, t in enumerate(job.result.triples):
             stmt_uri = URIRef(f"urn:folio-enrich:job:{job.id}:triple:{i}")
             g.add((stmt_uri, RDF.type, RDF.Statement))
-            g.add((doc_uri, FOLIO.hasTriple, stmt_uri))
+            g.add((doc_uri, NS.hasTriple, stmt_uri))
             g.add((stmt_uri, RDF.subject, Literal(t.subject)))
             g.add((stmt_uri, RDF.predicate, Literal(t.predicate)))
             g.add((stmt_uri, RDF.object, Literal(t.object)))
-            g.add((stmt_uri, FOLIO.voice, Literal(t.voice)))
+            g.add((stmt_uri, NS.voice, Literal(t.voice)))
             # Link to FOLIO IRIs where available
             for link in t.subject_links:
                 if link.folio_iri:
-                    g.add((stmt_uri, FOLIO.subjectRef, URIRef(link.folio_iri)))
+                    g.add((stmt_uri, NS.subjectRef, URIRef(link.folio_iri)))
             for link in t.object_links:
                 if link.folio_iri:
-                    g.add((stmt_uri, FOLIO.objectRef, URIRef(link.folio_iri)))
+                    g.add((stmt_uri, NS.objectRef, URIRef(link.folio_iri)))
             for link in t.predicate_links:
                 if link.folio_iri:
-                    g.add((stmt_uri, FOLIO.predicateRef, URIRef(link.folio_iri)))
+                    g.add((stmt_uri, NS.predicateRef, URIRef(link.folio_iri)))
 
         return g.serialize(format="turtle")
