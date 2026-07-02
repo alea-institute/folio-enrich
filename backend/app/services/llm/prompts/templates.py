@@ -287,4 +287,17 @@ def get_branch_detail(ontology_id: str = "folio") -> str:
     return cached
 
 
+def clear_branch_detail_cache(ontology_id: str | None = None) -> None:
+    """Drop the derived branch-detail string(s) so they rebuild on next request.
+
+    The cache is derived from the ontology's loaded concepts/branches, so it goes
+    stale after an OWL reload for that ontology. ``FolioService._reload()`` calls
+    this for the reloaded ontology's id. With ``None`` the whole cache is cleared.
+    """
+    if ontology_id is None:
+        _BRANCH_DETAIL_CACHE.clear()
+    else:
+        _BRANCH_DETAIL_CACHE.pop(ontology_id, None)
+
+
 _BRANCH_DETAIL_CACHE: dict[str, str] = {}

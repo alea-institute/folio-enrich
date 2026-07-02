@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -118,6 +119,9 @@ class FolioService:
         # search for the legal terms that recur across documents. Bounded; cleared
         # on ontology reload.
         self._search_cache: dict[tuple[str, str, int], list] = {}
+        # Serializes concurrent _reload() swaps so two overlapping OWL reloads can't
+        # interleave their field rebinds. Readers do not take it (see _reload docstring).
+        self._reload_lock = threading.Lock()
 
     @classmethod
     def get_instance(cls, ontology_id: str | None = None) -> FolioService:
@@ -213,34 +217,52 @@ class FolioService:
         return self._folio
 
     def _reload(self) -> dict:
-        """Reload the ontology from its updated disk cache.
+        """Reload the ontology from its updated disk cache (build-then-swap).
 
-        NOTE: this mutates several fields in sequence (folio, branch map, label
-        caches); a concurrent reader mid-reload can observe half-rebuilt state. It
-        is safe today only because the OWL updater waits for zero active jobs before
-        calling it. Build-then-swap (single atomic rebind) is scheduled for Phase 2.
+        All derived state — the new folio object, branch map, and the three label
+        caches — is built on a throwaway scratch service FIRST, touching none of
+        this instance's live fields. Only once everything is built do we rebind all
+        fields in a single lock-guarded block. A concurrent reader therefore sees
+        the old ontology fully, then the new ontology fully, never a half-rebuilt
+        mix. ``_reload_lock`` serializes overlapping reloads; readers stay lock-free
+        (individual attribute reads are atomic under the GIL).
+
+        Embedding re-indexing is intentionally NOT done here — the OWL updater owns
+        that step (it rebuilds the shared FOLIO embedding service after this returns).
         """
         old_count = len(self._folio.classes) if self._folio else 0
 
-        new_folio = self._load_folio()
+        # Build everything on a scratch instance so live fields are untouched until
+        # the swap. Constructing a FolioService is lazy (no fetch); we reuse our own
+        # load path for the new folio object, then run the unchanged cache builders.
+        scratch = FolioService(self._spec)
+        scratch._folio = self._load_folio()
+        scratch._build_branch_map()
+        scratch.get_all_labels()
+        scratch.get_all_labels_multi()
+        scratch.get_all_property_labels()
+        # _lemma_map stays None (rebuilt lazily, re-keyed to the new owl_hash on
+        # demand); _search_cache resets to empty — both match the prior behavior.
 
-        # Build new caches from the new FOLIO instance
-        old_folio = self._folio
-        self._folio = new_folio
-        self._branch_map = None
-        self._build_branch_map()
+        with self._reload_lock:
+            self._folio = scratch._folio
+            self._branch_map = scratch._branch_map
+            self._labels_cache = scratch._labels_cache
+            self._labels_multi_cache = scratch._labels_multi_cache
+            self._property_labels_cache = scratch._property_labels_cache
+            self._lemma_map = None
+            self._search_cache = {}  # stale after an ontology swap
 
-        # Rebuild label caches (lemma map re-keys to the new owl_hash on demand)
-        self._labels_cache = None
-        self._labels_multi_cache = None
-        self._property_labels_cache = None
-        self._lemma_map = None
-        self._search_cache = {}  # stale after an ontology swap
-        self.get_all_labels()
-        self.get_all_labels_multi()
-        self.get_all_property_labels()
+        # Derived LLM branch-detail string is built from this ontology's concepts,
+        # so it goes stale after a reload — drop it (lazy rebuild on next request).
+        try:
+            from app.services.llm.prompts.templates import clear_branch_detail_cache
 
-        new_count = len(new_folio.classes)
+            clear_branch_detail_cache(self._spec.id)
+        except Exception:
+            logger.debug("Branch-detail cache clear skipped", exc_info=True)
+
+        new_count = len(scratch._folio.classes)
         logger.info(
             "FOLIO ontology reloaded: %d → %d concepts", old_count, new_count
         )
