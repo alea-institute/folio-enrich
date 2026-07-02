@@ -128,6 +128,14 @@ class Settings(BaseSettings):
     # resolution cost. Backups are still computed for genuinely ambiguous concepts
     # (those resolved via fuzzy search, i.e. no exact IRI).
     skip_backups_for_exact_matches: bool = True
+    # Semantic-relevance filtering of backup (runner-up) candidates. The raw search
+    # score cannot separate signal from noise (a substring match like "Non-Human
+    # Authorship" for "Non" scores as high as a real match), so after resolution we
+    # score each backup's definition/label against the mention's sentence context via
+    # the EmbeddingService and drop those below the threshold. No-op when embeddings
+    # are unavailable (e.g. DEV/Railway) — backups pass through unchanged.
+    backup_semantic_filter_enabled: bool = True
+    backup_semantic_relevance_threshold: float = 0.45  # TUNE against captured sims
 
     # Job management
     job_retention_days: int = 30

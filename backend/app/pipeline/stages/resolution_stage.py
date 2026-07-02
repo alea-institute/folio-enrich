@@ -123,14 +123,37 @@ class ResolutionStage(PipelineStage):
                 new_branches.append(b)
         resolved_dict["branches"] = new_branches
 
+    @staticmethod
+    def _sentence_context(full_text: str, concept_text: str) -> str:
+        """Extract the sentence a mention appears in (bounded by nearest periods).
+
+        Falls back to the concept text itself when the mention isn't found in the
+        document (e.g. normalization altered casing/whitespace).
+        """
+        idx = full_text.lower().find(concept_text.lower())
+        if idx < 0:
+            return concept_text
+        start = max(0, full_text.rfind(".", 0, idx) + 1)
+        end = full_text.find(".", idx + len(concept_text))
+        end = len(full_text) if end == -1 else end + 1
+        return full_text[start:end].strip()
+
     def _apply_embedding_context_scores(
         self, resolved_concepts: list[dict], full_text: str
     ) -> None:
-        """Blend embedding-based context similarity into confidence scores.
+        """Blend embedding context into primary scores AND filter backup candidates.
 
-        For each concept, compute similarity between the sentence context and
-        the FOLIO concept definition. Final score = 60% search + 40% context.
-        No-op when EmbeddingService is unavailable.
+        In one batched forward pass this:
+          - blends the mention's sentence-vs-definition similarity into each primary
+            concept's confidence (60% search + 40% context), and
+          - scores each backup candidate's definition/label against the same sentence
+            context and drops backups below ``backup_semantic_relevance_threshold``
+            (the raw search score cannot separate signal from noise). Survivors are
+            re-scored to ``min(sim, primary_confidence)`` and sorted by relevance.
+
+        No-op when the EmbeddingService is unavailable (service ``None`` or empty
+        index) or the batch call fails — backups pass through UNCHANGED so we never
+        strip alternatives we cannot score (e.g. on DEV/Railway).
         """
         if self._embedding_service is None:
             return
@@ -140,52 +163,69 @@ class ResolutionStage(PipelineStage):
         except Exception:
             return
 
-        # Build (sentence, definition) pairs first, then embed them in ONE batch
-        # instead of two encodes per concept — same similarities, one forward pass.
-        pending: list[tuple[dict, str, str]] = []
+        filter_backups = settings.backup_semantic_filter_enabled
+        threshold = settings.backup_semantic_relevance_threshold
+
+        # One flat batch of (sentence, text) pairs across every primary definition and
+        # (when enabled) every backup candidate — one forward pass scores both.
+        pairs: list[tuple[str, str]] = []
+        plan: list[tuple[dict, str, dict | None]] = []  # (rd, kind, backup_or_None)
         for rd in resolved_concepts:
+            sentence = self._sentence_context(full_text, rd.get("concept_text", ""))
             definition = rd.get("folio_definition") or ""
-            if not definition:
-                continue
+            if definition:
+                plan.append((rd, "primary", None))
+                pairs.append((sentence, definition))
+            if filter_backups:
+                for bc in rd.get("_backup_candidates", []) or []:
+                    text_b = bc.get("folio_definition") or bc.get("folio_label") or ""
+                    if text_b:
+                        plan.append((rd, "backup", bc))
+                        pairs.append((sentence, text_b))
 
-            # Find sentence context for this concept
-            concept_text = rd.get("concept_text", "")
-            idx = full_text.lower().find(concept_text.lower())
-            if idx >= 0:
-                start = max(0, full_text.rfind(".", 0, idx) + 1)
-                end = full_text.find(".", idx + len(concept_text))
-                if end == -1:
-                    end = len(full_text)
-                else:
-                    end += 1
-                sentence = full_text[start:end].strip()
-            else:
-                sentence = concept_text
-
-            pending.append((rd, sentence, definition))
-
-        if not pending:
+        if not pairs:
             return
 
         try:
-            sims = self._embedding_service.similarity_batch(
-                [(sentence, definition) for _, sentence, definition in pending]
-            )
+            sims = self._embedding_service.similarity_batch(pairs)
         except Exception:
             return
 
-        for (rd, _sentence, _definition), sim in zip(pending, sims):
+        # id(rd) -> [(sim, rescored_backup_dict)] for backups clearing the threshold.
+        # Primary pairs precede their backups in `plan`, so rd["confidence"] is already
+        # the blended value by the time we cap backups against it.
+        survivors: dict[int, list[tuple[float, dict]]] = {}
+        for (rd, kind, bc), sim in zip(plan, sims):
             sim = max(0.0, min(1.0, sim))  # clamp
-            search_score = rd.get("confidence", 0.5)
-            blended = round(search_score * 0.6 + sim * 0.4, 4)
-            rd["confidence"] = blended
-            events = rd.setdefault("_lineage_events", [])
-            events.append({
-                "stage": "resolution",
-                "action": "embedding_context",
-                "detail": f"Embedding similarity={sim:.2f}, blended 60/40 (was {search_score:.2f})",
-                "confidence": blended,
-            })
+            if kind == "primary":
+                search_score = rd.get("confidence", 0.5)
+                blended = round(search_score * 0.6 + sim * 0.4, 4)
+                rd["confidence"] = blended
+                events = rd.setdefault("_lineage_events", [])
+                events.append({
+                    "stage": "resolution",
+                    "action": "embedding_context",
+                    "detail": f"Embedding similarity={sim:.2f}, blended 60/40 (was {search_score:.2f})",
+                    "confidence": blended,
+                })
+            elif sim >= threshold:
+                rescored = dict(bc)
+                rescored["confidence"] = min(sim, rd.get("confidence", 1.0))
+                survivors.setdefault(id(rd), []).append((sim, rescored))
+
+        if not filter_backups:
+            return
+
+        for rd in resolved_concepts:
+            kept = survivors.get(id(rd))
+            if kept is None:
+                # Had backups but none survived (and embeddings ran) → clear the key.
+                # A concept that never had backups is left untouched.
+                if rd.get("_backup_candidates"):
+                    rd.pop("_backup_candidates", None)
+            else:
+                kept.sort(key=lambda t: t[0], reverse=True)
+                rd["_backup_candidates"] = [b for _, b in kept]
 
     async def execute(self, job: Job) -> Job:
         job.status = JobStatus.RESOLVING
