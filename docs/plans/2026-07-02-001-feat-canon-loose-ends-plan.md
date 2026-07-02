@@ -47,11 +47,11 @@ Prefer (A) — it also unblocks WS-3's shared-MiniLM ownership. Cache Canon vect
 - Bake reference: `backend/scripts/generate_demos.py:init_services` (working per-ontology build+tag).
 
 ### Acceptance criteria
-- [ ] A live `?ontology=canon` job uses Canon embeddings (backup semantic filter + reconciliation triage + semantic ruler run against Canon vectors); FOLIO jobs use FOLIO's index unchanged.
-- [ ] No cross-contamination: a Canon job never scores against FOLIO vectors and vice-versa (extend the existing `matches_ontology`/gating tests to the two-index world).
-- [ ] Canon vectors cached on disk keyed by Canon OWL sha; a warm cache means no rebuild on restart.
-- [ ] FOLIO-only deploys don't pay any Canon cost at startup.
-- [ ] 841+ tests green; FOLIO embedding behavior byte-identical.
+- [x] A live `?ontology=canon` job uses Canon embeddings (backup semantic filter + reconciliation triage + semantic ruler run against Canon vectors); FOLIO jobs use FOLIO's index unchanged. → registry-keyed `get_embedding_service(ontology_id)`; 3 stages fetch per-job (PR #21, merged).
+- [x] No cross-contamination: a Canon job never scores against FOLIO vectors and vice-versa (extend the existing `matches_ontology`/gating tests to the two-index world). → two-index no-leakage tests added.
+- [x] Canon vectors cached on disk keyed by Canon OWL sha; a warm cache means no rebuild on restart. → `CANON_SPEC.coords.owl_sha256[:16]`.
+- [x] FOLIO-only deploys don't pay any Canon cost at startup. → Canon is lazy on first request; startup builds default only.
+- [x] 841+ tests green; FOLIO embedding behavior byte-identical. → 848 passed; no FOLIO test modified; shared-MiniLM keeps RSS bounded.
 
 ### Risks / notes
 - Memory: two resident MiniLM indices (~18k FOLIO + ~15k Canon labels). Confirm RSS ceiling (plan line 250). Shared MiniLM model (one `SentenceTransformer`, two label matrices) keeps it bounded — ties to WS-3.
@@ -137,9 +137,9 @@ PR #4 (`feat/pos-confidence-boost` → `main`, opened 2026-06-29: "POS-agreement
 - Existing POS machinery to reconcile against: `branch_judge_stage.py` (`_apply_pos_branch_affinity`), `reconciliation_stage._apply_pos_penalties`, `property_stage._apply_pos_penalties`, `app/services/nlp/pos_lookup.py`, config `pos_*` settings.
 
 ### Acceptance criteria
-- [ ] A decision is recorded (rebase-and-merge vs close) with rationale.
-- [ ] If kept: a clean PR off current `main`, tests green, no history-rewrite conflicts.
-- [ ] If closed: PR #4 closed + branch deleted + one-line memory note.
+- [x] A decision is recorded (rebase-and-merge vs close) with rationale. → **CLOSE** (superseded + unrebasable, ~215 commits behind, base rewritten).
+- [x] If kept: a clean PR off current `main`, tests green, no history-rewrite conflicts. → N/A (closed).
+- [x] If closed: PR #4 closed + branch deleted + one-line memory note. → Done 2026-07-02; salvageable `faa8dcc` (search substring penalty) + `50beecc` (NER cross-validation) logged in `project_pr4_pos_triage`.
 
 ### Risks / notes
 - The history rewrite means the old branch's commits sit on orphaned ancestry — cherry-pick, don't merge. Low effort either way.
