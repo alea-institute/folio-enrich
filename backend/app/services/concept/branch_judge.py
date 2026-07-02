@@ -22,11 +22,13 @@ Pick the SINGLE best branch. Respond with JSON:
 {{"branch": "...", "confidence": 0.95, "reasoning": "..."}}"""
 
 
-def _build_folio_context(concept_text: str, candidate_branches: list[str]) -> str:
-    """Look up FOLIO concepts matching the concept text and format context for the LLM."""
+def _build_folio_context(
+    concept_text: str, candidate_branches: list[str], ontology_id: str = "folio"
+) -> str:
+    """Look up ontology concepts matching the concept text and format context for the LLM."""
     try:
         from app.services.folio.folio_service import FolioService
-        folio = FolioService.get_instance()
+        folio = FolioService.get_instance(ontology_id)
         results = folio.search_by_label(concept_text, top_k=10)
     except Exception:
         return ""
@@ -67,9 +69,10 @@ class BranchJudge:
         candidate_branches: list[str],
         *,
         document_type: str = "",
+        ontology_id: str = "folio",
     ) -> dict:
-        folio_context = _build_folio_context(concept_text, candidate_branches)
-        branch_info = get_branch_detail()
+        folio_context = _build_folio_context(concept_text, candidate_branches, ontology_id)
+        branch_info = get_branch_detail(ontology_id)
 
         dt_section = ""
         if document_type:
@@ -107,7 +110,7 @@ class BranchJudge:
             }
 
     async def judge_batch(
-        self, items: list[dict], *, document_type: str = ""
+        self, items: list[dict], *, document_type: str = "", ontology_id: str = "folio"
     ) -> list[dict]:
         import asyncio
 
@@ -117,6 +120,7 @@ class BranchJudge:
                 item["sentence"],
                 item.get("candidate_branches", []),
                 document_type=document_type,
+                ontology_id=ontology_id,
             )
             for item in items
         ]

@@ -28,10 +28,14 @@ def get_embedding_index():
     return _embedding_index
 
 
-def build_embedding_index(folio_service, owl_hash: str = "") -> None:
-    """Build a FAISS-backed embedding index of all FOLIO concepts.
+def build_embedding_index(
+    folio_service, owl_hash: str = "", ontology_id: str = "folio"
+) -> None:
+    """Build a FAISS-backed embedding index of all concepts for an ontology.
 
-    Uses the configured embedding provider.
+    Uses the configured embedding provider. ``ontology_id`` tags the resulting
+    index so consumers can avoid scoring one ontology's candidates against
+    another's vectors.
     """
     global _embedding_index
 
@@ -77,6 +81,7 @@ def build_embedding_index(folio_service, owl_hash: str = "") -> None:
         examples=examples,
     )
     index.build(owl_hash=owl_hash or None)
+    index._ontology_id = ontology_id or "folio"
     _embedding_index = index
     logger.info("Built FAISS embedding index with %d concepts", index.num_concepts)
 
@@ -144,6 +149,15 @@ class EmbeddingService:
         self._metadata: list[dict] = []
         self._embeddings: np.ndarray | None = None
         self._provider = None
+        # The ontology this index was built for. The startup singleton is built
+        # from FOLIO (main._index_folio_embeddings), so default "folio". A job for
+        # a different ontology must NOT score its candidates against these vectors —
+        # callers gate on matches_ontology() and degrade gracefully.
+        self._ontology_id: str = "folio"
+
+    def matches_ontology(self, ontology_id: str | None) -> bool:
+        """True when this index was built for ``ontology_id`` (None → "folio")."""
+        return (self._ontology_id or "folio") == (ontology_id or "folio")
 
     @classmethod
     def get_instance(cls) -> EmbeddingService:
@@ -252,12 +266,16 @@ class EmbeddingService:
         vecs = provider.encode(all_texts)  # (2N, dim)
         return [float(np.dot(vecs[i], vecs[i + 1])) for i in range(0, len(all_texts), 2)]
 
-    def index_folio_labels(self, folio_service, owl_hash: str = "") -> None:
-        """Index all FOLIO concept labels for semantic search.
+    def index_folio_labels(
+        self, folio_service, owl_hash: str = "", ontology_id: str = "folio"
+    ) -> None:
+        """Index all concept labels of an ontology for semantic search.
 
         When owl_hash is provided, label embeddings are cached to disk so
-        subsequent startups skip the expensive encoding step.
+        subsequent startups skip the expensive encoding step. ``ontology_id`` tags
+        the index so per-ontology jobs only use vectors built for their ontology.
         """
+        self._ontology_id = ontology_id or "folio"
         # Try loading from cache
         if owl_hash:
             try:
