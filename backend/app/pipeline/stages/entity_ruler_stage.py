@@ -50,12 +50,12 @@ class EntityRulerStage(PipelineStage):
         self._iri_to_branch: dict[str, str] = {}
         self._iri_to_concept: dict[str, object] = {}  # IRI → FOLIOConcept
 
-    def _ensure_patterns_loaded(self) -> None:
-        """Load FOLIO patterns into the EntityRuler on first use."""
+    def _ensure_patterns_loaded(self, ontology_id: str = "folio") -> None:
+        """Load ontology patterns into the EntityRuler on first use."""
         if self._patterns_loaded:
             return
         try:
-            folio_service = FolioService.get_instance()
+            folio_service = FolioService.get_instance(ontology_id)
             all_labels = folio_service.get_all_labels()
             if all_labels:
                 self.ruler.load_patterns(all_labels)
@@ -87,7 +87,7 @@ class EntityRulerStage(PipelineStage):
         if job.result.canonical_text is None:
             return job
 
-        self._ensure_patterns_loaded()
+        self._ensure_patterns_loaded(job.ontology)
         full_text = job.result.canonical_text.full_text
         sentence_index = build_sentence_index(full_text)
         matches = self.ruler.find_matches(full_text)

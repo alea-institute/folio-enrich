@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, Field
 
 from app.models.annotation import Annotation, Individual, PropertyAnnotation, SPOTriple
-from app.models.document import CanonicalText, DocumentInput
+from app.models.document import DEFAULT_ONTOLOGY, CanonicalText, DocumentInput
 
 
 class JobStatus(str, enum.Enum):
@@ -33,6 +33,12 @@ class JobResult(BaseModel):
     properties: list[PropertyAnnotation] = Field(default_factory=list)
     triples: list[SPOTriple] = Field(default_factory=list)
     metadata: dict = Field(default_factory=dict)
+    # Ontology this result was produced against (stamped by the orchestrator from
+    # job.input.ontology). Exporters/clients read these instead of assuming FOLIO.
+    # Defaults to "folio"/its identity so legacy jobs deserialize + export cleanly.
+    ontology_id: str = DEFAULT_ONTOLOGY
+    ontology_name: str = "FOLIO"
+    base_iri: str = "https://folio.openlegalstandard.org/"
 
 
 class Job(BaseModel):
@@ -43,3 +49,8 @@ class Job(BaseModel):
     input: DocumentInput | None = None
     result: JobResult = Field(default_factory=JobResult)
     error: str | None = None
+
+    @property
+    def ontology(self) -> str:
+        """The ontology this job enriches against (None-safe; defaults to folio)."""
+        return self.input.ontology if self.input is not None else DEFAULT_ONTOLOGY
