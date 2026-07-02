@@ -7523,10 +7523,11 @@ function showIndividualTooltip(event, el) {
 /** Load an individual's class (OWL Class) into the right detail panel. */
 function _loadIndividualClassDetail(classLink) {
   if (!classLink) return;
+  // Prefer the full IRI (resolves for any ontology); fall back to bare hash.
   const iri = classLink.folio_iri || '';
-  const iriHash = iri ? iri.split('/').pop() : null;
-  if (iriHash) {
-    loadConceptDetail(iriHash, classLink.annotation_id || null);
+  const ident = iri || null;
+  if (ident) {
+    loadConceptDetail(ident, classLink.annotation_id || null);
   }
 }
 
@@ -7702,19 +7703,19 @@ function showTooltip(event, el) {
 
   // Also load the detail panel
   // (reuse annData from above)
-  // Derive iri_hash: prefer explicit field, fall back to extracting from folio_iri or data-iri attr
-  let iriHash = null;
+  // Prefer the full IRI (resolves for any ontology); fall back to iri_hash / data-iri.
+  let ident = null;
   if (annData && annData.concepts && annData.concepts[0]) {
     const c0 = annData.concepts[0];
-    iriHash = c0.iri_hash || (c0.folio_iri ? c0.folio_iri.split('/').pop() : null);
+    ident = c0.folio_iri || c0.iri_hash || null;
   }
-  if (!iriHash) {
-    // Fallback: extract from the data-iri attribute on the span element
+  if (!ident) {
+    // Fallback: the data-iri attribute on the span element (full IRI)
     const spanIri = el.dataset.iri;
-    if (spanIri) iriHash = spanIri.split('/').pop() || null;
+    if (spanIri) ident = spanIri || null;
   }
-  if (iriHash) {
-    loadConceptDetail(iriHash, annId);
+  if (ident) {
+    loadConceptDetail(ident, annId);
   } else {
     console.warn('showTooltip: no iri_hash found for annotation', annId, 'annData:', annData, 'data-iri:', el.dataset.iri);
   }
@@ -7871,8 +7872,8 @@ function _showMultiBranchOverlay(tooltip, el, annIds) {
   const firstData = _annotationDataById[firstAid];
   if (firstData && firstData.concepts && firstData.concepts[0]) {
     const c0 = firstData.concepts[0];
-    const iriHash = c0.iri_hash || (c0.folio_iri ? c0.folio_iri.split('/').pop() : null);
-    if (iriHash) loadConceptDetail(iriHash, firstAid);
+    const ident = c0.folio_iri || c0.iri_hash || null;
+    if (ident) loadConceptDetail(ident, firstAid);
   }
 
   // Make each pill clickable to load its concept in the detail panel
@@ -7884,8 +7885,8 @@ function _showMultiBranchOverlay(tooltip, el, annIds) {
       const aData = _annotationDataById[aid];
       if (aData && aData.concepts && aData.concepts[0]) {
         const ac = aData.concepts[0];
-        const iriHash = ac.iri_hash || (ac.folio_iri ? ac.folio_iri.split('/').pop() : null);
-        if (iriHash) loadConceptDetail(iriHash, aid);
+        const ident = ac.folio_iri || ac.iri_hash || null;
+        if (ident) loadConceptDetail(ident, aid);
       }
     });
   });
@@ -7909,8 +7910,8 @@ function _showMultiBranchOverlay(tooltip, el, annIds) {
             const aData = _annotationDataById[aid];
             if (aData && aData.concepts && aData.concepts[0]) {
               const ac = aData.concepts[0];
-              const iriHash = ac.iri_hash || (ac.folio_iri ? ac.folio_iri.split('/').pop() : null);
-              if (iriHash) loadConceptDetail(iriHash, aid);
+              const ident = ac.folio_iri || ac.iri_hash || null;
+              if (ident) loadConceptDetail(ident, aid);
             }
           });
         });
@@ -8709,10 +8710,11 @@ async function promoteConcept(annId, conceptIndex) {
     // Refresh the detail panel to show the new primary in the hierarchy
     const newAnn = _annotationDataById[annId];
     if (newAnn && newAnn.concepts && newAnn.concepts[0]) {
-      const newIriHash = newAnn.concepts[0].folio_iri ? newAnn.concepts[0].folio_iri.split('/').pop() : null;
-      if (newIriHash) {
-        delete _conceptDetailCache[newIriHash]; // force fresh fetch
-        loadConceptDetail(newIriHash, annId);
+      // Prefer the full IRI (resolves for any ontology); it is also the cache key.
+      const newIdent = newAnn.concepts[0].folio_iri || null;
+      if (newIdent) {
+        delete _conceptDetailCache[newIdent]; // force fresh fetch
+        loadConceptDetail(newIdent, annId);
       }
     }
 
@@ -8862,6 +8864,25 @@ function conceptUrl(path) {
   return `${API}${path}${sep}ontology=${encodeURIComponent(activeOntology)}`;
 }
 
+// Build a /concepts endpoint URL that resolves for ANY ontology.
+// `ident` may be a full IRI (contains '://') or a bare FOLIO hash. Non-FOLIO
+// ontologies (Canon) 404 on /concepts/{hash} because folio-python only indexes
+// classes by bare hash for FOLIO — so pass the full IRI via ?iri= instead (the
+// path segment '_' is a throwaway placeholder the endpoint ignores when iri= is set).
+// `suffix` is '' (detail) or '/graph'; `query` is extra params (e.g. graph depths).
+function conceptEndpoint(ident, suffix = '', query = '') {
+  const isFull = typeof ident === 'string' && ident.includes('://');
+  let path;
+  if (isFull) {
+    path = `/concepts/_${suffix}?iri=${encodeURIComponent(ident)}`;
+    if (query) path += '&' + query;
+  } else {
+    path = `/concepts/${encodeURIComponent(ident)}${suffix}`;
+    if (query) path += '?' + query;
+  }
+  return conceptUrl(path);
+}
+
 let _currentDetailIriHash = null;
 let _currentDetailAnnId = null;
 let _graphDirection = 'TB';
@@ -8992,7 +9013,7 @@ async function loadConceptDetail(iriHash, annId) {
   try {
     let detail = _conceptDetailCache[iriHash];
     if (!detail) {
-      const resp = await fetch(conceptUrl(`/concepts/${iriHash}`));
+      const resp = await fetch(conceptEndpoint(iriHash));
       if (!resp.ok) throw new Error('Failed to load concept');
       detail = await resp.json();
       _conceptDetailCache[iriHash] = detail;
@@ -9082,7 +9103,7 @@ async function toggleAltsInHierarchy(event) {
       await Promise.all(missing.map(async (alt) => {
         const h = alt.folio_iri.split('/').pop();
         try {
-          const resp = await fetch(conceptUrl(`/concepts/${h}`));
+          const resp = await fetch(conceptEndpoint(alt.folio_iri));
           if (resp.ok) _conceptDetailCache[h] = await resp.json();
         } catch { /* skip */ }
       }));
@@ -9194,7 +9215,7 @@ function renderSingleAncestryNodes(nodes, startIdx, detail, branchColor, confPct
     }
     html += '</div>';
   } else if (hasChildren) {
-    html += `<div class="ancestry-node clickable" onclick="loadConceptDetail('${escapeAttr(entry.iri_hash)}')">`;
+    html += `<div class="ancestry-node clickable" onclick="loadConceptDetail('${escapeAttr(entry.iri || entry.iri_hash)}')">`;
     html += `<button class="ancestry-toggle" onclick="toggleAncestryNode('${escapeAttr(nodeKey)}', event)">${isCollapsed ? '\u25B6' : '\u25BC'}</button>`;
     html += `<span>${escapeHtml(entry.label)}</span>`;
     html += '</div>';
@@ -9202,7 +9223,7 @@ function renderSingleAncestryNodes(nodes, startIdx, detail, branchColor, confPct
       html += renderSingleAncestryNodes(nodes, startIdx + 1, detail, branchColor, confPct, nodeKey);
     }
   } else {
-    html += `<div class="ancestry-node clickable" onclick="loadConceptDetail('${escapeAttr(entry.iri_hash)}')">`;
+    html += `<div class="ancestry-node clickable" onclick="loadConceptDetail('${escapeAttr(entry.iri || entry.iri_hash)}')">`;
     html += `<span class="ancestry-toggle-spacer"></span>`;
     html += `<span>${escapeHtml(entry.label)}</span>`;
     html += '</div>';
@@ -9244,6 +9265,7 @@ function buildMultiParentTree(detail) {
       if (!currentChildren.has(entry.iri_hash)) {
         currentChildren.set(entry.iri_hash, {
           iri_hash: entry.iri_hash,
+          iri: entry.iri || null,
           label: entry.label,
           children: new Map(),
           isTarget: entry.iri_hash === detail.iri_hash
@@ -9310,7 +9332,7 @@ function renderMultiParentNodes(children, parentKey, branchColor, confPct) {
       html += '</div>';
     } else if (hasChildren) {
       // Intermediate collapsible node
-      html += `<div class="ancestry-node clickable" onclick="loadConceptDetail('${escapeAttr(iriHash)}')">`;
+      html += `<div class="ancestry-node clickable" onclick="loadConceptDetail('${escapeAttr(node.iri || iriHash)}')">`;
       html += `<button class="ancestry-toggle" onclick="toggleAncestryNode('${escapeAttr(nodeKey)}', event)">${isCollapsed ? '\u25B6' : '\u25BC'}</button>`;
       html += `<span>${escapeHtml(node.label)}</span>`;
       html += '</div>';
@@ -9319,7 +9341,7 @@ function renderMultiParentNodes(children, parentKey, branchColor, confPct) {
       }
     } else {
       // Leaf non-target — clickable
-      html += `<div class="ancestry-node clickable" onclick="loadConceptDetail('${escapeAttr(iriHash)}')">`;
+      html += `<div class="ancestry-node clickable" onclick="loadConceptDetail('${escapeAttr(node.iri || iriHash)}')">`;
       html += `<span class="ancestry-toggle-spacer"></span>`;
       html += `<span>${escapeHtml(node.label)}</span>`;
       html += '</div>';
@@ -9368,6 +9390,7 @@ function buildMergedTree(primaryDetail, annData) {
         if (!currentChildren.has(entry.iri_hash)) {
           currentChildren.set(entry.iri_hash, {
             iri_hash: entry.iri_hash,
+            iri: entry.iri || null,
             label: entry.label,
             children: new Map(),
             concepts: []
@@ -9452,7 +9475,7 @@ function renderMergedTreeNodes(children, parentKey, annId) {
       }
     } else {
       // Intermediate node — collapsible
-      html += `<div class="ancestry-node clickable" onclick="loadConceptDetail('${escapeAttr(iriHash)}')">`;
+      html += `<div class="ancestry-node clickable" onclick="loadConceptDetail('${escapeAttr(node.iri || iriHash)}')">`;
       html += `<button class="ancestry-toggle" onclick="toggleAncestryNode('${escapeAttr(nodeKey)}', event)">${isCollapsed ? '\u25B6' : '\u25BC'}</button>`;
       html += `<span>${escapeHtml(node.label)}</span>`;
       html += '</div>';
@@ -9506,6 +9529,9 @@ const _conceptsTabCollapsed = {};  // pathKey → boolean
 let _conceptsTabTreeCache = null;  // cached tree result
 
 async function buildConceptsTabTree(annotations, individuals) {
+  // Map bare hash -> full IRI so the batch fetch can resolve non-FOLIO ontologies
+  // (folio-python only indexes classes by bare hash for FOLIO).
+  const hashToFullIri = new Map();
   // 1. Dedup concepts from annotations by IRI hash (primary concept only)
   const conceptMap = new Map();  // iri_hash → { label, count, confidence, branch, branches, source }
   for (const ann of annotations) {
@@ -9513,6 +9539,7 @@ async function buildConceptsTabTree(annotations, individuals) {
     const c = ann.concepts[0];
     const iriHash = c.folio_iri ? c.folio_iri.split('/').pop() : null;
     if (!iriHash) continue;
+    if (c.folio_iri) hashToFullIri.set(iriHash, c.folio_iri);
     if (conceptMap.has(iriHash)) {
       const entry = conceptMap.get(iriHash);
       entry.count++;
@@ -9537,6 +9564,7 @@ async function buildConceptsTabTree(annotations, individuals) {
       const clIri = cl.folio_iri || '';
       const clHash = clIri ? clIri.split('/').pop() : null;
       if (!clHash) continue;
+      if (clIri) hashToFullIri.set(clHash, clIri);
       individualClassHashes.add(clHash);
       if (!individualsByClass.has(clHash)) individualsByClass.set(clHash, []);
       // Avoid duplicate individuals under same class
@@ -9547,36 +9575,35 @@ async function buildConceptsTabTree(annotations, individuals) {
     }
   }
 
-  // 3. Batch-fetch hierarchy details for all unique hashes
+  // 3. Batch-fetch hierarchy details for all unique hashes.
+  // Send FULL IRIs (falling back to bare hash for old cached data) so non-FOLIO
+  // ontologies resolve; the backend keys its response by whatever we send, but we
+  // re-key the cache by the backend-provided detail.iri_hash (true bare hash), so
+  // downstream lookups by bare hash keep working (FOLIO byte-neutral).
   const allHashes = new Set([...conceptMap.keys(), ...individualClassHashes]);
-  // Filter out already-cached hashes
+  // Filter out already-cached hashes; map each to a full IRI for the request.
   const needed = [...allHashes].filter(h => !_conceptDetailCache[h]);
-  if (needed.length > 0) {
-    try {
-      const resp = await fetch(`${API}/concepts/batch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ iri_hashes: needed.slice(0, 100), ontology: activeOntology }),
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        for (const [h, detail] of Object.entries(data)) {
-          _conceptDetailCache[h] = detail;
-        }
+  const neededIdents = needed.map(h => hashToFullIri.get(h) || h);
+  async function fetchBatch(idents) {
+    const resp = await fetch(`${API}/concepts/batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ iri_hashes: idents, ontology: activeOntology }),
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      for (const detail of Object.values(data)) {
+        // Key by the backend's true bare hash so bare-hash lookups resolve.
+        if (detail && detail.iri_hash) _conceptDetailCache[detail.iri_hash] = detail;
       }
+    }
+  }
+  if (neededIdents.length > 0) {
+    try {
+      await fetchBatch(neededIdents.slice(0, 100));
       // Fetch remaining if > 100
-      if (needed.length > 100) {
-        const resp2 = await fetch(`${API}/concepts/batch`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ iri_hashes: needed.slice(100, 200), ontology: activeOntology }),
-        });
-        if (resp2.ok) {
-          const data2 = await resp2.json();
-          for (const [h, detail] of Object.entries(data2)) {
-            _conceptDetailCache[h] = detail;
-          }
-        }
+      if (neededIdents.length > 100) {
+        await fetchBatch(neededIdents.slice(100, 200));
       }
     } catch (e) {
       console.error('Batch concept fetch failed:', e);
@@ -9617,6 +9644,7 @@ async function buildConceptsTabTree(annotations, individuals) {
         if (!currentChildren.has(entry.iri_hash)) {
           currentChildren.set(entry.iri_hash, {
             iri_hash: entry.iri_hash,
+            iri: entry.iri || null,
             label: entry.label,
             children: new Map(),
             concept: null,    // conceptInfo if this is a concept leaf
@@ -9772,7 +9800,7 @@ function renderConceptsTabNodes(children, parentKey) {
       const confBg = confPct != null ? (confPct >= 80 ? 'var(--conf-high-bg)' : confPct >= 50 ? 'var(--conf-mid-bg)' : 'var(--conf-low-bg)') : '';
       const confFg = confPct != null ? (confPct >= 80 ? 'var(--conf-high)' : confPct >= 50 ? 'var(--conf-mid)' : 'var(--conf-low)') : '';
 
-      html += `<div class="ancestry-node current clickable" style="--current-node-accent:${branchColor};--current-node-bg:${branchColor}10" onclick="loadConceptDetail('${escapeAttr(iriHash)}')">`;
+      html += `<div class="ancestry-node current clickable" style="--current-node-accent:${branchColor};--current-node-bg:${branchColor}10" onclick="loadConceptDetail('${escapeAttr(node.iri || iriHash)}')">`;
       if (hasChildren || hasIndividuals) {
         html += `<button class="ancestry-toggle" onclick="toggleConceptsTabNode('${escapeAttr(nodeKey)}', event)">${isCollapsed ? '\u25B6' : '\u25BC'}</button>`;
       } else {
@@ -9795,7 +9823,7 @@ function renderConceptsTabNodes(children, parentKey) {
       }
     } else if (isStub) {
       // Stub class node — dashed border, muted, for inferred individual classes
-      html += `<div class="ancestry-node current clickable ct-stub-node" style="--current-node-accent:var(--text-dim);--current-node-bg:var(--surface)" onclick="loadConceptDetail('${escapeAttr(iriHash)}')">`;
+      html += `<div class="ancestry-node current clickable ct-stub-node" style="--current-node-accent:var(--text-dim);--current-node-bg:var(--surface)" onclick="loadConceptDetail('${escapeAttr(node.iri || iriHash)}')">`;
       if (hasChildren || hasIndividuals) {
         html += `<button class="ancestry-toggle" onclick="toggleConceptsTabNode('${escapeAttr(nodeKey)}', event)">${isCollapsed ? '\u25B6' : '\u25BC'}</button>`;
       } else {
@@ -9811,7 +9839,7 @@ function renderConceptsTabNodes(children, parentKey) {
       }
     } else {
       // Intermediate node — collapsible, clickable
-      html += `<div class="ancestry-node clickable" onclick="loadConceptDetail('${escapeAttr(iriHash)}')">`;
+      html += `<div class="ancestry-node clickable" onclick="loadConceptDetail('${escapeAttr(node.iri || iriHash)}')">`;
       html += `<button class="ancestry-toggle" onclick="toggleConceptsTabNode('${escapeAttr(nodeKey)}', event)">${isCollapsed ? '\u25B6' : '\u25BC'}</button>`;
       html += `<span>${escapeHtml(node.label)}</span>`;
       html += '</div>';
@@ -10024,7 +10052,7 @@ function renderDetailInfo(detail) {
   }
   if (detail.related && detail.related.length) {
     const pills = detail.related.map(r =>
-      `<span class="detail-trans-pill detail-seealso-pill" onclick="loadConceptDetail('${escapeAttr(r.iri_hash)}')">${escapeHtml(r.label)}</span>`
+      `<span class="detail-trans-pill detail-seealso-pill" onclick="loadConceptDetail('${escapeAttr(r.iri || r.iri_hash)}')">${escapeHtml(r.label)}</span>`
     ).join('');
     html += `<div class="detail-translations">
       <div class="detail-trans-header"><strong>See Also</strong><span class="detail-trans-count">(${detail.related.length})</span></div>
@@ -10218,7 +10246,7 @@ function _buildDagSvg(detail, showSiblings, showChildren) {
       const textColor = isFocus ? 'var(--white)' : isMore ? 'var(--text-dim)' : 'var(--text)';
       const stroke = isFocus ? branchColor : 'var(--border)';
       const clickable = !isFocus && !isMore && item.iri_hash;
-      const onclick = clickable ? ` onclick="loadConceptDetail('${escapeAttr(item.iri_hash)}')" style="cursor:pointer"` : '';
+      const onclick = clickable ? ` onclick="loadConceptDetail('${escapeAttr(item.iri || item.iri_hash)}')" style="cursor:pointer"` : '';
       svg += `<g class="dag-pill"${onclick}>
         <rect x="${item.x}" y="${rl.y}" width="${item.w}" height="${PILL_H}" rx="13" fill="${fill}" stroke="${stroke}" stroke-width="1"/>
         <text class="dag-label" x="${item.x + item.w / 2}" y="${rl.y + PILL_H / 2 + 4}" text-anchor="middle" fill="${textColor}" font-size="${isMore ? '10' : '11'}">${escapeHtml(item.label.length > 22 ? item.label.slice(0, 20) + '\u2026' : item.label)}</text>
@@ -10441,9 +10469,16 @@ function closeGraphModal() {
   removeGraphPanZoom();
 }
 
+// Resolve a graph node id (bare hash) to a full IRI when available, so graph
+// fetches resolve for non-FOLIO ontologies. Falls back to the id (FOLIO hash).
+function _graphNodeIri(id) {
+  const node = _graphData && _graphData.nodes.find(n => n.id === id);
+  return (node && node.iri) || id;
+}
+
 async function loadGraphData(iriHash) {
   const desc = _graphShowDescendants ? 2 : 0;
-  const resp = await fetch(`${API}/concepts/${iriHash}/graph?ancestors_depth=5&descendants_depth=${desc}&ontology=${encodeURIComponent(activeOntology)}`);
+  const resp = await fetch(conceptEndpoint(iriHash, '/graph', `ancestors_depth=5&descendants_depth=${desc}`));
   if (!resp.ok) {
     const msg = resp.status === 429 ? 'Rate limit exceeded — please wait a moment and try again'
       : resp.status === 404 ? 'Concept not found' : `Server error (${resp.status})`;
@@ -10806,7 +10841,7 @@ async function handleGraphNodeClick(iriHash) {
     // Expand: fetch 1-hop neighbors and merge
     _graphExpandedNodes.add(iriHash);
     try {
-      const newData = await fetch(`${API}/concepts/${iriHash}/graph?ancestors_depth=1&descendants_depth=1&ontology=${encodeURIComponent(activeOntology)}`);
+      const newData = await fetch(conceptEndpoint(_graphNodeIri(iriHash), '/graph', 'ancestors_depth=1&descendants_depth=1'));
       if (newData.ok) {
         const extra = await newData.json();
         mergeGraphData(extra);
@@ -10818,12 +10853,12 @@ async function handleGraphNodeClick(iriHash) {
       console.error('Expand error:', e);
     }
   } else {
-    loadConceptDetail(iriHash);
+    loadConceptDetail(_graphNodeIri(iriHash));
   }
 }
 
 function handleGraphNodeDblClick(iriHash) {
-  loadConceptDetail(iriHash);
+  loadConceptDetail(_graphNodeIri(iriHash));
 }
 
 function mergeGraphData(extra) {
@@ -10888,7 +10923,7 @@ async function toggleDescendants() {
       for (const expandedId of _graphExpandedNodes) {
         if (expandedId !== _graphFocusIriHash) {
           try {
-            const resp = await fetch(`${API}/concepts/${expandedId}/graph?ancestors_depth=1&descendants_depth=1&ontology=${encodeURIComponent(activeOntology)}`);
+            const resp = await fetch(conceptEndpoint(_graphNodeIri(expandedId), '/graph', 'ancestors_depth=1&descendants_depth=1'));
             if (resp.ok) mergeGraphData(await resp.json());
           } catch (_) {}
         }

@@ -44,14 +44,20 @@ async def get_concepts_batch(body: BatchRequest) -> dict:
 
 
 @router.get("/{iri_hash}")
-async def get_concept_detail(iri_hash: str, ontology: str = "folio") -> dict:
-    """Look up a concept by IRI hash with full detail."""
+async def get_concept_detail(iri_hash: str, ontology: str = "folio", iri: str | None = None) -> dict:
+    """Look up a concept with full detail.
+
+    When ``iri`` (a full IRI) is supplied it takes precedence over the path
+    ``iri_hash`` — this lets non-FOLIO ontologies (whose IRIs don't share the
+    FOLIO base) resolve. The path segment may be a throwaway placeholder.
+    """
     from app.services.folio.concept_detail import lookup_concept_detail
 
     folio = _get_folio(ontology)
-    detail = lookup_concept_detail(folio, iri_hash)
+    identifier = iri or iri_hash
+    detail = lookup_concept_detail(folio, identifier)
     if detail is None:
-        raise HTTPException(status_code=404, detail=f"Concept not found: {iri_hash}")
+        raise HTTPException(status_code=404, detail=f"Concept not found: {identifier}")
     return detail.model_dump()
 
 
@@ -63,18 +69,24 @@ async def get_concept_graph(
     max_nodes: int = 200,
     include_see_also: bool = True,
     ontology: str = "folio",
+    iri: str | None = None,
 ) -> dict:
-    """Build an entity graph around a concept via BFS."""
+    """Build an entity graph around a concept via BFS.
+
+    When ``iri`` (a full IRI) is supplied it takes precedence over the path
+    ``iri_hash`` so non-FOLIO ontologies resolve.
+    """
     from app.services.folio.concept_detail import build_entity_graph
 
     folio = _get_folio(ontology)
+    identifier = iri or iri_hash
     graph = build_entity_graph(
-        folio, iri_hash,
+        folio, identifier,
         ancestors_depth=ancestors_depth,
         descendants_depth=descendants_depth,
         max_nodes=max_nodes,
         include_see_also=include_see_also,
     )
     if graph is None:
-        raise HTTPException(status_code=404, detail=f"Concept not found: {iri_hash}")
+        raise HTTPException(status_code=404, detail=f"Concept not found: {identifier}")
     return graph.model_dump()

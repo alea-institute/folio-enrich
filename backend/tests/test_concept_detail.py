@@ -41,16 +41,20 @@ class FakeOWLClass:
 
 
 class FakeFOLIO:
-    """Mock FOLIO ontology."""
+    """Mock FOLIO ontology.
+
+    Indexes classes by BOTH full IRI and bare hash, mirroring folio-python where
+    ``folio[full_iri]`` and ``folio[bare_hash]`` both resolve for FOLIO classes.
+    """
     def __init__(self, concepts: list[FakeOWLClass]):
-        self._by_hash = {}
+        self._by_key = {}
         self.classes = concepts
         for c in concepts:
-            h = c.iri.rsplit("/", 1)[-1]
-            self._by_hash[h] = c
+            self._by_key[c.iri] = c
+            self._by_key[c.iri.rsplit("/", 1)[-1]] = c
 
     def __getitem__(self, key):
-        return self._by_hash.get(key)
+        return self._by_key.get(key)
 
 
 @pytest.fixture

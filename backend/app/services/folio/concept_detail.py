@@ -65,21 +65,25 @@ def _extract_iri_hash(iri: str) -> str:
     return iri.rsplit("/", 1)[-1]
 
 
-def _get_branch_for_class(folio, iri_hash: str, branch_root_iris: dict[str, str], cache: dict[str, str]) -> str:
-    """Walk parent chain to find which branch a class belongs to. Cached."""
-    if iri_hash in cache:
-        return cache[iri_hash]
+def _get_branch_for_class(folio, iri: str, branch_root_iris: dict[str, str], cache: dict[str, str]) -> str:
+    """Walk parent chain to find which branch a class belongs to. Cached.
 
-    if iri_hash in branch_root_iris:
-        cache[iri_hash] = branch_root_iris[iri_hash]
-        return branch_root_iris[iri_hash]
+    ``iri`` and the keys of ``branch_root_iris`` are FULL IRIs, so lookups work
+    for any ontology (folio-python's ``folio[bare_hash]`` only resolves FOLIO).
+    """
+    if iri in cache:
+        return cache[iri]
 
-    owl_class = folio[iri_hash]
+    if iri in branch_root_iris:
+        cache[iri] = branch_root_iris[iri]
+        return branch_root_iris[iri]
+
+    owl_class = folio[iri]
     if not owl_class or not owl_class.sub_class_of:
-        cache[iri_hash] = "Unknown"
+        cache[iri] = "Unknown"
         return "Unknown"
 
-    visited: set[str] = {iri_hash}
+    visited: set[str] = {iri}
     current_parents = owl_class.sub_class_of
 
     for _ in range(20):
@@ -87,69 +91,71 @@ def _get_branch_for_class(folio, iri_hash: str, branch_root_iris: dict[str, str]
             break
         next_parents: list[str] = []
         for parent_iri in current_parents:
-            parent_hash = _extract_iri_hash(parent_iri)
-            if parent_hash in visited:
+            if parent_iri in visited:
                 continue
-            visited.add(parent_hash)
-            if parent_hash in branch_root_iris:
-                branch_name = branch_root_iris[parent_hash]
-                cache[iri_hash] = branch_name
+            visited.add(parent_iri)
+            if parent_iri in branch_root_iris:
+                branch_name = branch_root_iris[parent_iri]
+                cache[iri] = branch_name
                 return branch_name
-            parent_class = folio[parent_hash]
+            parent_class = folio[parent_iri]
             if parent_class and parent_class.sub_class_of:
                 next_parents.extend(parent_class.sub_class_of)
         current_parents = next_parents
 
-    cache[iri_hash] = "Unknown"
+    cache[iri] = "Unknown"
     return "Unknown"
 
 
 def _init_branch_roots(folio) -> dict[str, str]:
-    """Build mapping of branch root IRI hashes to display names."""
+    """Build mapping of branch root FULL IRIs to display names.
+
+    FOLIO's ``FOLIO_TYPE_IRIS`` provides bare hashes; those are wrapped to full
+    FOLIO IRIs. Additional roots (any ontology) are discovered via
+    ``sub_class_of == [owl#Thing]`` and keyed by their full ``owl_class.iri``.
+    """
     from folio import FOLIO_TYPE_IRIS
     from app.services.folio.branch_config import get_branch_display_name
 
     roots: dict[str, str] = {}
     for ft, iri_hash in FOLIO_TYPE_IRIS.items():
         display_name = get_branch_display_name(ft.name)
-        roots[iri_hash] = display_name
+        roots[f"https://folio.openlegalstandard.org/{iri_hash}"] = display_name
 
-    # Discover additional root classes
+    # Discover additional root classes (keyed by full IRI)
     owl_thing = "http://www.w3.org/2002/07/owl#Thing"
     for owl_class in folio.classes:
-        iri_hash = _extract_iri_hash(owl_class.iri)
-        if iri_hash in roots:
+        if owl_class.iri in roots:
             continue
         if owl_class.sub_class_of and owl_class.sub_class_of == [owl_thing]:
-            label = owl_class.label or iri_hash
-            roots[iri_hash] = label
+            label = owl_class.label or _extract_iri_hash(owl_class.iri)
+            roots[owl_class.iri] = label
 
     return roots
 
 
-def _build_hierarchy_path(folio, iri_hash: str, branch_root_iris: dict[str, str]) -> list[HierarchyPathEntry]:
-    """Build hierarchy path from root branch down to this class."""
+def _build_hierarchy_path(folio, iri: str, branch_root_iris: dict[str, str]) -> list[HierarchyPathEntry]:
+    """Build hierarchy path from root branch down to this class. ``iri`` is a full IRI."""
     path: list[HierarchyPathEntry] = []
-    owl_class = folio[iri_hash]
+    owl_class = folio[iri]
     if not owl_class:
         return path
 
     current = owl_class
     visited: set[str] = set()
     while current and len(path) < 10:
-        current_hash = _extract_iri_hash(current.iri)
-        if current_hash in visited:
+        if current.iri in visited:
             break
-        visited.add(current_hash)
+        visited.add(current.iri)
         path.append(HierarchyPathEntry(
-            label=current.label or current_hash,
-            iri_hash=current_hash,
+            label=current.label or _extract_iri_hash(current.iri),
+            iri_hash=_extract_iri_hash(current.iri),
+            iri=current.iri,
         ))
-        if current_hash in branch_root_iris:
+        if current.iri in branch_root_iris:
             break
         if current.sub_class_of:
-            parent_hash = _extract_iri_hash(current.sub_class_of[0])
-            current = folio[parent_hash]
+            current = folio[current.sub_class_of[0]]
         else:
             break
 
@@ -158,14 +164,15 @@ def _build_hierarchy_path(folio, iri_hash: str, branch_root_iris: dict[str, str]
 
 
 def _build_all_hierarchy_paths(
-    folio, iri_hash: str, branch_root_iris: dict[str, str]
+    folio, iri: str, branch_root_iris: dict[str, str]
 ) -> list[list[HierarchyPathEntry]]:
     """Build all hierarchy paths for a polyhierarchy concept.
 
     Returns one root→target path per immediate parent. If the concept has
     ≤1 parent, returns the single path from ``_build_hierarchy_path``.
+    ``iri`` is a full IRI.
     """
-    owl_class = folio[iri_hash]
+    owl_class = folio[iri]
     if not owl_class:
         return []
 
@@ -174,18 +181,18 @@ def _build_all_hierarchy_paths(
     real_parents = [p for p in parents if p != owl_thing]
 
     if len(real_parents) <= 1:
-        single = _build_hierarchy_path(folio, iri_hash, branch_root_iris)
+        single = _build_hierarchy_path(folio, iri, branch_root_iris)
         return [single] if single else []
 
     target_entry = HierarchyPathEntry(
-        label=owl_class.label or iri_hash,
-        iri_hash=iri_hash,
+        label=owl_class.label or _extract_iri_hash(owl_class.iri),
+        iri_hash=_extract_iri_hash(owl_class.iri),
+        iri=owl_class.iri,
     )
 
     paths: list[list[HierarchyPathEntry]] = []
     for parent_iri in real_parents:
-        parent_hash = _extract_iri_hash(parent_iri)
-        parent_path = _build_hierarchy_path(folio, parent_hash, branch_root_iris)
+        parent_path = _build_hierarchy_path(folio, parent_iri, branch_root_iris)
         if parent_path:
             paths.append(parent_path + [target_entry])
 
@@ -198,12 +205,12 @@ def _build_all_hierarchy_paths(
             seen.add(key)
             unique.append(p)
 
-    return unique or [_build_hierarchy_path(folio, iri_hash, branch_root_iris)]
+    return unique or [_build_hierarchy_path(folio, iri, branch_root_iris)]
 
 
-def _get_all_parents(folio, iri_hash: str) -> list[HierarchyPathEntry]:
-    """Return all immediate parents of a class (for polyhierarchy DAG display)."""
-    owl_class = folio[iri_hash]
+def _get_all_parents(folio, iri: str) -> list[HierarchyPathEntry]:
+    """Return all immediate parents of a class (for polyhierarchy DAG display). ``iri`` is a full IRI."""
+    owl_class = folio[iri]
     if not owl_class or not owl_class.sub_class_of:
         return []
 
@@ -212,55 +219,62 @@ def _get_all_parents(folio, iri_hash: str) -> list[HierarchyPathEntry]:
     for parent_iri in owl_class.sub_class_of:
         if parent_iri == owl_thing:
             continue
-        parent_hash = _extract_iri_hash(parent_iri)
-        parent_class = folio[parent_hash]
+        parent_class = folio[parent_iri]
         if parent_class:
             parents.append(HierarchyPathEntry(
-                label=parent_class.label or parent_hash,
-                iri_hash=parent_hash,
+                label=parent_class.label or _extract_iri_hash(parent_iri),
+                iri_hash=_extract_iri_hash(parent_iri),
+                iri=parent_class.iri,
             ))
     parents.sort(key=lambda e: e.label)
     return parents
 
 
-def lookup_concept_detail(folio, iri_hash: str) -> ConceptDetail | None:
-    """Look up a FOLIO concept with extended detail."""
-    owl_class = folio[iri_hash]
+def lookup_concept_detail(folio, identifier: str) -> ConceptDetail | None:
+    """Look up a concept with extended detail.
+
+    ``identifier`` may be a full IRI (any ontology) or a bare FOLIO hash —
+    folio-python resolves both via ``folio[...]``. All internal traversal uses
+    the canonical full IRI (``owl_class.iri``) so non-FOLIO ontologies resolve.
+    """
+    owl_class = folio[identifier]
     if not owl_class:
         return None
 
+    iri = owl_class.iri  # canonical full IRI
+    iri_hash = _extract_iri_hash(iri)  # true bare hash for display
+
     branch_root_iris = _init_branch_roots(folio)
     branch_cache: dict[str, str] = {}
-    branch_name = _get_branch_for_class(folio, iri_hash, branch_root_iris, branch_cache)
+    branch_name = _get_branch_for_class(folio, iri, branch_root_iris, branch_cache)
 
     # Children
     children: list[HierarchyPathEntry] = []
     if owl_class.parent_class_of:
         for child_iri in owl_class.parent_class_of:
-            child_hash = _extract_iri_hash(child_iri)
-            child_class = folio[child_hash]
+            child_class = folio[child_iri]
             if child_class:
                 children.append(HierarchyPathEntry(
-                    label=child_class.label or child_hash,
-                    iri_hash=child_hash,
+                    label=child_class.label or _extract_iri_hash(child_iri),
+                    iri_hash=_extract_iri_hash(child_iri),
+                    iri=child_class.iri,
                 ))
     children.sort(key=lambda e: e.label)
 
     # Siblings
     siblings: list[HierarchyPathEntry] = []
     if owl_class.sub_class_of:
-        parent_hash = _extract_iri_hash(owl_class.sub_class_of[0])
-        parent_class = folio[parent_hash]
+        parent_class = folio[owl_class.sub_class_of[0]]
         if parent_class and parent_class.parent_class_of:
             for sibling_iri in parent_class.parent_class_of:
-                sibling_hash = _extract_iri_hash(sibling_iri)
-                if sibling_hash == iri_hash:
+                if sibling_iri == iri:
                     continue
-                sibling_class = folio[sibling_hash]
+                sibling_class = folio[sibling_iri]
                 if sibling_class:
                     siblings.append(HierarchyPathEntry(
-                        label=sibling_class.label or sibling_hash,
-                        iri_hash=sibling_hash,
+                        label=sibling_class.label or _extract_iri_hash(sibling_iri),
+                        iri_hash=_extract_iri_hash(sibling_iri),
+                        iri=sibling_class.iri,
                     ))
     siblings.sort(key=lambda e: e.label)
 
@@ -268,12 +282,12 @@ def lookup_concept_detail(folio, iri_hash: str) -> ConceptDetail | None:
     related: list[HierarchyPathEntry] = []
     if hasattr(owl_class, "see_also") and owl_class.see_also:
         for related_iri in owl_class.see_also:
-            related_hash = _extract_iri_hash(related_iri)
-            related_class = folio[related_hash]
+            related_class = folio[related_iri]
             if related_class:
                 related.append(HierarchyPathEntry(
-                    label=related_class.label or related_hash,
-                    iri_hash=related_hash,
+                    label=related_class.label or _extract_iri_hash(related_iri),
+                    iri_hash=_extract_iri_hash(related_iri),
+                    iri=related_class.iri,
                 ))
     related.sort(key=lambda e: e.label)
 
@@ -281,7 +295,7 @@ def lookup_concept_detail(folio, iri_hash: str) -> ConceptDetail | None:
     examples = list(owl_class.examples) if hasattr(owl_class, "examples") and owl_class.examples else []
     translations = dict(owl_class.translations) if hasattr(owl_class, "translations") and owl_class.translations else {}
 
-    hierarchy_paths = _build_all_hierarchy_paths(folio, iri_hash, branch_root_iris)
+    hierarchy_paths = _build_all_hierarchy_paths(folio, iri, branch_root_iris)
 
     # FOLIO skos:prefLabel — include when it differs from rdfs:label
     folio_pref = getattr(owl_class, "preferred_label", "") or ""
@@ -299,7 +313,7 @@ def lookup_concept_detail(folio, iri_hash: str) -> ConceptDetail | None:
 
     return ConceptDetail(
         label=owl_class.label or iri_hash,
-        iri=owl_class.iri,
+        iri=iri,
         iri_hash=iri_hash,
         definition=owl_class.definition,
         preferred_label=pref_label_val,
@@ -313,7 +327,7 @@ def lookup_concept_detail(folio, iri_hash: str) -> ConceptDetail | None:
         branch_color=get_branch_color(branch_name),
         hierarchy_path=hierarchy_paths[0] if hierarchy_paths else [],
         hierarchy_paths=hierarchy_paths,
-        all_parents=_get_all_parents(folio, iri_hash),
+        all_parents=_get_all_parents(folio, iri),
         children=children,
         siblings=siblings,
         related=related,
@@ -332,17 +346,24 @@ def lookup_concept_detail(folio, iri_hash: str) -> ConceptDetail | None:
 
 def build_entity_graph(
     folio,
-    iri_hash: str,
+    identifier: str,
     ancestors_depth: int = 2,
     descendants_depth: int = 2,
     max_nodes: int = 200,
     include_see_also: bool = True,
     max_see_also_per_node: int = 5,
 ) -> EntityGraphResponse | None:
-    """Build a multi-hop graph around a FOLIO concept via BFS."""
-    owl_class = folio[iri_hash]
+    """Build a multi-hop graph around a concept via BFS.
+
+    ``identifier`` may be a full IRI (any ontology) or a bare FOLIO hash.
+    Node ids and edges use bare hashes; all ``folio[...]`` lookups use full IRIs
+    (tracked in ``hash_to_iri``) so non-FOLIO ontologies resolve.
+    """
+    owl_class = folio[identifier]
     if not owl_class:
         return None
+
+    iri_hash = _extract_iri_hash(owl_class.iri)  # true bare hash of the focus
 
     branch_root_iris = _init_branch_roots(folio)
     branch_cache: dict[str, str] = {}
@@ -351,17 +372,23 @@ def build_entity_graph(
     edges: list[GraphEdge] = []
     edge_ids: set[str] = set()
     total_discovered_ref = [0]
+    # Map bare hash -> full IRI so lookups resolve for any ontology.
+    hash_to_iri: dict[str, str] = {iri_hash: owl_class.iri}
+
+    def _full(h: str) -> str:
+        return hash_to_iri.get(h, h)
 
     def _make_node(h: str, depth: int) -> GraphNode | None:
         if h in visited:
             return visited[h]
-        oc = folio[h]
+        oc = folio[_full(h)]
         if not oc:
             return None
+        hash_to_iri[h] = oc.iri
         total_discovered_ref[0] += 1
         if len(visited) >= max_nodes:
             return None
-        branch_name = _get_branch_for_class(folio, h, branch_root_iris, branch_cache)
+        branch_name = _get_branch_for_class(folio, oc.iri, branch_root_iris, branch_cache)
         node = GraphNode(
             id=h,
             label=oc.label or h,
@@ -370,7 +397,7 @@ def build_entity_graph(
             branch=branch_name,
             branch_color=get_branch_color(branch_name),
             is_focus=(h == iri_hash),
-            is_branch_root=(h in branch_root_iris),
+            is_branch_root=(oc.iri in branch_root_iris),
             child_count=len(oc.parent_class_of or []),
             depth=depth,
         )
@@ -397,13 +424,14 @@ def build_entity_graph(
         current_hash, current_depth = ancestor_queue.pop(0)
         if current_depth >= ancestor_max_depth:
             continue
-        current_oc = folio[current_hash]
+        current_oc = folio[_full(current_hash)]
         if not current_oc or not current_oc.sub_class_of:
             continue
         for parent_iri in current_oc.sub_class_of:
             if parent_iri == owl_thing:
                 continue
             parent_hash = _extract_iri_hash(parent_iri)
+            hash_to_iri[parent_hash] = parent_iri
             parent_node = _make_node(parent_hash, -(current_depth + 1))
             if parent_node is None:
                 continue
@@ -419,11 +447,12 @@ def build_entity_graph(
         current_hash, current_depth = descendant_queue.pop(0)
         if current_depth >= descendants_depth:
             continue
-        current_oc = folio[current_hash]
+        current_oc = folio[_full(current_hash)]
         if not current_oc or not current_oc.parent_class_of:
             continue
         for child_iri in current_oc.parent_class_of:
             child_hash = _extract_iri_hash(child_iri)
+            hash_to_iri[child_hash] = child_iri
             child_node = _make_node(child_hash, current_depth + 1)
             if child_node is None:
                 continue
@@ -436,7 +465,7 @@ def build_entity_graph(
     see_also_nodes: list[str] = []
     if include_see_also:
         for node_hash in list(visited.keys()):
-            oc = folio[node_hash]
+            oc = folio[_full(node_hash)]
             if not oc or not hasattr(oc, "see_also") or not oc.see_also:
                 continue
             sa_count = 0
@@ -444,6 +473,7 @@ def build_entity_graph(
                 if sa_count >= max_see_also_per_node:
                     break
                 related_hash = _extract_iri_hash(related_iri)
+                hash_to_iri[related_hash] = related_iri
                 was_new = related_hash not in visited
                 if was_new:
                     related_node = _make_node(related_hash, 0)
@@ -465,13 +495,14 @@ def build_entity_graph(
             current_hash, current_depth = sa_ancestor_queue.pop(0)
             if current_depth >= sa_max_depth:
                 continue
-            current_oc = folio[current_hash]
+            current_oc = folio[_full(current_hash)]
             if not current_oc or not current_oc.sub_class_of:
                 continue
             for parent_iri in current_oc.sub_class_of:
                 if parent_iri == owl_thing:
                     continue
                 parent_hash = _extract_iri_hash(parent_iri)
+                hash_to_iri[parent_hash] = parent_iri
                 parent_node = _make_node(parent_hash, -(current_depth + 1))
                 if parent_node is None:
                     continue
@@ -494,7 +525,7 @@ def build_entity_graph(
     return EntityGraphResponse(
         focus_iri_hash=iri_hash,
         focus_label=owl_class.label or iri_hash,
-        focus_branch=_get_branch_for_class(folio, iri_hash, branch_root_iris, branch_cache),
+        focus_branch=_get_branch_for_class(folio, owl_class.iri, branch_root_iris, branch_cache),
         nodes=list(visited.values()),
         edges=edges,
         truncated=truncated,
