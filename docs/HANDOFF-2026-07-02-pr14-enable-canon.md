@@ -1,3 +1,12 @@
+---
+title: "PR #14: Enable Canon — finish threading + per-ontology embeddings"
+type: feat
+status: active
+date: 2026-07-02
+branch: feat/multi-ontology-enable-canon
+origin: docs/plans/2026-07-01-002-feat-multi-ontology-catholic-canon-plan.md
+---
+
 # Handoff — PR #14: Enable Canon (finish threading + per-ontology embeddings)
 
 **Date:** 2026-07-02
