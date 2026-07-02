@@ -50,6 +50,7 @@ class TestReconciliationStageGate:
 
     def _stage(self, index_ontology="folio"):
         emb = MagicMock()
+        emb.index_size = 100
         emb.matches_ontology.side_effect = lambda oid: (oid or "folio") == index_ontology
         reconciler = MagicMock()
         reconciler._embedding_service = emb
