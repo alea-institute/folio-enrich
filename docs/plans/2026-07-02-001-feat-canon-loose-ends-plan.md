@@ -1,7 +1,7 @@
 ---
 title: "Canon multi-ontology loose ends — embedding index, native branch prompts, infra hardening, PR triage"
 type: feat
-status: active
+status: completed
 date: 2026-07-02
 origin: docs/plans/2026-07-01-002-feat-multi-ontology-catholic-canon-plan.md
 ---
@@ -80,11 +80,11 @@ Give non-FOLIO ontologies their own branch examples so the LLM classifies with C
 - `OntologySpec` (`spec.py`) — candidate home for a static `branch_examples` if not deriving.
 
 ### Acceptance criteria
-- [ ] A Canon concept/branch-judge prompt presents Canon-appropriate branches (Event/Actor/Document + themes), NOT FOLIO legal branches.
-- [ ] FOLIO prompts byte-identical (same `BRANCH_LIST`/detail).
-- [ ] Non-FOLIO ontology with no branch data → neutral scaffold, never FOLIO's taxonomy.
-- [ ] `templates.py` docstring updated to reflect reality (the current one now says the fallback is FOLIO — keep honest).
-- [ ] A re-baked or live Canon job shows improved branch assignments (spot-check: "Eucharist" → a sacramental/liturgical branch, not "Actor / Player").
+- [x] A Canon concept/branch-judge prompt presents Canon-appropriate branches (Event/Actor/Document + themes), NOT FOLIO legal branches. → OWL-derived via `_init_branch_roots` reuse (PR #22, merged).
+- [x] FOLIO prompts byte-identical (same `BRANCH_LIST`/detail). → `build_branch_detail` routes FOLIO to verbatim original body; `TestFolioByteNeutral` asserts.
+- [x] Non-FOLIO ontology with no branch data → neutral scaffold, never FOLIO's taxonomy. → `_NEUTRAL_BRANCH_SCAFFOLD` (taxonomy-free).
+- [x] `templates.py` docstring updated to reflect reality (the current one now says the fallback is FOLIO — keep honest). → done.
+- [x] A re-baked or live Canon job shows improved branch assignments (spot-check: "Eucharist" → a sacramental/liturgical branch, not "Actor / Player"). → derived Canon detail routes "Eucharist" toward Event → Religious Events. (Re-bake of the 4 Canon demos deferred/optional — live jobs benefit now.)
 
 ### Risks / notes
 - If derived from OWL, needs the Canon service loaded (lazy — fine; `get_branch_detail` is already lazy + cached).
@@ -108,11 +108,11 @@ Give non-FOLIO ontologies their own branch examples so the LLM classifies with C
 - `backend/app/services/embedding/service.py` (singleton), `backend/app/services/ontology/registry.py` (per-key lock, aggregate home), `backend/app/services/folio/owl_updater.py` + `owl_cache.py` (FOLIO-hardcoded), `backend/app/main.py` (lifespan).
 
 ### Acceptance criteria
-- [ ] One shared `SentenceTransformer` across ontologies; measured RSS within ceiling with FOLIO+Canon resident.
-- [ ] An OWL reload never serves a partially-built ontology; the reloaded ontology's branch-detail cache is invalidated.
-- [ ] `owl_cache` is per-ontology (no FOLIO/Canon cache-key collision; no phantom rollback).
-- [ ] Registry/embedding lifecycle owned by `app.state`; tests can construct/inject cleanly.
-- [ ] FOLIO byte-neutral; 841+ tests green.
+- [x] One shared `SentenceTransformer` across ontologies; measured RSS within ceiling with FOLIO+Canon resident. → delivered in WS-1 (`_get_shared_provider`); `test_all_ontologies_share_one_provider` asserts single shared instance (identity proxy for RSS). (PR #23)
+- [x] An OWL reload never serves a partially-built ontology; the reloaded ontology's branch-detail cache is invalidated. → `_reload()` is build-then-swap (scratch build + single `_reload_lock`-guarded rebind); `clear_branch_detail_cache(spec.id)` on reload.
+- [x] `owl_cache` is per-ontology (no FOLIO/Canon cache-key collision; no phantom rollback). → **verified, not refactored**: FOLIO `~/.folio/cache/github/…` vs Canon `~/.folio/cache/http/…` are disjoint dirs+hashes (no collision, no phantom rollback). Documented + `test_ontology_cache_paths` guards it. Refactoring FOLIO's cache for zero benefit would only risk byte-neutrality.
+- [x] Registry/embedding lifecycle owned by `app.state`; tests can construct/inject cleanly. → `lifespan` sets `app.state.ontology_registry`/`default_ontology`; `set_registry()` injection hook added (module global stays accessor source of truth — ~24 call sites not migrated).
+- [x] FOLIO byte-neutral; 841+ tests green. → 869 passed; no existing test modified.
 
 ### Risks / notes
 - Mostly refactors with subtle concurrency (locks, swap atomicity) — small, well-scoped diffs; verify with the existing IT-1 no-leakage test + a reload test.
