@@ -51,23 +51,20 @@ def build_embedding_index(folio_service, owl_hash: str = "") -> None:
     if provider is None:
         return
 
-    # Collect concept data from FOLIO
-    folio_raw = folio_service._get_folio()
+    # Collect concept data from the ontology (neutral records — no reach-through
+    # into the folio-python graph, so this works for any ontology service).
     iri_hashes = []
     labels = []
     definitions = []
     branches = []
     examples = []
 
-    for owl_class in folio_raw.classes:
-        iri_hash = owl_class.iri.rsplit("/", 1)[-1]
-        label = owl_class.label or iri_hash
-        defn = owl_class.definition
-        exs = getattr(owl_class, "examples", []) or []
+    for rec in folio_service.iter_concepts():
+        iri_hash = rec.iri.rsplit("/", 1)[-1]
         iri_hashes.append(iri_hash)
-        labels.append(label)
-        definitions.append(defn)
-        examples.append(list(exs))
+        labels.append(rec.label or iri_hash)
+        definitions.append(rec.definition)
+        examples.append(list(rec.examples))
         # Branch detection is expensive; leave empty for now
         branches.append("")
 
