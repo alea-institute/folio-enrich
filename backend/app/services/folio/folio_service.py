@@ -144,16 +144,35 @@ class FolioService:
 
         coords = self._spec.coords
         if coords.source_type == "http":
-            # folio-python's direct http fetch is un-sized/un-timed/un-guarded.
-            # The plan mandates a hardened, size-capped, checksum-verified ingestion
-            # path (Phase 2 Security) as the sole loader for third-party OWL. Refuse
-            # the raw path until that lands, so flipping enabled_ontologies alone
-            # cannot trigger an unguarded fetch.
-            raise NotImplementedError(
-                f"Ontology '{self._spec.id}' uses source_type='http', which requires "
-                "the hardened OWL ingestion path (Phase 2). Not yet available."
-            )
+            return self._load_http_via_hardened_ingestion(coords)
         return FOLIO(github_repo_branch=coords.repo_branch)
+
+    def _load_http_via_hardened_ingestion(self, coords):
+        """Load an http-source ontology WITHOUT folio-python ever fetching.
+
+        The app is the sole ingestion point: download + size-cap + DOCTYPE-reject +
+        hardened-parse + checksum-verify, write the validated bytes into the exact
+        local cache file folio-python reads, then construct with use_cache=True so
+        load_owl reads the cache and never hits the network (its direct http fetch
+        is un-sized/un-timed/un-guarded and must not run in prod).
+        """
+        import hashlib
+
+        from folio import FOLIO
+
+        from app.services.ontology.ingestion import fetch_and_validate_owl
+
+        data, _sha = fetch_and_validate_owl(coords.owl_url, expected_sha256=coords.owl_sha256 or None)
+
+        # Mirror folio-python's cache scheme: ~/.folio/cache/http/{blake2b(url)}.owl
+        cache_hash = hashlib.blake2b(coords.owl_url.encode()).hexdigest()
+        cache_file = Path.home() / ".folio" / "cache" / "http" / f"{cache_hash}.owl"
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        tmp = cache_file.with_suffix(".owl.tmp")
+        tmp.write_bytes(data)
+        tmp.replace(cache_file)  # atomic
+
+        return FOLIO(source_type="http", http_url=coords.owl_url, use_cache=True)
 
     def _get_folio(self):
         if self._folio is None:
