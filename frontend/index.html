@@ -4317,9 +4317,18 @@ function syncOntologyUI() {
   document.title = ontologyBrand(id) + ' Enrich';
 }
 
+// True while a job is in flight (streaming OR poll fallback). Same predicate the
+// switcher-disable logic tracks — used to hard-guard applyOntology below.
+function jobInFlight() { return eventSource !== null || pollInterval != null; }
+
 // Apply an ontology. Idempotent + pure for the no-op case. push → sync ?ontology=
 // into the URL via replaceState (no new history entry); persist → localStorage.
 function applyOntology(id, { push = true, persist = true } = {}) {
+  // Defense-in-depth: never switch mid-job. popstate/restoreState call this
+  // directly, bypassing the disabled button — so guard here too. Re-sync the chrome
+  // to the (unchanged) active ontology and bail. No-op during init/hydration since
+  // eventSource/pollInterval are null then.
+  if (jobInFlight()) { syncOntologyUI(); return; }
   if (!ONTOLOGY_ALLOW.has(id)) {
     const bad = id;
     id = 'folio';
@@ -4359,7 +4368,15 @@ function setOntologySwitcherDisabled(disabled) {
   if (disabled) {
     btn.setAttribute('aria-disabled', 'true');
     btn.setAttribute('disabled', '');
-    if (_ontologyPopoverOpen) closeOntologyPopover(false);
+    if (_ontologyPopoverOpen) {
+      // Closing here with restoreFocus would target the now-disabled trigger, which
+      // isn't focusable — focus would fall to <body>. Move it to a stable, focusable
+      // control instead so keyboard users aren't stranded.
+      closeOntologyPopover(false);
+      const enrich = document.getElementById('enrichBtn');
+      const target = (enrich && !enrich.disabled) ? enrich : document.getElementById('docInput');
+      if (target) target.focus();
+    }
   } else {
     btn.removeAttribute('aria-disabled');
     btn.removeAttribute('disabled');
@@ -6296,6 +6313,11 @@ async function submitEnrichment() {
   const btn = document.getElementById('enrichBtn');
 
   btn.disabled = true;
+  // Lock the ontology from the moment we commit to submitting — body.ontology is
+  // captured below, but the /settings PUT + /enrich POST awaits happen first, so a
+  // switch in that window could mismatch backend ontology vs painted palette.
+  // Re-enabled by the normal end path (closeSSE / stopPolling).
+  setOntologySwitcherDisabled(true);
   btn.innerHTML = '<span class="spinner"></span> Processing...';
   setStatus('Submitting...', 'running');
   renderProgressStages('pending');
@@ -6352,25 +6374,37 @@ async function submitEnrichment() {
     setStatus(`Error: ${e.message}`, 'failed');
     btn.disabled = false;
     btn.textContent = 'Enrich Document';
+    // Submit failed before any stream/poll started — nothing will re-enable the
+    // switcher via the normal end path, so release the lock here.
+    setOntologySwitcherDisabled(false);
   }
 }
 
 function pollJob() {
   if (pollInterval) clearInterval(pollInterval);
   if (pollTimeout) clearTimeout(pollTimeout);
+  // The job is still in flight (poll fallback). Keep the switcher locked for the
+  // whole poll lifetime; stopPolling() re-enables at every poll terminus. This
+  // covers the SSE-error path (closeSSE re-enables, then we re-disable here).
+  setOntologySwitcherDisabled(true);
 
   // Max poll duration: 5 minutes
   pollTimeout = setTimeout(() => {
-    if (pollInterval) clearInterval(pollInterval);
+    stopPolling();
     setStatus('Timeout: job took too long', 'failed');
     resetButton();
   }, 300000);
 
   pollInterval = setInterval(async () => {
+    // Capture the job for this tick; if it changes across either await (New/Clear
+    // or an ontology switch), bail so a stale job can't repaint under a new palette.
+    const jobId = currentJobId;
     try {
-      const r = await fetch(`${API}/enrich/${currentJobId}`);
+      const r = await fetch(`${API}/enrich/${jobId}`);
+      if (currentJobId !== jobId) return;
       if (!r.ok) return;
       const job = await r.json();
+      if (currentJobId !== jobId) return;
       currentJob = job;
 
       renderProgressStages(job.status, { animate: true });
@@ -6400,6 +6434,9 @@ function stopPolling() {
   if (pollTimeout) clearTimeout(pollTimeout);
   pollInterval = null;
   pollTimeout = null;
+  // Poll terminus (complete / failed / timeout) — the job is truly done, so the
+  // ontology can be changed again (AC-7).
+  setOntologySwitcherDisabled(false);
 }
 
 function resetButton() {
@@ -11703,7 +11740,9 @@ function clearAll() {
   currentDemoSlug = null;
   originalDemoCache = null;
   setDemoMode(false, { announce: false });
-  document.title = 'FOLIO Enrich';
+  // Clear keeps the active ontology — reconcile title + masthead to it (not a
+  // hardcoded "FOLIO Enrich") so branding + palette stay in sync under Canon.
+  syncOntologyUI();
   try {
     const _p = new URLSearchParams(window.location.search);
     if (_p.has('demo')) {
