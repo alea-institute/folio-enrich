@@ -28,10 +28,12 @@ class TestEnrichRequestOntology:
     def test_empty_falls_back_to_default(self):
         assert EnrichRequest(content="x", ontology="").ontology == "folio"
 
-    def test_unknown_or_disabled_rejected(self):
-        # canon is defined but not enabled -> deterministic rejection
-        with pytest.raises(ValidationError):
-            EnrichRequest(content="x", ontology="canon")
+    def test_canon_accepted(self):
+        # canon is enabled as of PR #14 -> passes validation
+        assert EnrichRequest(content="x", ontology="canon").ontology == "canon"
+
+    def test_unknown_rejected(self):
+        # an id with no spec is still a deterministic rejection
         with pytest.raises(ValidationError):
             EnrichRequest(content="x", ontology="bogus")
 
@@ -76,29 +78,34 @@ class TestOntologiesRoutes:
         assert body["default"] == "folio"
         assert "embeddings_available" in body
         ids = [o["id"] for o in body["ontologies"]]
-        assert ids == ["folio"]
+        assert ids == ["folio", "canon"]  # canon enabled as of PR #14
         folio = body["ontologies"][0]
         assert folio["display_name"] == "FOLIO"
         assert folio["default"] is True
+        canon = body["ontologies"][1]
+        assert canon["display_name"] == "Catholic Semantic Canon"
+        assert canon["default"] is False
 
     def test_get_folio(self):
         r = client.get("/ontologies/folio")
         assert r.status_code == 200
         assert r.json()["base_iri"] == "https://folio.openlegalstandard.org/"
 
-    def test_get_disabled_ontology_404(self):
+    def test_get_canon_enabled(self):
+        # canon is enabled as of PR #14 -> metadata returned, not 404
         r = client.get("/ontologies/canon")
+        assert r.status_code == 200
+        assert r.json()["base_iri"] == "https://ontology.catholicos.catholic/"
+
+    def test_get_unknown_ontology_404(self):
+        r = client.get("/ontologies/bogus")
         assert r.status_code == 404
         assert "Enabled" in r.json()["detail"]
 
 
 class TestEnrichRouteOntologyBoundary:
-    def test_post_enrich_rejects_disabled_ontology_422(self):
-        # End-to-end: a bad ontology is a 422 at the route, not a 500 deep in the pipeline
-        r = client.post("/enrich", json={"content": "hello", "ontology": "canon"})
-        assert r.status_code == 422
-        assert "folio" in r.text  # enabled list surfaced in the error
-
     def test_post_enrich_rejects_unknown_ontology_422(self):
+        # End-to-end: a bad ontology is a 422 at the route, not a 500 deep in the pipeline
         r = client.post("/enrich", json={"content": "hello", "ontology": "bogus"})
         assert r.status_code == 422
+        assert "folio" in r.text  # enabled list surfaced in the error

@@ -119,7 +119,7 @@ class LLMPropertyStage(PipelineStage):
                     LLMPropertyIdentifier,
                 )
 
-                identifier = LLMPropertyIdentifier(self.llm)
+                identifier = LLMPropertyIdentifier(self.llm, ontology_id=job.ontology)
                 document_type = job.result.metadata.get("self_identified_type", "")
                 llm_new = await identifier.identify_batch(
                     chunks, job.result.annotations, existing_properties,

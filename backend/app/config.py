@@ -108,11 +108,14 @@ class Settings(BaseSettings):
     folio_update_check_interval_hours: int = 24
 
     # Multi-ontology (see docs/plans/2026-07-01-002-feat-multi-ontology-...).
-    # FOLIO is the default and, for now, the only ENABLED ontology; the Catholic
-    # Semantic Canon spec exists but is only loaded once "canon" is appended here
-    # (a later phase wires request threading, per-ontology OWL update, and demos).
+    # FOLIO is the default ontology; the Catholic Semantic Canon is now also
+    # selectable via ?ontology=canon. Request threading resolves/judges/extracts
+    # against the job's ontology everywhere, and per-ontology embedding gating
+    # ensures a Canon job never scores against FOLIO's vectors (PR #14). On the
+    # first Canon request the OWL lazy-loads via the hardened ingestion path
+    # (~14 MB download + validate, one-time).
     default_ontology: str = "folio"
-    enabled_ontologies: list[str] = ["folio"]
+    enabled_ontologies: list[str] = ["folio", "canon"]
 
     # Admin token gating the mutating OWL-update routes (check/apply/rollback),
     # which trigger network fetches + runtime hot-reloads. When set, those routes

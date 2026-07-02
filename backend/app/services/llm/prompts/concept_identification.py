@@ -32,8 +32,8 @@ TEXT:
 {text}"""
 
 
-def build_concept_identification_prompt(text: str) -> str:
-    branch_info = get_branch_detail()
+def build_concept_identification_prompt(text: str, ontology_id: str = "folio") -> str:
+    branch_info = get_branch_detail(ontology_id)
     return (
         _CONCEPT_IDENTIFICATION_TEMPLATE
         .replace("{branch_info}", branch_info)

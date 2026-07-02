@@ -46,15 +46,21 @@ BRANCH_LIST = "\n".join(
 )
 
 
-def build_branch_detail(max_concepts_per_branch: int = 8, max_total_chars: int = 8000) -> str:
-    """Build enriched branch descriptions using actual FOLIO concept definitions and examples.
+def build_branch_detail(
+    max_concepts_per_branch: int = 8,
+    max_total_chars: int = 8000,
+    ontology_id: str = "folio",
+) -> str:
+    """Build enriched branch descriptions using actual concept definitions and examples.
 
-    Falls back to BRANCH_EXAMPLES if the FOLIO service is unavailable.
+    Falls back to BRANCH_EXAMPLES if the ontology service is unavailable or the
+    ontology exposes no FOLIO-style branches (e.g. Canon), which is a graceful
+    quality fallback (Canon then uses the compact BRANCH_LIST).
     """
     try:
         from app.services.folio.folio_service import FolioService
         from app.services.folio.branch_config import EXCLUDED_BRANCHES
-        folio = FolioService.get_instance()
+        folio = FolioService.get_instance(ontology_id)
         folio_obj = folio._get_folio()
         branches_dict = folio_obj.get_folio_branches(max_depth=16)
     except Exception:
@@ -118,12 +124,14 @@ def build_branch_detail(max_concepts_per_branch: int = 8, max_total_chars: int =
     return "\n".join(lines)
 
 
-def get_branch_detail() -> str:
-    """Get branch detail, building lazily on first call."""
-    global _BRANCH_DETAIL_CACHE
-    if _BRANCH_DETAIL_CACHE is None:
-        _BRANCH_DETAIL_CACHE = build_branch_detail()
-    return _BRANCH_DETAIL_CACHE
+def get_branch_detail(ontology_id: str = "folio") -> str:
+    """Get branch detail for an ontology, building lazily and caching per ontology."""
+    ontology_id = ontology_id or "folio"
+    cached = _BRANCH_DETAIL_CACHE.get(ontology_id)
+    if cached is None:
+        cached = build_branch_detail(ontology_id=ontology_id)
+        _BRANCH_DETAIL_CACHE[ontology_id] = cached
+    return cached
 
 
-_BRANCH_DETAIL_CACHE: str | None = None
+_BRANCH_DETAIL_CACHE: dict[str, str] = {}

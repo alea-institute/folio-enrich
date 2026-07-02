@@ -18,12 +18,13 @@ from app.services.ontology.spec import BUILTIN_SPECS, CANON_SPEC, FOLIO_SPEC
 
 
 class TestOntologyRegistry:
-    def test_default_registry_enables_only_folio(self):
+    def test_default_registry_enables_folio_and_canon(self):
+        # PR #14 enabled Canon as a second selectable ontology; FOLIO stays default.
         reg = get_registry()
-        assert reg.enabled_ids() == ["folio"]
+        assert reg.enabled_ids() == ["folio", "canon"]
         assert reg.default_id == "folio"
         assert reg.has("folio")
-        assert not reg.has("canon")
+        assert reg.has("canon")
 
     def test_get_service_is_cached_per_ontology(self):
         reg = OntologyRegistry({"folio": FOLIO_SPEC})

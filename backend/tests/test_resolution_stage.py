@@ -87,6 +87,41 @@ class TestApplyEmbeddingContextScores:
         assert abs(concepts[0]["confidence"] - 0.88) < 1e-4
 
 
+class TestEmbeddingOntologyGating:
+    """PR #14: a job must only use the embedding index built for its ontology.
+
+    The startup index is FOLIO's; a Canon job must NOT score its candidates
+    against FOLIO vectors — it degrades gracefully (identical to no-index).
+    """
+
+    def _make_stage(self, index_ontology="folio"):
+        mock_emb = MagicMock()
+        mock_emb.index_size = 100
+        mock_emb.similarity_batch.side_effect = lambda pairs: [0.8] * len(pairs)
+        mock_emb.matches_ontology.side_effect = (
+            lambda oid: (oid or "folio") == index_ontology
+        )
+        return ResolutionStage(embedding_service=mock_emb), mock_emb
+
+    def test_uses_embeddings_when_ontology_matches(self):
+        stage, mock_emb = self._make_stage(index_ontology="folio")
+        concepts = [{"concept_text": "breach", "folio_definition": "d", "confidence": 0.80}]
+        stage._apply_embedding_context_scores(
+            concepts, "The breach was clear.", ontology_id="folio"
+        )
+        mock_emb.similarity_batch.assert_called_once()
+
+    def test_skips_embeddings_when_ontology_differs(self):
+        # FOLIO index + a Canon job -> no scoring, confidence untouched
+        stage, mock_emb = self._make_stage(index_ontology="folio")
+        concepts = [{"concept_text": "Eucharist", "folio_definition": "d", "confidence": 0.80}]
+        stage._apply_embedding_context_scores(
+            concepts, "The Eucharist is central.", ontology_id="canon"
+        )
+        mock_emb.similarity_batch.assert_not_called()
+        assert concepts[0]["confidence"] == 0.80  # graceful degradation
+
+
 class TestAttachBackupCandidates:
     """Backup/runner-up candidate search (Option A skip + B confidence cap)."""
 
