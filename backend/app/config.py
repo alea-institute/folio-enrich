@@ -116,6 +116,12 @@ class Settings(BaseSettings):
     # (~14 MB download + validate, one-time).
     default_ontology: str = "folio"
     enabled_ontologies: list[str] = ["folio", "canon"]
+    # Defensive ceiling on how many NON-default ontologies stay resident (their
+    # FolioService + embedding index cached in memory). When exceeded, the least-
+    # recently-used non-default ontology is evicted; the default is never evicted.
+    # Default (3) comfortably keeps folio + canon resident, so eviction never fires
+    # in practice — it just bounds memory if many ontologies are ever added.
+    max_resident_ontologies: int = 3
 
     # Admin token gating the mutating OWL-update routes (check/apply/rollback),
     # which trigger network fetches + runtime hot-reloads. When set, those routes

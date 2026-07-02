@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from typing import TYPE_CHECKING
 
 from app.services.ontology.spec import BUILTIN_SPECS, OntologySpec
@@ -41,6 +42,9 @@ class OntologyRegistry:
         self._embedding_services: dict[str, EmbeddingService] = {}
         self._global_lock = threading.Lock()
         self._key_locks: dict[str, threading.Lock] = {}
+        # Last-access clock (time.monotonic) per ontology, for LRU eviction of
+        # resident non-default ontologies. Updated on every service/embedding hit.
+        self._last_access: dict[str, float] = {}
         # ONE SentenceTransformer shared by every per-ontology EmbeddingService, so
         # enabling Canon does not load a second copy of the model.
         self._shared_provider = None
@@ -78,6 +82,32 @@ class OntologyRegistry:
         with self._global_lock:
             return self._key_locks.setdefault(ontology_id, threading.Lock())
 
+    def _touch(self, ontology_id: str) -> None:
+        """Record an access for LRU bookkeeping (dict write is atomic under GIL)."""
+        self._last_access[ontology_id] = time.monotonic()
+
+    def _evict_if_needed(self) -> None:
+        """Evict the LRU NON-default ontology while resident non-defaults exceed the
+        ceiling. The default is never evicted. Takes only ``_global_lock`` (never a
+        per-key lock), so it cannot deadlock against an in-flight build.
+        """
+        from app.config import settings
+
+        ceiling = max(0, settings.max_resident_ontologies)
+        with self._global_lock:
+            resident = set(self._services) | set(self._embedding_services)
+            non_default = [o for o in resident if o != self._default_id]
+            while len(non_default) > ceiling:
+                lru = min(non_default, key=lambda o: self._last_access.get(o, 0.0))
+                self._services.pop(lru, None)
+                self._embedding_services.pop(lru, None)
+                self._last_access.pop(lru, None)
+                non_default.remove(lru)
+                logger.info(
+                    "Evicted resident ontology '%s' (LRU; %d non-default > ceiling %d)",
+                    lru, len(non_default) + 1, ceiling,
+                )
+
     def get_service(self, ontology_id: str | None = None) -> "FolioService":
         """Return the (lazily built, cached) ontology read service for an id.
 
@@ -87,8 +117,10 @@ class OntologyRegistry:
         oid = ontology_id or self._default_id
         svc = self._services.get(oid)  # fast path, lock-free
         if svc is not None:
+            self._touch(oid)
             return svc
         spec = self.get_spec(oid)  # validates id before locking
+        built = False
         with self._lock_for(oid):
             svc = self._services.get(oid)  # re-check under lock
             if svc is None:
@@ -96,8 +128,12 @@ class OntologyRegistry:
 
                 svc = FolioService(spec)
                 self._services[oid] = svc
+                built = True
                 logger.info("Built ontology service '%s' (%s)", oid, spec.display_name)
-            return svc
+        self._touch(oid)
+        if built:
+            self._evict_if_needed()  # bound resident non-defaults (never evicts default)
+        return svc
 
     def _get_shared_provider(self):
         """Lazily create the ONE embedding provider shared across all ontologies."""
@@ -124,6 +160,7 @@ class OntologyRegistry:
         oid = ontology_id or self._default_id
         es = self._embedding_services.get(oid)  # fast path, lock-free
         if es is not None:
+            self._touch(oid)
             return es
         spec = self.get_spec(oid)  # validates id before locking
         svc = self.get_service(oid)  # build/fetch FolioService (releases its own lock)
@@ -140,6 +177,7 @@ class OntologyRegistry:
         else:
             owl_hash = ""
 
+        built = False
         with self._lock_for(oid):
             es = self._embedding_services.get(oid)  # re-check under lock
             if es is None:
@@ -156,10 +194,14 @@ class OntologyRegistry:
                         "features disabled for it", oid, exc_info=True,
                     )
                 self._embedding_services[oid] = es
+                built = True
                 logger.info(
                     "Built embedding service '%s' (%d vectors)", oid, es.index_size,
                 )
-            return es
+        self._touch(oid)
+        if built:
+            self._evict_if_needed()  # bound resident non-defaults (never evicts default)
+        return es
 
 
 _registry: OntologyRegistry | None = None
@@ -186,3 +228,15 @@ def reset_registry() -> None:
     global _registry
     with _registry_lock:
         _registry = None
+
+
+def set_registry(registry: OntologyRegistry | None) -> None:
+    """Injection hook: install a pre-built registry as the process-global one.
+
+    Lets tests (and the app lifespan) construct a registry explicitly and make it
+    the source of truth that every accessor (``get_registry``, ``FolioService.
+    get_instance``, ``get_embedding_service``) returns. Pass ``None`` to clear.
+    """
+    global _registry
+    with _registry_lock:
+        _registry = registry

@@ -4,6 +4,18 @@ Manages the FOLIO OWL file cached by folio-python, adding:
 - ETag-based freshness checks (HEAD request per startup)
 - XML validation before overwriting the cache
 - One-version rollback via {hash}.owl.previous
+
+FOLIO-SPECIFIC BY DESIGN — do not generalize to per-ontology. Everything here is
+hardcoded to the FOLIO GitHub source: the file lives under ``~/.folio/cache/github/
+{blake2b("alea-institute/FOLIO/main")}.owl``. Other ontologies (e.g. the Catholic
+Canon, an http source) never touch this module — they load through
+``FolioService._load_http_via_hardened_ingestion`` into a SEPARATE directory,
+``~/.folio/cache/http/{blake2b(owl_url)}.owl``, with a different hash INPUT
+(the OWL URL, not the repo coordinate). Because the two live in different
+subdirectories (``github/`` vs ``http/``) AND key off different inputs, their
+cache filenames cannot collide, so a FOLIO update/rollback can never touch a
+Canon file (no phantom rollback), and vice versa. See
+``test_ontology_cache_paths.py``.
 """
 
 from __future__ import annotations

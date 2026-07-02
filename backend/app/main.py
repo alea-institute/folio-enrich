@@ -152,6 +152,19 @@ async def lifespan(app: FastAPI):
     logger.info("Loading FOLIO ontology and building embedding index...")
     await _index_folio_embeddings()
 
+    # Own the ontology registry lifecycle at the app level and expose it to request
+    # handlers via request.app.state. The module-global registry remains the
+    # accessor source of truth (get_registry / FolioService.get_instance); this is
+    # an additive reference, not a migration of the ~24 call sites.
+    try:
+        from app.services.ontology.registry import get_registry
+
+        registry = get_registry()
+        app.state.ontology_registry = registry
+        app.state.default_ontology = registry.default_id
+    except Exception:
+        logger.warning("Could not attach ontology registry to app.state", exc_info=True)
+
     # Seed pre-baked demo jobs so demo-mode exports resolve server-side
     try:
         from app.services.demo_seed import seed_demo_jobs
