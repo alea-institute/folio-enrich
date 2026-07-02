@@ -238,6 +238,12 @@ class ResolutionStage(PipelineStage):
     async def execute(self, job: Job) -> Job:
         job.status = JobStatus.RESOLVING
 
+        # Resolve against the job's ontology (default FOLIO). The resolver binds a
+        # default service at construction; rebind per-job so a Canon document
+        # resolves against Canon concepts, not FOLIO's.
+        from app.services.folio.folio_service import FolioService
+        self.resolver.folio = FolioService.get_instance(job.ontology)
+
         # Prefer reconciled concepts (merged ruler + LLM); fall back to individual sources
         reconciled = job.result.metadata.get("reconciled_concepts", [])
         resolved_concepts: list[dict] = []
