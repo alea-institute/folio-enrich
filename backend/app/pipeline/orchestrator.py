@@ -79,20 +79,6 @@ class TaskLLMs:
         return result
 
 
-def _get_embedding_service():
-    """Get the singleton EmbeddingService (always available after startup)."""
-    try:
-        from app.services.embedding.service import EmbeddingService
-        svc = EmbeddingService.get_instance()
-        if svc.index_size > 0:
-            return svc
-        logger.warning("Embedding index is empty — semantic features will be disabled")
-        return None
-    except Exception:
-        logger.warning("Failed to get embedding service", exc_info=True)
-        return None
-
-
 @dataclass
 class PipelineConfig:
     """Configuration for the three-phase parallel pipeline."""
@@ -116,8 +102,6 @@ def build_pipeline_config(
     When *task_llms* is provided, each stage uses its task-specific LLM.
     Otherwise the single *llm* is used for all stages (backward-compatible).
     """
-    embedding_service = _get_embedding_service()
-
     concept_llm = (task_llms.concept if task_llms else llm) or llm
     branch_judge_llm = (task_llms.branch_judge if task_llms else llm) or llm
     classifier_llm = (task_llms.classifier if task_llms else llm) or llm
@@ -131,7 +115,7 @@ def build_pipeline_config(
             IngestionStage(),
             NormalizationStage(),
         ],
-        entity_ruler=EntityRulerStage(embedding_service=embedding_service, job_store=job_store),
+        entity_ruler=EntityRulerStage(registry_embeddings=True, job_store=job_store),
     )
 
     if concept_llm is not None:
@@ -151,8 +135,8 @@ def build_pipeline_config(
         config.document_type = DocumentTypeStage(document_type_llm)
 
     config.post_parallel = [
-        ReconciliationStage(embedding_service=embedding_service),
-        ResolutionStage(embedding_service=embedding_service),
+        ReconciliationStage(registry_embeddings=True),
+        ResolutionStage(registry_embeddings=True),
     ]
 
     if concept_llm is not None:
@@ -195,8 +179,6 @@ def build_stages(
     LLM-dependent stages are included only when an LLM provider is available;
     otherwise they are skipped gracefully.
     """
-    embedding_service = _get_embedding_service()
-
     concept_llm = (task_llms.concept if task_llms else llm) or llm
     branch_judge_llm = (task_llms.branch_judge if task_llms else llm) or llm
     classifier_llm = (task_llms.classifier if task_llms else llm) or llm
@@ -208,7 +190,7 @@ def build_stages(
     stages: list[PipelineStage] = [
         IngestionStage(),
         NormalizationStage(),
-        EntityRulerStage(embedding_service=embedding_service),
+        EntityRulerStage(registry_embeddings=True),
     ]
 
     # Early individual extraction (citations + regex/spaCy) — fast, no LLM
@@ -227,8 +209,8 @@ def build_stages(
     if concept_llm is not None:
         stages.append(LLMConceptStage(concept_llm))
 
-    stages.append(ReconciliationStage(embedding_service=embedding_service))
-    stages.append(ResolutionStage(embedding_service=embedding_service))
+    stages.append(ReconciliationStage(registry_embeddings=True))
+    stages.append(ResolutionStage(registry_embeddings=True))
 
     if concept_llm is not None:
         stages.append(ContextualRerankStage(concept_llm))

@@ -12,8 +12,17 @@ logger = logging.getLogger(__name__)
 
 
 class ReconciliationStage(PipelineStage):
-    def __init__(self, reconciler: Reconciler | None = None, embedding_service=None) -> None:
+    def __init__(
+        self,
+        reconciler: Reconciler | None = None,
+        embedding_service=None,
+        registry_embeddings: bool = False,
+    ) -> None:
         self.reconciler = reconciler or Reconciler(embedding_service=embedding_service)
+        # When True (production), the per-ontology embedding service is fetched from
+        # the registry at run time and bound onto the reconciler; when False
+        # (tests/back-compat), the reconciler's injected service is used verbatim.
+        self._registry_embeddings = registry_embeddings
 
     @property
     def name(self) -> str:
@@ -32,10 +41,14 @@ class ReconciliationStage(PipelineStage):
             for c in chunk_concepts
         ]
 
-        # Use embedding triage if embedding service is available AND its index was
-        # built for this job's ontology. The startup index is FOLIO's; a Canon job
-        # must not reconcile against FOLIO vectors — fall back to non-embedding
-        # reconciliation (graceful degradation).
+        # Bind the embedding service built for THIS job's ontology so a Canon job
+        # reconciles against Canon vectors (not FOLIO's). The matches_ontology check
+        # below then passes as a safety assert; if the ontology has no usable index
+        # (build failed / empty), fall back to non-embedding reconcile().
+        if self._registry_embeddings:
+            from app.services.ontology.registry import get_embedding_service
+            self.reconciler._embedding_service = get_embedding_service(job.ontology)
+
         emb = self.reconciler._embedding_service
         if emb is not None and emb.matches_ontology(job.ontology) and emb.index_size > 0:
             results = self.reconciler.reconcile_with_embedding_triage(ruler_concepts, llm_concepts)

@@ -39,9 +39,19 @@ def _match_confidence(match: EntityRulerMatch) -> float:
 
 
 class EntityRulerStage(PipelineStage):
-    def __init__(self, ruler: FOLIOEntityRuler | None = None, embedding_service=None, job_store=None) -> None:
+    def __init__(
+        self,
+        ruler: FOLIOEntityRuler | None = None,
+        embedding_service=None,
+        job_store=None,
+        registry_embeddings: bool = False,
+    ) -> None:
         self.ruler = ruler or FOLIOEntityRuler()
         self._embedding_service = embedding_service
+        # When True (production), fetch the per-ontology embedding service from the
+        # registry at run time (Canon jobs semantic-match against Canon vectors);
+        # when False (tests/back-compat), the injected service is used verbatim.
+        self._registry_embeddings = registry_embeddings
         # Optional: lets this stage flush the fast deterministic annotations
         # mid-execute so the UI renders them immediately, before the slower
         # semantic (embedding) pass runs. When None, no early flush happens.
@@ -174,8 +184,13 @@ class EntityRulerStage(PipelineStage):
         # event loop (asyncio.to_thread) so it doesn't block the SSE poller or the
         # rest of the parallel phase. A failure here must NOT drop the
         # deterministic annotations already committed above. ---
-        # The startup index is FOLIO's; a job for another ontology must not
-        # semantic-match against FOLIO vectors — skip (graceful degradation).
+        # Bind the embedding service built for THIS job's ontology so a Canon job
+        # semantic-matches against Canon vectors (not FOLIO's). The matches_ontology
+        # check below then passes as a safety assert; an empty/failed index skips.
+        if self._registry_embeddings:
+            from app.services.ontology.registry import get_embedding_service
+            self._embedding_service = get_embedding_service(job.ontology)
+
         semantic_matches = []
         if (
             self._embedding_service is not None
