@@ -386,13 +386,13 @@ class PipelineOrchestrator:
         Read from job.input.ontology (the request already validated it against the
         enabled set); falls back to the registry default if anything is off.
         """
-        from app.services.ontology.registry import get_registry
+        from app.services.ontology.registry import UnknownOntologyError, get_registry
 
         registry = get_registry()
         ontology_id = job.ontology or registry.default_id
         try:
             spec = registry.get_spec(ontology_id)
-        except Exception:
+        except UnknownOntologyError:
             spec = registry.get_spec(registry.default_id)
         job.result.ontology_id = spec.id
         job.result.ontology_name = spec.display_name
