@@ -65,7 +65,16 @@ class ResolutionStage(PipelineStage):
         max_cand = settings.max_candidates
         if max_cand <= 1:
             return
+        # (A) An exact FOLIO IRI match is definitive — its runner-ups are just other
+        # labels sharing a word (measured noisy) and this search is the dominant
+        # resolution cost. Skip it for confident exact matches; keep backups only for
+        # genuinely ambiguous concepts (resolved via fuzzy search, i.e. no exact IRI).
         primary_iri = rd.get("folio_iri", "")
+        if settings.skip_backups_for_exact_matches and primary_iri:
+            return
+        # (B) Backups are runner-ups: never display one as more confident than the
+        # chosen primary.
+        primary_conf = rd.get("confidence", 0.0)
         alternates = self.resolver.resolve_multi(
             concept_text=concept_data.get("concept_text", ""),
             branches=concept_data.get("branches", []),
@@ -87,7 +96,7 @@ class ResolutionStage(PipelineStage):
                 "folio_definition": fc.definition,
                 "branches": alt.branches,
                 "branch_color": alt.branch_color,
-                "confidence": alt.confidence,
+                "confidence": min(alt.confidence, primary_conf),
                 "source": alt.source,
                 "state": "backup",
                 "iri_hash": alt.iri_hash,

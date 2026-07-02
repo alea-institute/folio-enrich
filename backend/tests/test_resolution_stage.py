@@ -85,3 +85,52 @@ class TestApplyEmbeddingContextScores:
         stage._apply_embedding_context_scores(concepts, "test context.")
         # Clamped to 1.0: 0.80 * 0.6 + 1.0 * 0.4 = 0.88
         assert abs(concepts[0]["confidence"] - 0.88) < 1e-4
+
+
+class TestAttachBackupCandidates:
+    """Backup/runner-up candidate search (Option A skip + B confidence cap)."""
+
+    def _fake_alt(self, iri, label, conf, branch="Objectives"):
+        m = MagicMock()
+        fc = MagicMock()
+        fc.iri, fc.preferred_label, fc.definition, fc.alternative_labels = iri, label, "d", []
+        m.folio_concept = fc
+        m.concept_text, m.branches, m.branch_color = label, [branch], ""
+        m.confidence, m.iri_hash, m.source = conf, iri.rsplit("/", 1)[-1], "matched"
+        return m
+
+    def _stage(self, alternates):
+        resolver = MagicMock()
+        resolver.resolve_multi.return_value = alternates
+        return ResolutionStage(resolver=resolver), resolver
+
+    def test_skips_backup_search_for_exact_iri(self, monkeypatch):
+        from app.config import settings
+        monkeypatch.setattr(settings, "skip_backups_for_exact_matches", True)
+        stage, resolver = self._stage([])
+        rd = {"folio_iri": "https://x/R1", "confidence": 0.55, "concept_text": "Agreement"}
+        stage._attach_backup_candidates(rd, {"concept_text": "Agreement", "folio_iri": "https://x/R1"})
+        resolver.resolve_multi.assert_not_called()  # A: definitive match → no search
+        assert "_backup_candidates" not in rd
+
+    def test_runs_backup_search_for_ambiguous_concept(self, monkeypatch):
+        from app.config import settings
+        monkeypatch.setattr(settings, "skip_backups_for_exact_matches", True)
+        alts = [self._fake_alt("https://x/R2", "Alt A", 0.95),
+                self._fake_alt("https://x/R3", "Alt B", 0.90)]
+        stage, resolver = self._stage(alts)
+        rd = {"folio_iri": "", "confidence": 0.50, "concept_text": "vague term"}
+        stage._attach_backup_candidates(rd, {"concept_text": "vague term"})  # no exact IRI
+        resolver.resolve_multi.assert_called_once()  # ambiguous → search still runs
+        assert rd.get("_backup_candidates")
+
+    def test_backup_confidence_capped_at_primary(self, monkeypatch):
+        from app.config import settings
+        monkeypatch.setattr(settings, "skip_backups_for_exact_matches", False)  # force search
+        alts = [self._fake_alt("https://x/R2", "Alt A", 0.95)]
+        stage, resolver = self._stage(alts)
+        rd = {"folio_iri": "https://x/R1", "confidence": 0.55, "concept_text": "Agreement"}
+        stage._attach_backup_candidates(rd, {"concept_text": "Agreement", "folio_iri": "https://x/R1"})
+        backups = rd.get("_backup_candidates", [])
+        assert backups
+        assert all(b["confidence"] <= 0.55 for b in backups)  # B: never above primary
