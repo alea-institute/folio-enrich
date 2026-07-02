@@ -108,6 +108,30 @@ class TestFolioServiceSpecParameterization:
         assert svc.spec is CANON_SPEC
         assert svc._folio is None  # not loaded
 
+    def test_http_source_without_checksum_refuses(self):
+        # Integrity is mandatory for http sources — no pin => refuse to load
+        # (raises before any network I/O).
+        from app.services.ontology.ingestion import OWLIngestionError
+        from app.services.ontology.spec import (
+            OntologyBehavior,
+            OntologyCoords,
+            OntologySpec,
+        )
+
+        spec = OntologySpec(
+            id="unpinned",
+            display_name="Unpinned",
+            base_iri="https://x/",
+            coords=OntologyCoords(
+                source_type="http",
+                owl_url="https://raw.githubusercontent.com/a/b/main/c.owl",
+                owl_sha256="",  # no pin
+            ),
+            behavior=OntologyBehavior(),
+        )
+        with pytest.raises(OWLIngestionError, match="pin"):
+            FolioService(spec)._get_folio()
+
     @pytest.mark.slow
     def test_http_source_loads_via_hardened_ingestion(self):
         # Loading an http ontology goes through the app's hardened ingestion
