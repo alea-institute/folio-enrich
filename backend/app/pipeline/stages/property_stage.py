@@ -50,9 +50,10 @@ class EarlyPropertyStage(PipelineStage):
         job.status = JobStatus.EXTRACTING_PROPERTIES
         log = job.result.metadata.setdefault("activity_log", [])
 
-        # Build matcher and scan text
+        # Build matcher and scan text (property labels for the active ontology)
         try:
-            pattern_count = self._matcher.build()
+            from app.services.folio.folio_service import FolioService
+            pattern_count = self._matcher.build(FolioService.get_instance(job.ontology))
             raw_properties = self._matcher.match(full_text)
         except Exception:
             logger.warning("Property matching failed", exc_info=True)
