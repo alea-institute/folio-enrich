@@ -32,8 +32,12 @@ class ReconciliationStage(PipelineStage):
             for c in chunk_concepts
         ]
 
-        # Use embedding triage if embedding service is available
-        if self.reconciler._embedding_service is not None:
+        # Use embedding triage if embedding service is available AND its index was
+        # built for this job's ontology. The startup index is FOLIO's; a Canon job
+        # must not reconcile against FOLIO vectors — fall back to non-embedding
+        # reconciliation (graceful degradation).
+        emb = self.reconciler._embedding_service
+        if emb is not None and emb.matches_ontology(job.ontology):
             results = self.reconciler.reconcile_with_embedding_triage(ruler_concepts, llm_concepts)
         else:
             results = self.reconciler.reconcile(ruler_concepts, llm_concepts)

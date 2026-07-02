@@ -25,8 +25,9 @@ logger = logging.getLogger(__name__)
 class LLMPropertyIdentifier:
     """Uses LLM to extract properties and link them to domain/range classes."""
 
-    def __init__(self, llm: LLMProvider) -> None:
+    def __init__(self, llm: LLMProvider, ontology_id: str = "folio") -> None:
         self.llm = llm
+        self._ontology_id = ontology_id or "folio"
 
     async def identify_properties(
         self,
@@ -65,7 +66,7 @@ class LLMPropertyIdentifier:
 
         # Get available property labels for reference
         try:
-            svc = FolioService.get_instance()
+            svc = FolioService.get_instance(self._ontology_id)
             all_prop_labels = svc.get_all_property_labels()
             property_labels = sorted({info.matched_label for info in all_prop_labels.values()})
         except Exception:
@@ -117,7 +118,7 @@ class LLMPropertyIdentifier:
 
         # Resolve FOLIO property data for LLM-suggested labels
         try:
-            svc = FolioService.get_instance()
+            svc = FolioService.get_instance(self._ontology_id)
             all_prop_labels = svc.get_all_property_labels()
         except Exception:
             all_prop_labels = {}

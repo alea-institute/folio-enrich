@@ -139,7 +139,7 @@ class ResolutionStage(PipelineStage):
         return full_text[start:end].strip()
 
     def _apply_embedding_context_scores(
-        self, resolved_concepts: list[dict], full_text: str
+        self, resolved_concepts: list[dict], full_text: str, ontology_id: str = "folio"
     ) -> None:
         """Blend embedding context into primary scores AND filter backup candidates.
 
@@ -156,6 +156,12 @@ class ResolutionStage(PipelineStage):
         strip alternatives we cannot score (e.g. on DEV/Railway).
         """
         if self._embedding_service is None:
+            return
+        # The startup index is FOLIO's. A job for another ontology must not score
+        # its candidates against FOLIO vectors — skip (graceful degradation,
+        # identical to the embeddings-disabled path). Per-ontology index building
+        # is a later phase; PR #14 only needs Canon to degrade, not use FOLIO's index.
+        if not self._embedding_service.matches_ontology(ontology_id):
             return
         try:
             if self._embedding_service.index_size == 0:
@@ -315,7 +321,9 @@ class ResolutionStage(PipelineStage):
         if job.result.canonical_text:
             full_text = job.result.canonical_text.full_text
         if full_text:
-            self._apply_embedding_context_scores(resolved_concepts, full_text)
+            self._apply_embedding_context_scores(
+                resolved_concepts, full_text, ontology_id=job.ontology
+            )
 
         job.result.metadata["resolved_concepts"] = resolved_concepts
 

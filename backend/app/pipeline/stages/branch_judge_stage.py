@@ -53,7 +53,9 @@ class BranchJudgeStage(PipelineStage):
 
         if judge_items:
             document_type = job.result.metadata.get("self_identified_type", "")
-            results = await self.judge.judge_batch(judge_items, document_type=document_type)
+            results = await self.judge.judge_batch(
+                judge_items, document_type=document_type, ontology_id=job.ontology
+            )
             # Update concepts with judge decisions
             for concept, result in zip(ambiguous, results):
                 if isinstance(result, dict):

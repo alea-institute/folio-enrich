@@ -17,8 +17,10 @@ class LLMConceptIdentifier:
     def __init__(self, llm: LLMProvider) -> None:
         self.llm = llm
 
-    async def identify_concepts(self, chunk: TextChunk) -> list[ConceptMatch]:
-        prompt = build_concept_identification_prompt(chunk.text)
+    async def identify_concepts(
+        self, chunk: TextChunk, ontology_id: str = "folio"
+    ) -> list[ConceptMatch]:
+        prompt = build_concept_identification_prompt(chunk.text, ontology_id)
 
         try:
             result = await self.llm.structured(
@@ -60,11 +62,11 @@ class LLMConceptIdentifier:
         return concepts
 
     async def identify_concepts_batch(
-        self, chunks: list[TextChunk]
+        self, chunks: list[TextChunk], ontology_id: str = "folio"
     ) -> dict[int, list[ConceptMatch]]:
         import asyncio
 
-        tasks = [self.identify_concepts(chunk) for chunk in chunks]
+        tasks = [self.identify_concepts(chunk, ontology_id) for chunk in chunks]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         output: dict[int, list[ConceptMatch]] = {}
         for chunk, result in zip(chunks, results):
