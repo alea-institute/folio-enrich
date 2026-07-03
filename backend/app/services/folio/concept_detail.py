@@ -179,6 +179,94 @@ def _implicit_root_discovery_enabled(spec) -> bool:
         return spec.id != "folio"
 
 
+# Per-ontology cache of canonical branch-root display labels (spec.id -> [labels]).
+# Populated on first use; the root set is fixed per loaded ontology.
+_CANON_ROOT_LABELS_CACHE: dict[str, list[str]] = {}
+
+
+def _canonical_root_labels(folio, spec) -> list[str]:
+    """Return the ontology's canonical branch-root display labels (WS-A full labels).
+
+    Cached per ``spec.id`` — the root set is fixed for a loaded ontology, so this
+    computes ``_init_branch_roots`` at most once per ontology.
+    """
+    key = spec.id if spec is not None else "folio"
+    cached = _CANON_ROOT_LABELS_CACHE.get(key)
+    if cached is not None:
+        return cached
+    roots = _init_branch_roots(folio, spec)
+    # Unique, order-preserving list of full display labels.
+    labels = list(dict.fromkeys(v for v in roots.values() if v))
+    _CANON_ROOT_LABELS_CACHE[key] = labels
+    return labels
+
+
+def _is_prefix_of_root(label: str, root: str) -> bool:
+    """Whether ``label`` is a boundary-respecting prefix of canonical root ``root``.
+
+    True when ``root`` equals ``label`` (case-insensitive) or ``root`` begins with
+    ``label`` followed by a word boundary (space or ``(``), so ``"Normative
+    Concepts"`` matches ``"Normative Concepts (e.g., Ethics, Morals, Laws)"`` but
+    ``"Norm"`` does NOT match (avoids mid-word snaps).
+    """
+    rl, ll = root.lower(), label.lower()
+    if rl == ll:
+        return True
+    if rl.startswith(ll):
+        nxt = root[len(label):len(label) + 1]
+        return nxt in (" ", "(")
+    return False
+
+
+def canonicalize_branch_label(label: str, folio, spec) -> str:
+    """Snap an LLM-emitted branch string to the ontology's canonical root label.
+
+    LLM-extracted concepts that do NOT resolve to an ontology IRI carry the LLM's
+    free-text branch guess verbatim, and the LLM often shortens a root's label
+    (e.g. ``"Normative Concepts (e.g., Ethics, Morals, Laws)"`` → ``"Normative
+    Concepts"``). Rendering both the stripped and full strings gives one root two
+    stable colors in the UI. This normalizes the LABEL STRING only — callers must
+    apply it per-branch so a concept's branch-list multiplicity is unchanged.
+
+    Matching rules:
+
+    * **Exact** (case-insensitive) → return the canonical root (fixes casing).
+    * **Prefix** — if ``label`` is a boundary-respecting prefix of exactly one
+      canonical root (ignoring the parenthetical), return that root. When several
+      roots match, prefer the uniquely SHORTEST; a tie is ambiguous and the input
+      is returned unchanged (don't guess).
+    * **No match** (an LLM-invented branch not in the ontology) → return unchanged.
+
+    Gated to NON-DEFAULT ontologies (mirrors WS-A/WS-D): FOLIO branch strings must
+    stay byte-identical, so for the registry default this is a no-op.
+    """
+    if not label or not label.strip():
+        return label
+    if spec is None or not _implicit_root_discovery_enabled(spec):
+        return label
+
+    stripped = label.strip()
+    low = stripped.lower()
+    canon = _canonical_root_labels(folio, spec)
+
+    # 1. Exact match (case-insensitive) → canonical spelling.
+    for r in canon:
+        if r.lower() == low:
+            return r
+
+    # 2. Boundary-respecting prefix matches (ignoring the parenthetical).
+    matches = [r for r in canon if _is_prefix_of_root(stripped, r)]
+    matches = list(dict.fromkeys(matches))
+    if not matches:
+        return label
+    if len(matches) == 1:
+        return matches[0]
+    matches.sort(key=len)
+    if len(matches[0]) < len(matches[1]):
+        return matches[0]  # uniquely shortest wins
+    return label  # ambiguous tie → don't guess
+
+
 def _build_hierarchy_path(folio, iri: str, branch_root_iris: dict[str, str]) -> list[HierarchyPathEntry]:
     """Build hierarchy path from root branch down to this class. ``iri`` is a full IRI."""
     path: list[HierarchyPathEntry] = []
