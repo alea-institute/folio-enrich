@@ -356,3 +356,117 @@ class TestImplicitRootDiscovery:
         folio = _FakeFolio([deprecated, real_root])
 
         assert _init_branch_roots(folio, FOLIO_SPEC) == _init_branch_roots(folio, None)
+
+
+# --------------------------------------------------------------------------- #
+# WS-D: FolioService._build_branch_map uses the SAME canonical derivation as the
+# concept-detail path for non-FOLIO ontologies (single source of truth), while
+# FOLIO stays on its byte-identical get_folio_branches() path.
+# --------------------------------------------------------------------------- #
+def _canon_like_folio_with_children():
+    """Canon-shaped ontology: two implicit roots WITH parenthetical labels, each
+    with a child concept, so we can prove the child maps to the FULL root label.
+    """
+    base = "https://ontology.catholicos.catholic/"
+    # Implicit root (no sub_class_of) with a parenthetical label + a child.
+    pope = _FakeCls(base + "Pope", "Pope", [base + "Authority"])
+    authority = _FakeCls(
+        base + "Authority",
+        "Authority (Source and Scope)",
+        [],
+        parent_class_of=[pope.iri],
+    )
+    virtue = _FakeCls(base + "Virtue", "Virtue", [base + "Normative"])
+    normative = _FakeCls(
+        base + "Normative",
+        "Normative Concepts (e.g., Ethics, Morals, Laws)",
+        [],
+        parent_class_of=[virtue.iri],
+    )
+    # Explicit root (matches WS-A) with no parenthetical, plus a child.
+    baptism = _FakeCls(base + "Baptism", "Baptism", [base + "Event"])
+    event = _FakeCls(base + "Event", "Event", [OWL_THING], parent_class_of=[baptism.iri])
+    # An orphan whose branch resolves to Unknown — must be left unmapped.
+    orphan = _FakeCls(base + "Orphan", "Orphan", [base + "Missing"])
+    return _FakeFolio([pope, authority, virtue, normative, baptism, event, orphan])
+
+
+class TestBuildBranchMapCanonical:
+    """Canon's branch map yields the SAME full labels as the concept-detail path."""
+
+    def _canon_service(self):
+        from app.services.folio.folio_service import FolioService
+
+        svc = FolioService(CANON_SPEC)
+        svc._folio = _canon_like_folio_with_children()
+        svc._build_branch_map()
+        return svc
+
+    def test_canon_children_map_to_full_parenthetical_labels(self):
+        base = "https://ontology.catholicos.catholic/"
+        bm = self._canon_service()._branch_map
+        # The two previously-stripped roots now keep their full parenthetical label
+        # for their child concepts (source of the two-chip/two-color divergence).
+        assert bm[base + "Pope"] == "Authority (Source and Scope)"
+        assert bm[base + "Virtue"] == "Normative Concepts (e.g., Ethics, Morals, Laws)"
+        # Roots themselves map to their own full label.
+        assert bm[base + "Authority"] == "Authority (Source and Scope)"
+        assert bm[base + "Normative"] == "Normative Concepts (e.g., Ethics, Morals, Laws)"
+        # A non-parenthetical root and its child are unaffected.
+        assert bm[base + "Event"] == "Event"
+        assert bm[base + "Baptism"] == "Event"
+
+    def test_canon_branch_map_matches_concept_detail_path(self):
+        """The branch map agrees with _get_branch_for_class for every mapped IRI."""
+        from app.services.folio.concept_detail import (
+            _get_branch_for_class,
+            _init_branch_roots,
+        )
+
+        svc = self._canon_service()
+        folio = svc._folio
+        roots = _init_branch_roots(folio, CANON_SPEC)
+        cache: dict[str, str] = {}
+        for iri, branch in svc._branch_map.items():
+            assert branch == _get_branch_for_class(folio, iri, roots, cache)
+
+    def test_unknown_branch_classes_left_unmapped(self):
+        base = "https://ontology.catholicos.catholic/"
+        bm = self._canon_service()._branch_map
+        # The orphan (parent not a root) resolves to "Unknown" and is NOT mapped,
+        # matching the concept-detail / llm path (no branch, not a spurious one).
+        assert base + "Orphan" not in bm
+        assert "Unknown" not in bm.values()
+
+
+class TestBuildBranchMapFolioUnchanged:
+    """FOLIO stays on the get_folio_branches() path — byte-neutral."""
+
+    def test_folio_uses_get_folio_branches_path(self):
+        from app.services.folio.folio_service import FolioService
+
+        class _Branch:
+            def __init__(self, name):
+                self.name = name
+
+        class _FolioWithBranches:
+            classes = []  # would be consulted only by the canonical path
+
+            def get_folio_branches(self):
+                # Emulate folio-python: keyed by a FOLIO type whose .name maps via
+                # get_branch_display_name. ACTOR_PLAYER -> "Actor / Player".
+                actor = _FakeCls("https://folio.openlegalstandard.org/Actor", "Actor", [])
+                return {_Branch("ACTOR_PLAYER"): [actor]}
+
+        svc = FolioService(FOLIO_SPEC)
+        svc._folio = _FolioWithBranches()
+        svc._build_branch_map()
+        assert svc._branch_map == {
+            "https://folio.openlegalstandard.org/Actor": "Actor / Player"
+        }
+
+    def test_folio_gate_is_off(self):
+        from app.services.folio.folio_service import FolioService
+
+        assert FolioService(FOLIO_SPEC)._implicit_root_discovery_enabled() is False
+        assert FolioService(CANON_SPEC)._implicit_root_discovery_enabled() is True
