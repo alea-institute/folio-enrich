@@ -35,7 +35,7 @@ class EarlyTripleStage(PipelineStage):
         if not text or not text.strip():
             return job
 
-        triples, pos_data = self.parser.extract_triples_and_pos(text)
+        triples, pos_data, ner_entities = self.parser.extract_triples_and_pos(text)
 
         job.result.triples = triples
 
@@ -43,6 +43,13 @@ class EarlyTripleStage(PipelineStage):
             job.result.metadata["sentence_pos"] = [
                 sp.model_dump() for sp in pos_data
             ]
+
+        # Store NER entities for downstream cross-validation (zero overhead — the
+        # entities were already produced by the spaCy pass above). Gated on the
+        # feature flag so that, when disabled (the default), NOTHING new is written
+        # to metadata and the pipeline output stays byte-identical to before.
+        if settings.ner_cross_validation_enabled:
+            job.result.metadata["spacy_ner_entities"] = ner_entities
 
         log = job.result.metadata.setdefault("activity_log", [])
         log.append({

@@ -11,6 +11,58 @@ from app.services.reconciliation.reconciler import Reconciler
 logger = logging.getLogger(__name__)
 
 
+# spaCy NER label → set of compatible branch names, keyed by ontology.
+# Branch strings are the concept's resolved top-level branch labels as they appear
+# in ``ConceptMatch.branches`` (FOLIO's curated display names; Canon's root class
+# labels). The map for an unknown ontology is absent → the NER pass is a no-op.
+_NER_BRANCH_AFFINITY_BY_ONTOLOGY: dict[str, dict[str, set[str]]] = {
+    # FOLIO — from PR-#4 commit 50beecc (9-label map).
+    "folio": {
+        "ORG": {"Actor / Player", "Legal Entity", "Governmental Body", "Industry"},
+        "PERSON": {"Actor / Player"},
+        "GPE": {"Location", "Governmental Body"},
+        "LOC": {"Location"},
+        "DATE": {"Event", "Status"},
+        "MONEY": {"Currency", "Financial Concepts and Metrics", "Asset Type"},
+        "LAW": {"Legal Authorities"},
+        "NORP": {"Actor / Player"},
+        "FAC": {"Location", "Forums and Venues"},
+    },
+    # Catholic Semantic Canon — keyed on WS-A's real root labels (Actor / Authority
+    # (Source and Scope) / Document / Artifact / Event / Normative Concepts /
+    # Operational Concepts / Place). Branch labels here are the FULL root class
+    # labels exactly as populated in ``branches`` (e.g. "Document / Artifact").
+    "canon": {
+        "PERSON": {"Actor"},
+        "ORG": {"Actor"},
+        "NORP": {"Actor"},
+        "GPE": {"Place"},
+        "LOC": {"Place"},
+        "FAC": {"Place"},
+        "DATE": {"Event"},
+        "EVENT": {"Event"},
+        "WORK_OF_ART": {"Document / Artifact"},
+        "LAW": {"Document / Artifact"},
+    },
+}
+
+
+def _find_overlapping_ner(
+    span_start: int, span_end: int, ner_entities: list[dict]
+) -> str | None:
+    """Return the NER label of an entity overlapping the given character span.
+
+    Any character-span overlap counts. Returns the label string (e.g. "ORG",
+    "PERSON") or None when no NER entity overlaps the span.
+    """
+    for ent in ner_entities:
+        ent_start = ent.get("start", 0)
+        ent_end = ent.get("end", 0)
+        if span_start < ent_end and span_end > ent_start:
+            return ent.get("label")
+    return None
+
+
 class ReconciliationStage(PipelineStage):
     def __init__(
         self,
@@ -134,6 +186,10 @@ class ReconciliationStage(PipelineStage):
         # POS-based confidence penalty pass
         pos_adjusted = self._apply_pos_penalties(job)
 
+        # NER cross-validation pass (runs AFTER the POS pass so both signals stack).
+        # No-op unless explicitly enabled; guarded on ontology + metadata presence.
+        ner_boosted, ner_penalized = self._apply_ner_adjustments(job)
+
         confirmed = sum(1 for a in job.result.annotations if a.state == "confirmed")
         ruler_only = sum(1 for r in results if r.category == "ruler_only")
         rejected = sum(1 for a in job.result.annotations if a.state == "rejected")
@@ -141,6 +197,8 @@ class ReconciliationStage(PipelineStage):
         msg = f"Reconciled: {confirmed} confirmed, {ruler_only} ruler-only, {rejected} rejected"
         if pos_adjusted:
             msg += f", {pos_adjusted} POS-adjusted"
+        if ner_boosted or ner_penalized:
+            msg += f", {ner_boosted} NER-boosted, {ner_penalized} NER-penalized"
         log.append({"ts": datetime.now(timezone.utc).isoformat(), "stage": self.name, "msg": msg})
         return job
 
@@ -193,3 +251,80 @@ class ReconciliationStage(PipelineStage):
                     )
 
         return adjusted
+
+    @staticmethod
+    def _apply_ner_adjustments(job: Job) -> tuple[int, int]:
+        """Cross-validate annotations against spaCy NER entities (per-ontology).
+
+        For each non-rejected annotation whose span overlaps a NER entity:
+        - NER label's affinity set intersects the concept's branch(es) → small boost
+        - NER label is mapped but NONE of the branches are compatible → penalty
+        - No overlapping NER entity, or an unmapped NER label → no change
+
+        Returns (boosted, penalized). Complete no-op — returning (0, 0) — when the
+        feature flag is off, when no NER entities were captured, or when the job's
+        ontology has no affinity map (unknown ontology is safe).
+        """
+        from app.config import settings
+
+        if not settings.ner_cross_validation_enabled:
+            return 0, 0
+
+        ner_entities = job.result.metadata.get("spacy_ner_entities", [])
+        if not ner_entities:
+            return 0, 0
+
+        affinity = _NER_BRANCH_AFFINITY_BY_ONTOLOGY.get(job.ontology)
+        if not affinity:
+            return 0, 0  # Unknown / unmapped ontology → safe no-op
+
+        boost_val = settings.ner_agreement_boost
+        penalty_val = settings.ner_contradiction_penalty
+        boosted = 0
+        penalized = 0
+
+        for ann in job.result.annotations:
+            if ann.state == "rejected" or not ann.concepts:
+                continue
+
+            concept = ann.concepts[0]
+            branches = concept.branches or []
+            if not branches:
+                # Branch not yet assigned — skip (nothing to cross-check against).
+                continue
+
+            ner_label = _find_overlapping_ner(ann.span.start, ann.span.end, ner_entities)
+            if ner_label is None:
+                continue  # No NER signal on this span → preserve recall, no change.
+
+            compatible_branches = affinity.get(ner_label)
+            if not compatible_branches:
+                continue  # NER label not in this ontology's map → do nothing.
+
+            branch = branches[0]  # Primary branch, for lineage detail.
+            if compatible_branches & set(branches):
+                # NER agreement → bounded boost.
+                concept.confidence = min(1.0, concept.confidence + boost_val)
+                boosted += 1
+                record_lineage(
+                    ann, "reconciliation", "ner_boosted",
+                    detail=f"NER agreement: {ner_label} confirms branch '{branch}'",
+                    confidence=concept.confidence,
+                )
+            else:
+                # NER contradiction → bounded penalty.
+                concept.confidence = max(0.0, concept.confidence - penalty_val)
+                penalized += 1
+                record_lineage(
+                    ann, "reconciliation", "ner_penalized",
+                    detail=f"NER contradiction: {ner_label} vs branch '{branch}'",
+                    confidence=concept.confidence,
+                )
+                if concept.confidence < 0.20:
+                    ann.state = "rejected"
+                    record_lineage(
+                        ann, "reconciliation", "rejected",
+                        detail="Confidence below 0.20 after NER penalty",
+                    )
+
+        return boosted, penalized

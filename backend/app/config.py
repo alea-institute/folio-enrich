@@ -142,6 +142,14 @@ class Settings(BaseSettings):
     pos_property_mismatch_penalty: float = 0.12   # Penalty when property span POS mismatches
     pos_branch_affinity_boost: float = 0.05       # Boost/penalty for POS-branch alignment
 
+    # NER cross-validation (default OFF — byte-neutral no-op until enabled).
+    # Cross-checks spaCy named-entity labels against a concept's resolved branch
+    # during reconciliation, using a per-ontology affinity map. Absent NER signal
+    # never penalizes (recall-preserving); bounded ±adjustments only.
+    ner_cross_validation_enabled: bool = False    # Master switch (DEFAULT OFF)
+    ner_agreement_boost: float = 0.04             # Boost when NER label confirms branch
+    ner_contradiction_penalty: float = 0.08       # Penalty when NER label contradicts branch
+
     # Candidates
     max_candidates: int = 5
     # Skip the (expensive) backup/runner-up multi-strategy search for concepts that
