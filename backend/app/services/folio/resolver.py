@@ -28,6 +28,29 @@ class ConceptResolver:
         self.folio = folio_service or FolioService.get_instance()
         self._cache: dict[tuple[str, str], ResolvedConcept | None] = {}
 
+    def _canonicalize_branches(self, branches: list[str]) -> list[str]:
+        """Snap LLM-guessed fallback branch labels to canonical root labels.
+
+        Only used for the fallback path (concept resolved with NO ontology-derived
+        branch), where ``branches`` carries the LLM's free-text guess. Gated to
+        non-default ontologies inside ``canonicalize_branch_label`` (FOLIO no-op);
+        multiplicity/order preserved — only the label STRINGS are normalized.
+        """
+        if not branches:
+            return branches
+        try:
+            spec = getattr(self.folio, "spec", None)
+            from app.services.folio.concept_detail import (
+                _implicit_root_discovery_enabled,
+                canonicalize_branch_label,
+            )
+            if spec is None or not _implicit_root_discovery_enabled(spec):
+                return branches
+            folio_raw = self.folio._get_folio()
+            return [canonicalize_branch_label(b, folio_raw, spec) for b in branches]
+        except Exception:  # pragma: no cover - defensive; never fail resolution
+            return branches
+
     def resolve(
         self,
         concept_text: str,
@@ -75,7 +98,11 @@ class ConceptResolver:
         except Exception:
             pass
 
-        resolved_branches = [best_concept.branch] if best_concept.branch else (branches or [])
+        resolved_branches = (
+            [best_concept.branch]
+            if best_concept.branch
+            else self._canonicalize_branches(branches or [])
+        )
 
         # Defense-in-depth: reject concepts from excluded branches
         if any(b in EXCLUDED_BRANCHES for b in resolved_branches):
@@ -127,7 +154,9 @@ class ConceptResolver:
                 branch_color = get_branch_color(fc.branch) if fc.branch else ""
             except Exception:
                 pass
-            resolved_branches = [fc.branch] if fc.branch else (branches or [])
+            resolved_branches = (
+                [fc.branch] if fc.branch else self._canonicalize_branches(branches or [])
+            )
             resolved_list.append(ResolvedConcept(
                 concept_text=concept_text,
                 folio_concept=fc,
