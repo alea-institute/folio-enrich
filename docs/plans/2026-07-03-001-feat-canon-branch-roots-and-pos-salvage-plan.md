@@ -1,8 +1,9 @@
 ---
 title: "Canon branch-root fix + POS/search salvage — implicit roots, search substring penalty, NER cross-validation"
 type: feat
-status: active
+status: completed
 date: 2026-07-03
+outcome: "Shipped WS-A #25 (implicit roots → Canon 3→7 roots, Place), WS-B #26 (search substring penalty), WS-C #27 (NER cross-val, default-off), WS-D #28 (branch-label unify), re-bake #29 (7-root demos). Deployed PROD (1fdbf8e). RESIDUAL: Normative root still splits full/stripped from the LLM branch-guess fallback (resolver.py:78) → WS-E follow-up: snap LLM branch strings to canonical root labels. NER pending eval-set validation before enabling. Christian Concepts = external (D'Orazio must publish OWL)."
 origin: docs/plans/2026-07-02-001-feat-canon-loose-ends-plan.md
 ---
 
