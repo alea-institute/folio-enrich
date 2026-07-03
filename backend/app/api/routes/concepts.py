@@ -20,6 +20,17 @@ def _get_folio(ontology_id: str | None = None):
     return FolioService.get_instance(ontology_id)._get_folio()
 
 
+def _get_folio_and_spec(ontology_id: str | None = None):
+    """Get the raw ontology instance plus its spec (defaults to FOLIO).
+
+    The spec drives implicit branch-root discovery so non-FOLIO ontologies
+    (e.g. the Canon) bucket concepts into their real top-level branches.
+    """
+    from app.services.folio.folio_service import FolioService
+    service = FolioService.get_instance(ontology_id)
+    return service._get_folio(), service.spec
+
+
 class BatchRequest(BaseModel):
     iri_hashes: list[str] = Field(..., max_length=MAX_BATCH_SIZE)
     ontology: str = "folio"
@@ -34,10 +45,10 @@ async def get_concepts_batch(body: BatchRequest) -> dict:
     """
     from app.services.folio.concept_detail import lookup_concept_detail
 
-    folio = _get_folio(body.ontology)
+    folio, spec = _get_folio_and_spec(body.ontology)
     results: dict[str, dict] = {}
     for iri_hash in body.iri_hashes[:MAX_BATCH_SIZE]:
-        detail = lookup_concept_detail(folio, iri_hash)
+        detail = lookup_concept_detail(folio, iri_hash, spec)
         if detail is not None:
             results[iri_hash] = detail.model_dump()
     return results
@@ -53,9 +64,9 @@ async def get_concept_detail(iri_hash: str, ontology: str = "folio", iri: str | 
     """
     from app.services.folio.concept_detail import lookup_concept_detail
 
-    folio = _get_folio(ontology)
+    folio, spec = _get_folio_and_spec(ontology)
     identifier = iri or iri_hash
-    detail = lookup_concept_detail(folio, identifier)
+    detail = lookup_concept_detail(folio, identifier, spec)
     if detail is None:
         raise HTTPException(status_code=404, detail=f"Concept not found: {identifier}")
     return detail.model_dump()
@@ -78,7 +89,7 @@ async def get_concept_graph(
     """
     from app.services.folio.concept_detail import build_entity_graph
 
-    folio = _get_folio(ontology)
+    folio, spec = _get_folio_and_spec(ontology)
     identifier = iri or iri_hash
     graph = build_entity_graph(
         folio, identifier,
@@ -86,6 +97,7 @@ async def get_concept_graph(
         descendants_depth=descendants_depth,
         max_nodes=max_nodes,
         include_see_also=include_see_also,
+        spec=spec,
     )
     if graph is None:
         raise HTTPException(status_code=404, detail=f"Concept not found: {identifier}")

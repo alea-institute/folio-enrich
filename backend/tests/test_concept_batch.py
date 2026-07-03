@@ -29,13 +29,13 @@ async def client():
 
 
 _LOOKUP_PATH = "app.services.folio.concept_detail.lookup_concept_detail"
-_FOLIO_PATH = "app.api.routes.concepts._get_folio"
+_FOLIO_PATH = "app.api.routes.concepts._get_folio_and_spec"
 
 
 @pytest.mark.anyio
 async def test_batch_returns_found_concepts(client):
     """Valid hashes return their details; unknown hashes are omitted."""
-    def fake_lookup(folio, iri_hash):
+    def fake_lookup(folio, iri_hash, spec=None):
         if iri_hash == "KNOWN1":
             return _make_mock_detail("KNOWN1", "Contract Law")
         if iri_hash == "KNOWN2":
@@ -43,7 +43,7 @@ async def test_batch_returns_found_concepts(client):
         return None
 
     with (
-        patch(_FOLIO_PATH, return_value=MagicMock()),
+        patch(_FOLIO_PATH, return_value=(MagicMock(), None)),
         patch(_LOOKUP_PATH, side_effect=fake_lookup),
     ):
         resp = await client.post("/concepts/batch", json={
@@ -62,7 +62,7 @@ async def test_batch_returns_found_concepts(client):
 async def test_batch_empty_list(client):
     """Empty list returns empty dict."""
     with (
-        patch(_FOLIO_PATH, return_value=MagicMock()),
+        patch(_FOLIO_PATH, return_value=(MagicMock(), None)),
         patch(_LOOKUP_PATH, return_value=None),
     ):
         resp = await client.post("/concepts/batch", json={"iri_hashes": []})
@@ -77,7 +77,7 @@ async def test_batch_caps_at_100(client):
     hashes = [f"HASH{i}" for i in range(101)]
 
     with (
-        patch(_FOLIO_PATH, return_value=MagicMock()),
+        patch(_FOLIO_PATH, return_value=(MagicMock(), None)),
         patch(_LOOKUP_PATH, return_value=None),
     ):
         resp = await client.post("/concepts/batch", json={"iri_hashes": hashes})
@@ -89,7 +89,7 @@ async def test_batch_caps_at_100(client):
 async def test_batch_all_unknown(client):
     """All unknown hashes returns empty dict."""
     with (
-        patch(_FOLIO_PATH, return_value=MagicMock()),
+        patch(_FOLIO_PATH, return_value=(MagicMock(), None)),
         patch(_LOOKUP_PATH, return_value=None),
     ):
         resp = await client.post("/concepts/batch", json={

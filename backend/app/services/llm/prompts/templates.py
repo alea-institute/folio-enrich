@@ -166,18 +166,14 @@ def _build_folio_branch_detail(
 def _branch_label_excluded(label: str, spec) -> bool:
     """Apply an ontology's editorial exclusion rules to a candidate branch label.
 
-    Mirrors FolioService concept exclusion: matched on the UPPERCASED label. Lets
-    Canon's ``ZZZ``-prefixed / ``DUPE`` editorial roots drop out of the branch list.
+    Delegates to ``spec.behavior.excludes_concept_label`` — the single source of
+    truth (uppercased label match) shared with branch-root discovery. Lets Canon's
+    ``ZZZ``-prefixed / ``DUPE`` editorial roots drop out of the branch list.
     """
-    upper = (label or "").upper()
     behavior = getattr(spec, "behavior", None)
     if behavior is None:
         return False
-    if any(upper.startswith(p.upper()) for p in behavior.concept_exclude_prefixes):
-        return True
-    if any(s.upper() in upper for s in behavior.concept_exclude_substrings):
-        return True
-    return False
+    return behavior.excludes_concept_label(label)
 
 
 def _derive_branch_detail(
@@ -198,7 +194,7 @@ def _derive_branch_detail(
     Returns ``None`` when the ontology exposes no derivable roots (caller then uses
     the neutral scaffold).
     """
-    roots = init_branch_roots(folio_obj)  # {full_iri: display_name}
+    roots = init_branch_roots(folio_obj, spec)  # {full_iri: display_name}
 
     real_roots: list[tuple[object, str]] = []
     for iri, name in roots.items():

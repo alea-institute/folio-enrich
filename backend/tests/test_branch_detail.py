@@ -20,7 +20,7 @@ from app.services.llm.prompts.templates import (
     build_branch_detail,
     get_branch_detail,
 )
-from app.services.ontology.spec import CANON_SPEC
+from app.services.ontology.spec import CANON_SPEC, FOLIO_SPEC
 
 # FOLIO-only branch strings that must NEVER appear in a non-FOLIO prompt.
 FOLIO_ONLY_BRANCHES = ("Actor / Player", "Legal Authorities", "Forums and Venues")
@@ -69,6 +69,39 @@ def _canon_like_folio():
     document = _FakeCls(base + "Document", "Document", [OWL_THING])
     zzz = _FakeCls(base + "zzz", "ZZZ - Deprecated", [OWL_THING])
     return _FakeFolio([sacraments, religious, event, actor, document, zzz])
+
+
+def _canon_like_folio_with_implicit_roots():
+    """Canon-shaped ontology mixing EXPLICIT ([owl:Thing]) and IMPLICIT (no
+    sub_class_of) branch roots, plus editorial ZZZ roots in both forms.
+
+    Mirrors the real Canon, whose top-level branches are declared WITHOUT any
+    ``sub_class_of`` (their parenthood to ``owl:Thing`` is left implicit): Actor,
+    Document / Artifact and Event are explicit; Authority, Normative Concepts,
+    Operational Concepts and Place are implicit. ``ZZZ - Licensing`` /
+    ``ZZZZ - Deprecated`` are editorial roots that must drop out. A bare
+    ``owl:Thing`` node and a label-less node must also be skipped.
+    """
+    base = "https://ontology.catholicos.catholic/"
+    # Explicit roots (sub_class_of == [owl:Thing])
+    actor = _FakeCls(base + "Actor", "Actor", [OWL_THING], definition="A participant.")
+    document = _FakeCls(base + "Document", "Document / Artifact", [OWL_THING])
+    event = _FakeCls(base + "Event", "Event", [OWL_THING])
+    # Implicit roots (NO sub_class_of at all)
+    authority = _FakeCls(base + "Authority", "Authority (Source and Scope)", [])
+    normative = _FakeCls(base + "Normative", "Normative Concepts (e.g., Ethics, Morals, Laws)", [])
+    operational = _FakeCls(base + "Operational", "Operational Concepts", [])
+    place = _FakeCls(base + "Place", "Place", [], definition="A location.")
+    # Editorial implicit roots — excluded by ZZZ prefix (both single- and quad-Z forms)
+    zzz_lic = _FakeCls(base + "zzzLicensing", "ZZZ - Licensing", [])
+    zzzz_dep = _FakeCls(base + "zzzzDeprecated", "ZZZZ - Deprecated", [])
+    # owl:Thing itself + a label-less node must be skipped
+    thing = _FakeCls(OWL_THING, "", [])
+    nolabel = _FakeCls(base + "Nolabel", None, [])
+    return _FakeFolio([
+        actor, document, event, authority, normative, operational, place,
+        zzz_lic, zzzz_dep, thing, nolabel,
+    ])
 
 
 # --------------------------------------------------------------------------- #
@@ -229,3 +262,97 @@ class TestPromptsAreOntologyNative:
         assert "Religious Events" in llm.prompt
         for folio_branch in FOLIO_ONLY_BRANCHES:
             assert folio_branch not in llm.prompt
+
+
+# --------------------------------------------------------------------------- #
+# Implicit-root discovery (WS-A): Canon exposes ALL its roots, FOLIO stays neutral
+# --------------------------------------------------------------------------- #
+# The 7 substantive Canon roots (3 explicit + 4 implicit), verified against the
+# real 14,973-class Canon OWL.
+CANON_SEVEN_ROOTS = (
+    "Actor",
+    "Authority (Source and Scope)",
+    "Document / Artifact",
+    "Event",
+    "Normative Concepts (e.g., Ethics, Morals, Laws)",
+    "Operational Concepts",
+    "Place",
+)
+
+
+class TestImplicitRootDiscovery:
+    def test_init_branch_roots_discovers_all_seven_canon_roots(self):
+        from app.services.folio.concept_detail import _init_branch_roots
+
+        folio = _canon_like_folio_with_implicit_roots()
+        roots = _init_branch_roots(folio, CANON_SPEC)
+        # Only count roots that are real classes in THIS ontology (drop phantom
+        # FOLIO type IRIs the helper always seeds).
+        names = sorted({name for iri, name in roots.items() if folio[iri] is not None})
+        assert names == sorted(CANON_SEVEN_ROOTS)
+
+    def test_init_branch_roots_excludes_zzz_and_thing_and_empty(self):
+        from app.services.folio.concept_detail import _init_branch_roots
+
+        folio = _canon_like_folio_with_implicit_roots()
+        roots = _init_branch_roots(folio, CANON_SPEC)
+        # Editorial ZZZ/ZZZZ roots excluded
+        assert not any("ZZZ" in (name or "").upper() for name in roots.values())
+        # owl:Thing itself never a root
+        assert OWL_THING not in roots
+        # label-less node never a root
+        assert "https://ontology.catholicos.catholic/Nolabel" not in roots
+
+    def test_derived_branch_detail_presents_implicit_roots(self):
+        from app.services.folio.concept_detail import _init_branch_roots
+
+        detail = _derive_branch_detail(
+            _canon_like_folio_with_implicit_roots(), CANON_SPEC, _init_branch_roots
+        )
+        assert detail is not None
+        # The four previously-dropped implicit roots now surface...
+        assert "Place" in detail
+        assert "Authority" in detail
+        assert "Normative" in detail
+        assert "Operational" in detail
+        # ...alongside the explicit ones...
+        assert "Actor" in detail
+        assert "Event" in detail
+        assert "Document / Artifact" in detail
+        # ...and ZZZ editorial roots stay out.
+        assert "ZZZ" not in detail
+
+    def test_folio_implicit_roots_not_introduced_as_branches(self):
+        """FOLIO byte-neutrality: implicit (no-parent) FOLIO classes such as
+        "DEPRECATED Activities" or a label-less node must NOT become branch roots.
+
+        FOLIO's editorial config does not drop "DEPRECATED Activities", so
+        implicit-root discovery is gated OFF for the default ontology entirely.
+        """
+        from app.services.folio.concept_detail import _init_branch_roots
+
+        base = "https://folio.openlegalstandard.org/"
+        deprecated = _FakeCls(base + "FakeDeprecatedActivities", "DEPRECATED Activities", [])
+        nolabel = _FakeCls(base + "FakeNolabel", None, [])
+        real_root = _FakeCls(base + "FakeExplicitRoot", "Fake Explicit Root", [OWL_THING])
+        folio = _FakeFolio([deprecated, nolabel, real_root])
+
+        roots = _init_branch_roots(folio, FOLIO_SPEC)
+        # The implicit no-parent classes are NOT promoted to roots.
+        assert base + "FakeDeprecatedActivities" not in roots
+        assert base + "FakeNolabel" not in roots
+        assert not any("DEPRECATED" in (name or "").upper() for name in roots.values())
+        # The genuine explicit [owl:Thing] root is still discovered (unchanged path).
+        assert base + "FakeExplicitRoot" in roots
+
+    def test_default_and_none_spec_are_byte_identical_for_folio(self):
+        """For the default ontology, passing FOLIO_SPEC vs no spec yields the
+        SAME root set — the gate makes implicit discovery a no-op for FOLIO."""
+        from app.services.folio.concept_detail import _init_branch_roots
+
+        base = "https://folio.openlegalstandard.org/"
+        deprecated = _FakeCls(base + "FakeDeprecatedActivities", "DEPRECATED Activities", [])
+        real_root = _FakeCls(base + "FakeExplicitRoot", "Fake Explicit Root", [OWL_THING])
+        folio = _FakeFolio([deprecated, real_root])
+
+        assert _init_branch_roots(folio, FOLIO_SPEC) == _init_branch_roots(folio, None)

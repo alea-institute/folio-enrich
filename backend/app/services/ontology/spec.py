@@ -59,6 +59,22 @@ class OntologyBehavior:
     # (catholicos.catholic + webprotege.stanford.edu — Phase 0 finding).
     iri_roots: tuple[str, ...] = ()
 
+    def excludes_concept_label(self, label: str) -> bool:
+        """Whether a concept/branch label is dropped by this ontology's editorial rules.
+
+        Matched case-insensitively on the uppercased label (both the label and the
+        configured prefixes/substrings are uppercased), so callers stay consistent
+        regardless of the casing used in the config. This is the single source of
+        truth reused by the FolioService concept filter's convention, the branch
+        root discovery, and the LLM branch-detail prompt derivation.
+        """
+        upper = (label or "").upper()
+        if any(upper.startswith(p.upper()) for p in self.concept_exclude_prefixes):
+            return True
+        if any(s.upper() in upper for s in self.concept_exclude_substrings):
+            return True
+        return False
+
 
 @dataclass(frozen=True)
 class OntologySpec:
