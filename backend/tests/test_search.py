@@ -95,12 +95,69 @@ class TestComputeRelevanceScore:
         )
         assert score1 == 82.0
 
-    def test_query_in_label_returns_85(self):
+    def test_query_in_label_high_when_covers_half_words(self):
+        # "dog bite" (2 words) covers exactly half of the 4-word label, so the
+        # word-count gate does NOT fire and the full-word-overlap floor holds.
         score = _compute_relevance_score(
             {"dog", "bite"}, "Dog Bite",
             "Dog Bite Strict Liability", None, [],
         )
         assert score >= 85.0
+
+    def test_short_query_in_long_label_penalized_by_coverage(self):
+        # (a) A short query buried in a long label with NO word overlap gets a
+        # character-coverage penalty instead of the old flat 85.
+        score = _compute_relevance_score(
+            {"amended"}, "amended",
+            "Motion Regarding Some Amended Procedural Timeline Order", None, [],
+        )
+        assert score < 85.0
+
+    def test_low_word_coverage_gets_extra_penalty(self):
+        # (b) A contiguous substring query covering <50% of the label's WORDS is
+        # penalized further than one covering >=50%. Both labels start with the
+        # exact query "quiet title" so it is a genuine substring in each.
+        low = _compute_relevance_score(
+            {"quiet", "title"}, "quiet title",
+            "quiet title marketable action petition motion", None, [],
+        )
+        high = _compute_relevance_score(
+            {"quiet", "title"}, "quiet title",
+            "quiet title claim", None, [],
+        )
+        assert low < high
+
+    def test_amended_complaint_scores_below_exact(self):
+        # Core acceptance case: "Amended Complaint" as a substring of
+        # "Motion to File Amended Complaint" must score materially below an
+        # exact/near-exact match, no longer the flat 85.
+        substring = _compute_relevance_score(
+            {"amended", "complaint"}, "Amended Complaint",
+            "Motion to File Amended Complaint", None, [],
+        )
+        exact = _compute_relevance_score(
+            {"amended", "complaint"}, "Amended Complaint",
+            "Amended Complaint", None, [],
+        )
+        assert exact >= 92.0
+        assert substring < 80.0
+        assert substring < exact - 15
+        # (d) Both paths fire: the overlap*88 floor still lifts the heavily
+        # coverage-penalized substring, then the word gate scales it to ~70.
+        assert 60.0 <= substring <= 75.0
+
+    def test_exact_match_graduation_unchanged(self):
+        # (c) Exact matches and main's graduation are untouched by the penalty.
+        assert _compute_relevance_score(
+            {"breach", "contract"}, "Breach of Contract",
+            "Breach of Contract", None, [],
+        ) == 97.0
+        assert _compute_relevance_score(
+            {"dog", "bite"}, "Dog Bite", "Dog Bite", None, [],
+        ) == 92.0
+        assert _compute_relevance_score(
+            {"court"}, "Court", "Court", None, [],
+        ) == 82.0
 
     def test_label_in_query_returns_78(self):
         score = _compute_relevance_score(

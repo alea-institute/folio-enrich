@@ -16,6 +16,10 @@ from app.services.folio.branch_config import (
 
 logger = logging.getLogger(__name__)
 
+# Minimum fraction of a label's WORDS a substring query must cover before it
+# is scaled down further (on top of the character-coverage penalty).
+_WORD_RATIO_THRESHOLD = 0.5
+
 # Words too common to be useful for individual search or scoring
 SEARCH_STOPWORDS = frozenset({
     "a", "an", "the", "of", "and", "or", "in", "for", "to", "with", "by", "on", "at",
@@ -161,8 +165,12 @@ def _compute_relevance_score(
 
     # --- Label scoring ---
     label_score = 0.0
+    query_in_label = False
     if len(query_lower) >= 4 and query_lower in label_lower:
-        label_score = 85.0
+        # Coverage penalty: a short query buried in a long label covers little
+        # of it, so score proportionally to how much of the label it spans.
+        label_score = 85.0 * (len(query_lower) / len(label_lower))
+        query_in_label = True
     elif (
         len(label_lower) >= 4
         and label_lower in query_lower
@@ -173,6 +181,17 @@ def _compute_relevance_score(
     if overlap > 0:
         label_score = max(label_score, overlap * 88)
 
+    # Word-count gate: a substring query covering fewer than
+    # _WORD_RATIO_THRESHOLD of the label's WORDS is scaled down further. Applied
+    # AFTER the overlap floor so a low-coverage substring that ALSO has strong
+    # word overlap (floor already lifted it) isn't over-penalized.
+    if query_in_label and label_score > 0:
+        l_words = len(label_lower.split())
+        if l_words > 0:
+            word_ratio = len(query_lower.split()) / l_words
+            if word_ratio < _WORD_RATIO_THRESHOLD:
+                label_score *= word_ratio / _WORD_RATIO_THRESHOLD
+
     # --- Preferred label scoring ---
     pref_score = 0.0
     if preferred_label:
@@ -180,7 +199,8 @@ def _compute_relevance_score(
         if query_lower == pref_lower:
             pref_score = 90.0
         elif len(query_lower) >= 4 and query_lower in pref_lower:
-            pref_score = 84.0
+            # Coverage penalty mirrors the label path above.
+            pref_score = 84.0 * (len(query_lower) / len(pref_lower))
         else:
             pref_content = _content_words(preferred_label)
             p_overlap = _word_overlap(query_content, pref_content)
