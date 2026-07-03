@@ -107,12 +107,27 @@ def _get_branch_for_class(folio, iri: str, branch_root_iris: dict[str, str], cac
     return "Unknown"
 
 
-def _init_branch_roots(folio) -> dict[str, str]:
+def _init_branch_roots(folio, spec=None) -> dict[str, str]:
     """Build mapping of branch root FULL IRIs to display names.
 
     FOLIO's ``FOLIO_TYPE_IRIS`` provides bare hashes; those are wrapped to full
-    FOLIO IRIs. Additional roots (any ontology) are discovered via
-    ``sub_class_of == [owl#Thing]`` and keyed by their full ``owl_class.iri``.
+    FOLIO IRIs. Additional roots are discovered from the ontology's own classes and
+    keyed by their full ``owl_class.iri``:
+
+    * **Explicit roots** — ``sub_class_of == [owl#Thing]``. Discovered for every
+      ontology (byte-neutral for FOLIO).
+    * **Implicit roots** — classes with NO ``sub_class_of`` at all (their parenthood
+      to ``owl:Thing`` is left implicit in the OWL). Some ontologies (the Catholic
+      Semantic Canon) declare most top-level branches this way; without this pass
+      those branches are silently dropped and their concepts mis-bucketed.
+
+    Implicit-root discovery only runs for NON-DEFAULT ontologies (``spec`` supplied
+    and not the registry default). FOLIO's default set is seeded from the hardcoded
+    ``FOLIO_TYPE_IRIS`` constant, and FOLIO's editorial exclusion config does NOT
+    drop its implicit no-parent classes (e.g. "DEPRECATED Activities"), so gating on
+    the default keeps FOLIO's discovered root set byte-identical. When enabled,
+    discovered implicit roots skip ``owl:Thing`` itself, empty/whitespace-only
+    labels, and any label matched by the ontology's editorial exclusion rules.
     """
     from folio import FOLIO_TYPE_IRIS
     from app.services.folio.branch_config import get_branch_display_name
@@ -122,8 +137,9 @@ def _init_branch_roots(folio) -> dict[str, str]:
         display_name = get_branch_display_name(ft.name)
         roots[f"https://folio.openlegalstandard.org/{iri_hash}"] = display_name
 
-    # Discover additional root classes (keyed by full IRI)
     owl_thing = "http://www.w3.org/2002/07/owl#Thing"
+
+    # Explicit roots: sub_class_of == [owl:Thing]. Keyed by full IRI. (byte-neutral)
     for owl_class in folio.classes:
         if owl_class.iri in roots:
             continue
@@ -131,7 +147,36 @@ def _init_branch_roots(folio) -> dict[str, str]:
             label = owl_class.label or _extract_iri_hash(owl_class.iri)
             roots[owl_class.iri] = label
 
+    # Implicit roots: no sub_class_of at all. Non-default ontologies only, so FOLIO
+    # stays byte-identical (its no-parent classes are not caught by its exclusion
+    # config and would otherwise leak in as spurious branches).
+    if spec is not None and _implicit_root_discovery_enabled(spec):
+        for owl_class in folio.classes:
+            if owl_class.iri in roots or owl_class.iri == owl_thing:
+                continue
+            if owl_class.sub_class_of:
+                continue
+            label = (owl_class.label or "").strip()
+            if not label:
+                continue
+            if spec.behavior.excludes_concept_label(label):
+                continue
+            roots[owl_class.iri] = owl_class.label
+
     return roots
+
+
+def _implicit_root_discovery_enabled(spec) -> bool:
+    """Whether to run implicit-root discovery for ``spec``'s ontology.
+
+    Enabled for every ontology except the registry default (FOLIO), whose branch
+    set is seeded from the hardcoded FOLIO type IRIs and must stay byte-identical.
+    """
+    try:
+        from app.services.ontology.registry import get_registry
+        return spec.id != get_registry().default_id
+    except Exception:  # pragma: no cover - registry unavailable; be conservative
+        return spec.id != "folio"
 
 
 def _build_hierarchy_path(folio, iri: str, branch_root_iris: dict[str, str]) -> list[HierarchyPathEntry]:
@@ -230,12 +275,15 @@ def _get_all_parents(folio, iri: str) -> list[HierarchyPathEntry]:
     return parents
 
 
-def lookup_concept_detail(folio, identifier: str) -> ConceptDetail | None:
+def lookup_concept_detail(folio, identifier: str, spec=None) -> ConceptDetail | None:
     """Look up a concept with extended detail.
 
     ``identifier`` may be a full IRI (any ontology) or a bare FOLIO hash —
     folio-python resolves both via ``folio[...]``. All internal traversal uses
     the canonical full IRI (``owl_class.iri``) so non-FOLIO ontologies resolve.
+
+    ``spec`` (the ontology's :class:`OntologySpec`) enables implicit branch-root
+    discovery for non-FOLIO ontologies so concepts bucket into their real branches.
     """
     owl_class = folio[identifier]
     if not owl_class:
@@ -244,7 +292,7 @@ def lookup_concept_detail(folio, identifier: str) -> ConceptDetail | None:
     iri = owl_class.iri  # canonical full IRI
     iri_hash = _extract_iri_hash(iri)  # true bare hash for display
 
-    branch_root_iris = _init_branch_roots(folio)
+    branch_root_iris = _init_branch_roots(folio, spec)
     branch_cache: dict[str, str] = {}
     branch_name = _get_branch_for_class(folio, iri, branch_root_iris, branch_cache)
 
@@ -352,12 +400,16 @@ def build_entity_graph(
     max_nodes: int = 200,
     include_see_also: bool = True,
     max_see_also_per_node: int = 5,
+    spec=None,
 ) -> EntityGraphResponse | None:
     """Build a multi-hop graph around a concept via BFS.
 
     ``identifier`` may be a full IRI (any ontology) or a bare FOLIO hash.
     Node ids and edges use bare hashes; all ``folio[...]`` lookups use full IRIs
     (tracked in ``hash_to_iri``) so non-FOLIO ontologies resolve.
+
+    ``spec`` (the ontology's :class:`OntologySpec`) enables implicit branch-root
+    discovery for non-FOLIO ontologies so nodes bucket into their real branches.
     """
     owl_class = folio[identifier]
     if not owl_class:
@@ -365,7 +417,7 @@ def build_entity_graph(
 
     iri_hash = _extract_iri_hash(owl_class.iri)  # true bare hash of the focus
 
-    branch_root_iris = _init_branch_roots(folio)
+    branch_root_iris = _init_branch_roots(folio, spec)
     branch_cache: dict[str, str] = {}
     owl_thing = "http://www.w3.org/2002/07/owl#Thing"
     visited: dict[str, GraphNode] = {}
