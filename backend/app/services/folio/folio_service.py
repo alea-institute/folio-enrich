@@ -269,10 +269,23 @@ class FolioService:
         return {"concepts_before": old_count, "concepts_after": new_count}
 
     def _build_branch_map(self) -> None:
-        """Build a map from concept IRI to branch display name."""
+        """Build a map from concept IRI to branch display name.
+
+        FOLIO (the registry default) uses folio-python's ``get_folio_branches()``
+        path, kept verbatim/byte-identical. Non-default ontologies (e.g. the
+        Catholic Semantic Canon) derive branches via the SAME canonical path used
+        by the concept-detail panel and WS-2 branch prompts
+        (:func:`_init_branch_roots` / :func:`_get_branch_for_class` in
+        ``concept_detail``), so a given root renders one label everywhere — no more
+        stripped-parenthetical divergence between llm- and entity_ruler-sourced
+        concepts. Built once at load/reload and cached in ``self._branch_map``.
+        """
         if self._folio is None:
             return
         self._branch_map = {}
+        if self._implicit_root_discovery_enabled():
+            self._build_branch_map_canonical()
+            return
         try:
             branches = self._folio.get_folio_branches()
             for branch_type, concepts in branches.items():
@@ -284,6 +297,47 @@ class FolioService:
                         self._branch_map[concept.iri] = branch_name
         except Exception:
             logger.warning("Failed to build branch map", exc_info=True)
+
+    def _implicit_root_discovery_enabled(self) -> bool:
+        """Whether this ontology uses the canonical (non-FOLIO) branch path.
+
+        True for every ontology except the registry default (FOLIO), whose branch
+        set must stay byte-identical to folio-python's ``get_folio_branches()``.
+        Mirrors ``concept_detail._implicit_root_discovery_enabled``.
+        """
+        try:
+            from app.services.ontology.registry import get_registry
+            return self._spec.id != get_registry().default_id
+        except Exception:  # pragma: no cover - registry unavailable; be conservative
+            return self._spec.id != "folio"
+
+    def _build_branch_map_canonical(self) -> None:
+        """Populate ``self._branch_map`` via the concept-detail derivation path.
+
+        Uses the full ontology root label (WS-A), so Canon roots keep their
+        parenthetical (e.g. ``"Authority (Source and Scope)"``) instead of the
+        stripped form. Classes whose branch resolves to ``"Unknown"`` are left
+        unmapped, matching the concept-detail / llm path (no branch rather than a
+        spurious one). Lazy import avoids a circular import with ``concept_detail``.
+        A shared ``cache`` memoizes parent-walks to keep this ~O(classes).
+        """
+        try:
+            from app.services.folio.concept_detail import (
+                _get_branch_for_class,
+                _init_branch_roots,
+            )
+            branch_root_iris = _init_branch_roots(self._folio, self._spec)
+            cache: dict[str, str] = {}
+            for owl_class in self._folio.classes:
+                iri = getattr(owl_class, "iri", None)
+                if not iri:
+                    continue
+                branch_name = _get_branch_for_class(self._folio, iri, branch_root_iris, cache)
+                if branch_name == "Unknown":
+                    continue
+                self._branch_map[iri] = branch_name
+        except Exception:
+            logger.warning("Failed to build canonical branch map", exc_info=True)
 
     def get_all_branches(self) -> list[dict]:
         """Get all non-excluded branches with concept counts and colors."""
