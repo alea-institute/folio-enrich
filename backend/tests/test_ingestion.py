@@ -1,6 +1,5 @@
 import base64
 import io
-from unittest.mock import patch
 
 import pytest
 
@@ -65,8 +64,8 @@ _MINI_PDF_B64 = (
 )
 
 
-class TestPDFIngestorPymupdf:
-    """Test the default PyMuPDF backend."""
+class TestPDFIngestor:
+    """PDF text extraction via pypdf (pure-Python, BSD). PyMuPDF (AGPL) removed."""
 
     def test_ingest_extracts_text(self):
         doc = DocumentInput(content=_MINI_PDF_B64, filename="test.pdf")
@@ -82,32 +81,11 @@ class TestPDFIngestorPymupdf:
         assert len(elements) >= 1
         assert elements[0].page == 1
 
-
-class TestPDFIngestorPypdf:
-    """Test the pypdf fallback backend by patching _PDF_BACKEND."""
-
-    def test_ingest_extracts_text(self):
-        doc = DocumentInput(content=_MINI_PDF_B64, filename="test.pdf")
+    def test_ingest_from_stream_without_pdf_extension(self):
+        doc = DocumentInput(content=_MINI_PDF_B64, filename="test.bin")
         ingestor = PDFIngestor()
-        with patch("app.services.ingestion.pdf_ingestor._PDF_BACKEND", "pypdf"):
-            text = ingestor.ingest(doc)
+        text = ingestor.ingest(doc)
         assert "Hello World" in text
-
-    def test_ingest_with_elements_returns_elements(self):
-        doc = DocumentInput(content=_MINI_PDF_B64, filename="test.pdf")
-        ingestor = PDFIngestor()
-        with patch("app.services.ingestion.pdf_ingestor._PDF_BACKEND", "pypdf"):
-            text, elements = ingestor.ingest_with_elements(doc)
-        assert "Hello World" in text
-        assert len(elements) >= 1
-        assert elements[0].page == 1
-
-    def test_fallback_used_when_pymupdf_missing(self):
-        """Verify _PDF_BACKEND can be set to 'pypdf'."""
-        with patch("app.services.ingestion.pdf_ingestor._PDF_BACKEND", "pypdf"):
-            from app.services.ingestion import pdf_ingestor
-
-            assert pdf_ingestor._PDF_BACKEND == "pypdf"
 
 
 @pytest.mark.asyncio

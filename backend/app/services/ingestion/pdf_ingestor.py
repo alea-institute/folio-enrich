@@ -5,14 +5,8 @@ import re
 from app.models.document import DocumentInput, TextElement
 from app.services.ingestion.base import IngestorBase
 
-# Detect PDF backend once at import time.
-# Prefer PyMuPDF (better extraction quality); fall back to pypdf (pure Python).
-try:
-    import pymupdf  # noqa: F401
-
-    _PDF_BACKEND = "pymupdf"
-except ImportError:
-    _PDF_BACKEND = "pypdf"
+# PDF text extraction uses pypdf (pure-Python, BSD). PyMuPDF was removed to keep
+# folio-enrich cleanly MIT-compatible (PyMuPDF is AGPL-3.0). See THIRD-PARTY.md.
 
 
 class PDFIngestor(IngestorBase):
@@ -21,25 +15,6 @@ class PDFIngestor(IngestorBase):
         import base64
 
         return base64.b64decode(doc.content)
-
-    # -- PyMuPDF backend --------------------------------------------------
-
-    def _extract_pages_pymupdf(self, doc: DocumentInput) -> list[tuple[int, str]]:
-        import pymupdf
-
-        if doc.filename and doc.filename.endswith(".pdf"):
-            try:
-                pdf_doc = pymupdf.open(doc.content)
-            except Exception:
-                pdf_doc = pymupdf.open(stream=self._get_pdf_bytes(doc), filetype="pdf")
-        else:
-            pdf_doc = pymupdf.open(stream=self._get_pdf_bytes(doc), filetype="pdf")
-
-        pages = []
-        for page_num, page in enumerate(pdf_doc, start=1):
-            pages.append((page_num, page.get_text()))
-        pdf_doc.close()
-        return pages
 
     # -- pypdf backend ----------------------------------------------------
 
@@ -63,10 +38,7 @@ class PDFIngestor(IngestorBase):
         return text
 
     def ingest_with_elements(self, doc: DocumentInput) -> tuple[str, list[TextElement]]:
-        if _PDF_BACKEND == "pymupdf":
-            pages = self._extract_pages_pymupdf(doc)
-        else:
-            pages = self._extract_pages_pypdf(doc)
+        pages = self._extract_pages_pypdf(doc)
 
         elements: list[TextElement] = []
         page_texts: list[str] = []
