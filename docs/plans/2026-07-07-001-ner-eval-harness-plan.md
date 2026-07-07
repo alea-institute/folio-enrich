@@ -77,3 +77,28 @@ estimate and QUEUE it rather than run it.
   gold coverage tightens the estimate.
 - Default stays **False** (recall-safe) until the full-mode numbers justify the flip; the
   prod flip rides the ask-gated deploy.
+
+## Result / Closure (2026-07-07) — full-mode eval executed, verdict HOLD
+
+The spend-gated full-mode run (deliverable 4's "queued" question) was **Damien-approved
+(QA q8, cap <$5) and executed** — the question is **closed**.
+
+- **Runner:** `backend/eval/full_runner.py` (dispatched from `runner.py --mode full`) —
+  authoritative full pipeline, all paid LLM candidate stages ON, model
+  `gemini-3-flash-preview`. One paid LLM pass per doc (flag OFF), flag ON replayed
+  through a memoizing `CachingLLM` (≈0 marginal cost); actual token counts captured from
+  Gemini `usageMetadata`; $0.75 in-run spend brake.
+- **Baseline run** (`backend/eval/reports/full_mode_baseline.json`): gold 146 total /
+  52 scored — OFF and ON both P=R=F1=**1.000**, delta 0, `changed_outcomes: []`,
+  recommendation `HOLD_no_f1_gain`. Est. cost $0.11–$0.50.
+- **Gold expansion** (146→159 entries, 52→62 scored; `gold/expansion_candidates.jsonl` +
+  `expansion_manifest.json`, curation ~$0.01), then **expanded run**
+  (`reports/full_mode_expanded.json`): identical outcome — P=R=F1=**1.000** both ways,
+  delta 0, `changed_outcomes: []`, `HOLD_no_f1_gain`. Est. cost $0.12–$0.53.
+- **Verdict:** flip precondition **NOT MET** (no F1 gain; recall safe both ways).
+  **`ner_cross_validation_enabled` default stays `False`.** Total spend well under the
+  $5 cap. Details: `docs/evidence/ner-eval/full-mode-closure.md`.
+- Reports embed `raw_predictions` per doc/flag, so future gold growth can be re-scored
+  offline for free before considering any further paid pass.
+
+**Status: completed** (harness shipped + authoritative eval run + verdict recorded).
