@@ -1,0 +1,133 @@
+{
+  "pack_id": "ENRICH-NER-EVAL",
+  "title": "folio-enrich — NER cross-validation gold-set eval",
+  "repo": "ENRICH",
+  "campaign": "NER-EVAL",
+  "rubric_version": "ner-flip-precondition (F1 up, no recall regression)",
+  "spend": "/bin/bash (deterministic; full-mode estimate /bin/bash.03–/bin/bash.14 queued)",
+  "environment": "local venv (llm=None, deterministic)",
+  "generated_at": "2026-07-07",
+  "counts": {
+    "pass": 1,
+    "borderline": 10,
+    "info": 2
+  },
+  "total_findings": 13,
+  "sections": [
+    {
+      "id": "EP-ENRICH-NER-EVAL-001",
+      "anchor": "ep-enrich-ner-eval-001-method-deterministic-free-ner-cross-validation-eval",
+      "title": "Method — deterministic (free) NER cross-validation eval",
+      "status": "info",
+      "context": "NER cross-validation ( ner_cross_validation_enabled , default False ) is a fully deterministic post-LLM pass: it boosts/penalizes annotation confidence using spaCy NER labels vs. a per-ontology branch affinity map, rejecting spans that fall below 0.20. Running the pipeline with llm=None gives a reproducible, /bin/bash ruler→NER→reconcile→resolve path that still exercises the flag. This pack reports that free comparison; the authoritative full-pipeline (LLM-sourced) comparison is spend-gated and queued to the QA portal. Gold: 52 scored (oracle-verified) + 94 borderline (awaiting human verifica…"
+    },
+    {
+      "id": "EP-ENRICH-NER-EVAL-002",
+      "anchor": "ep-enrich-ner-eval-002-result-flag-off-vs-on-precision-recall-f1",
+      "title": "Result — flag OFF vs ON, precision / recall / F1",
+      "status": "pass",
+      "context": "P R F1 TP FP FN NER off 1.000 1.000 1.000 52 0 0 NER on 1.000 1.000 1.000 52 0 0 delta +0.000 +0.000 +0.000 Recommendation: HOLD_no_f1_gain. On the unambiguous deterministic set NER cross-validation is recall-safe — it was free to reject any of the 52 scored spans and rejected none — but shows no F1 gain there. Its discriminating signal lives in the borderline + LLM-sourced concepts, which the free tier does not cover. Default stays False pending the spend-gated run.",
+      "rubric_scores": [
+        {
+          "id": "RUB-NER-01",
+          "criterion": "Recall non-regression (OFF→ON)",
+          "score": "PASS",
+          "note": "recall +0.000"
+        },
+        {
+          "id": "RUB-NER-02",
+          "criterion": "F1 improvement (flip precondition)",
+          "score": "NOT MET",
+          "note": "F1 +0.000 on free tier"
+        }
+      ]
+    },
+    {
+      "id": "EP-ENRICH-NER-EVAL-003",
+      "anchor": "ep-enrich-ner-eval-003-borderline-contract-termination-provisions",
+      "title": "Borderline — contract: 'TERMINATION PROVISIONS'",
+      "status": "borderline",
+      "context": "Span [18:40] 'TERMINATION PROVISIONS' in contract was seeded to Termination Clause ( R355Le1zLujnXiHMmYqQNM ) but flagged needs_review : Ambiguous surface 'TERMINATION PROVISIONS': 0 competing concept(s); needs human verification. Competing concepts: single alternative-label match (no competing concept); verify the mention truly refers to this concept To promote: confirm the right IRI, set verification:\"human\" . It then counts toward the score and survives re-curation.",
+      "input_sample": "TERMINATION PROVISIONS"
+    },
+    {
+      "id": "EP-ENRICH-NER-EVAL-004",
+      "anchor": "ep-enrich-ner-eval-004-borderline-contract-event",
+      "title": "Borderline — contract: 'Event'",
+      "status": "borderline",
+      "context": "Span [530:535] 'Event' in contract was seeded to Event ( R73hoH1RXYjBTYiGfolpsAF ) but flagged needs_review : Ambiguous surface 'event': 2 competing concept(s); needs human verification. Competing concepts: RBQXVSSPZE36fkwBeXb4YBe — Bankruptcy Plan Vote To promote: confirm the right IRI, set verification:\"human\" . It then counts toward the score and survives re-curation.",
+      "input_sample": "Event"
+    },
+    {
+      "id": "EP-ENRICH-NER-EVAL-005",
+      "anchor": "ep-enrich-ner-eval-005-borderline-lease-renewal-term",
+      "title": "Borderline — lease: 'Renewal Term'",
+      "status": "borderline",
+      "context": "Span [1473:1485] 'Renewal Term' in lease was seeded to Renewal Term Clause ( R6ZPNSiwrrkYAEVTRoOKiv ) but flagged needs_review : Ambiguous surface 'Renewal Term': 0 competing concept(s); needs human verification. Competing concepts: single alternative-label match (no competing concept); verify the mention truly refers to this concept To promote: confirm the right IRI, set verification:\"human\" . It then counts toward the score and survives re-curation.",
+      "input_sample": "Renewal Term"
+    },
+    {
+      "id": "EP-ENRICH-NER-EVAL-006",
+      "anchor": "ep-enrich-ner-eval-006-borderline-lease-event",
+      "title": "Borderline — lease: 'event'",
+      "status": "borderline",
+      "context": "Span [1765:1770] 'event' in lease was seeded to Event ( R73hoH1RXYjBTYiGfolpsAF ) but flagged needs_review : Ambiguous surface 'Event': 2 competing concept(s); needs human verification. Competing concepts: RBQXVSSPZE36fkwBeXb4YBe — Bankruptcy Plan Vote To promote: confirm the right IRI, set verification:\"human\" . It then counts toward the score and survives re-curation.",
+      "input_sample": "event"
+    },
+    {
+      "id": "EP-ENRICH-NER-EVAL-007",
+      "anchor": "ep-enrich-ner-eval-007-borderline-motion-court",
+      "title": "Borderline — motion: 'COURT'",
+      "status": "borderline",
+      "context": "Span [23:28] 'COURT' in motion was seeded to Courts ( HYKR-C2YRNuu8MK0iAyQ-w ) but flagged needs_review : Ambiguous surface 'Court': 2 competing concept(s); needs human verification. Competing concepts: ZGJ1mrkqSjyjrR2qxTgCdA — Courts To promote: confirm the right IRI, set verification:\"human\" . It then counts toward the score and survives re-curation.",
+      "input_sample": "COURT"
+    },
+    {
+      "id": "EP-ENRICH-NER-EVAL-008",
+      "anchor": "ep-enrich-ner-eval-008-borderline-motion-commercial-supply-agreement-between",
+      "title": "Borderline — motion: 'commercial supply agreement between'",
+      "status": "borderline",
+      "context": "Span [685:720] 'commercial supply agreement between' in motion was seeded to Supply Agreement ( R7KnhbKXnWBeCBhayT7e9BY ) but flagged needs_review : Ambiguous surface 'commercial supply agreement between': 0 competing concept(s); needs human verification. Competing concepts: single alternative-label match (no competing concept); verify the mention truly refers to this concept To promote: confirm the right IRI, set verification:\"human\" . It then counts toward the score and survives re-curation.",
+      "input_sample": "commercial supply agreement between"
+    },
+    {
+      "id": "EP-ENRICH-NER-EVAL-009",
+      "anchor": "ep-enrich-ner-eval-009-borderline-nda-certain-confidential-and",
+      "title": "Borderline — nda: 'certain confidential and'",
+      "status": "borderline",
+      "context": "Span [937:961] 'certain confidential and' in nda was seeded to \"Confidential Information\" Definition ( R7W2M7zhqDzZi7SIru4FW0n ) but flagged needs_review : Ambiguous surface 'certain confidential and': 0 competing concept(s); needs human verification. Competing concepts: single alternative-label match (no competing concept); verify the mention truly refers to this concept To promote: confirm the right IRI, set verification:\"human\" . It then counts toward the score and survives re-curation.",
+      "input_sample": "certain confidential and"
+    },
+    {
+      "id": "EP-ENRICH-NER-EVAL-010",
+      "anchor": "ep-enrich-ner-eval-010-borderline-nda-mutual-non-disclosure-agreement-n-nthis",
+      "title": "Borderline — nda: 'MUTUAL NON-DISCLOSURE AGREEMENT\\n\\nThis'",
+      "status": "borderline",
+      "context": "Span [0:37] 'MUTUAL NON-DISCLOSURE AGREEMENT\\n\\nThis' in nda was seeded to Nondisclosure Agreement ( R8KyMVnE8XDipRREHWb4UYH ) but flagged needs_review : Ambiguous surface 'MUTUAL NON-DISCLOSURE AGREEMENT This': 0 competing concept(s); needs human verification. Competing concepts: single alternative-label match (no competing concept); verify the mention truly refers to this concept To promote: confirm the right IRI, set verification:\"human\" . It then counts toward the score and survives re-curation.",
+      "input_sample": "MUTUAL NON-DISCLOSURE AGREEMENT\n\nThis"
+    },
+    {
+      "id": "EP-ENRICH-NER-EVAL-011",
+      "anchor": "ep-enrich-ner-eval-011-borderline-opinion-court",
+      "title": "Borderline — opinion: 'COURT'",
+      "status": "borderline",
+      "context": "Span [14:19] 'COURT' in opinion was seeded to Courts ( HYKR-C2YRNuu8MK0iAyQ-w ) but flagged needs_review : Ambiguous surface 'court': 2 competing concept(s); needs human verification. Competing concepts: ZGJ1mrkqSjyjrR2qxTgCdA — Courts To promote: confirm the right IRI, set verification:\"human\" . It then counts toward the score and survives re-curation.",
+      "input_sample": "COURT"
+    },
+    {
+      "id": "EP-ENRICH-NER-EVAL-012",
+      "anchor": "ep-enrich-ner-eval-012-borderline-opinion-central-district-of-illinois",
+      "title": "Borderline — opinion: 'Central District of Illinois'",
+      "status": "borderline",
+      "context": "Span [302:330] 'Central District of Illinois' in opinion was seeded to U.S. District Court - C.D. Illinois ( R7DA28396220f5954725E5ac ) but flagged needs_review : Ambiguous surface 'Central District of Illinois': 1 competing concept(s); needs human verification. Competing concepts: single alternative-label match (no competing concept); verify the mention truly refers to this concept To promote: confirm the right IRI, set verification:\"human\" . It then counts toward the score and survives re-curation.",
+      "input_sample": "Central District of Illinois"
+    },
+    {
+      "id": "EP-ENRICH-NER-EVAL-013",
+      "anchor": "ep-enrich-ner-eval-013-spend-estimate-authoritative-full-mode-run-queued",
+      "title": "Spend estimate — authoritative full-mode run (queued)",
+      "status": "info",
+      "context": "The authoritative flip signal needs the LLM candidate stages ON. Because the NER flag only changes deterministic reconciliation, that is one LLM pass per doc + a free replay OFF/ON. Token-grounded estimate over the 6 gold docs (google/gemini-3-flash-preview): ~114K input + 43K output tokens → /bin/bash.03–/bin/bash.14 (range = flash-class price assumption, the one figure to confirm). Queued to the QA portal ( briefs/qa/pending-questions.jsonl ) per TODAY policy — not run."
+    }
+  ]
+}

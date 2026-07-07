@@ -1,0 +1,16 @@
+{
+  "pack_id": "ENRICH-NER-EVAL",
+  "title": "folio-enrich — NER cross-validation gold-set eval",
+  "rubric_version": "ner-flip-precondition (F1 up, no recall regression)",
+  "exported_count": 0,
+  "total_findings": 13,
+  "comments": [],
+  "_schema": {
+    "comments[]": {
+      "id": "EP-<REPO>-<CAMPAIGN>-<NNN>",
+      "title": "str",
+      "status": "pass|borderline|fail|info",
+      "comment": "reviewer text"
+    }
+  }
+}

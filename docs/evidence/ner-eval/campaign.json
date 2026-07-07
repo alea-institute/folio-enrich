@@ -1,0 +1,114 @@
+{
+  "repo": "ENRICH",
+  "campaign": "NER-EVAL",
+  "title": "folio-enrich \u2014 NER cross-validation gold-set eval",
+  "campaign_label": "folio-enrich \u00b7 NER cross-validation F1/recall harness",
+  "description": "Deterministic (free) precision/recall/F1 for ner_cross_validation_enabled, flag OFF vs ON, over an oracle-seeded gold set; borderline cases surfaced for human verification; full-mode spend estimate queued.",
+  "rubric_version": "ner-flip-precondition (F1 up, no recall regression)",
+  "spend": "/bin/bash (deterministic; full-mode estimate /bin/bash.03\u2013/bin/bash.14 queued)",
+  "environment": "local venv (llm=None, deterministic)",
+  "sections": [
+    {
+      "id_num": 1,
+      "title": "Method \u2014 deterministic (free) NER cross-validation eval",
+      "status": "info",
+      "body_html": "<p>NER cross-validation (<code>ner_cross_validation_enabled</code>, default <b>False</b>) is a <b>fully deterministic</b> post-LLM pass: it boosts/penalizes annotation confidence using spaCy NER labels vs. a per-ontology branch affinity map, rejecting spans that fall below 0.20. Running the pipeline with <code>llm=None</code> gives a reproducible, <b>/bin/bash</b> ruler\u2192NER\u2192reconcile\u2192resolve path that still exercises the flag. This pack reports that free comparison; the authoritative full-pipeline (LLM-sourced) comparison is spend-gated and queued to the QA portal.</p><p>Gold: <b>52 scored</b> (oracle-verified) + <b>94 borderline</b> (awaiting human verification), across 6 demo docs. Precision/recall are span-restricted over the labelled spans (correct for a sampled gold).</p>"
+    },
+    {
+      "id_num": 2,
+      "title": "Result \u2014 flag OFF vs ON, precision / recall / F1",
+      "status": "pass",
+      "body_html": "<table style='border-collapse:collapse'><tr><th style='text-align:left;padding:4px 12px'></th><th style='padding:4px 12px'>P</th><th style='padding:4px 12px'>R</th><th style='padding:4px 12px'>F1</th><th style='padding:4px 12px'>TP</th><th style='padding:4px 12px'>FP</th><th style='padding:4px 12px'>FN</th></tr><tr><td style='padding:4px 12px'><b>NER off</b></td><td style='text-align:center'>1.000</td><td style='text-align:center'>1.000</td><td style='text-align:center'>1.000</td><td style='text-align:center'>52</td><td style='text-align:center'>0</td><td style='text-align:center'>0</td></tr><tr><td style='padding:4px 12px'><b>NER on</b></td><td style='text-align:center'>1.000</td><td style='text-align:center'>1.000</td><td style='text-align:center'>1.000</td><td style='text-align:center'>52</td><td style='text-align:center'>0</td><td style='text-align:center'>0</td></tr><tr><td style='padding:4px 12px'>delta</td><td style='text-align:center'>+0.000</td><td style='text-align:center'>+0.000</td><td style='text-align:center'>+0.000</td><td colspan=3></td></tr></table><p><b>Recommendation: HOLD_no_f1_gain.</b> On the unambiguous deterministic set NER cross-validation is <b>recall-safe</b> \u2014 it was free to reject any of the 52 scored spans and rejected none \u2014 but shows <b>no F1 gain</b> there. Its discriminating signal lives in the borderline + LLM-sourced concepts, which the free tier does not cover. Default stays <b>False</b> pending the spend-gated run.</p>",
+      "rubric_scores": [
+        {
+          "id": "RUB-NER-01",
+          "criterion": "Recall non-regression (OFF\u2192ON)",
+          "score": "PASS",
+          "note": "recall +0.000"
+        },
+        {
+          "id": "RUB-NER-02",
+          "criterion": "F1 improvement (flip precondition)",
+          "score": "NOT MET",
+          "note": "F1 +0.000 on free tier"
+        }
+      ]
+    },
+    {
+      "id_num": 3,
+      "title": "Borderline \u2014 contract: 'TERMINATION PROVISIONS'",
+      "status": "borderline",
+      "body_html": "<p>Span <code>[18:40]</code> 'TERMINATION PROVISIONS' in <b>contract</b> was seeded to <b>Termination Clause</b> (<code>R355Le1zLujnXiHMmYqQNM</code>) but flagged <b>needs_review</b>: Ambiguous surface 'TERMINATION PROVISIONS': 0 competing concept(s); needs human verification.</p><p>Competing concepts:</p><ul><li><i>single alternative-label match (no competing concept); verify the mention truly refers to this concept</i></li></ul><p><i>To promote:</i> confirm the right IRI, set <code>verification:\"human\"</code>. It then counts toward the score and survives re-curation.</p>",
+      "input_sample": "TERMINATION PROVISIONS"
+    },
+    {
+      "id_num": 4,
+      "title": "Borderline \u2014 contract: 'Event'",
+      "status": "borderline",
+      "body_html": "<p>Span <code>[530:535]</code> 'Event' in <b>contract</b> was seeded to <b>Event</b> (<code>R73hoH1RXYjBTYiGfolpsAF</code>) but flagged <b>needs_review</b>: Ambiguous surface 'event': 2 competing concept(s); needs human verification.</p><p>Competing concepts:</p><ul><li><code>RBQXVSSPZE36fkwBeXb4YBe</code> \u2014 Bankruptcy Plan Vote</li></ul><p><i>To promote:</i> confirm the right IRI, set <code>verification:\"human\"</code>. It then counts toward the score and survives re-curation.</p>",
+      "input_sample": "Event"
+    },
+    {
+      "id_num": 5,
+      "title": "Borderline \u2014 lease: 'Renewal Term'",
+      "status": "borderline",
+      "body_html": "<p>Span <code>[1473:1485]</code> 'Renewal Term' in <b>lease</b> was seeded to <b>Renewal Term Clause</b> (<code>R6ZPNSiwrrkYAEVTRoOKiv</code>) but flagged <b>needs_review</b>: Ambiguous surface 'Renewal Term': 0 competing concept(s); needs human verification.</p><p>Competing concepts:</p><ul><li><i>single alternative-label match (no competing concept); verify the mention truly refers to this concept</i></li></ul><p><i>To promote:</i> confirm the right IRI, set <code>verification:\"human\"</code>. It then counts toward the score and survives re-curation.</p>",
+      "input_sample": "Renewal Term"
+    },
+    {
+      "id_num": 6,
+      "title": "Borderline \u2014 lease: 'event'",
+      "status": "borderline",
+      "body_html": "<p>Span <code>[1765:1770]</code> 'event' in <b>lease</b> was seeded to <b>Event</b> (<code>R73hoH1RXYjBTYiGfolpsAF</code>) but flagged <b>needs_review</b>: Ambiguous surface 'Event': 2 competing concept(s); needs human verification.</p><p>Competing concepts:</p><ul><li><code>RBQXVSSPZE36fkwBeXb4YBe</code> \u2014 Bankruptcy Plan Vote</li></ul><p><i>To promote:</i> confirm the right IRI, set <code>verification:\"human\"</code>. It then counts toward the score and survives re-curation.</p>",
+      "input_sample": "event"
+    },
+    {
+      "id_num": 7,
+      "title": "Borderline \u2014 motion: 'COURT'",
+      "status": "borderline",
+      "body_html": "<p>Span <code>[23:28]</code> 'COURT' in <b>motion</b> was seeded to <b>Courts</b> (<code>HYKR-C2YRNuu8MK0iAyQ-w</code>) but flagged <b>needs_review</b>: Ambiguous surface 'Court': 2 competing concept(s); needs human verification.</p><p>Competing concepts:</p><ul><li><code>ZGJ1mrkqSjyjrR2qxTgCdA</code> \u2014 Courts</li></ul><p><i>To promote:</i> confirm the right IRI, set <code>verification:\"human\"</code>. It then counts toward the score and survives re-curation.</p>",
+      "input_sample": "COURT"
+    },
+    {
+      "id_num": 8,
+      "title": "Borderline \u2014 motion: 'commercial supply agreement between'",
+      "status": "borderline",
+      "body_html": "<p>Span <code>[685:720]</code> 'commercial supply agreement between' in <b>motion</b> was seeded to <b>Supply Agreement</b> (<code>R7KnhbKXnWBeCBhayT7e9BY</code>) but flagged <b>needs_review</b>: Ambiguous surface 'commercial supply agreement between': 0 competing concept(s); needs human verification.</p><p>Competing concepts:</p><ul><li><i>single alternative-label match (no competing concept); verify the mention truly refers to this concept</i></li></ul><p><i>To promote:</i> confirm the right IRI, set <code>verification:\"human\"</code>. It then counts toward the score and survives re-curation.</p>",
+      "input_sample": "commercial supply agreement between"
+    },
+    {
+      "id_num": 9,
+      "title": "Borderline \u2014 nda: 'certain confidential and'",
+      "status": "borderline",
+      "body_html": "<p>Span <code>[937:961]</code> 'certain confidential and' in <b>nda</b> was seeded to <b>\"Confidential Information\" Definition</b> (<code>R7W2M7zhqDzZi7SIru4FW0n</code>) but flagged <b>needs_review</b>: Ambiguous surface 'certain confidential and': 0 competing concept(s); needs human verification.</p><p>Competing concepts:</p><ul><li><i>single alternative-label match (no competing concept); verify the mention truly refers to this concept</i></li></ul><p><i>To promote:</i> confirm the right IRI, set <code>verification:\"human\"</code>. It then counts toward the score and survives re-curation.</p>",
+      "input_sample": "certain confidential and"
+    },
+    {
+      "id_num": 10,
+      "title": "Borderline \u2014 nda: 'MUTUAL NON-DISCLOSURE AGREEMENT\\n\\nThis'",
+      "status": "borderline",
+      "body_html": "<p>Span <code>[0:37]</code> 'MUTUAL NON-DISCLOSURE AGREEMENT\\n\\nThis' in <b>nda</b> was seeded to <b>Nondisclosure Agreement</b> (<code>R8KyMVnE8XDipRREHWb4UYH</code>) but flagged <b>needs_review</b>: Ambiguous surface 'MUTUAL NON-DISCLOSURE AGREEMENT\n\nThis': 0 competing concept(s); needs human verification.</p><p>Competing concepts:</p><ul><li><i>single alternative-label match (no competing concept); verify the mention truly refers to this concept</i></li></ul><p><i>To promote:</i> confirm the right IRI, set <code>verification:\"human\"</code>. It then counts toward the score and survives re-curation.</p>",
+      "input_sample": "MUTUAL NON-DISCLOSURE AGREEMENT\n\nThis"
+    },
+    {
+      "id_num": 11,
+      "title": "Borderline \u2014 opinion: 'COURT'",
+      "status": "borderline",
+      "body_html": "<p>Span <code>[14:19]</code> 'COURT' in <b>opinion</b> was seeded to <b>Courts</b> (<code>HYKR-C2YRNuu8MK0iAyQ-w</code>) but flagged <b>needs_review</b>: Ambiguous surface 'court': 2 competing concept(s); needs human verification.</p><p>Competing concepts:</p><ul><li><code>ZGJ1mrkqSjyjrR2qxTgCdA</code> \u2014 Courts</li></ul><p><i>To promote:</i> confirm the right IRI, set <code>verification:\"human\"</code>. It then counts toward the score and survives re-curation.</p>",
+      "input_sample": "COURT"
+    },
+    {
+      "id_num": 12,
+      "title": "Borderline \u2014 opinion: 'Central District of Illinois'",
+      "status": "borderline",
+      "body_html": "<p>Span <code>[302:330]</code> 'Central District of Illinois' in <b>opinion</b> was seeded to <b>U.S. District Court - C.D. Illinois</b> (<code>R7DA28396220f5954725E5ac</code>) but flagged <b>needs_review</b>: Ambiguous surface 'Central District of Illinois': 1 competing concept(s); needs human verification.</p><p>Competing concepts:</p><ul><li><i>single alternative-label match (no competing concept); verify the mention truly refers to this concept</i></li></ul><p><i>To promote:</i> confirm the right IRI, set <code>verification:\"human\"</code>. It then counts toward the score and survives re-curation.</p>",
+      "input_sample": "Central District of Illinois"
+    },
+    {
+      "id_num": 13,
+      "title": "Spend estimate \u2014 authoritative full-mode run (queued)",
+      "status": "info",
+      "body_html": "<p>The authoritative flip signal needs the LLM candidate stages ON. Because the NER flag only changes deterministic reconciliation, that is <b>one LLM pass per doc</b> + a free replay OFF/ON. Token-grounded estimate over the 6 gold docs (google/gemini-3-flash-preview): ~114K input + 43K output tokens \u2192 <b>/bin/bash.03\u2013/bin/bash.14</b> (range = flash-class price assumption, the one figure to confirm). Queued to the QA portal (<code>briefs/qa/pending-questions.jsonl</code>) per TODAY policy \u2014 not run.</p>"
+    }
+  ]
+}

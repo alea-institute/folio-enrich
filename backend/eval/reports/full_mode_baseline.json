@@ -1,0 +1,257 @@
+{
+  "mode": "full",
+  "fidelity": "authoritative (full pipeline; LLM candidate stages ON)",
+  "model": "gemini-3-flash-preview",
+  "gold_entries_total": 146,
+  "gold_entries_scored": 52,
+  "docs": [
+    "contract",
+    "lease",
+    "motion",
+    "nda",
+    "opinion",
+    "patent"
+  ],
+  "elapsed_seconds": 1574.7,
+  "ner_off": {
+    "tp": 52,
+    "fp": 0,
+    "fn": 0,
+    "tn": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "support": 52
+  },
+  "ner_on": {
+    "tp": 52,
+    "fp": 0,
+    "fn": 0,
+    "tn": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "support": 52
+  },
+  "delta": {
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0
+  },
+  "recall_regression": false,
+  "f1_improved": false,
+  "recommendation": "HOLD_no_f1_gain",
+  "changed_outcomes": [],
+  "llm_usage": {
+    "total_real_calls": 160,
+    "total_cache_hits": 64,
+    "total_input_tokens": 565130,
+    "total_output_tokens": 132920,
+    "on_replay_added_calls": 48,
+    "on_replay_was_free": false,
+    "estimated_cost_usd": {
+      "low": 0.1097,
+      "high": 0.5018
+    },
+    "price_assumption_per_1m": {
+      "low": {
+        "input": 0.1,
+        "output": 0.4
+      },
+      "high": {
+        "input": 0.3,
+        "output": 2.5
+      }
+    },
+    "per_doc": {
+      "contract": {
+        "off_real_calls": 11,
+        "off_input_tokens": 29674,
+        "off_output_tokens": 7094,
+        "on_added_real_calls": 5,
+        "on_added_input_tokens": 16807,
+        "on_added_output_tokens": 4853,
+        "on_cache_hits": 6
+      },
+      "lease": {
+        "off_real_calls": 36,
+        "off_input_tokens": 117888,
+        "off_output_tokens": 20037,
+        "on_added_real_calls": 9,
+        "on_added_input_tokens": 54445,
+        "on_added_output_tokens": 14304,
+        "on_cache_hits": 27
+      },
+      "motion": {
+        "off_real_calls": 7,
+        "off_input_tokens": 24006,
+        "off_output_tokens": 5969,
+        "on_added_real_calls": 5,
+        "on_added_input_tokens": 20347,
+        "on_added_output_tokens": 4876,
+        "on_cache_hits": 2
+      },
+      "nda": {
+        "off_real_calls": 24,
+        "off_input_tokens": 89775,
+        "off_output_tokens": 20814,
+        "on_added_real_calls": 11,
+        "on_added_input_tokens": 58158,
+        "on_added_output_tokens": 13922,
+        "on_cache_hits": 13
+      },
+      "opinion": {
+        "off_real_calls": 14,
+        "off_input_tokens": 39510,
+        "off_output_tokens": 8814,
+        "on_added_real_calls": 7,
+        "on_added_input_tokens": 26658,
+        "on_added_output_tokens": 7084,
+        "on_cache_hits": 7
+      },
+      "patent": {
+        "off_real_calls": 20,
+        "off_input_tokens": 54423,
+        "off_output_tokens": 13252,
+        "on_added_real_calls": 11,
+        "on_added_input_tokens": 33439,
+        "on_added_output_tokens": 11901,
+        "on_cache_hits": 9
+      }
+    }
+  },
+  "per_doc": {
+    "contract": {
+      "ner_off": {
+        "tp": 6,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 6
+      },
+      "ner_on": {
+        "tp": 6,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 6
+      }
+    },
+    "lease": {
+      "ner_off": {
+        "tp": 6,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 6
+      },
+      "ner_on": {
+        "tp": 6,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 6
+      }
+    },
+    "motion": {
+      "ner_off": {
+        "tp": 12,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 12
+      },
+      "ner_on": {
+        "tp": 12,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 12
+      }
+    },
+    "nda": {
+      "ner_off": {
+        "tp": 9,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 9
+      },
+      "ner_on": {
+        "tp": 9,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 9
+      }
+    },
+    "opinion": {
+      "ner_off": {
+        "tp": 10,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 10
+      },
+      "ner_on": {
+        "tp": 10,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 10
+      }
+    },
+    "patent": {
+      "ner_off": {
+        "tp": 9,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 9
+      },
+      "ner_on": {
+        "tp": 9,
+        "fp": 0,
+        "fn": 0,
+        "tn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 9
+      }
+    }
+  }
+}

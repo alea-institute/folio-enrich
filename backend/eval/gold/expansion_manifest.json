@@ -1,0 +1,423 @@
+{
+  "counts": {
+    "fresh_deterministic": 10,
+    "fresh_needs_review": 3,
+    "promoted_to_deterministic": 0,
+    "kept_needs_review": 94,
+    "adjudicated_needs_review_updates": 19
+  },
+  "total_new_scored_deterministic": 10,
+  "spend": {
+    "model": "gemini-3-flash-preview",
+    "llm_calls": 7,
+    "tokens_in": 11760,
+    "tokens_out": 2698,
+    "price_per_1m_in_usd": 0.3,
+    "price_per_1m_out_usd": 2.5,
+    "price_note": "gemini-3-flash-preview pricing is estimated (flash-class); actual token counts are exact.",
+    "usd_estimate": 0.010273
+  },
+  "skipped": [
+    {
+      "doc": "contract",
+      "surface": "Force Majeure",
+      "reason": "concept RCp6PzHv already represented in contract"
+    },
+    {
+      "doc": "contract",
+      "surface": "Agreement",
+      "reason": "concept R88D8i8A already represented in contract"
+    },
+    {
+      "doc": "contract",
+      "surface": "Force Majeure Event",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "contract",
+      "surface": "Termination for Convenience",
+      "reason": "no non-overlapping exact offset"
+    },
+    {
+      "doc": "contract",
+      "surface": "Termination for Cause",
+      "reason": "no non-overlapping exact offset"
+    },
+    {
+      "doc": "contract",
+      "surface": "material breach",
+      "reason": "no non-overlapping exact offset"
+    },
+    {
+      "doc": "contract",
+      "surface": "bankruptcy protection",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "contract",
+      "surface": "Confidential Information",
+      "reason": "no non-overlapping exact offset"
+    },
+    {
+      "doc": "contract",
+      "surface": "Confidentiality",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "contract",
+      "surface": "Indemnification",
+      "reason": "no non-overlapping exact offset"
+    },
+    {
+      "doc": "contract",
+      "surface": "Limitation of Liability",
+      "reason": "no non-overlapping exact offset"
+    },
+    {
+      "doc": "contract",
+      "surface": "Dispute Resolution",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "contract",
+      "surface": "binding arbitration",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "contract",
+      "surface": "Commercial Arbitration Rules",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "nda",
+      "surface": "Mutual Non-Disclosure Agreement",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "nda",
+      "surface": "Effective Date",
+      "reason": "concept R93oC7La already represented in nda"
+    },
+    {
+      "doc": "nda",
+      "surface": "Delaware corporation",
+      "reason": "no non-overlapping exact offset"
+    },
+    {
+      "doc": "nda",
+      "surface": "limited liability company",
+      "reason": "concept R98E2kVw already represented in nda"
+    },
+    {
+      "doc": "nda",
+      "surface": "Disclosing Party",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "nda",
+      "surface": "Receiving Party",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "nda",
+      "surface": "trade secrets",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "nda",
+      "surface": "breach",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "nda",
+      "surface": "patent",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "nda",
+      "surface": "copyright",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "nda",
+      "surface": "trademark",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "motion",
+      "surface": "UNITED STATES DISTRICT COURT",
+      "reason": "no non-overlapping exact offset"
+    },
+    {
+      "doc": "motion",
+      "surface": "Plaintiff",
+      "reason": "concept R9tyJmIM already represented in motion"
+    },
+    {
+      "doc": "motion",
+      "surface": "Defendant",
+      "reason": "concept RijIqw1H already represented in motion"
+    },
+    {
+      "doc": "motion",
+      "surface": "MOTION TO DISMISS",
+      "reason": "no non-overlapping exact offset"
+    },
+    {
+      "doc": "motion",
+      "surface": "Federal Rule of Civil Procedure 12(b)(6)",
+      "reason": "no non-overlapping exact offset"
+    },
+    {
+      "doc": "motion",
+      "surface": "Complaint",
+      "reason": "concept RCVdRCEb already represented in motion"
+    },
+    {
+      "doc": "motion",
+      "surface": "Memorandum of Law",
+      "reason": "no non-overlapping exact offset"
+    },
+    {
+      "doc": "motion",
+      "surface": "breach of contract",
+      "reason": "concept RC2fjcps already represented in motion"
+    },
+    {
+      "doc": "motion",
+      "surface": "negligence",
+      "reason": "concept R7nqxxlA already represented in motion"
+    },
+    {
+      "doc": "motion",
+      "surface": "cause of action",
+      "reason": "concept R8jYAnNA already represented in motion"
+    },
+    {
+      "doc": "motion",
+      "surface": "contractual provision",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "motion",
+      "surface": "tort",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "motion",
+      "surface": "Attorneys",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "opinion",
+      "surface": "Plaintiff-Appellant",
+      "reason": "no non-overlapping exact offset"
+    },
+    {
+      "doc": "opinion",
+      "surface": "Defendants-Appellees",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "opinion",
+      "surface": "United States District Court",
+      "reason": "no non-overlapping exact offset"
+    },
+    {
+      "doc": "opinion",
+      "surface": "OPINION",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "opinion",
+      "surface": "summary judgment",
+      "reason": "concept R8K6VFq9 already represented in opinion"
+    },
+    {
+      "doc": "opinion",
+      "surface": "42 U.S.C. § 1983",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "opinion",
+      "surface": "excessive force",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "opinion",
+      "surface": "Fourth Amendment",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "opinion",
+      "surface": "municipal liability",
+      "reason": "no non-overlapping exact offset"
+    },
+    {
+      "doc": "opinion",
+      "surface": "domestic disturbance",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "opinion",
+      "surface": "judgment as a matter of law",
+      "reason": "no non-overlapping exact offset"
+    },
+    {
+      "doc": "opinion",
+      "surface": "objective reasonableness standard",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "opinion",
+      "surface": "civil damages liability",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "opinion",
+      "surface": "constitutional rights",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "lease",
+      "surface": "COMMERCIAL LEASE AGREEMENT",
+      "reason": "no non-overlapping exact offset"
+    },
+    {
+      "doc": "lease",
+      "surface": "LANDLORD",
+      "reason": "no non-overlapping exact offset"
+    },
+    {
+      "doc": "lease",
+      "surface": "TENANT",
+      "reason": "no non-overlapping exact offset"
+    },
+    {
+      "doc": "lease",
+      "surface": "Base Rent",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "lease",
+      "surface": "Additional Rent",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "lease",
+      "surface": "Operating Expenses",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "lease",
+      "surface": "Real Estate Taxes",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "lease",
+      "surface": "Permitted Use",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "lease",
+      "surface": "Compliance with Laws",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "lease",
+      "surface": "ASSIGNMENT AND SUBLETTING",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "lease",
+      "surface": "Event of Default",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "lease",
+      "surface": "Commencement Date",
+      "reason": "concept R93oC7La already represented in lease"
+    },
+    {
+      "doc": "lease",
+      "surface": "Renewal Term",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "lease",
+      "surface": "Initial Term",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "patent",
+      "surface": "Applicant",
+      "reason": "no non-overlapping exact offset"
+    },
+    {
+      "doc": "patent",
+      "surface": "Application No.",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "patent",
+      "surface": "Art Unit",
+      "reason": "no non-overlapping exact offset"
+    },
+    {
+      "doc": "patent",
+      "surface": "Attorney Docket No.",
+      "reason": "no non-overlapping exact offset"
+    },
+    {
+      "doc": "patent",
+      "surface": "SPECIFICATION",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "patent",
+      "surface": "TITLE OF THE INVENTION",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "patent",
+      "surface": "CROSS-REFERENCE TO RELATED APPLICATIONS",
+      "reason": "no non-overlapping exact offset"
+    },
+    {
+      "doc": "patent",
+      "surface": "FIELD OF THE INVENTION",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "patent",
+      "surface": "BACKGROUND OF THE INVENTION",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "patent",
+      "surface": "SUMMARY OF THE INVENTION",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "patent",
+      "surface": "DETAILED DESCRIPTION OF THE PREFERRED EMBODIMENTS",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "patent",
+      "surface": "claim 1",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "patent",
+      "surface": "ABSTRACT",
+      "reason": "surface absent from FOLIO label dictionary"
+    },
+    {
+      "doc": "opinion",
+      "surface": "non",
+      "reason": "stale canonical span offset (pre-existing drift in source gold); enrichment dropped"
+    }
+  ],
+  "non_circularity": "Every deterministic (scored) entry's expected_iri comes from the FOLIO-label oracle unique (lemma-)preferred match, never from the LLM or enrich ranking. LLM only proposed candidate surfaces and gave advisory adjudication of already-needs_review entries (which remain needs_review)."
+}
