@@ -14,6 +14,12 @@ progress:
   percent: 50
 ---
 
+> **⚠️ POINTER (refreshed 2026-07-07): this GSD `STATE.md` is STALE — it stops at milestone v1.2 (Header & Status UX, May 2026).**
+> Active planning moved OUT of `.planning/` after v1.2. The current source of truth is **`docs/plans/*.md`** (dated-prefix convention) plus **`docs/HANDOFF-*.md`**.
+> Latest completed plan: **`docs/plans/2026-07-03-001-feat-canon-branch-roots-and-pos-salvage-plan.md`** (status: completed; deployed PROD `1fdbf8e`). It shipped Canon branch-root fixes (WS-A implicit roots → 3→7 roots), search substring penalty (WS-B #26), NER cross-validation default-off (WS-C #27), branch-label unify (WS-D #28), WS-E canonical root-label snapping (#30 + re-bake #31).
+> Post-v1.2 work NOT reflected below: multi-ontology registry + Canon enablement, BYOK, backup-candidate semantic filter, WordIngestor `.docx` `<w:sdt>` handling.
+> **Open follow-up (C4, 2026-07-07):** `ner_cross_validation_enabled` stays `False` — flipping it requires an F1/recall gold-set eval that does not yet exist (`test_disambiguation_eval.py` is an IRI-assertion regression, not an F1 harness). Building that harness + a spend-gated baseline run is a `[CE]` task; logged to the Lane-5 QA queue.
+
 # Project State
 
 ## Project Reference
