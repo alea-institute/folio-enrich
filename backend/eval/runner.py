@@ -178,18 +178,18 @@ def main() -> int:
     ap.add_argument("--json", action="store_true", help="print JSON report to stdout")
     args = ap.parse_args()
 
-    if args.mode == "full":
-        print("full mode is spend-gated (LLM candidate stages cost paid API calls).\n"
-              "Run:  .venv/bin/python -m eval.estimate_spend --gold <gold>\n"
-              "to compute the cost estimate; it is queued to the QA portal, not run here.")
-        return 2
-
     gold = load_gold(args.gold)
     if not gold:
         print(f"no gold entries found at {args.gold}")
         return 1
 
-    rep = asyncio.run(run_eval(gold))
+    if args.mode == "full":
+        # Authoritative full-pipeline run (paid LLM stages ON). One LLM pass per doc,
+        # then a free deterministic reconciliation replay OFF vs ON — see full_runner.
+        from .full_runner import run_full_eval
+        rep = asyncio.run(run_full_eval(gold))
+    else:
+        rep = asyncio.run(run_eval(gold))
     if args.out:
         Path(args.out).write_text(json.dumps(rep, indent=2), encoding="utf-8")
     if args.json:
