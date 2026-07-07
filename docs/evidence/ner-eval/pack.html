@@ -1,0 +1,800 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>folio-enrich — NER cross-validation gold-set eval</title>
+<style>
+/* ============================================================
+   Evidence Ledger — self-contained review pack
+   Tokens first; components style through tokens only.
+   ============================================================ */
+:root{
+  color-scheme: light dark;
+  /* neutrals, biased cool toward the indigo accent */
+  --paper:#f5f6f8;
+  --paper-2:#eceef2;
+  --card:#ffffff;
+  --ink:#141821;
+  --ink-2:#3d4453;
+  --ink-3:#697086;
+  --line:#d9dde5;
+  --line-2:#e7eaf0;
+  /* accent — deep ledger indigo */
+  --accent:#3644a8;
+  --accent-ink:#2a3690;
+  --accent-2:#5866d8;
+  --accent-tint:#eaecfa;
+  /* semantic status (kept distinct from accent) */
+  --pass:#1f855a;      --pass-tint:#e4f4ec;
+  --borderline:#b07a09;--borderline-tint:#fbf1db;
+  --fail:#c23b30;      --fail-tint:#fbe7e5;
+  --info:#4a5568;      --info-tint:#eceef2;
+  /* type */
+  --serif:"Iowan Old Style","Charter","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
+  --sans:ui-sans-serif,"Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",system-ui,sans-serif;
+  --mono:ui-monospace,"SFMono-Regular","Cascadia Code","JetBrains Mono","Roboto Mono",Menlo,Consolas,monospace;
+  --shadow:0 1px 2px rgba(20,24,33,.04),0 6px 20px rgba(20,24,33,.06);
+  --radius:12px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --paper:#0e1117; --paper-2:#151a22; --card:#171c26;
+    --ink:#e9ecf2; --ink-2:#b6bdcc; --ink-3:#828a9d;
+    --line:#2a313d; --line-2:#232a34;
+    --accent:#8a97ee; --accent-ink:#a6b1f4; --accent-2:#9aa6f2; --accent-tint:#1e2335;
+    --pass:#4cc48b; --pass-tint:#12261d;
+    --borderline:#e0aa3c; --borderline-tint:#2c2513;
+    --fail:#f0776b; --fail-tint:#2e1917;
+    --info:#9aa2b3; --info-tint:#1a2029;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="light"]{
+  color-scheme: light;
+  --paper:#f5f6f8; --paper-2:#eceef2; --card:#ffffff;
+  --ink:#141821; --ink-2:#3d4453; --ink-3:#697086; --line:#d9dde5; --line-2:#e7eaf0;
+  --accent:#3644a8; --accent-ink:#2a3690; --accent-2:#5866d8; --accent-tint:#eaecfa;
+  --pass:#1f855a; --pass-tint:#e4f4ec; --borderline:#b07a09; --borderline-tint:#fbf1db;
+  --fail:#c23b30; --fail-tint:#fbe7e5; --info:#4a5568; --info-tint:#eceef2;
+  --shadow:0 1px 2px rgba(20,24,33,.04),0 6px 20px rgba(20,24,33,.06);
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --paper:#0e1117; --paper-2:#151a22; --card:#171c26;
+  --ink:#e9ecf2; --ink-2:#b6bdcc; --ink-3:#828a9d; --line:#2a313d; --line-2:#232a34;
+  --accent:#8a97ee; --accent-ink:#a6b1f4; --accent-2:#9aa6f2; --accent-tint:#1e2335;
+  --pass:#4cc48b; --pass-tint:#12261d; --borderline:#e0aa3c; --borderline-tint:#2c2513;
+  --fail:#f0776b; --fail-tint:#2e1917; --info:#9aa2b3; --info-tint:#1a2029;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35);
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:var(--sans); font-size:16px; line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--accent-ink); text-decoration:none}
+a:hover{text-decoration:underline}
+h1,h2,h3{font-family:var(--serif); font-weight:600; line-height:1.2; text-wrap:balance; margin:0}
+:focus-visible{outline:2px solid var(--accent-2); outline-offset:2px; border-radius:4px}
+
+/* ---- top meta banner (sticky) ---- */
+.banner{
+  position:sticky; top:0; z-index:40;
+  background:color-mix(in srgb, var(--card) 88%, transparent);
+  backdrop-filter:saturate(1.4) blur(10px);
+  border-bottom:1px solid var(--line);
+}
+.banner__row{
+  max-width:1180px; margin:0 auto; padding:14px 24px;
+  display:flex; align-items:center; gap:18px; flex-wrap:wrap;
+}
+.brand{display:flex; align-items:center; gap:11px; margin-right:auto; min-width:0}
+.brand__mark{
+  width:30px; height:30px; border-radius:8px; flex:none;
+  background:linear-gradient(150deg,var(--accent),var(--accent-2));
+  display:grid; place-items:center; color:#fff; font-family:var(--serif);
+  font-weight:700; font-size:17px; box-shadow:var(--shadow);
+}
+.brand__txt{min-width:0}
+.brand__title{font-family:var(--serif); font-size:17px; font-weight:600; line-height:1.15; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.brand__sub{font-size:12px; color:var(--ink-3); letter-spacing:.02em}
+.meta-pills{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.pill{
+  display:inline-flex; align-items:center; gap:7px;
+  font-size:12.5px; padding:5px 11px; border-radius:999px;
+  border:1px solid var(--line); background:var(--paper-2); color:var(--ink-2);
+  white-space:nowrap;
+}
+.pill b{color:var(--ink); font-weight:600}
+.pill--rubric{background:var(--accent-tint); border-color:transparent; color:var(--accent-ink)}
+.pill--rubric b{color:var(--accent-ink)}
+.pill__dot{width:7px; height:7px; border-radius:50%; background:var(--accent-2)}
+.theme-btn{
+  font:inherit; font-size:12.5px; cursor:pointer; padding:6px 10px; border-radius:999px;
+  border:1px solid var(--line); background:var(--paper-2); color:var(--ink-2);
+}
+.theme-btn:hover{border-color:var(--accent-2); color:var(--ink)}
+
+/* ---- layout ---- */
+.wrap{max-width:1180px; margin:0 auto; padding:28px 24px 120px; display:grid; grid-template-columns:250px 1fr; gap:40px; align-items:start}
+@media (max-width:880px){ .wrap{grid-template-columns:1fr; gap:8px} .toc{display:none} }
+
+/* ---- table of contents ---- */
+.toc{position:sticky; top:78px; align-self:start; max-height:calc(100vh - 100px); overflow:auto}
+.toc__head{font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); font-weight:600; padding:0 8px 10px}
+.toc__summary{display:flex; gap:6px; padding:0 8px 14px; flex-wrap:wrap}
+.count{display:inline-flex; align-items:center; gap:6px; font-size:12px; font-variant-numeric:tabular-nums; color:var(--ink-2); padding:3px 9px; border-radius:999px; background:var(--paper-2); border:1px solid var(--line-2)}
+.count i{width:8px; height:8px; border-radius:50%; font-style:normal}
+.count--pass i{background:var(--pass)} .count--borderline i{background:var(--borderline)} .count--fail i{background:var(--fail)}
+.toc__list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:1px}
+.toc__link{display:flex; align-items:center; gap:9px; padding:7px 8px; border-radius:8px; color:var(--ink-2); font-size:13.5px; line-height:1.3}
+.toc__link:hover{background:var(--paper-2); text-decoration:none; color:var(--ink)}
+.toc__link.is-active{background:var(--accent-tint); color:var(--accent-ink)}
+.toc__dot{width:9px; height:9px; border-radius:50%; flex:none}
+.toc__dot--pass{background:var(--pass)} .toc__dot--borderline{background:var(--borderline)} .toc__dot--fail{background:var(--fail)} .toc__dot--info{background:var(--info)}
+.toc__has-note{margin-left:auto; width:6px; height:6px; border-radius:50%; background:var(--accent-2); flex:none; opacity:0; transition:opacity .15s}
+.toc__link.has-note .toc__has-note{opacity:1}
+
+/* ---- intro ---- */
+.intro{margin-bottom:26px}
+.intro h1{font-size:clamp(26px,3.4vw,36px); letter-spacing:-.01em}
+.intro__desc{margin:12px 0 0; color:var(--ink-2); max-width:66ch}
+.intro__stats{display:flex; gap:22px; flex-wrap:wrap; margin-top:20px; padding-top:20px; border-top:1px solid var(--line-2)}
+.stat{display:flex; flex-direction:column; gap:2px}
+.stat__n{font-family:var(--serif); font-size:24px; font-weight:600; font-variant-numeric:tabular-nums}
+.stat__l{font-size:11.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3)}
+.stat--pass .stat__n{color:var(--pass)} .stat--borderline .stat__n{color:var(--borderline)} .stat--fail .stat__n{color:var(--fail)}
+
+/* ---- finding cards ---- */
+.sections{display:flex; flex-direction:column; gap:22px}
+.finding{
+  background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+  box-shadow:var(--shadow); overflow:hidden; scroll-margin-top:84px;
+}
+.finding__bar{height:4px; background:var(--info)}
+.finding[data-status="pass"] .finding__bar{background:var(--pass)}
+.finding[data-status="borderline"] .finding__bar{background:var(--borderline)}
+.finding[data-status="fail"] .finding__bar{background:var(--fail)}
+.finding__head{display:flex; align-items:flex-start; gap:14px; padding:18px 22px 6px; flex-wrap:wrap}
+.epid{
+  font-family:var(--mono); font-size:12px; color:var(--accent-ink);
+  background:var(--accent-tint); padding:4px 9px; border-radius:7px; white-space:nowrap;
+  letter-spacing:.01em;
+}
+.epid:hover{text-decoration:none; box-shadow:inset 0 0 0 1px var(--accent-2)}
+.finding__title{font-size:20px; flex:1 1 320px; min-width:0}
+.chip{
+  display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600;
+  letter-spacing:.04em; text-transform:uppercase; padding:5px 11px; border-radius:999px; white-space:nowrap;
+}
+.chip::before{content:""; width:8px; height:8px; border-radius:50%; background:currentColor}
+.chip--pass{color:var(--pass); background:var(--pass-tint)}
+.chip--borderline{color:var(--borderline); background:var(--borderline-tint)}
+.chip--fail{color:var(--fail); background:var(--fail-tint)}
+.chip--info{color:var(--info); background:var(--info-tint)}
+.finding__body{padding:8px 22px 4px; color:var(--ink-2)}
+.finding__body p{margin:10px 0}
+.finding__body ul,.finding__body ol{margin:10px 0; padding-left:22px}
+.finding__body code{font-family:var(--mono); font-size:.88em; background:var(--paper-2); padding:1px 5px; border-radius:4px}
+
+/* labeled sample / io panels */
+.panels{display:grid; grid-template-columns:1fr 1fr; gap:14px; padding:10px 22px 4px}
+@media (max-width:640px){ .panels{grid-template-columns:1fr} }
+.panel{border:1px solid var(--line-2); border-radius:10px; overflow:hidden; background:var(--paper)}
+.panel__label{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); font-weight:600; padding:8px 12px; border-bottom:1px solid var(--line-2); background:var(--paper-2)}
+.panel pre{margin:0; padding:12px; overflow-x:auto; font-family:var(--mono); font-size:12.5px; line-height:1.55; color:var(--ink); white-space:pre-wrap; word-break:break-word}
+
+/* rubric score table */
+.scores{padding:10px 22px 4px}
+.scores__wrap{overflow-x:auto; border:1px solid var(--line-2); border-radius:10px}
+table.scores__t{width:100%; border-collapse:collapse; font-size:13px}
+.scores__t th,.scores__t td{text-align:left; padding:8px 12px; border-bottom:1px solid var(--line-2)}
+.scores__t thead th{font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); background:var(--paper-2)}
+.scores__t tbody tr:last-child td{border-bottom:none}
+.scores__t td.rub-id{font-family:var(--mono); font-size:11.5px; color:var(--ink-3); white-space:nowrap}
+.scores__t td.rub-score{font-variant-numeric:tabular-nums; font-weight:600; white-space:nowrap}
+
+/* screenshots */
+.shots{display:flex; flex-direction:column; gap:12px; padding:12px 22px 4px}
+.shot{border:1px solid var(--line-2); border-radius:10px; overflow:hidden; background:var(--paper)}
+.shot img{display:block; max-width:100%; height:auto}
+.shot__cap{font-size:12px; color:var(--ink-3); padding:8px 12px; border-top:1px solid var(--line-2)}
+
+/* comment box */
+.comment{margin:14px 22px 20px; border-top:1px dashed var(--line); padding-top:16px}
+.comment__label{display:flex; align-items:center; gap:8px; font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); font-weight:600; margin-bottom:8px}
+.comment__saved{font-size:11px; color:var(--pass); text-transform:none; letter-spacing:0; opacity:0; transition:opacity .2s}
+.comment__saved.show{opacity:1}
+.comment textarea{
+  width:100%; min-height:64px; resize:vertical; font:inherit; font-size:14px; line-height:1.5;
+  color:var(--ink); background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:11px 13px;
+}
+.comment textarea::placeholder{color:var(--ink-3)}
+.comment textarea:focus{border-color:var(--accent-2); background:var(--card)}
+.comment__actions{display:flex; gap:8px; margin-top:9px; flex-wrap:wrap}
+.btn{
+  font:inherit; font-size:13px; cursor:pointer; padding:7px 13px; border-radius:8px;
+  border:1px solid var(--line); background:var(--paper-2); color:var(--ink-2); display:inline-flex; align-items:center; gap:7px;
+}
+.btn:hover{border-color:var(--accent-2); color:var(--ink)}
+.btn--primary{background:var(--accent); border-color:var(--accent); color:#fff}
+.btn--primary:hover{background:var(--accent-ink); border-color:var(--accent-ink); color:#fff}
+.btn svg{width:14px; height:14px}
+
+/* floating export */
+.export{position:fixed; right:24px; bottom:24px; z-index:50}
+.export__btn{
+  font:inherit; font-size:14px; font-weight:600; cursor:pointer; padding:13px 20px; border-radius:999px;
+  border:none; background:var(--accent); color:#fff; box-shadow:0 6px 24px rgba(54,68,168,.4);
+  display:inline-flex; align-items:center; gap:10px; transition:transform .12s, background .12s;
+}
+.export__btn:hover{background:var(--accent-ink); transform:translateY(-1px)}
+.export__btn:disabled{opacity:.45; cursor:not-allowed; transform:none; box-shadow:var(--shadow)}
+.export__count{background:rgba(255,255,255,.24); border-radius:999px; padding:1px 9px; font-variant-numeric:tabular-nums; font-size:13px}
+.export__btn svg{width:17px; height:17px}
+
+/* toast */
+.toast{
+  position:fixed; left:50%; bottom:26px; transform:translate(-50%,20px);
+  background:var(--ink); color:var(--paper); font-size:13.5px; padding:11px 18px; border-radius:10px;
+  box-shadow:var(--shadow); opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:60; max-width:88vw;
+}
+.toast.show{opacity:1; transform:translate(-50%,0)}
+
+footer{max-width:1180px; margin:0 auto; padding:20px 24px 60px; color:var(--ink-3); font-size:12.5px; border-top:1px solid var(--line-2)}
+footer code{font-family:var(--mono)}
+
+@media print{
+  .banner,.toc,.export,.theme-btn,.comment__actions{display:none !important}
+  .wrap{display:block; padding:0} .finding{box-shadow:none; break-inside:avoid}
+  body{background:#fff}
+}
+@media (prefers-reduced-motion: reduce){ *{transition:none !important} }
+</style>
+</head>
+<body>
+<header class="banner">
+  <div class="banner__row">
+    <div class="brand">
+      <div class="brand__mark">E</div>
+      <div class="brand__txt">
+        <div class="brand__title">folio-enrich · NER cross-validation F1/recall harness</div>
+        <div class="brand__sub">Evidence Pack · ENRICH-NER-EVAL</div>
+      </div>
+    </div>
+    <div class="meta-pills"><span class="pill pill--rubric"><span class="pill__dot"></span>Rubric <b>ner-flip-precondition (F1 up, no recall regression)</b></span>
+<span class="pill">App-side spend <b>/bin/bash (deterministic; full-mode estimate /bin/bash.03–/bin/bash.14 queued)</b></span>
+<span class="pill">2026-07-07</span>
+<span class="pill">Env <b>local venv (llm=None, deterministic)</b></span></div>
+    <button class="theme-btn" id="themeBtn" type="button" aria-label="Toggle color theme">Theme</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <nav class="toc" aria-label="Findings">
+    <div class="toc__head">Findings</div>
+    <div class="toc__summary"><span class="count count--pass"><i></i>1 pass</span>
+<span class="count count--borderline"><i></i>10 borderline</span></div>
+    <ul class="toc__list"><li><a class="toc__link" data-ep="EP-ENRICH-NER-EVAL-001" href="#ep-enrich-ner-eval-001-method-deterministic-free-ner-cross-validation-eval"><span class="toc__dot toc__dot--info"></span><span>Method — deterministic (free) NER cross-validation eval</span><span class="toc__has-note" title="has your comment"></span></a></li>
+<li><a class="toc__link" data-ep="EP-ENRICH-NER-EVAL-002" href="#ep-enrich-ner-eval-002-result-flag-off-vs-on-precision-recall-f1"><span class="toc__dot toc__dot--pass"></span><span>Result — flag OFF vs ON, precision / recall / F1</span><span class="toc__has-note" title="has your comment"></span></a></li>
+<li><a class="toc__link" data-ep="EP-ENRICH-NER-EVAL-003" href="#ep-enrich-ner-eval-003-borderline-contract-termination-provisions"><span class="toc__dot toc__dot--borderline"></span><span>Borderline — contract: &#x27;TERMINATION PROVISIONS&#x27;</span><span class="toc__has-note" title="has your comment"></span></a></li>
+<li><a class="toc__link" data-ep="EP-ENRICH-NER-EVAL-004" href="#ep-enrich-ner-eval-004-borderline-contract-event"><span class="toc__dot toc__dot--borderline"></span><span>Borderline — contract: &#x27;Event&#x27;</span><span class="toc__has-note" title="has your comment"></span></a></li>
+<li><a class="toc__link" data-ep="EP-ENRICH-NER-EVAL-005" href="#ep-enrich-ner-eval-005-borderline-lease-renewal-term"><span class="toc__dot toc__dot--borderline"></span><span>Borderline — lease: &#x27;Renewal Term&#x27;</span><span class="toc__has-note" title="has your comment"></span></a></li>
+<li><a class="toc__link" data-ep="EP-ENRICH-NER-EVAL-006" href="#ep-enrich-ner-eval-006-borderline-lease-event"><span class="toc__dot toc__dot--borderline"></span><span>Borderline — lease: &#x27;event&#x27;</span><span class="toc__has-note" title="has your comment"></span></a></li>
+<li><a class="toc__link" data-ep="EP-ENRICH-NER-EVAL-007" href="#ep-enrich-ner-eval-007-borderline-motion-court"><span class="toc__dot toc__dot--borderline"></span><span>Borderline — motion: &#x27;COURT&#x27;</span><span class="toc__has-note" title="has your comment"></span></a></li>
+<li><a class="toc__link" data-ep="EP-ENRICH-NER-EVAL-008" href="#ep-enrich-ner-eval-008-borderline-motion-commercial-supply-agreement-between"><span class="toc__dot toc__dot--borderline"></span><span>Borderline — motion: &#x27;commercial supply agreement between&#x27;</span><span class="toc__has-note" title="has your comment"></span></a></li>
+<li><a class="toc__link" data-ep="EP-ENRICH-NER-EVAL-009" href="#ep-enrich-ner-eval-009-borderline-nda-certain-confidential-and"><span class="toc__dot toc__dot--borderline"></span><span>Borderline — nda: &#x27;certain confidential and&#x27;</span><span class="toc__has-note" title="has your comment"></span></a></li>
+<li><a class="toc__link" data-ep="EP-ENRICH-NER-EVAL-010" href="#ep-enrich-ner-eval-010-borderline-nda-mutual-non-disclosure-agreement-n-nthis"><span class="toc__dot toc__dot--borderline"></span><span>Borderline — nda: &#x27;MUTUAL NON-DISCLOSURE AGREEMENT\n\nThis&#x27;</span><span class="toc__has-note" title="has your comment"></span></a></li>
+<li><a class="toc__link" data-ep="EP-ENRICH-NER-EVAL-011" href="#ep-enrich-ner-eval-011-borderline-opinion-court"><span class="toc__dot toc__dot--borderline"></span><span>Borderline — opinion: &#x27;COURT&#x27;</span><span class="toc__has-note" title="has your comment"></span></a></li>
+<li><a class="toc__link" data-ep="EP-ENRICH-NER-EVAL-012" href="#ep-enrich-ner-eval-012-borderline-opinion-central-district-of-illinois"><span class="toc__dot toc__dot--borderline"></span><span>Borderline — opinion: &#x27;Central District of Illinois&#x27;</span><span class="toc__has-note" title="has your comment"></span></a></li>
+<li><a class="toc__link" data-ep="EP-ENRICH-NER-EVAL-013" href="#ep-enrich-ner-eval-013-spend-estimate-authoritative-full-mode-run-queued"><span class="toc__dot toc__dot--info"></span><span>Spend estimate — authoritative full-mode run (queued)</span><span class="toc__has-note" title="has your comment"></span></a></li></ul>
+  </nav>
+
+  <main>
+    <section class="intro">
+      <h1>folio-enrich — NER cross-validation gold-set eval</h1>
+      <p class="intro__desc">Deterministic (free) precision/recall/F1 for ner_cross_validation_enabled, flag OFF vs ON, over an oracle-seeded gold set; borderline cases surfaced for human verification; full-mode spend estimate queued.</p>
+      <div class="intro__stats"><div class="stat"><span class="stat__n">13</span><span class="stat__l">Findings</span></div>
+<div class="stat stat--pass"><span class="stat__n">1</span><span class="stat__l">Pass</span></div>
+<div class="stat stat--borderline"><span class="stat__n">10</span><span class="stat__l">Borderline</span></div></div>
+    </section>
+
+    <div class="sections"><article class="finding" id="ep-enrich-ner-eval-001-method-deterministic-free-ner-cross-validation-eval" data-status="info">
+  <div class="finding__bar"></div>
+  <div class="finding__head">
+    <a class="epid" href="#ep-enrich-ner-eval-001-method-deterministic-free-ner-cross-validation-eval">EP-ENRICH-NER-EVAL-001</a>
+    <h2 class="finding__title">Method — deterministic (free) NER cross-validation eval</h2>
+    <span class="chip chip--info">Info</span>
+  </div>
+  <div class="finding__body"><p>NER cross-validation (<code>ner_cross_validation_enabled</code>, default <b>False</b>) is a <b>fully deterministic</b> post-LLM pass: it boosts/penalizes annotation confidence using spaCy NER labels vs. a per-ontology branch affinity map, rejecting spans that fall below 0.20. Running the pipeline with <code>llm=None</code> gives a reproducible, <b>/bin/bash</b> ruler→NER→reconcile→resolve path that still exercises the flag. This pack reports that free comparison; the authoritative full-pipeline (LLM-sourced) comparison is spend-gated and queued to the QA portal.</p><p>Gold: <b>52 scored</b> (oracle-verified) + <b>94 borderline</b> (awaiting human verification), across 6 demo docs. Precision/recall are span-restricted over the labelled spans (correct for a sampled gold).</p></div>
+  
+  
+  
+  <div class="comment">
+    <div class="comment__label">Your review · EP-ENRICH-NER-EVAL-001
+      <span class="comment__saved">saved</span></div>
+    <textarea data-ep="EP-ENRICH-NER-EVAL-001" placeholder="Comment on this finding — persists in your browser and flows into Export all feedback."></textarea>
+    <div class="comment__actions">
+      <button class="btn btn--primary js-copy-prompt" data-ep="EP-ENRICH-NER-EVAL-001" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy as prompt</button>
+      <button class="btn js-clear" data-ep="EP-ENRICH-NER-EVAL-001" type="button">Clear</button>
+    </div>
+  </div>
+</article>
+<article class="finding" id="ep-enrich-ner-eval-002-result-flag-off-vs-on-precision-recall-f1" data-status="pass">
+  <div class="finding__bar"></div>
+  <div class="finding__head">
+    <a class="epid" href="#ep-enrich-ner-eval-002-result-flag-off-vs-on-precision-recall-f1">EP-ENRICH-NER-EVAL-002</a>
+    <h2 class="finding__title">Result — flag OFF vs ON, precision / recall / F1</h2>
+    <span class="chip chip--pass">Pass</span>
+  </div>
+  <div class="finding__body"><table style='border-collapse:collapse'><tr><th style='text-align:left;padding:4px 12px'></th><th style='padding:4px 12px'>P</th><th style='padding:4px 12px'>R</th><th style='padding:4px 12px'>F1</th><th style='padding:4px 12px'>TP</th><th style='padding:4px 12px'>FP</th><th style='padding:4px 12px'>FN</th></tr><tr><td style='padding:4px 12px'><b>NER off</b></td><td style='text-align:center'>1.000</td><td style='text-align:center'>1.000</td><td style='text-align:center'>1.000</td><td style='text-align:center'>52</td><td style='text-align:center'>0</td><td style='text-align:center'>0</td></tr><tr><td style='padding:4px 12px'><b>NER on</b></td><td style='text-align:center'>1.000</td><td style='text-align:center'>1.000</td><td style='text-align:center'>1.000</td><td style='text-align:center'>52</td><td style='text-align:center'>0</td><td style='text-align:center'>0</td></tr><tr><td style='padding:4px 12px'>delta</td><td style='text-align:center'>+0.000</td><td style='text-align:center'>+0.000</td><td style='text-align:center'>+0.000</td><td colspan=3></td></tr></table><p><b>Recommendation: HOLD_no_f1_gain.</b> On the unambiguous deterministic set NER cross-validation is <b>recall-safe</b> — it was free to reject any of the 52 scored spans and rejected none — but shows <b>no F1 gain</b> there. Its discriminating signal lives in the borderline + LLM-sourced concepts, which the free tier does not cover. Default stays <b>False</b> pending the spend-gated run.</p></div>
+  
+  <div class="scores"><div class="scores__wrap"><table class="scores__t"><thead><tr><th>ID</th><th>Criterion</th><th>Score</th><th>Note</th></tr></thead><tbody><tr><td class="rub-id">RUB-NER-01</td><td>Recall non-regression (OFF→ON)</td><td class="rub-score">PASS</td><td>recall +0.000</td></tr><tr><td class="rub-id">RUB-NER-02</td><td>F1 improvement (flip precondition)</td><td class="rub-score">NOT MET</td><td>F1 +0.000 on free tier</td></tr></tbody></table></div></div>
+  
+  <div class="comment">
+    <div class="comment__label">Your review · EP-ENRICH-NER-EVAL-002
+      <span class="comment__saved">saved</span></div>
+    <textarea data-ep="EP-ENRICH-NER-EVAL-002" placeholder="Comment on this finding — persists in your browser and flows into Export all feedback."></textarea>
+    <div class="comment__actions">
+      <button class="btn btn--primary js-copy-prompt" data-ep="EP-ENRICH-NER-EVAL-002" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy as prompt</button>
+      <button class="btn js-clear" data-ep="EP-ENRICH-NER-EVAL-002" type="button">Clear</button>
+    </div>
+  </div>
+</article>
+<article class="finding" id="ep-enrich-ner-eval-003-borderline-contract-termination-provisions" data-status="borderline">
+  <div class="finding__bar"></div>
+  <div class="finding__head">
+    <a class="epid" href="#ep-enrich-ner-eval-003-borderline-contract-termination-provisions">EP-ENRICH-NER-EVAL-003</a>
+    <h2 class="finding__title">Borderline — contract: &#x27;TERMINATION PROVISIONS&#x27;</h2>
+    <span class="chip chip--borderline">Borderline</span>
+  </div>
+  <div class="finding__body"><p>Span <code>[18:40]</code> 'TERMINATION PROVISIONS' in <b>contract</b> was seeded to <b>Termination Clause</b> (<code>R355Le1zLujnXiHMmYqQNM</code>) but flagged <b>needs_review</b>: Ambiguous surface 'TERMINATION PROVISIONS': 0 competing concept(s); needs human verification.</p><p>Competing concepts:</p><ul><li><i>single alternative-label match (no competing concept); verify the mention truly refers to this concept</i></li></ul><p><i>To promote:</i> confirm the right IRI, set <code>verification:"human"</code>. It then counts toward the score and survives re-curation.</p></div>
+  <div class="panels"><div class="panel"><div class="panel__label">Input</div><pre>TERMINATION PROVISIONS</pre></div></div>
+  
+  
+  <div class="comment">
+    <div class="comment__label">Your review · EP-ENRICH-NER-EVAL-003
+      <span class="comment__saved">saved</span></div>
+    <textarea data-ep="EP-ENRICH-NER-EVAL-003" placeholder="Comment on this finding — persists in your browser and flows into Export all feedback."></textarea>
+    <div class="comment__actions">
+      <button class="btn btn--primary js-copy-prompt" data-ep="EP-ENRICH-NER-EVAL-003" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy as prompt</button>
+      <button class="btn js-clear" data-ep="EP-ENRICH-NER-EVAL-003" type="button">Clear</button>
+    </div>
+  </div>
+</article>
+<article class="finding" id="ep-enrich-ner-eval-004-borderline-contract-event" data-status="borderline">
+  <div class="finding__bar"></div>
+  <div class="finding__head">
+    <a class="epid" href="#ep-enrich-ner-eval-004-borderline-contract-event">EP-ENRICH-NER-EVAL-004</a>
+    <h2 class="finding__title">Borderline — contract: &#x27;Event&#x27;</h2>
+    <span class="chip chip--borderline">Borderline</span>
+  </div>
+  <div class="finding__body"><p>Span <code>[530:535]</code> 'Event' in <b>contract</b> was seeded to <b>Event</b> (<code>R73hoH1RXYjBTYiGfolpsAF</code>) but flagged <b>needs_review</b>: Ambiguous surface 'event': 2 competing concept(s); needs human verification.</p><p>Competing concepts:</p><ul><li><code>RBQXVSSPZE36fkwBeXb4YBe</code> — Bankruptcy Plan Vote</li></ul><p><i>To promote:</i> confirm the right IRI, set <code>verification:"human"</code>. It then counts toward the score and survives re-curation.</p></div>
+  <div class="panels"><div class="panel"><div class="panel__label">Input</div><pre>Event</pre></div></div>
+  
+  
+  <div class="comment">
+    <div class="comment__label">Your review · EP-ENRICH-NER-EVAL-004
+      <span class="comment__saved">saved</span></div>
+    <textarea data-ep="EP-ENRICH-NER-EVAL-004" placeholder="Comment on this finding — persists in your browser and flows into Export all feedback."></textarea>
+    <div class="comment__actions">
+      <button class="btn btn--primary js-copy-prompt" data-ep="EP-ENRICH-NER-EVAL-004" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy as prompt</button>
+      <button class="btn js-clear" data-ep="EP-ENRICH-NER-EVAL-004" type="button">Clear</button>
+    </div>
+  </div>
+</article>
+<article class="finding" id="ep-enrich-ner-eval-005-borderline-lease-renewal-term" data-status="borderline">
+  <div class="finding__bar"></div>
+  <div class="finding__head">
+    <a class="epid" href="#ep-enrich-ner-eval-005-borderline-lease-renewal-term">EP-ENRICH-NER-EVAL-005</a>
+    <h2 class="finding__title">Borderline — lease: &#x27;Renewal Term&#x27;</h2>
+    <span class="chip chip--borderline">Borderline</span>
+  </div>
+  <div class="finding__body"><p>Span <code>[1473:1485]</code> 'Renewal Term' in <b>lease</b> was seeded to <b>Renewal Term Clause</b> (<code>R6ZPNSiwrrkYAEVTRoOKiv</code>) but flagged <b>needs_review</b>: Ambiguous surface 'Renewal Term': 0 competing concept(s); needs human verification.</p><p>Competing concepts:</p><ul><li><i>single alternative-label match (no competing concept); verify the mention truly refers to this concept</i></li></ul><p><i>To promote:</i> confirm the right IRI, set <code>verification:"human"</code>. It then counts toward the score and survives re-curation.</p></div>
+  <div class="panels"><div class="panel"><div class="panel__label">Input</div><pre>Renewal Term</pre></div></div>
+  
+  
+  <div class="comment">
+    <div class="comment__label">Your review · EP-ENRICH-NER-EVAL-005
+      <span class="comment__saved">saved</span></div>
+    <textarea data-ep="EP-ENRICH-NER-EVAL-005" placeholder="Comment on this finding — persists in your browser and flows into Export all feedback."></textarea>
+    <div class="comment__actions">
+      <button class="btn btn--primary js-copy-prompt" data-ep="EP-ENRICH-NER-EVAL-005" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy as prompt</button>
+      <button class="btn js-clear" data-ep="EP-ENRICH-NER-EVAL-005" type="button">Clear</button>
+    </div>
+  </div>
+</article>
+<article class="finding" id="ep-enrich-ner-eval-006-borderline-lease-event" data-status="borderline">
+  <div class="finding__bar"></div>
+  <div class="finding__head">
+    <a class="epid" href="#ep-enrich-ner-eval-006-borderline-lease-event">EP-ENRICH-NER-EVAL-006</a>
+    <h2 class="finding__title">Borderline — lease: &#x27;event&#x27;</h2>
+    <span class="chip chip--borderline">Borderline</span>
+  </div>
+  <div class="finding__body"><p>Span <code>[1765:1770]</code> 'event' in <b>lease</b> was seeded to <b>Event</b> (<code>R73hoH1RXYjBTYiGfolpsAF</code>) but flagged <b>needs_review</b>: Ambiguous surface 'Event': 2 competing concept(s); needs human verification.</p><p>Competing concepts:</p><ul><li><code>RBQXVSSPZE36fkwBeXb4YBe</code> — Bankruptcy Plan Vote</li></ul><p><i>To promote:</i> confirm the right IRI, set <code>verification:"human"</code>. It then counts toward the score and survives re-curation.</p></div>
+  <div class="panels"><div class="panel"><div class="panel__label">Input</div><pre>event</pre></div></div>
+  
+  
+  <div class="comment">
+    <div class="comment__label">Your review · EP-ENRICH-NER-EVAL-006
+      <span class="comment__saved">saved</span></div>
+    <textarea data-ep="EP-ENRICH-NER-EVAL-006" placeholder="Comment on this finding — persists in your browser and flows into Export all feedback."></textarea>
+    <div class="comment__actions">
+      <button class="btn btn--primary js-copy-prompt" data-ep="EP-ENRICH-NER-EVAL-006" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy as prompt</button>
+      <button class="btn js-clear" data-ep="EP-ENRICH-NER-EVAL-006" type="button">Clear</button>
+    </div>
+  </div>
+</article>
+<article class="finding" id="ep-enrich-ner-eval-007-borderline-motion-court" data-status="borderline">
+  <div class="finding__bar"></div>
+  <div class="finding__head">
+    <a class="epid" href="#ep-enrich-ner-eval-007-borderline-motion-court">EP-ENRICH-NER-EVAL-007</a>
+    <h2 class="finding__title">Borderline — motion: &#x27;COURT&#x27;</h2>
+    <span class="chip chip--borderline">Borderline</span>
+  </div>
+  <div class="finding__body"><p>Span <code>[23:28]</code> 'COURT' in <b>motion</b> was seeded to <b>Courts</b> (<code>HYKR-C2YRNuu8MK0iAyQ-w</code>) but flagged <b>needs_review</b>: Ambiguous surface 'Court': 2 competing concept(s); needs human verification.</p><p>Competing concepts:</p><ul><li><code>ZGJ1mrkqSjyjrR2qxTgCdA</code> — Courts</li></ul><p><i>To promote:</i> confirm the right IRI, set <code>verification:"human"</code>. It then counts toward the score and survives re-curation.</p></div>
+  <div class="panels"><div class="panel"><div class="panel__label">Input</div><pre>COURT</pre></div></div>
+  
+  
+  <div class="comment">
+    <div class="comment__label">Your review · EP-ENRICH-NER-EVAL-007
+      <span class="comment__saved">saved</span></div>
+    <textarea data-ep="EP-ENRICH-NER-EVAL-007" placeholder="Comment on this finding — persists in your browser and flows into Export all feedback."></textarea>
+    <div class="comment__actions">
+      <button class="btn btn--primary js-copy-prompt" data-ep="EP-ENRICH-NER-EVAL-007" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy as prompt</button>
+      <button class="btn js-clear" data-ep="EP-ENRICH-NER-EVAL-007" type="button">Clear</button>
+    </div>
+  </div>
+</article>
+<article class="finding" id="ep-enrich-ner-eval-008-borderline-motion-commercial-supply-agreement-between" data-status="borderline">
+  <div class="finding__bar"></div>
+  <div class="finding__head">
+    <a class="epid" href="#ep-enrich-ner-eval-008-borderline-motion-commercial-supply-agreement-between">EP-ENRICH-NER-EVAL-008</a>
+    <h2 class="finding__title">Borderline — motion: &#x27;commercial supply agreement between&#x27;</h2>
+    <span class="chip chip--borderline">Borderline</span>
+  </div>
+  <div class="finding__body"><p>Span <code>[685:720]</code> 'commercial supply agreement between' in <b>motion</b> was seeded to <b>Supply Agreement</b> (<code>R7KnhbKXnWBeCBhayT7e9BY</code>) but flagged <b>needs_review</b>: Ambiguous surface 'commercial supply agreement between': 0 competing concept(s); needs human verification.</p><p>Competing concepts:</p><ul><li><i>single alternative-label match (no competing concept); verify the mention truly refers to this concept</i></li></ul><p><i>To promote:</i> confirm the right IRI, set <code>verification:"human"</code>. It then counts toward the score and survives re-curation.</p></div>
+  <div class="panels"><div class="panel"><div class="panel__label">Input</div><pre>commercial supply agreement between</pre></div></div>
+  
+  
+  <div class="comment">
+    <div class="comment__label">Your review · EP-ENRICH-NER-EVAL-008
+      <span class="comment__saved">saved</span></div>
+    <textarea data-ep="EP-ENRICH-NER-EVAL-008" placeholder="Comment on this finding — persists in your browser and flows into Export all feedback."></textarea>
+    <div class="comment__actions">
+      <button class="btn btn--primary js-copy-prompt" data-ep="EP-ENRICH-NER-EVAL-008" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy as prompt</button>
+      <button class="btn js-clear" data-ep="EP-ENRICH-NER-EVAL-008" type="button">Clear</button>
+    </div>
+  </div>
+</article>
+<article class="finding" id="ep-enrich-ner-eval-009-borderline-nda-certain-confidential-and" data-status="borderline">
+  <div class="finding__bar"></div>
+  <div class="finding__head">
+    <a class="epid" href="#ep-enrich-ner-eval-009-borderline-nda-certain-confidential-and">EP-ENRICH-NER-EVAL-009</a>
+    <h2 class="finding__title">Borderline — nda: &#x27;certain confidential and&#x27;</h2>
+    <span class="chip chip--borderline">Borderline</span>
+  </div>
+  <div class="finding__body"><p>Span <code>[937:961]</code> 'certain confidential and' in <b>nda</b> was seeded to <b>"Confidential Information" Definition</b> (<code>R7W2M7zhqDzZi7SIru4FW0n</code>) but flagged <b>needs_review</b>: Ambiguous surface 'certain confidential and': 0 competing concept(s); needs human verification.</p><p>Competing concepts:</p><ul><li><i>single alternative-label match (no competing concept); verify the mention truly refers to this concept</i></li></ul><p><i>To promote:</i> confirm the right IRI, set <code>verification:"human"</code>. It then counts toward the score and survives re-curation.</p></div>
+  <div class="panels"><div class="panel"><div class="panel__label">Input</div><pre>certain confidential and</pre></div></div>
+  
+  
+  <div class="comment">
+    <div class="comment__label">Your review · EP-ENRICH-NER-EVAL-009
+      <span class="comment__saved">saved</span></div>
+    <textarea data-ep="EP-ENRICH-NER-EVAL-009" placeholder="Comment on this finding — persists in your browser and flows into Export all feedback."></textarea>
+    <div class="comment__actions">
+      <button class="btn btn--primary js-copy-prompt" data-ep="EP-ENRICH-NER-EVAL-009" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy as prompt</button>
+      <button class="btn js-clear" data-ep="EP-ENRICH-NER-EVAL-009" type="button">Clear</button>
+    </div>
+  </div>
+</article>
+<article class="finding" id="ep-enrich-ner-eval-010-borderline-nda-mutual-non-disclosure-agreement-n-nthis" data-status="borderline">
+  <div class="finding__bar"></div>
+  <div class="finding__head">
+    <a class="epid" href="#ep-enrich-ner-eval-010-borderline-nda-mutual-non-disclosure-agreement-n-nthis">EP-ENRICH-NER-EVAL-010</a>
+    <h2 class="finding__title">Borderline — nda: &#x27;MUTUAL NON-DISCLOSURE AGREEMENT\n\nThis&#x27;</h2>
+    <span class="chip chip--borderline">Borderline</span>
+  </div>
+  <div class="finding__body"><p>Span <code>[0:37]</code> 'MUTUAL NON-DISCLOSURE AGREEMENT\n\nThis' in <b>nda</b> was seeded to <b>Nondisclosure Agreement</b> (<code>R8KyMVnE8XDipRREHWb4UYH</code>) but flagged <b>needs_review</b>: Ambiguous surface 'MUTUAL NON-DISCLOSURE AGREEMENT
+
+This': 0 competing concept(s); needs human verification.</p><p>Competing concepts:</p><ul><li><i>single alternative-label match (no competing concept); verify the mention truly refers to this concept</i></li></ul><p><i>To promote:</i> confirm the right IRI, set <code>verification:"human"</code>. It then counts toward the score and survives re-curation.</p></div>
+  <div class="panels"><div class="panel"><div class="panel__label">Input</div><pre>MUTUAL NON-DISCLOSURE AGREEMENT
+
+This</pre></div></div>
+  
+  
+  <div class="comment">
+    <div class="comment__label">Your review · EP-ENRICH-NER-EVAL-010
+      <span class="comment__saved">saved</span></div>
+    <textarea data-ep="EP-ENRICH-NER-EVAL-010" placeholder="Comment on this finding — persists in your browser and flows into Export all feedback."></textarea>
+    <div class="comment__actions">
+      <button class="btn btn--primary js-copy-prompt" data-ep="EP-ENRICH-NER-EVAL-010" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy as prompt</button>
+      <button class="btn js-clear" data-ep="EP-ENRICH-NER-EVAL-010" type="button">Clear</button>
+    </div>
+  </div>
+</article>
+<article class="finding" id="ep-enrich-ner-eval-011-borderline-opinion-court" data-status="borderline">
+  <div class="finding__bar"></div>
+  <div class="finding__head">
+    <a class="epid" href="#ep-enrich-ner-eval-011-borderline-opinion-court">EP-ENRICH-NER-EVAL-011</a>
+    <h2 class="finding__title">Borderline — opinion: &#x27;COURT&#x27;</h2>
+    <span class="chip chip--borderline">Borderline</span>
+  </div>
+  <div class="finding__body"><p>Span <code>[14:19]</code> 'COURT' in <b>opinion</b> was seeded to <b>Courts</b> (<code>HYKR-C2YRNuu8MK0iAyQ-w</code>) but flagged <b>needs_review</b>: Ambiguous surface 'court': 2 competing concept(s); needs human verification.</p><p>Competing concepts:</p><ul><li><code>ZGJ1mrkqSjyjrR2qxTgCdA</code> — Courts</li></ul><p><i>To promote:</i> confirm the right IRI, set <code>verification:"human"</code>. It then counts toward the score and survives re-curation.</p></div>
+  <div class="panels"><div class="panel"><div class="panel__label">Input</div><pre>COURT</pre></div></div>
+  
+  
+  <div class="comment">
+    <div class="comment__label">Your review · EP-ENRICH-NER-EVAL-011
+      <span class="comment__saved">saved</span></div>
+    <textarea data-ep="EP-ENRICH-NER-EVAL-011" placeholder="Comment on this finding — persists in your browser and flows into Export all feedback."></textarea>
+    <div class="comment__actions">
+      <button class="btn btn--primary js-copy-prompt" data-ep="EP-ENRICH-NER-EVAL-011" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy as prompt</button>
+      <button class="btn js-clear" data-ep="EP-ENRICH-NER-EVAL-011" type="button">Clear</button>
+    </div>
+  </div>
+</article>
+<article class="finding" id="ep-enrich-ner-eval-012-borderline-opinion-central-district-of-illinois" data-status="borderline">
+  <div class="finding__bar"></div>
+  <div class="finding__head">
+    <a class="epid" href="#ep-enrich-ner-eval-012-borderline-opinion-central-district-of-illinois">EP-ENRICH-NER-EVAL-012</a>
+    <h2 class="finding__title">Borderline — opinion: &#x27;Central District of Illinois&#x27;</h2>
+    <span class="chip chip--borderline">Borderline</span>
+  </div>
+  <div class="finding__body"><p>Span <code>[302:330]</code> 'Central District of Illinois' in <b>opinion</b> was seeded to <b>U.S. District Court - C.D. Illinois</b> (<code>R7DA28396220f5954725E5ac</code>) but flagged <b>needs_review</b>: Ambiguous surface 'Central District of Illinois': 1 competing concept(s); needs human verification.</p><p>Competing concepts:</p><ul><li><i>single alternative-label match (no competing concept); verify the mention truly refers to this concept</i></li></ul><p><i>To promote:</i> confirm the right IRI, set <code>verification:"human"</code>. It then counts toward the score and survives re-curation.</p></div>
+  <div class="panels"><div class="panel"><div class="panel__label">Input</div><pre>Central District of Illinois</pre></div></div>
+  
+  
+  <div class="comment">
+    <div class="comment__label">Your review · EP-ENRICH-NER-EVAL-012
+      <span class="comment__saved">saved</span></div>
+    <textarea data-ep="EP-ENRICH-NER-EVAL-012" placeholder="Comment on this finding — persists in your browser and flows into Export all feedback."></textarea>
+    <div class="comment__actions">
+      <button class="btn btn--primary js-copy-prompt" data-ep="EP-ENRICH-NER-EVAL-012" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy as prompt</button>
+      <button class="btn js-clear" data-ep="EP-ENRICH-NER-EVAL-012" type="button">Clear</button>
+    </div>
+  </div>
+</article>
+<article class="finding" id="ep-enrich-ner-eval-013-spend-estimate-authoritative-full-mode-run-queued" data-status="info">
+  <div class="finding__bar"></div>
+  <div class="finding__head">
+    <a class="epid" href="#ep-enrich-ner-eval-013-spend-estimate-authoritative-full-mode-run-queued">EP-ENRICH-NER-EVAL-013</a>
+    <h2 class="finding__title">Spend estimate — authoritative full-mode run (queued)</h2>
+    <span class="chip chip--info">Info</span>
+  </div>
+  <div class="finding__body"><p>The authoritative flip signal needs the LLM candidate stages ON. Because the NER flag only changes deterministic reconciliation, that is <b>one LLM pass per doc</b> + a free replay OFF/ON. Token-grounded estimate over the 6 gold docs (google/gemini-3-flash-preview): ~114K input + 43K output tokens → <b>/bin/bash.03–/bin/bash.14</b> (range = flash-class price assumption, the one figure to confirm). Queued to the QA portal (<code>briefs/qa/pending-questions.jsonl</code>) per TODAY policy — not run.</p></div>
+  
+  
+  
+  <div class="comment">
+    <div class="comment__label">Your review · EP-ENRICH-NER-EVAL-013
+      <span class="comment__saved">saved</span></div>
+    <textarea data-ep="EP-ENRICH-NER-EVAL-013" placeholder="Comment on this finding — persists in your browser and flows into Export all feedback."></textarea>
+    <div class="comment__actions">
+      <button class="btn btn--primary js-copy-prompt" data-ep="EP-ENRICH-NER-EVAL-013" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy as prompt</button>
+      <button class="btn js-clear" data-ep="EP-ENRICH-NER-EVAL-013" type="button">Clear</button>
+    </div>
+  </div>
+</article></div>
+
+    <footer>
+      <p>Self-contained evidence pack · generated by <code>tools/evidence-pack/generate.py</code>.
+      Comments persist in this browser (localStorage, key <code>ENRICH-NER-EVAL</code>).
+      Use <b>Copy as prompt</b> on any finding, or <b>Export all feedback</b> for a batch prompt + <code>feedback.json</code>.
+      Every finding is addressable by its <code>EP-…</code> ID; <code>manifest.json</code> maps IDs to content for agents.</p>
+    </footer>
+  </main>
+</div>
+
+<div class="export">
+  <button class="export__btn" id="exportBtn" type="button" disabled>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    Export all feedback <span class="export__count" id="exportCount">0</span>
+  </button>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script id="ep-data" type="application/json">{"pack_id": "ENRICH-NER-EVAL", "title": "folio-enrich — NER cross-validation gold-set eval", "rubric_version": "ner-flip-precondition (F1 up, no recall regression)", "sections": [{"id": "EP-ENRICH-NER-EVAL-001", "title": "Method — deterministic (free) NER cross-validation eval", "status": "info", "anchor": "ep-enrich-ner-eval-001-method-deterministic-free-ner-cross-validation-eval", "context": "NER cross-validation ( ner_cross_validation_enabled , default False ) is a fully deterministic post-LLM pass: it boosts/penalizes annotation confidence using spaCy NER labels vs. a per-ontology branch affinity map, rejecting spans that fall below 0.20. Running the pipeline with llm=None gives a reproducible, /bin/bash ruler→NER→reconcile→resolve path that still exercises the flag. This pack reports that free comparison; the authoritative full-pipeline (LLM-sourced) comparison is spend-gated and queued to the QA portal. Gold: 52 scored (oracle-verified) + 94 borderline (awaiting human verifica…"}, {"id": "EP-ENRICH-NER-EVAL-002", "title": "Result — flag OFF vs ON, precision / recall / F1", "status": "pass", "anchor": "ep-enrich-ner-eval-002-result-flag-off-vs-on-precision-recall-f1", "context": "P R F1 TP FP FN NER off 1.000 1.000 1.000 52 0 0 NER on 1.000 1.000 1.000 52 0 0 delta +0.000 +0.000 +0.000 Recommendation: HOLD_no_f1_gain. On the unambiguous deterministic set NER cross-validation is recall-safe — it was free to reject any of the 52 scored spans and rejected none — but shows no F1 gain there. Its discriminating signal lives in the borderline + LLM-sourced concepts, which the free tier does not cover. Default stays False pending the spend-gated run."}, {"id": "EP-ENRICH-NER-EVAL-003", "title": "Borderline — contract: 'TERMINATION PROVISIONS'", "status": "borderline", "anchor": "ep-enrich-ner-eval-003-borderline-contract-termination-provisions", "context": "Span [18:40] 'TERMINATION PROVISIONS' in contract was seeded to Termination Clause ( R355Le1zLujnXiHMmYqQNM ) but flagged needs_review : Ambiguous surface 'TERMINATION PROVISIONS': 0 competing concept(s); needs human verification. Competing concepts: single alternative-label match (no competing concept); verify the mention truly refers to this concept To promote: confirm the right IRI, set verification:\"human\" . It then counts toward the score and survives re-curation."}, {"id": "EP-ENRICH-NER-EVAL-004", "title": "Borderline — contract: 'Event'", "status": "borderline", "anchor": "ep-enrich-ner-eval-004-borderline-contract-event", "context": "Span [530:535] 'Event' in contract was seeded to Event ( R73hoH1RXYjBTYiGfolpsAF ) but flagged needs_review : Ambiguous surface 'event': 2 competing concept(s); needs human verification. Competing concepts: RBQXVSSPZE36fkwBeXb4YBe — Bankruptcy Plan Vote To promote: confirm the right IRI, set verification:\"human\" . It then counts toward the score and survives re-curation."}, {"id": "EP-ENRICH-NER-EVAL-005", "title": "Borderline — lease: 'Renewal Term'", "status": "borderline", "anchor": "ep-enrich-ner-eval-005-borderline-lease-renewal-term", "context": "Span [1473:1485] 'Renewal Term' in lease was seeded to Renewal Term Clause ( R6ZPNSiwrrkYAEVTRoOKiv ) but flagged needs_review : Ambiguous surface 'Renewal Term': 0 competing concept(s); needs human verification. Competing concepts: single alternative-label match (no competing concept); verify the mention truly refers to this concept To promote: confirm the right IRI, set verification:\"human\" . It then counts toward the score and survives re-curation."}, {"id": "EP-ENRICH-NER-EVAL-006", "title": "Borderline — lease: 'event'", "status": "borderline", "anchor": "ep-enrich-ner-eval-006-borderline-lease-event", "context": "Span [1765:1770] 'event' in lease was seeded to Event ( R73hoH1RXYjBTYiGfolpsAF ) but flagged needs_review : Ambiguous surface 'Event': 2 competing concept(s); needs human verification. Competing concepts: RBQXVSSPZE36fkwBeXb4YBe — Bankruptcy Plan Vote To promote: confirm the right IRI, set verification:\"human\" . It then counts toward the score and survives re-curation."}, {"id": "EP-ENRICH-NER-EVAL-007", "title": "Borderline — motion: 'COURT'", "status": "borderline", "anchor": "ep-enrich-ner-eval-007-borderline-motion-court", "context": "Span [23:28] 'COURT' in motion was seeded to Courts ( HYKR-C2YRNuu8MK0iAyQ-w ) but flagged needs_review : Ambiguous surface 'Court': 2 competing concept(s); needs human verification. Competing concepts: ZGJ1mrkqSjyjrR2qxTgCdA — Courts To promote: confirm the right IRI, set verification:\"human\" . It then counts toward the score and survives re-curation."}, {"id": "EP-ENRICH-NER-EVAL-008", "title": "Borderline — motion: 'commercial supply agreement between'", "status": "borderline", "anchor": "ep-enrich-ner-eval-008-borderline-motion-commercial-supply-agreement-between", "context": "Span [685:720] 'commercial supply agreement between' in motion was seeded to Supply Agreement ( R7KnhbKXnWBeCBhayT7e9BY ) but flagged needs_review : Ambiguous surface 'commercial supply agreement between': 0 competing concept(s); needs human verification. Competing concepts: single alternative-label match (no competing concept); verify the mention truly refers to this concept To promote: confirm the right IRI, set verification:\"human\" . It then counts toward the score and survives re-curation."}, {"id": "EP-ENRICH-NER-EVAL-009", "title": "Borderline — nda: 'certain confidential and'", "status": "borderline", "anchor": "ep-enrich-ner-eval-009-borderline-nda-certain-confidential-and", "context": "Span [937:961] 'certain confidential and' in nda was seeded to \"Confidential Information\" Definition ( R7W2M7zhqDzZi7SIru4FW0n ) but flagged needs_review : Ambiguous surface 'certain confidential and': 0 competing concept(s); needs human verification. Competing concepts: single alternative-label match (no competing concept); verify the mention truly refers to this concept To promote: confirm the right IRI, set verification:\"human\" . It then counts toward the score and survives re-curation."}, {"id": "EP-ENRICH-NER-EVAL-010", "title": "Borderline — nda: 'MUTUAL NON-DISCLOSURE AGREEMENT\\n\\nThis'", "status": "borderline", "anchor": "ep-enrich-ner-eval-010-borderline-nda-mutual-non-disclosure-agreement-n-nthis", "context": "Span [0:37] 'MUTUAL NON-DISCLOSURE AGREEMENT\\n\\nThis' in nda was seeded to Nondisclosure Agreement ( R8KyMVnE8XDipRREHWb4UYH ) but flagged needs_review : Ambiguous surface 'MUTUAL NON-DISCLOSURE AGREEMENT This': 0 competing concept(s); needs human verification. Competing concepts: single alternative-label match (no competing concept); verify the mention truly refers to this concept To promote: confirm the right IRI, set verification:\"human\" . It then counts toward the score and survives re-curation."}, {"id": "EP-ENRICH-NER-EVAL-011", "title": "Borderline — opinion: 'COURT'", "status": "borderline", "anchor": "ep-enrich-ner-eval-011-borderline-opinion-court", "context": "Span [14:19] 'COURT' in opinion was seeded to Courts ( HYKR-C2YRNuu8MK0iAyQ-w ) but flagged needs_review : Ambiguous surface 'court': 2 competing concept(s); needs human verification. Competing concepts: ZGJ1mrkqSjyjrR2qxTgCdA — Courts To promote: confirm the right IRI, set verification:\"human\" . It then counts toward the score and survives re-curation."}, {"id": "EP-ENRICH-NER-EVAL-012", "title": "Borderline — opinion: 'Central District of Illinois'", "status": "borderline", "anchor": "ep-enrich-ner-eval-012-borderline-opinion-central-district-of-illinois", "context": "Span [302:330] 'Central District of Illinois' in opinion was seeded to U.S. District Court - C.D. Illinois ( R7DA28396220f5954725E5ac ) but flagged needs_review : Ambiguous surface 'Central District of Illinois': 1 competing concept(s); needs human verification. Competing concepts: single alternative-label match (no competing concept); verify the mention truly refers to this concept To promote: confirm the right IRI, set verification:\"human\" . It then counts toward the score and survives re-curation."}, {"id": "EP-ENRICH-NER-EVAL-013", "title": "Spend estimate — authoritative full-mode run (queued)", "status": "info", "anchor": "ep-enrich-ner-eval-013-spend-estimate-authoritative-full-mode-run-queued", "context": "The authoritative flip signal needs the LLM candidate stages ON. Because the NER flag only changes deterministic reconciliation, that is one LLM pass per doc + a free replay OFF/ON. Token-grounded estimate over the 6 gold docs (google/gemini-3-flash-preview): ~114K input + 43K output tokens → /bin/bash.03–/bin/bash.14 (range = flash-class price assumption, the one figure to confirm). Queued to the QA portal ( briefs/qa/pending-questions.jsonl ) per TODAY policy — not run."}]}</script>
+<script>
+(function(){
+  "use strict";
+  var DATA = JSON.parse(document.getElementById('ep-data').textContent);
+  var PACK = DATA.pack_id;
+  var LS_PREFIX = 'epfeedback:' + PACK + ':';
+  var SECTIONS = {}; DATA.sections.forEach(function(s){ SECTIONS[s.id] = s; });
+
+  /* ---------- theme toggle ---------- */
+  var root = document.documentElement;
+  try{ var saved = localStorage.getItem('ep-theme'); if(saved) root.setAttribute('data-theme', saved); }catch(e){}
+  document.getElementById('themeBtn').addEventListener('click', function(){
+    var cur = root.getAttribute('data-theme');
+    if(!cur){ cur = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
+    var next = cur === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try{ localStorage.setItem('ep-theme', next); }catch(e){}
+  });
+
+  /* ---------- toast ---------- */
+  var toastEl = document.getElementById('toast'), toastT;
+  function toast(msg){
+    toastEl.textContent = msg; toastEl.classList.add('show');
+    clearTimeout(toastT); toastT = setTimeout(function(){ toastEl.classList.remove('show'); }, 2200);
+  }
+
+  /* ---------- clipboard (with file:// fallback) ---------- */
+  function copyText(text){
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      return navigator.clipboard.writeText(text).catch(function(){ return legacyCopy(text); });
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text){
+    var ta = document.createElement('textarea'); ta.value = text;
+    ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta);
+    ta.select(); try{ document.execCommand('copy'); }catch(e){} document.body.removeChild(ta);
+  }
+
+  /* ---------- comment persistence ---------- */
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('textarea[data-ep]'));
+  function keyFor(id){ return LS_PREFIX + id; }
+  function loadAll(){
+    boxes.forEach(function(b){
+      try{ var v = localStorage.getItem(keyFor(b.getAttribute('data-ep'))); if(v){ b.value = v; } }catch(e){}
+    });
+  }
+  function countFilled(){ return boxes.filter(function(b){ return b.value.trim().length; }).length; }
+  function refreshCount(){
+    var n = countFilled();
+    var c = document.getElementById('exportCount'); c.textContent = n;
+    document.getElementById('exportBtn').disabled = n === 0;
+    boxes.forEach(function(b){
+      var link = document.querySelector('.toc__link[data-ep="'+b.getAttribute('data-ep')+'"]');
+      if(link){ link.classList.toggle('has-note', b.value.trim().length > 0); }
+    });
+  }
+  boxes.forEach(function(b){
+    var savedEl = b.closest('.comment').querySelector('.comment__saved');
+    var t;
+    b.addEventListener('input', function(){
+      var id = b.getAttribute('data-ep');
+      try{
+        if(b.value.trim().length){ localStorage.setItem(keyFor(id), b.value); }
+        else{ localStorage.removeItem(keyFor(id)); }
+      }catch(e){}
+      if(savedEl){ savedEl.classList.add('show'); clearTimeout(t); t = setTimeout(function(){ savedEl.classList.remove('show'); }, 1200); }
+      refreshCount();
+    });
+  });
+
+  /* ---------- per-section "copy as prompt" ---------- */
+  function promptForSection(id, comment){
+    var s = SECTIONS[id]; if(!s) return '';
+    var L = [];
+    L.push('# Feedback on ' + id);
+    L.push('');
+    L.push('**Pack:** ' + DATA.title + ' (`' + PACK + '`)');
+    if(DATA.rubric_version){ L.push('**Rubric:** ' + DATA.rubric_version); }
+    L.push('**Finding:** ' + s.title);
+    L.push('**Status:** ' + s.status.toUpperCase());
+    if(s.context){ L.push(''); L.push('**Context:**'); L.push('> ' + s.context.replace(/\n/g,'\n> ')); }
+    L.push('');
+    L.push('**My comment:**');
+    L.push(comment && comment.trim() ? comment.trim() : '(no comment written yet)');
+    L.push('');
+    L.push('---');
+    L.push('_Resolve this against manifest.json entry `' + id + '`._');
+    return L.join('\n');
+  }
+  document.querySelectorAll('.js-copy-prompt').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var id = btn.getAttribute('data-ep');
+      var box = document.querySelector('textarea[data-ep="'+id+'"]');
+      copyText(promptForSection(id, box ? box.value : '')).then(function(){ toast('Copied prompt for ' + id); });
+    });
+  });
+  document.querySelectorAll('.js-clear').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var id = btn.getAttribute('data-ep');
+      var box = document.querySelector('textarea[data-ep="'+id+'"]');
+      if(box){ box.value=''; try{ localStorage.removeItem(keyFor(id)); }catch(e){} refreshCount(); toast('Cleared ' + id); }
+    });
+  });
+
+  /* ---------- export all feedback ---------- */
+  function collect(){
+    return boxes.map(function(b){ return {id:b.getAttribute('data-ep'), comment:b.value.trim()}; })
+                .filter(function(c){ return c.comment.length; });
+  }
+  function exportMarkdown(items){
+    var L = [];
+    L.push('# Batch feedback — ' + DATA.title);
+    L.push('');
+    L.push('Pack: `' + PACK + '`' + (DATA.rubric_version ? ' · Rubric: ' + DATA.rubric_version : ''));
+    L.push('Findings with comments: ' + items.length + ' of ' + DATA.sections.length);
+    L.push('');
+    L.push('Implement each item below. Each comment is paired with its stable EP-ID; resolve the ID against `manifest.json`.');
+    L.push('');
+    items.forEach(function(it){
+      var s = SECTIONS[it.id] || {};
+      L.push('## ' + it.id + ' — ' + (s.title||'') + '  [' + (s.status||'').toUpperCase() + ']');
+      if(s.context){ L.push(''); L.push('> ' + s.context.replace(/\n/g,'\n> ')); }
+      L.push('');
+      L.push('**Damien:** ' + it.comment);
+      L.push('');
+    });
+    return L.join('\n');
+  }
+  function download(name, text, type){
+    var blob = new Blob([text], {type:type||'text/plain'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a'); a.href=url; a.download=name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1500);
+  }
+  document.getElementById('exportBtn').addEventListener('click', function(){
+    var items = collect(); if(!items.length) return;
+    var md = exportMarkdown(items);
+    var json = {
+      pack_id: PACK, title: DATA.title, rubric_version: DATA.rubric_version || null,
+      exported_count: items.length, total_findings: DATA.sections.length,
+      comments: items.map(function(it){
+        var s = SECTIONS[it.id] || {};
+        return {id:it.id, title:s.title||'', status:s.status||'', comment:it.comment};
+      })
+    };
+    copyText(md).then(function(){
+      download('feedback.json', JSON.stringify(json, null, 2), 'application/json');
+      toast('Copied batch prompt (' + items.length + ') + downloaded feedback.json');
+    });
+  });
+
+  /* ---------- scrollspy for TOC ---------- */
+  var links = {}; document.querySelectorAll('.toc__link').forEach(function(l){ links[l.getAttribute('href')] = l; });
+  if('IntersectionObserver' in window){
+    var obs = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        var l = links['#'+en.target.id]; if(!l) return;
+        if(en.isIntersecting){
+          Object.keys(links).forEach(function(k){ links[k].classList.remove('is-active'); });
+          l.classList.add('is-active');
+        }
+      });
+    }, {rootMargin:'-80px 0px -70% 0px'});
+    document.querySelectorAll('.finding').forEach(function(f){ obs.observe(f); });
+  }
+
+  loadAll(); refreshCount();
+})();
+</script>
+</body>
+</html>

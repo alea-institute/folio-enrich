@@ -1,0 +1,46 @@
+name: NER eval harness
+
+# Deterministic, $0 gold-set eval for the NER cross-validation feature.
+# Runs the fast unit tier on every push/PR, and the pipeline-driving eval tier
+# (ruler→NER→reconcile→resolve, llm=None — no paid API) on demand / weekly.
+
+on:
+  push:
+    paths:
+      - "backend/eval/**"
+      - "backend/tests/test_ner_eval_harness.py"
+      - ".github/workflows/eval.yml"
+  pull_request:
+    paths:
+      - "backend/eval/**"
+      - "backend/tests/test_ner_eval_harness.py"
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"  # Mondays 06:00 UTC
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          pip install -e ".[dev]"
+          python -m spacy download en_core_web_sm
+      - name: Fast unit tier (metrics + gold well-formedness)
+        working-directory: backend
+        run: python -m pytest tests/test_ner_eval_harness.py -v
+      - name: Eval tier (deterministic pipeline, flag OFF vs ON)
+        working-directory: backend
+        run: python -m pytest tests/test_ner_eval_harness.py -m eval -v
+      - name: Report (flag OFF vs ON, precision/recall/F1)
+        working-directory: backend
+        run: python -m eval.runner --out ner-eval-report.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ner-eval-report
+          path: backend/ner-eval-report.json

@@ -54,9 +54,10 @@ packages = ["app"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 timeout = 30
-addopts = "-m 'not slow and not demo_regen' --strict-markers"
+addopts = "-m 'not slow and not demo_regen and not eval' --strict-markers"
 markers = [
     "slow: tests taking > 0.5s (pipeline, embedding, property loading)",
     "integration: tests using full ASGI stack",
     "demo_regen: demo freshness checks and auto-regeneration (run with -m demo_regen)",
+    "eval: NER cross-validation gold-set eval; drives the pipeline (run with -m eval)",
 ]

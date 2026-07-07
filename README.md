@@ -643,6 +643,30 @@ cd backend
 | **Feedback** | Submission, insights aggregation, dismiss/restore |
 | **Infrastructure** | Security middleware, SSE streaming, job retention, rate limiting |
 
+### NER cross-validation eval harness (`backend/eval/`)
+
+A precision/recall/F1 gold-set harness that answers the flip precondition for the
+`ner_cross_validation_enabled` flag — *does turning it on improve F1 without
+regressing recall?* NER cross-validation is a **deterministic** post-LLM confidence
+pass, so the flag OFF-vs-ON comparison runs on the rule-based pipeline (`llm=None`)
+with **no paid API calls** and is fully reproducible.
+
+```bash
+cd backend
+.venv/bin/python -m eval.runner            # flag OFF vs ON, precision/recall/F1 + flip recommendation
+.venv/bin/python -m eval.curate            # seed/refresh the gold set from demos (FOLIO-label oracle)
+.venv/bin/python -m eval.estimate_spend --queue   # queue the full-mode (LLM) cost estimate to QA
+.venv/bin/python -m pytest tests/test_ner_eval_harness.py -m eval -v   # CI-invokable eval tier
+```
+
+- **Gold set:** `backend/eval/gold/folio_ner_gold.jsonl` (+ `gold/README.md` for the
+  format and how to extend it). Human-verifiable span→concept labels; `deterministic`
+  and `human` entries are scored, `needs_review` borderline cases await verification.
+- **CI:** `.github/workflows/eval.yml` runs the fast unit tier on every push and the
+  deterministic eval tier on demand / weekly.
+- **Design:** `docs/plans/2026-07-07-001-ner-eval-harness-plan.md`; latest run + borderline
+  cases in the evidence pack `docs/evidence/ner-eval/pack.html` (indexed in `EVIDENCE.md`).
+
 ---
 
 ## Project Structure
