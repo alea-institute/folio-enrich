@@ -188,3 +188,84 @@ class TestExtractEndpoint:
         text = r.json()["text"]
         assert "Master Agreement" in text
         assert "**" not in text and "#" not in text
+
+
+class TestWordSdtContentControls:
+    """Regression for B2: body text wrapped in <w:sdt> content controls.
+
+    python-docx ``document.paragraphs`` does not descend into
+    ``w:sdt``/``w:sdtContent``, so such documents used to extract 0 chars and
+    the pipeline mis-detected the raw ZIP bytes as plain text. Damien's Trial
+    Advocacy chapters wrap their body in content controls.
+    """
+
+    def _make_sdt_docx(self, text: str) -> str:
+        import io
+
+        from docx import Document
+        from docx.oxml import OxmlElement
+
+        d = Document()
+        para = d.add_paragraph(text)
+        body = d.element.body
+        p_elem = para._p
+        sdt = OxmlElement("w:sdt")
+        sdt_content = OxmlElement("w:sdtContent")
+        body.replace(p_elem, sdt)
+        sdt.append(sdt_content)
+        sdt_content.append(p_elem)  # paragraph now lives inside the content control
+        buf = io.BytesIO()
+        d.save(buf)
+        return base64.b64encode(buf.getvalue()).decode()
+
+    def test_word_ingestor_reads_sdt_wrapped_text(self):
+        from app.models.document import DocumentInput
+        from app.services.ingestion.word_ingestor import WordIngestor
+
+        b64 = self._make_sdt_docx("Impeach the witness with the prior inconsistent statement.")
+        text = WordIngestor().ingest(DocumentInput(content=b64))
+        assert "Impeach the witness with the prior inconsistent statement." in text
+
+    async def test_extract_route_reads_sdt_wrapped_text(self, client):
+        b64 = self._make_sdt_docx("Object to leading questions on direct examination.")
+        r = await client.post(
+            "/enrich/extract", json={"content": b64, "filename": "chapter.docx"}
+        )
+        assert r.status_code == 200
+        assert "Object to leading questions on direct examination." in r.json()["text"]
+
+
+class TestWordNestedParagraphs:
+    """Regression: text boxes / nested w:p must not double-count (B2 review)."""
+
+    def _make_nested_p_docx(self, outer: str, nested: str) -> str:
+        import io
+
+        from docx import Document
+        from docx.oxml import OxmlElement
+        from docx.oxml.ns import qn
+
+        d = Document()
+        para = d.add_paragraph(outer)
+        # Inject a nested <w:p> (as a text box would) inside the outer paragraph.
+        nested_p = OxmlElement("w:p")
+        r = OxmlElement("w:r")
+        t = OxmlElement("w:t")
+        t.text = nested
+        r.append(t)
+        nested_p.append(r)
+        para._p.append(nested_p)
+        buf = io.BytesIO()
+        d.save(buf)
+        return base64.b64encode(buf.getvalue()).decode()
+
+    def test_nested_paragraph_text_appears_exactly_once(self):
+        from app.models.document import DocumentInput
+        from app.services.ingestion.word_ingestor import WordIngestor
+
+        b64 = self._make_nested_p_docx("OUTER_TEXT", "TEXTBOX_TEXT")
+        text = WordIngestor().ingest(DocumentInput(content=b64))
+        assert text.count("TEXTBOX_TEXT") == 1
+        assert text.count("OUTER_TEXT") == 1
+        # And the two are not glued together into one token.
+        assert "OUTER_TEXTTEXTBOX_TEXT" not in text
