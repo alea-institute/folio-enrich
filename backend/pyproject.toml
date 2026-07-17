@@ -27,8 +27,9 @@ dependencies = [
     "citeurl>=12.0",
     "psutil>=6.0.0",
     # Shared FOLIO source-text->concept matching engine (migration SCHEDULE.md row 2).
-    # Local editable sibling repo, pinned via [tool.uv.sources] below. MIT, Damien's own.
-    "folio-resolve",
+    # Resolved from PyPI (MIT, Damien's own). For local library dev:
+    # uv pip install -e ../../folio-resolve
+    "folio-resolve>=0.1.0",
 ]
 
 [project.optional-dependencies]
@@ -49,13 +50,6 @@ dev = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-[tool.uv.sources]
-# folio-resolve is developed as a sibling repo (../../folio-resolve). Editable pin so
-# folio-enrich consumes the library's calibrated scorer / gates / blocklist / reconciler
-# directly, closing the copy-paste divergence at its source. Retire when the library is
-# published to an index (then pin a version).
-folio-resolve = { path = "../../folio-resolve", editable = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]

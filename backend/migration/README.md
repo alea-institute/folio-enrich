@@ -2,7 +2,7 @@
 
 Golden-baseline discipline for retiring folio-enrich's forked deterministic matcher
 (`app/services/folio/search.py`, "ported from folio-mapper") in favor of the pinned
-[`folio-resolve`](../../../folio-resolve) library. See
+[`folio-resolve`](https://github.com/damienriehl/folio-resolve) library. See
 `folio-resolve/docs/migration/SCHEDULE.md` row 2.
 
 ## What this is
