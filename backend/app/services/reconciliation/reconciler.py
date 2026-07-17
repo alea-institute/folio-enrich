@@ -1,6 +1,6 @@
-"""Candidate reconciliation — thin adapter over the pinned ``folio_matching.Reconciler``.
+"""Candidate reconciliation — thin adapter over the pinned ``folio_resolve.Reconciler``.
 
-Migration SCHEDULE.md row 2: the reconciler logic was *lifted into* folio-matching from this
+Migration SCHEDULE.md row 2: the reconciler logic was *lifted into* folio-resolve from this
 very module, so folio-enrich now consumes it back instead of maintaining a fork. This adapter
 keeps folio-enrich's public surface intact — ``Reconciler(embedding_service=...)`` with
 ``reconcile`` / ``reconcile_with_embedding_triage`` returning ``ReconciliationResult`` objects
@@ -20,9 +20,9 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from folio_matching import ConceptMatch as _LibConceptMatch
-from folio_matching import Reconciler as _LibReconciler
-from folio_matching.reconciler import (  # re-exported for back-compat with existing importers
+from folio_resolve import ConceptMatch as _LibConceptMatch
+from folio_resolve import Reconciler as _LibReconciler
+from folio_resolve.reconciler import (  # re-exported for back-compat with existing importers
     EMBEDDING_AUTO_RESOLVE_THRESHOLD,
     RULER_ONLY_MIN_CONFIDENCE,
     _definition_overlap_score,
@@ -63,7 +63,7 @@ def _to_lib(concept: ConceptMatch) -> _LibConceptMatch:
 
 
 class Reconciler:
-    """Merge EntityRuler and LLM concept identification results (delegates to folio-matching)."""
+    """Merge EntityRuler and LLM concept identification results (delegates to folio-resolve)."""
 
     def __init__(self, embedding_service=None) -> None:
         self._embedding_service = embedding_service

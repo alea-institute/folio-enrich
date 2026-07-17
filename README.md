@@ -141,9 +141,9 @@ In the UI's live progress journey these 16 backend stages roll up into **8 user-
 
 **Post-pipeline** (UI station: Finalize): Area of Law assessment classifies legal domains. Document Type quality cross-check validates findings against pipeline output.
 
-### Shared matching library (`folio-matching`)
+### Shared matching library (`folio-resolve`)
 
-The deterministic FOLIO matching core is consumed from the pinned **[`folio-matching`](../folio-matching)** library rather than a local fork (see `folio-matching/docs/migration/SCHEDULE.md`). folio-enrich's former `search.py` scorer (word-order-invariant relevance, stopwords, legal expansions — "ported from folio-mapper") and its reconciler now delegate to the library's single source of truth. **Concept resolution** (`ResolutionStage`) uses the library's `LabelResolver` (decompose-first for compound headings, calibrated whole-string bar, branch-carrying results) as the primary policy, with the 7-strategy `multi_strategy_search` retained as a recall fallback, and the library's `PlaceNameGate` + alias blocklist applied at the boundary so generic terms no longer mis-map to place/governmental-body labels. A committed golden-baseline harness and classified-delta comparator guard the swap — see `backend/migration/README.md`.
+The deterministic FOLIO matching core is consumed from the pinned **[`folio-resolve`](../folio-resolve)** library rather than a local fork (see `folio-resolve/docs/migration/SCHEDULE.md`). folio-enrich's former `search.py` scorer (word-order-invariant relevance, stopwords, legal expansions — "ported from folio-mapper") and its reconciler now delegate to the library's single source of truth. **Concept resolution** (`ResolutionStage`) uses the library's `LabelResolver` (decompose-first for compound headings, calibrated whole-string bar, branch-carrying results) as the primary policy, with the 7-strategy `multi_strategy_search` retained as a recall fallback, and the library's `PlaceNameGate` + alias blocklist applied at the boundary so generic terms no longer mis-map to place/governmental-body labels. A committed golden-baseline harness and classified-delta comparator guard the swap — see `backend/migration/README.md`.
 
 ---
 

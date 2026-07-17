@@ -193,7 +193,7 @@ class ConceptResolver:
     def _library_resolve_all(
         self, concept_text: str, branch: str
     ) -> list[tuple[FOLIOConcept, float]]:
-        """Primary resolution via the pinned ``folio_matching.LabelResolver``.
+        """Primary resolution via the pinned ``folio_resolve.LabelResolver``.
 
         Decompose-first (a compound heading yields one concept per sibling), a calibrated
         whole-string bar on the real 0-100 scale, and branch-carrying results — then the
@@ -202,7 +202,7 @@ class ConceptResolver:
         as the recall fallback when nothing here clears the bar. Returns ``[(FOLIOConcept,
         score_0_1)]``, best first, deduped by IRI.
         """
-        from folio_matching import LabelResolver
+        from folio_resolve import LabelResolver
 
         from app.services.folio.search import candidate_vetoed
 

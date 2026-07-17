@@ -26,7 +26,7 @@ Alliance**; consumed via `folio-python`. Licensed **CC-BY 4.0**.
 | pyarrow | Apache-2.0 | permissive |
 | striprtf, beautifulsoup4, python-docx | MIT/BSD | permissive |
 | **olefile** | BSD | **Outlook `.msg` parsing** (replaced extract-msg — see below) |
-| **folio-matching** | MIT | Shared FOLIO source-text→concept matching engine (calibrated scorer, span decomposition, place/agency gates, alias blocklist, reconciler). Damien's own library; pinned as an editable sibling repo via `backend/pyproject.toml [tool.uv.sources]`. Consumed to retire folio-enrich's forked `search.py` scorer and reconciler (migration `SCHEDULE.md` row 2). |
+| **folio-resolve** | MIT | Shared FOLIO source-text→concept matching engine (calibrated scorer, span decomposition, place/agency gates, alias blocklist, reconciler). Damien's own library; pinned as an editable sibling repo via `backend/pyproject.toml [tool.uv.sources]`. Consumed to retire folio-enrich's forked `search.py` scorer and reconciler (migration `SCHEDULE.md` row 2). |
 
 ## Removed for license hygiene
 

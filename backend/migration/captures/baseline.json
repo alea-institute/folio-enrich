@@ -3,7 +3,7 @@
   "corpus_version": 1,
   "environment": {
     "folio_python_version": "0.3.6",
-    "folio_matching_present": false,
+    "folio_resolve_present": false,
     "folio_concept_count": 18326
   },
   "label_resolution": [

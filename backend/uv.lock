@@ -527,8 +527,8 @@ dependencies = [
     { name = "eyecite" },
     { name = "faiss-cpu" },
     { name = "fastapi" },
-    { name = "folio-matching" },
     { name = "folio-python", extra = ["search"] },
+    { name = "folio-resolve" },
     { name = "httpx" },
     { name = "markdown-it-py" },
     { name = "nupunkt" },
@@ -566,8 +566,8 @@ requires-dist = [
     { name = "eyecite", specifier = ">=2.7" },
     { name = "faiss-cpu", specifier = ">=1.8" },
     { name = "fastapi", specifier = ">=0.115.0" },
-    { name = "folio-matching", editable = "../../folio-matching" },
     { name = "folio-python", extras = ["search"], specifier = ">=0.1.5" },
+    { name = "folio-resolve", editable = "../../folio-resolve" },
     { name = "httpx", specifier = ">=0.28.0" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.28.0" },
     { name = "markdown-it-py", specifier = ">=3.0.0" },
@@ -594,29 +594,6 @@ requires-dist = [
 provides-extras = ["embeddings", "dev"]
 
 [[package]]
-name = "folio-matching"
-version = "0.1.0"
-source = { editable = "../../folio-matching" }
-dependencies = [
-    { name = "pydantic" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "faiss-cpu", marker = "extra == 'embedding'", specifier = ">=1.8,<2.0" },
-    { name = "folio-python", extras = ["search"], marker = "extra == 'folio'", specifier = ">=0.1.5" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
-    { name = "numpy", marker = "extra == 'embedding'", specifier = ">=1.26,<3.0" },
-    { name = "pydantic", specifier = ">=2.7,<3.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
-    { name = "sentence-transformers", marker = "extra == 'embedding'", specifier = ">=3.0,<4.0" },
-    { name = "spacy", marker = "extra == 'spacy'", specifier = ">=3.7,<4.0" },
-]
-provides-extras = ["folio", "embedding", "spacy", "dev"]
-
-[[package]]
 name = "folio-python"
 version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -636,6 +613,29 @@ search = [
     { name = "marisa-trie" },
     { name = "rapidfuzz" },
 ]
+
+[[package]]
+name = "folio-resolve"
+version = "0.1.0"
+source = { editable = "../../folio-resolve" }
+dependencies = [
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "faiss-cpu", marker = "extra == 'embedding'", specifier = ">=1.8,<2.0" },
+    { name = "folio-python", extras = ["search"], marker = "extra == 'folio'", specifier = ">=0.1.5" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
+    { name = "numpy", marker = "extra == 'embedding'", specifier = ">=1.26,<3.0" },
+    { name = "pydantic", specifier = ">=2.7,<3.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
+    { name = "sentence-transformers", marker = "extra == 'embedding'", specifier = ">=3.0,<4.0" },
+    { name = "spacy", marker = "extra == 'spacy'", specifier = ">=3.7,<4.0" },
+]
+provides-extras = ["folio", "embedding", "spacy", "dev"]
 
 [[package]]
 name = "fsspec"

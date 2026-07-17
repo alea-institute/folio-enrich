@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Golden-baseline harness for the folio-enrich -> folio-matching migration.
+"""Golden-baseline harness for the folio-enrich -> folio-resolve migration.
 
 Runs the committed synthetic corpus (migration/corpus.json) through folio-enrich's
 DETERMINISTIC matching seams and writes a capture file. Rerun before and after the
@@ -172,12 +172,12 @@ def _environment() -> dict:
     except Exception:
         env["folio_python_version"] = "unknown"
     try:
-        import folio_matching  # noqa: F401
+        import folio_resolve  # noqa: F401
 
-        env["folio_matching_present"] = True
-        env["folio_matching_version"] = getattr(folio_matching, "__version__", "unknown")
+        env["folio_resolve_present"] = True
+        env["folio_resolve_version"] = getattr(folio_resolve, "__version__", "unknown")
     except Exception:
-        env["folio_matching_present"] = False
+        env["folio_resolve_present"] = False
     try:
         from app.services.folio.folio_service import FolioService
 
@@ -212,7 +212,7 @@ def main() -> int:
     resolved = sum(1 for r in lr if r["primary"])
     print(f"wrote {out_path.relative_to(BACKEND)}")
     print(f"  corpus_hash: {capture['corpus_hash'][:16]}...")
-    print(f"  folio_matching_present: {capture['environment']['folio_matching_present']}")
+    print(f"  folio_resolve_present: {capture['environment']['folio_resolve_present']}")
     print(f"  label_resolution: {resolved}/{len(lr)} resolved to a primary")
     print(f"  entity_ruler docs: {len(capture['entity_ruler'])}")
     print(f"  reconciler cases: {len(capture['reconciler'])}")

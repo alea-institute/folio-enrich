@@ -1,9 +1,9 @@
-# folio-enrich → folio-matching migration harness
+# folio-enrich → folio-resolve migration harness
 
 Golden-baseline discipline for retiring folio-enrich's forked deterministic matcher
 (`app/services/folio/search.py`, "ported from folio-mapper") in favor of the pinned
-[`folio-matching`](../../../folio-matching) library. See
-`folio-matching/docs/migration/SCHEDULE.md` row 2.
+[`folio-resolve`](../../../folio-resolve) library. See
+`folio-resolve/docs/migration/SCHEDULE.md` row 2.
 
 ## What this is
 
@@ -27,7 +27,7 @@ cd backend
 # Stage 0 — baseline (pre-swap). Committed as captures/baseline.json.
 .venv/bin/python migration/harness.py --out baseline
 
-# Stage 1 — after wiring folio-matching, recapture and diff:
+# Stage 1 — after wiring folio-resolve, recapture and diff:
 .venv/bin/python migration/harness.py --out candidate
 .venv/bin/python migration/compare.py --baseline baseline --candidate candidate
 ```

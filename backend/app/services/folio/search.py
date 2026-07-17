@@ -1,8 +1,8 @@
 """Multi-strategy FOLIO search with word-overlap scoring.
 
-The scorer is now the pinned ``folio_matching`` library (migration SCHEDULE.md row 2): the
+The scorer is now the pinned ``folio_resolve`` library (migration SCHEDULE.md row 2): the
 word-order-invariant relevance scorer, stopwords, and legal expansions previously forked here
-("ported from folio-mapper") are consumed from ``folio_matching.scoring`` so folio-enrich,
+("ported from folio-mapper") are consumed from ``folio_resolve.scoring`` so folio-enrich,
 folio-mapper, and folio-insights all score identically. This module keeps only the
 folio-python search orchestration (7-strategy candidate gathering + ancestor surfacing) and
 adds the library's deterministic precision gates at the boundary:
@@ -22,8 +22,8 @@ from __future__ import annotations
 
 import logging
 
-from folio_matching import AliasBlocklist, PlaceNameGate, load_seed_blocklist
-from folio_matching.scoring import (
+from folio_resolve import AliasBlocklist, PlaceNameGate, load_seed_blocklist
+from folio_resolve.scoring import (
     LEGAL_TERM_EXPANSIONS,
     SEARCH_STOPWORDS,
     compute_relevance_score,

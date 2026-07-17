@@ -1,8 +1,8 @@
 """Tests for the multi-strategy search orchestration.
 
 The word-order-invariant scorer, stopwords, tokenizer, and legal expansions were retired from
-this module in the folio-matching migration (SCHEDULE.md row 2) — they now live in, and are
-unit-tested by, ``folio_matching.scoring`` (see the library's ``tests/test_scoring.py``). What
+this module in the folio-resolve migration (SCHEDULE.md row 2) — they now live in, and are
+unit-tested by, ``folio_resolve.scoring`` (see the library's ``tests/test_scoring.py``). What
 remains here is folio-enrich's own orchestration: the 7-strategy folio-python candidate gathering
 in ``multi_strategy_search`` and the deterministic precision gates wired at its boundary.
 """

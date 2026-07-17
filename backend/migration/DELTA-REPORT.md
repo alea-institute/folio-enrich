@@ -1,7 +1,7 @@
-# folio-enrich -> folio-matching: Classified Delta Report
+# folio-enrich -> folio-resolve: Classified Delta Report
 
 - Corpus hash match (baseline vs candidate): **True**
-- folio_matching present: baseline=False, candidate=True
+- folio_resolve present: baseline=False, candidate=True
 - FOLIO concepts: 18326
 
 ## Headline (label resolution)

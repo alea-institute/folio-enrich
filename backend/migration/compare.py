@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Classified-delta comparator for the folio-enrich -> folio-matching migration.
+"""Classified-delta comparator for the folio-enrich -> folio-resolve migration.
 
 Given two harness captures (baseline before the swap, candidate after), bucket every
 label-resolution / entity-ruler / reconciler delta as intended-fix / regression / neutral,
@@ -23,7 +23,7 @@ import json
 import re
 from pathlib import Path
 
-# Minimal stdlib content-word tokenizer (mirrors folio_matching.scoring stopwords loosely) so the
+# Minimal stdlib content-word tokenizer (mirrors folio_resolve.scoring stopwords loosely) so the
 # comparator can auto-judge recovery better/worse without importing the library.
 _STOPWORDS = frozenset({
     "a", "an", "the", "of", "and", "or", "in", "for", "to", "with", "by", "on", "at",
@@ -38,7 +38,7 @@ def _content_words(text: str) -> set[str]:
 MIGRATION = Path(__file__).resolve().parent
 CAPTURES_DIR = MIGRATION / "captures"
 
-# Branches the place/agency gate governs (mirror of folio_matching.gates._PLACE_BRANCH_MARKERS,
+# Branches the place/agency gate governs (mirror of folio_resolve.gates._PLACE_BRANCH_MARKERS,
 # hardcoded so the comparator runs standalone before/after the library is installed).
 _PLACE_BRANCH_MARKERS = (
     "location", "geograph", "country", "jurisdiction", "place", "governmental", "agency",
@@ -242,11 +242,11 @@ def main() -> int:
 
 def _write_markdown(delta: dict) -> None:
     lines: list[str] = []
-    lines.append("# folio-enrich -> folio-matching: Classified Delta Report\n")
+    lines.append("# folio-enrich -> folio-resolve: Classified Delta Report\n")
     lines.append(f"- Corpus hash match (baseline vs candidate): **{delta['corpus_hash_match']}**")
     env = delta["environment"]
-    lines.append(f"- folio_matching present: baseline={env['baseline']['folio_matching_present']}, "
-                 f"candidate={env['candidate']['folio_matching_present']}")
+    lines.append(f"- folio_resolve present: baseline={env['baseline']['folio_resolve_present']}, "
+                 f"candidate={env['candidate']['folio_resolve_present']}")
     lines.append(f"- FOLIO concepts: {env['candidate'].get('folio_concept_count')}\n")
 
     c = delta["label_resolution_counts"]
