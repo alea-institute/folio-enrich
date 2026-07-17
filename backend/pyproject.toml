@@ -26,6 +26,9 @@ dependencies = [
     "eyecite>=2.7",
     "citeurl>=12.0",
     "psutil>=6.0.0",
+    # Shared FOLIO source-text->concept matching engine (migration SCHEDULE.md row 2).
+    # Local editable sibling repo, pinned via [tool.uv.sources] below. MIT, Damien's own.
+    "folio-matching",
 ]
 
 [project.optional-dependencies]
@@ -46,6 +49,13 @@ dev = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.uv.sources]
+# folio-matching is developed as a sibling repo (../../folio-matching). Editable pin so
+# folio-enrich consumes the library's calibrated scorer / gates / blocklist / reconciler
+# directly, closing the copy-paste divergence at its source. Retire when the library is
+# published to an index (then pin a version).
+folio-matching = { path = "../../folio-matching", editable = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
