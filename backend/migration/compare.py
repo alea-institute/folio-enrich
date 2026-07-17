@@ -20,7 +20,20 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
+
+# Minimal stdlib content-word tokenizer (mirrors folio_matching.scoring stopwords loosely) so the
+# comparator can auto-judge recovery better/worse without importing the library.
+_STOPWORDS = frozenset({
+    "a", "an", "the", "of", "and", "or", "in", "for", "to", "with", "by", "on", "at",
+    "is", "are", "law", "legal", "type", "types", "general",
+})
+
+
+def _content_words(text: str) -> set[str]:
+    return {w for w in (t.lower() for t in re.findall(r"[a-zA-Z]+", text or "") if len(t) >= 2)
+            if w not in _STOPWORDS}
 
 MIGRATION = Path(__file__).resolve().parent
 CAPTURES_DIR = MIGRATION / "captures"
@@ -104,7 +117,23 @@ def classify_label_resolution(base: dict, cand: dict) -> tuple[list[dict], dict]
             elif not bp and cp:
                 bucket, why = "intended_fix", "recovery newly resolved"
             else:
-                bucket, why = "neutral", "recovery IRI changed (needs human eyeball)"
+                # Auto-judge better/worse by how many of the query's content words the resolved
+                # label shares (a recovery should resolve to a label containing the query term).
+                q = _content_words(b["text"])
+                b_share = len(q & _content_words(bp["label"])) if bp else 0
+                c_share = len(q & _content_words(cp["label"])) if cp else 0
+                b_empty_branch = bool(bp) and not (bp.get("branch") or "")
+                c_empty_branch = bool(cp) and not (cp.get("branch") or "")
+                if c_share > b_share:
+                    bucket, why = "intended_fix", (
+                        f"recovery resolves to a label sharing more query words ({b_share}->{c_share})")
+                elif c_share < b_share or (c_empty_branch and not b_empty_branch):
+                    detail = f"query-word overlap dropped ({b_share}->{c_share})"
+                    if c_empty_branch and not b_empty_branch:
+                        detail += "; candidate has empty branch"
+                    bucket, why = "regression", "recovery degraded: " + detail
+                else:
+                    bucket, why = "neutral", "recovery IRI changed, equal query-word overlap"
         elif cat == "compound_multihead":
             b_cand = {x["iri"] for x in b.get("candidates", [])}
             c_cand = {x["iri"] for x in c.get("candidates", [])}

@@ -1,0 +1,142 @@
+{
+  "corpus_hash_match": true,
+  "baseline_hash": "1e107812faec4b8e25862b97eafe05f30a3a47fa63d55bf85539343ff37edd0b",
+  "candidate_hash": "1e107812faec4b8e25862b97eafe05f30a3a47fa63d55bf85539343ff37edd0b",
+  "environment": {
+    "baseline": {
+      "folio_python_version": "0.3.6",
+      "folio_matching_present": false,
+      "folio_concept_count": 18326
+    },
+    "candidate": {
+      "folio_python_version": "0.3.6",
+      "folio_matching_present": true,
+      "folio_matching_version": "0.1.0",
+      "folio_concept_count": 18326
+    }
+  },
+  "label_resolution_counts": {
+    "intended_fix": 5,
+    "regression": 0,
+    "neutral": 7
+  },
+  "canary": {
+    "place_mismaps_baseline": 3,
+    "place_mismaps_candidate": 0,
+    "new_place_mismaps": [],
+    "named_recoveries_dropped": []
+  },
+  "canary_pass": true,
+  "label_resolution_deltas": [
+    {
+      "id": "lr-exact-lawyer",
+      "text": "Lawyer",
+      "category": "exact",
+      "bucket": "intended_fix",
+      "why": "recovery resolves to a label sharing more query words (0->1)",
+      "baseline": "'Legal Aid Attorney' [Engagement Terms] conf=0.892",
+      "candidate": "'Lawyer' [Engagement Terms] conf=1.0"
+    },
+    {
+      "id": "lr-exact-hearing",
+      "text": "Hearing",
+      "category": "exact",
+      "bucket": "neutral",
+      "why": "recovery IRI changed, equal query-word overlap",
+      "baseline": "'Markman Hearing' [Event] conf=0.952",
+      "candidate": "'Hearing' [Event] conf=1.0"
+    },
+    {
+      "id": "lr-fuzzy-arbrules",
+      "text": "arbitration rules",
+      "category": "fuzzy",
+      "bucket": "neutral",
+      "why": "recovery IRI changed, equal query-word overlap",
+      "baseline": "'AAA Labor Arbitration Rules' [Legal Authorities] conf=0.952",
+      "candidate": "'Rules of Arbitration' [Legal Authorities] conf=0.95"
+    },
+    {
+      "id": "lr-homonym-law",
+      "text": "law",
+      "category": "place_agency_generic",
+      "bucket": "neutral",
+      "why": "resolution changed (both non-place)",
+      "baseline": "'Offices of Lawyers' [Industry] conf=0.776",
+      "candidate": "'Lawyer' [Engagement Terms] conf=0.776"
+    },
+    {
+      "id": "lr-homonym-justice",
+      "text": "justice",
+      "category": "homonym_trap",
+      "bucket": "intended_fix",
+      "why": "place/agency mis-map replaced by non-place concept",
+      "baseline": "'U.S. Dept. of Justice' [Governmental Body] conf=0.892",
+      "candidate": "'Obstruction of Justice' [Objectives] conf=0.794"
+    },
+    {
+      "id": "lr-homonym-state",
+      "text": "state",
+      "category": "homonym_trap",
+      "bucket": "neutral",
+      "why": "resolution changed (both non-place)",
+      "baseline": "'State Court' [Forums and Venues] conf=0.952",
+      "candidate": "'Estate' [Asset Type] conf=0.99"
+    },
+    {
+      "id": "lr-homonym-tax",
+      "text": "tax",
+      "category": "homonym_trap",
+      "bucket": "intended_fix",
+      "why": "place/agency mis-map replaced by non-place concept",
+      "baseline": "'U.S. Tax Court' [Governmental Body] conf=0.952",
+      "candidate": "'Tax Practice' [Service] conf=0.99"
+    },
+    {
+      "id": "lr-homonym-charge",
+      "text": "charge",
+      "category": "homonym_trap",
+      "bucket": "neutral",
+      "why": "resolution changed (both non-place)",
+      "baseline": "'Fee Charge Date' [Engagement Terms] conf=0.892",
+      "candidate": "'\"Encumbrance\" Definition' [Objectives] conf=1.0"
+    },
+    {
+      "id": "lr-homonym-action",
+      "text": "Action",
+      "category": "homonym_trap",
+      "bucket": "neutral",
+      "why": "resolution changed (both non-place)",
+      "baseline": "'Concert of Action Crimes' [Objectives] conf=0.892",
+      "candidate": "'Private Right of Action' [Objectives] conf=0.727"
+    },
+    {
+      "id": "lr-place-decisionmaker",
+      "text": "Decision Maker",
+      "category": "place_agency_generic",
+      "bucket": "intended_fix",
+      "why": "place/agency mis-map replaced by non-place concept",
+      "baseline": "'U.S. Army Intelligence and Security Command' [Governmental Body] conf=0.6",
+      "candidate": "'Arbitration and Award' [Objectives] conf=0.468"
+    },
+    {
+      "id": "lr-compound-arbmed",
+      "text": "Arbitration and Mediation",
+      "category": "compound_multihead",
+      "bucket": "intended_fix",
+      "why": "compound decomposition candidates gained=5",
+      "baseline": "'Judicial Arbitration and Mediation Services' [Forums and Venues] conf=0.952",
+      "candidate": "'Arbitration Practice' [Service] conf=1.0"
+    },
+    {
+      "id": "lr-proposed-novelterm",
+      "text": "Zorbleflorp Compliance Directive",
+      "category": "proposed_class",
+      "bucket": "neutral",
+      "why": "resolution changed (both non-place)",
+      "baseline": "'Export Controls Practice' [Service] conf=0.886",
+      "candidate": "'Compliance' [Objectives] conf=0.913"
+    }
+  ],
+  "entity_ruler_deltas": [],
+  "reconciler_deltas": []
+}
