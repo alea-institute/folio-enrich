@@ -190,10 +190,72 @@ class ConceptResolver:
             cache[key] = results
         return list(results)
 
+    def _library_resolve_all(
+        self, concept_text: str, branch: str
+    ) -> list[tuple[FOLIOConcept, float]]:
+        """Primary resolution via the pinned ``folio_matching.LabelResolver``.
+
+        Decompose-first (a compound heading yields one concept per sibling), a calibrated
+        whole-string bar on the real 0-100 scale, and branch-carrying results — then the
+        deterministic place/agency gate + alias blocklist (``search.candidate_vetoed``). This is
+        the migration's precision core (SCHEDULE.md row 2); ``multi_strategy_search`` remains only
+        as the recall fallback when nothing here clears the bar. Returns ``[(FOLIOConcept,
+        score_0_1)]``, best first, deduped by IRI.
+        """
+        from folio_matching import LabelResolver
+
+        from app.services.folio.search import candidate_vetoed
+
+        try:
+            resolver = LabelResolver(self.folio.search_by_label)
+            resolved = resolver.resolve(concept_text)
+        except Exception:
+            logger.debug("LabelResolver failed for '%s'", concept_text, exc_info=True)
+            return []
+
+        out: list[tuple[FOLIOConcept, float]] = []
+        seen: set[str] = set()
+        for r in resolved:
+            if not r.iri or r.iri in seen:
+                continue
+            # Gates key on the resolved branch (score is on the library's 0-100 scale).
+            if candidate_vetoed(r.surface or concept_text, r.label, r.branch, r.iri, r.score):
+                continue
+            fc = self.folio.get_concept(r.iri)
+            if fc is None:
+                continue
+            if any(b in EXCLUDED_BRANCHES for b in ([fc.branch] if fc.branch else [])):
+                continue
+            seen.add(r.iri)
+            out.append((fc, r.score / 100.0))
+
+        # Branch hint: float a matching-branch result to the front (stable otherwise).
+        if branch and out:
+            out.sort(key=lambda t: 0 if (t[0].branch and branch.lower() in t[0].branch.lower()) else 1)
+        return out
+
     def _multi_strategy_resolve_all(
         self, concept_text: str, branch: str, top_n: int = 5
     ) -> list[tuple[FOLIOConcept, float]]:
-        """Return all scored results from multi-strategy search."""
+        """Return all scored candidates: library (primary) then search fork (recall fallback)."""
+        merged: list[tuple[FOLIOConcept, float]] = []
+        seen_iris: set[str] = set()
+        for fc, score in self._library_resolve_all(concept_text, branch):
+            if fc.iri and fc.iri not in seen_iris:
+                seen_iris.add(fc.iri)
+                merged.append((fc, score))
+
+        for fc, score in self._fork_resolve_all(concept_text, branch, top_n):
+            if fc.iri and fc.iri not in seen_iris:
+                seen_iris.add(fc.iri)
+                merged.append((fc, score))
+
+        return merged[:top_n]
+
+    def _fork_resolve_all(
+        self, concept_text: str, branch: str, top_n: int = 5
+    ) -> list[tuple[FOLIOConcept, float]]:
+        """Recall-fallback: the folio-python 7-strategy search (multi_strategy_search)."""
         try:
             folio_raw = self.folio._get_folio()
 
@@ -239,7 +301,22 @@ class ConceptResolver:
     def _multi_strategy_resolve(
         self, concept_text: str, branch: str
     ) -> tuple[FOLIOConcept | None, float]:
-        """Use multi-strategy search to find the best matching concept."""
+        """Resolve to the single best concept: library (primary) then search fork (fallback)."""
+        lib = self._library_resolve_all(concept_text, branch)
+        if lib:
+            best_fc, best_score = lib[0]
+            if branch:
+                for fc, s in lib:
+                    if fc.branch and branch.lower() in fc.branch.lower():
+                        best_fc, best_score = fc, s
+                        break
+            return best_fc, best_score
+        return self._fork_resolve(concept_text, branch)
+
+    def _fork_resolve(
+        self, concept_text: str, branch: str
+    ) -> tuple[FOLIOConcept | None, float]:
+        """Recall-fallback single-best: the folio-python 7-strategy search."""
         try:
             folio_raw = self.folio._get_folio()
 

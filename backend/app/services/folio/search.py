@@ -1,13 +1,36 @@
 """Multi-strategy FOLIO search with word-overlap scoring.
 
-Ported from folio-mapper: 7-strategy search across label, prefix, definition,
-sub-phrases, content words, legal expansions, and stem prefix matching.
+The scorer is now the pinned ``folio_matching`` library (migration SCHEDULE.md row 2): the
+word-order-invariant relevance scorer, stopwords, and legal expansions previously forked here
+("ported from folio-mapper") are consumed from ``folio_matching.scoring`` so folio-enrich,
+folio-mapper, and folio-insights all score identically. This module keeps only the
+folio-python search orchestration (7-strategy candidate gathering + ancestor surfacing) and
+adds the library's deterministic precision gates at the boundary:
+
+* ``PlaceNameGate`` — a generic term that fuzzy-latches a short place / governmental-body label
+  (``justice`` -> U.S. Dept. of Justice, ``tax`` -> U.S. Tax Court) is vetoed unless the surface
+  term exactly equals the label. Keys on the branch each candidate already carries.
+* ``AliasBlocklist`` — recorded homonym pairings with real FOLIO IRIs (``Action`` -> *Auction*)
+  are dropped regardless of score.
+
+Score scale: folio-python + ``compute_relevance_score`` are both **0-100**; the gates also expect
+0-100, so no rescaling happens inside this module. ``ConceptResolver`` divides by 100 at its own
+boundary (unchanged).
 """
 
 from __future__ import annotations
 
 import logging
-import re
+
+from folio_matching import AliasBlocklist, PlaceNameGate, load_seed_blocklist
+from folio_matching.scoring import (
+    LEGAL_TERM_EXPANSIONS,
+    SEARCH_STOPWORDS,
+    compute_relevance_score,
+    content_words,
+    generate_search_terms,
+    tokenize,
+)
 
 from app.services.folio.branch_config import (
     EXCLUDED_BRANCHES,
@@ -16,263 +39,44 @@ from app.services.folio.branch_config import (
 
 logger = logging.getLogger(__name__)
 
-# Minimum fraction of a label's WORDS a substring query must cover before it
-# is scaled down further (on top of the character-coverage penalty).
-_WORD_RATIO_THRESHOLD = 0.5
+# Re-exported for back-compat: a few call sites / tests import these names from here. They now
+# resolve to the pinned library's single source of truth.
+__all__ = ["LEGAL_TERM_EXPANSIONS", "SEARCH_STOPWORDS", "candidate_vetoed", "multi_strategy_search"]
 
-# Words too common to be useful for individual search or scoring
-SEARCH_STOPWORDS = frozenset({
-    "a", "an", "the", "of", "and", "or", "in", "for", "to", "with", "by", "on", "at",
-    "is", "are", "was", "were", "be", "been", "being",
-    "not", "no", "has", "have", "had", "do", "does", "did",
-    "this", "that", "it", "its", "their", "other", "such", "than",
-    "law", "legal", "type", "types", "general",
-})
-
-# Domain-aware expansions: common legal content words -> FOLIO label suffixes.
-LEGAL_TERM_EXPANSIONS: dict[str, list[str]] = {
-    # Core practice types
-    "litigation": ["practice", "service"],
-    "transactional": ["practice", "service"],
-    "transaction": ["practice", "service"],
-    "transactions": ["practice", "service"],
-    "regulatory": ["practice", "compliance"],
-    "compliance": ["practice", "service"],
-    "advisory": ["practice", "service"],
-    # Dispute resolution
-    "dispute": ["service", "resolution"],
-    "disputes": ["service", "resolution"],
-    "mediation": ["service"],
-    "arbitration": ["service"],
-    "negotiation": ["service"],
-    "settlement": ["service", "practice"],
-    "appellate": ["practice", "service"],
-    "trial": ["practice", "service"],
-    "appeals": ["practice", "service"],
-    # Enforcement & prosecution
-    "prosecution": ["service"],
-    "enforcement": ["service", "action"],
-    "investigation": ["service"],
-    # Practice areas
-    "corporate": ["practice", "service", "law"],
-    "employment": ["practice", "service", "law"],
-    "intellectual": ["property", "practice"],
-    "bankruptcy": ["practice", "service", "law"],
-    "family": ["practice", "law"],
-    "immigration": ["practice", "service", "law"],
-    "environmental": ["practice", "law", "compliance"],
-    "antitrust": ["practice", "law", "compliance"],
-    "tax": ["practice", "service", "law"],
-    "real": ["estate", "property"],
-    "estate": ["planning", "practice", "law"],
-    # Advisory & counseling
-    "counsel": ["service", "practice"],
-    "counseling": ["service", "practice"],
-    "consulting": ["service", "practice"],
-    # Recovery & collections
-    "collection": ["service", "practice"],
-    "recovery": ["service", "practice"],
-    "foreclosure": ["service", "practice"],
-    # Investigation & due diligence
-    "discovery": ["service", "practice"],
-    "diligence": ["service", "practice"],
-    "audit": ["service", "practice"],
-    # Documentation & filing
-    "drafting": ["service", "practice"],
-    "documentation": ["service", "practice"],
-    "filing": ["service", "practice"],
-    # Strategy & planning
-    "strategy": ["service", "practice"],
-    "planning": ["service", "practice"],
-    "risk": ["service", "management"],
-    "structuring": ["service", "practice"],
-}
+# Deterministic precision gates (module singletons; pure/stateless -> safe to share).
+_PLACE_GATE = PlaceNameGate(min_signals=2)
+_BLOCKLIST: AliasBlocklist | None = None
 
 
-def _tokenize(text: str) -> list[str]:
-    """Split text into lowercase alphabetic tokens (2+ chars)."""
-    return [w.lower() for w in re.findall(r"[a-zA-Z]+", text) if len(w) >= 2]
+def _blocklist() -> AliasBlocklist:
+    global _BLOCKLIST
+    if _BLOCKLIST is None:
+        _BLOCKLIST = load_seed_blocklist()
+    return _BLOCKLIST
 
 
-def _content_words(text: str) -> set[str]:
-    """Extract meaningful (non-stopword) words from text."""
-    return {w for w in _tokenize(text) if w not in SEARCH_STOPWORDS}
+def candidate_vetoed(query: str, label: str, branch: str, iri: str, score: float) -> bool:
+    """True if a candidate is a place/agency mis-map or a blocklisted homonym.
 
-
-def _word_overlap(query_words: set[str], target_words: set[str]) -> float:
-    """Bidirectional word overlap with prefix-match and morphological stem credit."""
-    if not query_words or not target_words:
-        return 0.0
-
-    def _directional_overlap(source: set[str], dest: set[str]) -> float:
-        matched = 0.0
-        for sw in source:
-            best = 0.0
-            for dw in dest:
-                if sw == dw:
-                    best = 1.0
-                    break
-                elif len(sw) >= 3 and len(dw) >= 3:
-                    if sw.startswith(dw) or dw.startswith(sw):
-                        best = max(best, 0.8)
-                    elif len(sw) >= 5 and len(dw) >= 5:
-                        pfx = 0
-                        for c1, c2 in zip(sw, dw):
-                            if c1 == c2:
-                                pfx += 1
-                            else:
-                                break
-                        if pfx >= 4 and pfx / min(len(sw), len(dw)) >= 0.7:
-                            best = max(best, 0.7)
-            matched += best
-        return matched / len(source)
-
-    forward = _directional_overlap(query_words, target_words)
-
-    reverse = 0.0
-    if len(target_words) >= 2:
-        reverse = _directional_overlap(target_words, query_words) * 0.75
-
-    return max(forward, reverse)
-
-
-def _compute_relevance_score(
-    query_content: set[str],
-    query_full: str,
-    label: str,
-    definition: str | None,
-    synonyms: list[str],
-    preferred_label: str | None = None,
-) -> float:
-    """Score 0-100 based on word overlap between query and candidate."""
-    if not label:
-        return 0.0
-
-    query_lower = query_full.lower().strip()
-    label_lower = label.lower()
-
-    # Exact match — graduated by word count
-    if query_lower == label_lower:
-        word_count = len(query_lower.split())
-        if word_count >= 3:
-            return 97.0
-        elif word_count == 2:
-            return 92.0
-        else:
-            return 82.0
-
-    label_content = _content_words(label)
-
-    # --- Label scoring ---
-    label_score = 0.0
-    query_in_label = False
-    if len(query_lower) >= 4 and query_lower in label_lower:
-        # Coverage penalty: a short query buried in a long label covers little
-        # of it, so score proportionally to how much of the label it spans.
-        label_score = 85.0 * (len(query_lower) / len(label_lower))
-        query_in_label = True
-    elif (
-        len(label_lower) >= 4
-        and label_lower in query_lower
-        and len(label_lower) / len(query_lower) > 0.3
-    ):
-        label_score = 78.0
-    overlap = _word_overlap(query_content, label_content)
-    if overlap > 0:
-        label_score = max(label_score, overlap * 88)
-
-    # Word-count gate: a substring query covering fewer than
-    # _WORD_RATIO_THRESHOLD of the label's WORDS is scaled down further. Applied
-    # AFTER the overlap floor so a low-coverage substring that ALSO has strong
-    # word overlap (floor already lifted it) isn't over-penalized.
-    if query_in_label and label_score > 0:
-        l_words = len(label_lower.split())
-        if l_words > 0:
-            word_ratio = len(query_lower.split()) / l_words
-            if word_ratio < _WORD_RATIO_THRESHOLD:
-                label_score *= word_ratio / _WORD_RATIO_THRESHOLD
-
-    # --- Preferred label scoring ---
-    pref_score = 0.0
-    if preferred_label:
-        pref_lower = preferred_label.lower()
-        if query_lower == pref_lower:
-            pref_score = 90.0
-        elif len(query_lower) >= 4 and query_lower in pref_lower:
-            # Coverage penalty mirrors the label path above.
-            pref_score = 84.0 * (len(query_lower) / len(pref_lower))
-        else:
-            pref_content = _content_words(preferred_label)
-            p_overlap = _word_overlap(query_content, pref_content)
-            if p_overlap > 0:
-                pref_score = p_overlap * 86
-
-    # --- Synonym scoring ---
-    syn_score = 0.0
-    for syn in synonyms:
-        syn_content = _content_words(syn)
-        s_overlap = _word_overlap(query_content, syn_content)
-        if s_overlap > 0:
-            syn_score = max(syn_score, s_overlap * 82)
-
-    # --- Definition scoring ---
-    def_score = 0.0
-    if definition:
-        def_lower = definition.lower()
-        if query_lower in def_lower:
-            def_score = 60.0
-        def_content = _content_words(definition)
-        d_overlap = _word_overlap(query_content, def_content)
-        if d_overlap > 0:
-            def_score = max(def_score, d_overlap * 55)
-
-    # Combine: best of label/preferred/synonym, with small definition boost
-    primary = max(label_score, pref_score, syn_score)
-    if primary > 0:
-        final = primary + min(def_score * 0.12, 8)
-    else:
-        final = def_score
-
-    return round(min(final, 99.0), 1)
-
-
-def _generate_search_terms(term: str) -> list[str]:
-    """Generate search terms: full phrase, sub-phrases, individual content words."""
-    words = _tokenize(term)
-    content = _content_words(term)
-
-    terms = [term]  # Always search full phrase
-
-    # Sub-phrases (windows of 2..n-1 consecutive words)
-    if len(words) >= 3:
-        for n in range(len(words) - 1, 1, -1):
-            for i in range(len(words) - n + 1):
-                sub = " ".join(words[i : i + n])
-                if _content_words(sub):
-                    terms.append(sub)
-
-    # Individual content words (3+ chars)
-    for w in sorted(content, key=len, reverse=True):
-        if len(w) >= 3:
-            terms.append(w)
-
-    # Domain-aware expansions
-    for w in content:
-        suffixes = LEGAL_TERM_EXPANSIONS.get(w)
-        if suffixes:
-            for suffix in suffixes:
-                terms.append(f"{w} {suffix}")
-
-    # Deduplicate preserving order
-    seen: set[str] = set()
-    result: list[str] = []
-    for t in terms:
-        tl = t.lower()
-        if tl not in seen:
-            seen.add(tl)
-            result.append(t)
-
-    return result
+    ``multi_strategy_search`` is a single un-corroborated search path, so the place gate sees
+    ``corroborating_signals=1`` and vetoes any place/governmental-body candidate whose surface
+    term does not exactly equal the resolved label (score is on the library's 0-100 scale).
+    """
+    if _blocklist().is_blocked(query, iri):
+        logger.debug("alias blocklist vetoed %r -> %s", query, iri)
+        return True
+    decision = _PLACE_GATE.evaluate(
+        query=query,
+        label=label,
+        branch=branch,
+        score=score,
+        heading_context_match=False,
+        corroborating_signals=1,
+    )
+    if decision.demoted:
+        logger.debug("place/agency gate vetoed %r -> %s [%s] (%s)", query, iri, branch, decision.reason)
+        return True
+    return False
 
 
 def _extract_iri_hash(iri: str) -> str:
@@ -302,11 +106,11 @@ def multi_strategy_search(
         List of dicts with keys: label, iri, iri_hash, definition, synonyms,
         branch, branch_color, score.
     """
-    content_words = _content_words(text)
-    if not content_words:
-        content_words = set(_tokenize(text))
+    query_content = content_words(text)
+    if not query_content:
+        query_content = set(tokenize(text))
 
-    search_terms = _generate_search_terms(text)
+    search_terms = generate_search_terms(text)
 
     # Phase 1: Gather raw candidates from multiple search strategies
     raw: dict[str, object] = {}  # iri_hash -> OWLClass
@@ -332,7 +136,7 @@ def multi_strategy_search(
                 pass
 
     # Stem prefix search
-    for cw in content_words:
+    for cw in query_content:
         if len(cw) >= 6:
             stem = cw[: len(cw) - 2]
             try:
@@ -345,7 +149,7 @@ def multi_strategy_search(
 
     # Definition search
     def_terms = [text]
-    cw_phrase = " ".join(sorted(content_words))
+    cw_phrase = " ".join(sorted(query_content))
     if cw_phrase.lower() != text.lower():
         def_terms.append(cw_phrase)
     for st in def_terms:
@@ -360,13 +164,13 @@ def multi_strategy_search(
 
     logger.debug("multi_strategy_search(%r): %d raw candidates", text, len(raw))
 
-    # Phase 2: Re-score all candidates
+    # Phase 2: Re-score all candidates (pinned library scorer)
     min_score = threshold
     scored: list[tuple[str, object, float]] = []
 
     for iri_hash, owl_class in raw.items():
-        score = _compute_relevance_score(
-            content_words,
+        score = compute_relevance_score(
+            query_content,
             text,
             owl_class.label or iri_hash,
             owl_class.definition,
@@ -378,18 +182,18 @@ def multi_strategy_search(
 
     # Phase 2.1: Expansion re-scoring
     expansion_queries: list[tuple[set[str], str]] = []
-    for w in content_words:
+    for w in query_content:
         suffixes = LEGAL_TERM_EXPANSIONS.get(w)
         if suffixes:
             for suffix in suffixes:
                 eq = f"{w} {suffix}"
-                expansion_queries.append((_content_words(eq), eq))
+                expansion_queries.append((content_words(eq), eq))
 
     if expansion_queries:
         best_scores: dict[str, float] = {h: s for h, _, s in scored}
         for iri_hash, owl_class in raw.items():
             for eq_content, eq_full in expansion_queries:
-                exp_score = _compute_relevance_score(
+                exp_score = compute_relevance_score(
                     eq_content,
                     eq_full,
                     owl_class.label or iri_hash,
@@ -438,7 +242,7 @@ def multi_strategy_search(
     # Sort by score descending
     scored.sort(key=lambda x: x[2], reverse=True)
 
-    # Phase 3: Build results with branch filtering
+    # Phase 3: Build results with branch filtering + deterministic precision gates
     results: list[dict] = []
     seen_hashes: set[str] = set()
 
@@ -453,6 +257,12 @@ def multi_strategy_search(
             branch_name = get_branch_fn(folio, iri_hash)
         if branch_name in EXCLUDED_BRANCHES:
             continue
+
+        # Deterministic precision gates (place/agency mis-map + alias blocklist). Both key on the
+        # branch the candidate now carries, so a generic term can no longer latch a place label.
+        if candidate_vetoed(text, owl_class.label or "", branch_name, owl_class.iri, score):
+            continue
+
         if branch and branch_name and branch.lower() not in branch_name.lower():
             # Branch filter active and doesn't match — still include but lower priority
             pass

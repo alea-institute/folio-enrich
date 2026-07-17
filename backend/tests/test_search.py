@@ -1,238 +1,15 @@
-"""Tests for multi-strategy search module."""
+"""Tests for the multi-strategy search orchestration.
+
+The word-order-invariant scorer, stopwords, tokenizer, and legal expansions were retired from
+this module in the folio-matching migration (SCHEDULE.md row 2) — they now live in, and are
+unit-tested by, ``folio_matching.scoring`` (see the library's ``tests/test_scoring.py``). What
+remains here is folio-enrich's own orchestration: the 7-strategy folio-python candidate gathering
+in ``multi_strategy_search`` and the deterministic precision gates wired at its boundary.
+"""
 
 import pytest
 
-from app.services.folio.search import (
-    _compute_relevance_score,
-    _content_words,
-    _generate_search_terms,
-    _tokenize,
-    _word_overlap,
-    multi_strategy_search,
-)
-
-
-class TestTokenize:
-    def test_basic(self):
-        assert _tokenize("Hello World") == ["hello", "world"]
-
-    def test_single_char_excluded(self):
-        assert _tokenize("a b cd") == ["cd"]
-
-    def test_non_alpha_stripped(self):
-        tokens = _tokenize("LLC/Corp (2024)")
-        assert "llc" in tokens
-        assert "corp" in tokens
-        assert "2024" not in tokens  # numbers are excluded
-
-
-class TestContentWords:
-    def test_removes_stopwords(self):
-        words = _content_words("the law of the land")
-        assert "the" not in words
-        assert "of" not in words
-        assert "land" in words
-
-    def test_removes_domain_stopwords(self):
-        words = _content_words("general legal types")
-        assert len(words) == 0  # all are stopwords
-
-
-class TestWordOverlap:
-    def test_exact_match_gives_1(self):
-        score = _word_overlap({"contract"}, {"contract"})
-        assert score == 1.0
-
-    def test_no_overlap_gives_0(self):
-        score = _word_overlap({"apple"}, {"banana"})
-        assert score == 0.0
-
-    def test_empty_sets(self):
-        assert _word_overlap(set(), {"hello"}) == 0.0
-        assert _word_overlap({"hello"}, set()) == 0.0
-
-    def test_partial_overlap(self):
-        score = _word_overlap({"breach", "contract"}, {"contract", "law"})
-        assert 0.3 < score < 0.8
-
-    def test_prefix_match_credit(self):
-        score = _word_overlap({"litigation"}, {"litigat"})
-        assert score >= 0.7
-
-    def test_morphological_stem_credit(self):
-        # "defense" and "defendant" share "defen" prefix (5 chars)
-        score = _word_overlap({"defense"}, {"defendant"})
-        assert score >= 0.6
-
-    def test_reverse_overlap_for_multi_word_targets(self):
-        # Target "business law" has 2 words, both in query
-        score = _word_overlap(
-            {"small", "business", "formation"},
-            {"business", "law"},
-        )
-        # Reverse overlap: both of target's words covered
-        assert score > 0.3
-
-
-class TestComputeRelevanceScore:
-    def test_exact_match_graduated_by_word_count(self):
-        # 3+ words → 97
-        score3 = _compute_relevance_score(
-            {"breach", "contract"}, "Breach of Contract",
-            "Breach of Contract", None, [],
-        )
-        assert score3 == 97.0
-        # 2 words → 92
-        score2 = _compute_relevance_score(
-            {"dog", "bite"}, "Dog Bite",
-            "Dog Bite", None, [],
-        )
-        assert score2 == 92.0
-        # 1 word → 82
-        score1 = _compute_relevance_score(
-            {"court"}, "Court",
-            "Court", None, [],
-        )
-        assert score1 == 82.0
-
-    def test_query_in_label_high_when_covers_half_words(self):
-        # "dog bite" (2 words) covers exactly half of the 4-word label, so the
-        # word-count gate does NOT fire and the full-word-overlap floor holds.
-        score = _compute_relevance_score(
-            {"dog", "bite"}, "Dog Bite",
-            "Dog Bite Strict Liability", None, [],
-        )
-        assert score >= 85.0
-
-    def test_short_query_in_long_label_penalized_by_coverage(self):
-        # (a) A short query buried in a long label with NO word overlap gets a
-        # character-coverage penalty instead of the old flat 85.
-        score = _compute_relevance_score(
-            {"amended"}, "amended",
-            "Motion Regarding Some Amended Procedural Timeline Order", None, [],
-        )
-        assert score < 85.0
-
-    def test_low_word_coverage_gets_extra_penalty(self):
-        # (b) A contiguous substring query covering <50% of the label's WORDS is
-        # penalized further than one covering >=50%. Both labels start with the
-        # exact query "quiet title" so it is a genuine substring in each.
-        low = _compute_relevance_score(
-            {"quiet", "title"}, "quiet title",
-            "quiet title marketable action petition motion", None, [],
-        )
-        high = _compute_relevance_score(
-            {"quiet", "title"}, "quiet title",
-            "quiet title claim", None, [],
-        )
-        assert low < high
-
-    def test_amended_complaint_scores_below_exact(self):
-        # Core acceptance case: "Amended Complaint" as a substring of
-        # "Motion to File Amended Complaint" must score materially below an
-        # exact/near-exact match, no longer the flat 85.
-        substring = _compute_relevance_score(
-            {"amended", "complaint"}, "Amended Complaint",
-            "Motion to File Amended Complaint", None, [],
-        )
-        exact = _compute_relevance_score(
-            {"amended", "complaint"}, "Amended Complaint",
-            "Amended Complaint", None, [],
-        )
-        assert exact >= 92.0
-        assert substring < 80.0
-        assert substring < exact - 15
-        # (d) Both paths fire: the overlap*88 floor still lifts the heavily
-        # coverage-penalized substring, then the word gate scales it to ~70.
-        assert 60.0 <= substring <= 75.0
-
-    def test_exact_match_graduation_unchanged(self):
-        # (c) Exact matches and main's graduation are untouched by the penalty.
-        assert _compute_relevance_score(
-            {"breach", "contract"}, "Breach of Contract",
-            "Breach of Contract", None, [],
-        ) == 97.0
-        assert _compute_relevance_score(
-            {"dog", "bite"}, "Dog Bite", "Dog Bite", None, [],
-        ) == 92.0
-        assert _compute_relevance_score(
-            {"court"}, "Court", "Court", None, [],
-        ) == 82.0
-
-    def test_label_in_query_returns_78(self):
-        score = _compute_relevance_score(
-            {"criminal", "defense", "attorney"}, "criminal defense attorney",
-            "Criminal Defense", None, [],
-        )
-        assert score >= 78.0
-
-    def test_word_overlap_scoring(self):
-        score = _compute_relevance_score(
-            {"employment", "discrimination"}, "employment discrimination",
-            "Workplace Discrimination Law", None, [],
-        )
-        assert score > 30.0
-
-    def test_synonym_scoring(self):
-        score = _compute_relevance_score(
-            {"tribunal"}, "tribunal",
-            "Court", None, ["Tribunal", "Judicial Body"],
-        )
-        assert score > 50.0
-
-    def test_definition_scoring(self):
-        score = _compute_relevance_score(
-            {"bankruptcy"}, "bankruptcy",
-            "Insolvency Law", "Deals with bankruptcy proceedings", [],
-        )
-        assert score > 30.0
-
-    def test_empty_label_returns_0(self):
-        score = _compute_relevance_score(
-            {"test"}, "test", "", None, [],
-        )
-        assert score == 0.0
-
-    def test_score_capped_at_99(self):
-        score = _compute_relevance_score(
-            {"test"}, "test", "test", "test test test", ["test"],
-        )
-        assert score <= 99.0
-
-
-class TestGenerateSearchTerms:
-    def test_full_phrase_always_first(self):
-        terms = _generate_search_terms("breach of contract")
-        assert terms[0] == "breach of contract"
-
-    def test_sub_phrases_generated(self):
-        terms = _generate_search_terms("small business formation")
-        # Should include 2-word sub-phrases
-        lower_terms = [t.lower() for t in terms]
-        assert "small business" in lower_terms
-        assert "business formation" in lower_terms
-
-    def test_content_words_included(self):
-        terms = _generate_search_terms("the law of contracts")
-        lower_terms = [t.lower() for t in terms]
-        assert "contracts" in lower_terms
-
-    def test_legal_expansions(self):
-        terms = _generate_search_terms("litigation")
-        lower_terms = [t.lower() for t in terms]
-        assert "litigation practice" in lower_terms
-        assert "litigation service" in lower_terms
-
-    def test_deduplication(self):
-        terms = _generate_search_terms("litigation practice")
-        lower_terms = [t.lower() for t in terms]
-        # Count occurrences — should be no duplicates
-        assert len(lower_terms) == len(set(lower_terms))
-
-    def test_single_word(self):
-        terms = _generate_search_terms("bankruptcy")
-        assert len(terms) >= 1
-        assert terms[0] == "bankruptcy"
+from app.services.folio.search import candidate_vetoed, multi_strategy_search
 
 
 class FakeOWLClass:
@@ -315,22 +92,18 @@ class TestMultiStrategySearch:
         results = multi_strategy_search(mock_folio, "Breach of Contract", top_n=5)
         assert len(results) > 0
         assert results[0]["iri_hash"] == "HASH001"
-        assert results[0]["score"] == 97.0  # 3+ word exact match
+        # Library scorer: whole-string exact match scores 99.0 (was graduated 97 in the fork).
+        assert results[0]["score"] == 99.0
 
     def test_returns_dicts_with_expected_keys(self, mock_folio):
         results = multi_strategy_search(mock_folio, "criminal", top_n=5)
         if results:
             r = results[0]
-            assert "label" in r
-            assert "iri" in r
-            assert "iri_hash" in r
-            assert "score" in r
-            assert "definition" in r
-            assert "synonyms" in r
+            for key in ("label", "iri", "iri_hash", "score", "definition", "synonyms", "branch"):
+                assert key in r
 
     def test_no_results_for_unrelated_query(self, mock_folio):
         results = multi_strategy_search(mock_folio, "quantum physics", top_n=5)
-        # May still find something via broad search, but scores should be low
         high_scoring = [r for r in results if r["score"] >= 50]
         assert len(high_scoring) == 0
 
@@ -342,3 +115,33 @@ class TestMultiStrategySearch:
         results = multi_strategy_search(mock_folio, "litigation", top_n=5)
         labels = [r["label"] for r in results]
         assert "Litigation Practice" in labels
+
+    def test_place_branch_candidate_is_vetoed(self):
+        """A generic query that fuzzy-latches a governmental-body label is dropped by the gate."""
+        folio = FakeFOLIO([
+            FakeOWLClass(
+                iri="https://folio.openlegalstandard.org/PLACE01",
+                label="U.S. Dept. of Justice",
+                definition="A federal executive department",
+                alt_labels=["justice"],
+            ),
+        ])
+        # With a branch resolver marking it a Governmental Body, the surface term "justice"
+        # (!= the label) must be vetoed rather than returned as a mis-map.
+        results = multi_strategy_search(
+            folio, "justice", top_n=5,
+            get_branch_fn=lambda _f, _h: "Governmental Body",
+        )
+        assert all(r["iri_hash"] != "PLACE01" for r in results)
+
+
+class TestCandidateVetoed:
+    def test_exact_place_name_not_vetoed(self):
+        # Surface term exactly equal to the place label is a real mention -> allowed.
+        assert not candidate_vetoed("Delaware", "Delaware", "Location", "iri", 100.0)
+
+    def test_generic_term_to_place_vetoed(self):
+        assert candidate_vetoed("law", "Delaware", "Location", "iri", 90.0)
+
+    def test_non_place_not_vetoed(self):
+        assert not candidate_vetoed("arbitration", "Arbitration Practice", "Service", "iri", 92.0)
