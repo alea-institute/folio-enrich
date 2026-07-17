@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "description": "Golden-baseline corpus for the folio-enrich -> folio-matching migration. Synthetic only: NO real matter data, NO litigation files. Exercises the deterministic matching seams the migration retires (search.py fork label-resolution, entity ruler, reconciler). Each label_resolution item is resolved through ConceptResolver.resolve/resolve_multi (the multi_strategy_search fork). Categories: exact, alias, fuzzy, word_order, homonym_trap, place_agency_generic, compound_multihead, proposed_class.",
+  "label_resolution": [
+    {"id": "lr-exact-arbitration", "text": "Arbitration", "category": "exact", "note": "exact preferred label"},
+    {"id": "lr-exact-mediation", "text": "Mediation", "category": "exact", "note": "exact preferred label"},
+    {"id": "lr-exact-lawyer", "text": "Lawyer", "category": "exact", "note": "named recovery >=96 per library calibration"},
+    {"id": "lr-exact-hearing", "text": "Hearing", "category": "exact", "note": "named recovery 100 per library calibration"},
+    {"id": "lr-exact-burden", "text": "Burden of Proof", "category": "exact", "note": "named recovery -> Litigation Burdens of Proof (100)"},
+    {"id": "lr-exact-closing", "text": "Closing Arguments", "category": "exact", "note": "named recovery -> Closing Arguments / Summation (96.97)"},
+    {"id": "lr-fuzzy-arbrules", "text": "arbitration rules", "category": "fuzzy", "note": "fuzzy multi-word"},
+    {"id": "lr-wordorder-arbrules", "text": "rules of arbitration", "category": "word_order", "note": "word-order-invariant: same content words as arbitration rules"},
+    {"id": "lr-fuzzy-burden-lc", "text": "burden of proof", "category": "fuzzy", "note": "case-insensitive fuzzy of a named recovery"},
+    {"id": "lr-homonym-law", "text": "law", "category": "place_agency_generic", "note": "CANARY: rapidfuzz over-scores to Delaware (Location) at 90; must NOT resolve to a place"},
+    {"id": "lr-homonym-justice", "text": "justice", "category": "homonym_trap", "note": "short label homonym"},
+    {"id": "lr-homonym-state", "text": "state", "category": "homonym_trap", "note": "short label homonym; state as government vs status"},
+    {"id": "lr-homonym-tax", "text": "tax", "category": "homonym_trap", "note": "short label homonym; expansion-prone"},
+    {"id": "lr-homonym-charge", "text": "charge", "category": "homonym_trap", "note": "short label homonym"},
+    {"id": "lr-homonym-action", "text": "Action", "category": "homonym_trap", "note": "CANARY: Action != Auction (92.3) -> alias blocklist veto, not a scoring accident"},
+    {"id": "lr-homonym-trial", "text": "trial", "category": "homonym_trap", "note": "short label homonym"},
+    {"id": "lr-place-effect", "text": "effect of answers", "category": "place_agency_generic", "note": "CANARY: over-scores to Federal Election Commission (Governmental Body) at 90"},
+    {"id": "lr-place-verdictforms", "text": "verdict forms", "category": "place_agency_generic", "note": "CANARY: over-scores to a place at 90 per library docstring"},
+    {"id": "lr-place-presumptions", "text": "Presumptions", "category": "place_agency_generic", "note": "CANARY: search returned Northern Mariana Islands/Portugal/Spain at 90 above Presumption of Innocence at 86"},
+    {"id": "lr-place-decisionmaker", "text": "Decision Maker", "category": "place_agency_generic", "note": "CANARY: over-scores to a place at 90 per library docstring"},
+    {"id": "lr-compound-fofcol", "text": "Proposed Findings of Fact and Conclusions of Law", "category": "compound_multihead", "note": "decompose-first: two sibling concepts (Proposed Findings of Fact + Proposed Conclusions of Law) with elided shared head"},
+    {"id": "lr-compound-arbmed", "text": "Arbitration and Mediation", "category": "compound_multihead", "note": "decompose: Arbitration + Mediation"},
+    {"id": "lr-compound-fofcol-plain", "text": "Findings of Fact and Conclusions of Law", "category": "compound_multihead", "note": "decompose without shared-head prefix"},
+    {"id": "lr-proposed-novelterm", "text": "Zorbleflorp Compliance Directive", "category": "proposed_class", "note": "nonsense: must resolve to nothing (proposed class / empty IRI)"}
+  ],
+  "entity_ruler_docs": [
+    {"id": "er-arbmed", "text": "The parties agreed to binding Arbitration and Mediation to resolve the dispute.", "category": "exact", "note": "exact multi-word preferred labels in body text"},
+    {"id": "er-lawyer-hearing", "text": "The Lawyer filed a Motion before the Hearing on the merits.", "category": "exact", "note": "exact single/multi preferred labels"},
+    {"id": "er-homonym-action-state", "text": "Prompt action was taken by the state agency after the tax was assessed.", "category": "homonym_trap", "note": "homonym surface forms (action, state, tax) in generic prose; ruler stopword/alt-label guards apply"},
+    {"id": "er-settlement", "text": "The Settlement Agreement resolved all claims between the parties.", "category": "alias", "note": "Settlement, Agreement, claims — alias/lemma reachability"}
+  ],
+  "reconciler_cases": [
+    {
+      "id": "rc-both-agree",
+      "note": "ruler and LLM agree on same (text, IRI) -> both_agree with diminishing boost",
+      "ruler": [{"concept_text": "Arbitration", "folio_iri": "https://folio.openlegalstandard.org/RARB", "confidence": 0.72, "branches": ["Service"], "source": "entity_ruler"}],
+      "llm": [{"concept_text": "Arbitration", "folio_iri": "https://folio.openlegalstandard.org/RARB", "confidence": 0.80, "branches": ["Service"], "source": "llm"}]
+    },
+    {
+      "id": "rc-ruler-only-below-threshold",
+      "note": "ruler-only single-word alt-label at 0.35 < 0.60 threshold -> filtered out",
+      "ruler": [{"concept_text": "grant", "folio_iri": "https://folio.openlegalstandard.org/RGRANT", "confidence": 0.35, "branches": ["Objectives"], "source": "entity_ruler"}],
+      "llm": []
+    },
+    {
+      "id": "rc-ruler-only-above-threshold",
+      "note": "ruler-only multi-word preferred at 0.72 >= 0.60 -> kept as ruler_only",
+      "ruler": [{"concept_text": "Burden of Proof", "folio_iri": "https://folio.openlegalstandard.org/RBOP", "confidence": 0.72, "branches": ["Objectives"], "source": "entity_ruler"}],
+      "llm": []
+    },
+    {
+      "id": "rc-llm-only",
+      "note": "LLM-only concept with no ruler match -> llm_only",
+      "ruler": [],
+      "llm": [{"concept_text": "Novel Doctrine", "folio_iri": "", "confidence": 0.65, "branches": [], "source": "llm"}]
+    },
+    {
+      "id": "rc-empty-iri-crossmatch",
+      "note": "ruler has IRI, LLM same text empty IRI -> cross-match both_agree",
+      "ruler": [{"concept_text": "Mediation", "folio_iri": "https://folio.openlegalstandard.org/RMED", "confidence": 0.72, "branches": ["Service"], "source": "entity_ruler"}],
+      "llm": [{"concept_text": "Mediation", "folio_iri": "", "confidence": 0.60, "branches": ["Service"], "source": "llm"}]
+    }
+  ]
+}

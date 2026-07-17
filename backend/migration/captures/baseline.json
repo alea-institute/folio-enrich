@@ -1,0 +1,1386 @@
+{
+  "corpus_hash": "1e107812faec4b8e25862b97eafe05f30a3a47fa63d55bf85539343ff37edd0b",
+  "corpus_version": 1,
+  "environment": {
+    "folio_python_version": "0.3.6",
+    "folio_matching_present": false,
+    "folio_concept_count": 18326
+  },
+  "label_resolution": [
+    {
+      "id": "lr-exact-arbitration",
+      "text": "Arbitration",
+      "category": "exact",
+      "extraction_path": "concept_resolver.resolve",
+      "primary": {
+        "iri": "https://folio.openlegalstandard.org/RXO2u2WBkUUcEG1jczLIcA",
+        "iri_hash": "RXO2u2WBkUUcEG1jczLIcA",
+        "label": "Arbitration Practice",
+        "branch": "Service",
+        "branches": [
+          "Service"
+        ],
+        "confidence_0_1": 0.952,
+        "source": "harness"
+      },
+      "candidates": [
+        {
+          "iri": "https://folio.openlegalstandard.org/R8LtU1k4pyiSD639zaq4vrM",
+          "label": "Arbitration Forum",
+          "branch": "Forums and Venues",
+          "confidence_0_1": 0.952
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RBey1qPhJGDlP3xszUL2JDF",
+          "label": "Arbitration Award",
+          "branch": "Objectives",
+          "confidence_0_1": 0.952
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RC2LcVXjOZOiT3wqNc2SU5n",
+          "label": "Arbitration Event",
+          "branch": "Event",
+          "confidence_0_1": 0.952
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RWQW185M6gqosVVQA1GE0A",
+          "label": "Arbitration Clause",
+          "branch": "Objectives",
+          "confidence_0_1": 0.952
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RXO2u2WBkUUcEG1jczLIcA",
+          "label": "Arbitration Practice",
+          "branch": "Service",
+          "confidence_0_1": 0.952
+        }
+      ]
+    },
+    {
+      "id": "lr-exact-mediation",
+      "text": "Mediation",
+      "category": "exact",
+      "extraction_path": "concept_resolver.resolve",
+      "primary": {
+        "iri": "https://folio.openlegalstandard.org/R9zgcjBBIdWMnwIR8nqsoS8",
+        "iri_hash": "R9zgcjBBIdWMnwIR8nqsoS8",
+        "label": "Mediation Practice",
+        "branch": "Service",
+        "branches": [
+          "Service"
+        ],
+        "confidence_0_1": 0.952,
+        "source": "harness"
+      },
+      "candidates": [
+        {
+          "iri": "https://folio.openlegalstandard.org/R8QAy2M9XDOWZjh3ISKfwLP",
+          "label": "Mediation Agreement",
+          "branch": "Document / Artifact",
+          "confidence_0_1": 0.952
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R9zgcjBBIdWMnwIR8nqsoS8",
+          "label": "Mediation Practice",
+          "branch": "Service",
+          "confidence_0_1": 0.952
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RIBFgpbQ38dlD4wCMRI9qP",
+          "label": "Mediation Forum",
+          "branch": "Forums and Venues",
+          "confidence_0_1": 0.952
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RXEKEEEApoXTYB4DbjUJui",
+          "label": "Mediation Event",
+          "branch": "Event",
+          "confidence_0_1": 0.952
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RgsvxYKhqRKNkjPVgxJIKt",
+          "label": "Mediation Clause",
+          "branch": "Objectives",
+          "confidence_0_1": 0.952
+        }
+      ]
+    },
+    {
+      "id": "lr-exact-lawyer",
+      "text": "Lawyer",
+      "category": "exact",
+      "extraction_path": "concept_resolver.resolve",
+      "primary": {
+        "iri": "https://folio.openlegalstandard.org/RCar9tX8a2tLTeQL3XD1XZG",
+        "iri_hash": "RCar9tX8a2tLTeQL3XD1XZG",
+        "label": "Legal Aid Attorney",
+        "branch": "Engagement Terms",
+        "branches": [
+          "Engagement Terms"
+        ],
+        "confidence_0_1": 0.892,
+        "source": "harness"
+      },
+      "candidates": [
+        {
+          "iri": "https://folio.openlegalstandard.org/R9tIoV6NSL01NJcZzv2QgzY",
+          "label": "Lawyer's Bar Identifier",
+          "branch": "Engagement Terms",
+          "confidence_0_1": 0.892
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RCar9tX8a2tLTeQL3XD1XZG",
+          "label": "Legal Aid Attorney",
+          "branch": "Engagement Terms",
+          "confidence_0_1": 0.892
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RChRXRlMt5J5wkUApU4J9zz",
+          "label": "Lawyer's Admission to Practice in a Jurisdiction",
+          "branch": "Engagement Terms",
+          "confidence_0_1": 0.892
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RVbr7id7xk8cwbPPGi6x1a",
+          "label": "Leading Objection",
+          "branch": "Objectives",
+          "confidence_0_1": 0.82
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RcTA2iQmrtqOnX3WrjJIp8",
+          "label": "Lawyer",
+          "branch": "Engagement Terms",
+          "confidence_0_1": 0.82
+        }
+      ]
+    },
+    {
+      "id": "lr-exact-hearing",
+      "text": "Hearing",
+      "category": "exact",
+      "extraction_path": "concept_resolver.resolve",
+      "primary": {
+        "iri": "https://folio.openlegalstandard.org/R8E6otaJQGswsbGDQeYAlTL",
+        "iri_hash": "R8E6otaJQGswsbGDQeYAlTL",
+        "label": "Markman Hearing",
+        "branch": "Event",
+        "branches": [
+          "Event"
+        ],
+        "confidence_0_1": 0.952,
+        "source": "harness"
+      },
+      "candidates": [
+        {
+          "iri": "https://folio.openlegalstandard.org/R8E6otaJQGswsbGDQeYAlTL",
+          "label": "Markman Hearing",
+          "branch": "Event",
+          "confidence_0_1": 0.952
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RCsRWbVwZat6lud2K3XpOLj",
+          "label": "Hearing Disability",
+          "branch": "Legal Entity",
+          "confidence_0_1": 0.952
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R2h9JVqdc3Xw3Ftf6T7cab",
+          "label": "Motion to Expedite Hearing",
+          "branch": "Document / Artifact",
+          "confidence_0_1": 0.892
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R7klW2YExPu72tYGbOZ7D8Z",
+          "label": "Order for Remote Hearing",
+          "branch": "Document / Artifact",
+          "confidence_0_1": 0.892
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RBvQXP0KnTbPvw7ptRxJUxA",
+          "label": "Case Management Hearing",
+          "branch": "Event",
+          "confidence_0_1": 0.892
+        }
+      ]
+    },
+    {
+      "id": "lr-exact-burden",
+      "text": "Burden of Proof",
+      "category": "exact",
+      "extraction_path": "concept_resolver.resolve",
+      "primary": {
+        "iri": "https://folio.openlegalstandard.org/RDV74m3ydS2I72hZ88Mf1RX",
+        "iri_hash": "RDV74m3ydS2I72hZ88Mf1RX",
+        "label": "Litigation Burdens of Proof",
+        "branch": "Objectives",
+        "branches": [
+          "Objectives"
+        ],
+        "confidence_0_1": 0.853,
+        "source": "harness"
+      },
+      "candidates": [
+        {
+          "iri": "https://folio.openlegalstandard.org/RDV74m3ydS2I72hZ88Mf1RX",
+          "label": "Litigation Burdens of Proof",
+          "branch": "Objectives",
+          "confidence_0_1": 0.853
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RBDhSx7fl9qS0ezDVJuZHX4",
+          "label": "Litigation Objectives",
+          "branch": "Objectives",
+          "confidence_0_1": 0.725
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RlNFgB3TQfMzV26V4V7u4E",
+          "label": "Objectives",
+          "branch": "",
+          "confidence_0_1": 0.616
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R7c1yU31BO5LWM06a7c0Pfd",
+          "label": "Some Evidence",
+          "branch": "Objectives",
+          "confidence_0_1": 0.6
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RGCpbuNOHtlNDogCc7dOLY",
+          "label": "Reasonable Belief",
+          "branch": "Objectives",
+          "confidence_0_1": 0.6
+        }
+      ]
+    },
+    {
+      "id": "lr-exact-closing",
+      "text": "Closing Arguments",
+      "category": "exact",
+      "extraction_path": "concept_resolver.resolve",
+      "primary": {
+        "iri": "https://folio.openlegalstandard.org/RcR3bv1hvkJ6eLZsLcmaFY",
+        "iri_hash": "RcR3bv1hvkJ6eLZsLcmaFY",
+        "label": "Closing Arguments / Summation",
+        "branch": "Event",
+        "branches": [
+          "Event"
+        ],
+        "confidence_0_1": 0.952,
+        "source": "harness"
+      },
+      "candidates": [
+        {
+          "iri": "https://folio.openlegalstandard.org/RcR3bv1hvkJ6eLZsLcmaFY",
+          "label": "Closing Arguments / Summation",
+          "branch": "Event",
+          "confidence_0_1": 0.952
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/Rchny3YFXoQyenv6XUbyo0",
+          "label": "Trial Events",
+          "branch": "Event",
+          "confidence_0_1": 0.809
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R73Uo5x4VyfiOXt6i4R256t",
+          "label": "Litigation Events",
+          "branch": "Event",
+          "confidence_0_1": 0.688
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RDFhtJuTWcY7UZGV9F5yOoA",
+          "label": "Dispute Events",
+          "branch": "Event",
+          "confidence_0_1": 0.585
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R7nLS8ry1FEJUBSrWrR2Ded",
+          "label": "Closing Event",
+          "branch": "Event",
+          "confidence_0_1": 0.473
+        }
+      ]
+    },
+    {
+      "id": "lr-fuzzy-arbrules",
+      "text": "arbitration rules",
+      "category": "fuzzy",
+      "extraction_path": "concept_resolver.resolve",
+      "primary": {
+        "iri": "https://folio.openlegalstandard.org/RIrsxdvut2uYOncb3fCTwd",
+        "iri_hash": "RIrsxdvut2uYOncb3fCTwd",
+        "label": "AAA Labor Arbitration Rules",
+        "branch": "Legal Authorities",
+        "branches": [
+          "Legal Authorities"
+        ],
+        "confidence_0_1": 0.952,
+        "source": "harness"
+      },
+      "candidates": [
+        {
+          "iri": "https://folio.openlegalstandard.org/RDRZ05RUD0ScNOff4djBSTw",
+          "label": "AAA Consumer Arbitration Rules",
+          "branch": "Legal Authorities",
+          "confidence_0_1": 0.952
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RIrsxdvut2uYOncb3fCTwd",
+          "label": "AAA Labor Arbitration Rules",
+          "branch": "Legal Authorities",
+          "confidence_0_1": 0.952
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R7uzfpLbCGc2taU7nsJBuor",
+          "label": "ALL American Arbitration Association Rules",
+          "branch": "Legal Authorities",
+          "confidence_0_1": 0.946
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RBC0hzYykzvVIU4lgwzWUxn",
+          "label": "JAMS International Arbitration Rules",
+          "branch": "Legal Authorities",
+          "confidence_0_1": 0.946
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R8xVj14htMg08Ph5XqOUdbf",
+          "label": "Rules of Arbitration",
+          "branch": "Legal Authorities",
+          "confidence_0_1": 0.939
+        }
+      ]
+    },
+    {
+      "id": "lr-wordorder-arbrules",
+      "text": "rules of arbitration",
+      "category": "word_order",
+      "extraction_path": "concept_resolver.resolve",
+      "primary": {
+        "iri": "https://folio.openlegalstandard.org/R8xVj14htMg08Ph5XqOUdbf",
+        "iri_hash": "R8xVj14htMg08Ph5XqOUdbf",
+        "label": "Rules of Arbitration",
+        "branch": "Legal Authorities",
+        "branches": [
+          "Legal Authorities"
+        ],
+        "confidence_0_1": 0.97,
+        "source": "harness"
+      },
+      "candidates": [
+        {
+          "iri": "https://folio.openlegalstandard.org/R8xVj14htMg08Ph5XqOUdbf",
+          "label": "Rules of Arbitration",
+          "branch": "Legal Authorities",
+          "confidence_0_1": 0.97
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R7uzfpLbCGc2taU7nsJBuor",
+          "label": "ALL American Arbitration Association Rules",
+          "branch": "Legal Authorities",
+          "confidence_0_1": 0.946
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RBC0hzYykzvVIU4lgwzWUxn",
+          "label": "JAMS International Arbitration Rules",
+          "branch": "Legal Authorities",
+          "confidence_0_1": 0.946
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RDRZ05RUD0ScNOff4djBSTw",
+          "label": "AAA Consumer Arbitration Rules",
+          "branch": "Legal Authorities",
+          "confidence_0_1": 0.946
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RIrsxdvut2uYOncb3fCTwd",
+          "label": "AAA Labor Arbitration Rules",
+          "branch": "Legal Authorities",
+          "confidence_0_1": 0.946
+        }
+      ]
+    },
+    {
+      "id": "lr-fuzzy-burden-lc",
+      "text": "burden of proof",
+      "category": "fuzzy",
+      "extraction_path": "concept_resolver.resolve",
+      "primary": {
+        "iri": "https://folio.openlegalstandard.org/RDV74m3ydS2I72hZ88Mf1RX",
+        "iri_hash": "RDV74m3ydS2I72hZ88Mf1RX",
+        "label": "Litigation Burdens of Proof",
+        "branch": "Objectives",
+        "branches": [
+          "Objectives"
+        ],
+        "confidence_0_1": 0.853,
+        "source": "harness"
+      },
+      "candidates": [
+        {
+          "iri": "https://folio.openlegalstandard.org/RDV74m3ydS2I72hZ88Mf1RX",
+          "label": "Litigation Burdens of Proof",
+          "branch": "Objectives",
+          "confidence_0_1": 0.853
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RBDhSx7fl9qS0ezDVJuZHX4",
+          "label": "Litigation Objectives",
+          "branch": "Objectives",
+          "confidence_0_1": 0.725
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RlNFgB3TQfMzV26V4V7u4E",
+          "label": "Objectives",
+          "branch": "",
+          "confidence_0_1": 0.616
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R7c1yU31BO5LWM06a7c0Pfd",
+          "label": "Some Evidence",
+          "branch": "Objectives",
+          "confidence_0_1": 0.6
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RGCpbuNOHtlNDogCc7dOLY",
+          "label": "Reasonable Belief",
+          "branch": "Objectives",
+          "confidence_0_1": 0.6
+        }
+      ]
+    },
+    {
+      "id": "lr-homonym-law",
+      "text": "law",
+      "category": "place_agency_generic",
+      "extraction_path": "concept_resolver.resolve",
+      "primary": {
+        "iri": "https://folio.openlegalstandard.org/HKB4DZ_OTrCAWQrg_EnR8Q",
+        "iri_hash": "HKB4DZ_OTrCAWQrg_EnR8Q",
+        "label": "Offices of Lawyers",
+        "branch": "Industry",
+        "branches": [
+          "Industry"
+        ],
+        "confidence_0_1": 0.776,
+        "source": "harness"
+      },
+      "candidates": [
+        {
+          "iri": "https://folio.openlegalstandard.org/HKB4DZ_OTrCAWQrg_EnR8Q",
+          "label": "Offices of Lawyers",
+          "branch": "Industry",
+          "confidence_0_1": 0.776
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R83UGZWX9KH0aZfhtRQ4jCJ",
+          "label": "Lawful Temporary Resident",
+          "branch": "Actor / Player",
+          "confidence_0_1": 0.776
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R9tIoV6NSL01NJcZzv2QgzY",
+          "label": "Lawyer's Bar Identifier",
+          "branch": "Engagement Terms",
+          "confidence_0_1": 0.776
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RBDNHtmUIGTUKAXvzRP70N1",
+          "label": "Lawful AI",
+          "branch": "Objectives",
+          "confidence_0_1": 0.776
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RcTA2iQmrtqOnX3WrjJIp8",
+          "label": "Lawyer",
+          "branch": "Engagement Terms",
+          "confidence_0_1": 0.776
+        }
+      ]
+    },
+    {
+      "id": "lr-homonym-justice",
+      "text": "justice",
+      "category": "homonym_trap",
+      "extraction_path": "concept_resolver.resolve",
+      "primary": {
+        "iri": "https://folio.openlegalstandard.org/R0DB70442Cf8b73D9275F14a",
+        "iri_hash": "R0DB70442Cf8b73D9275F14a",
+        "label": "U.S. Dept. of Justice",
+        "branch": "Governmental Body",
+        "branches": [
+          "Governmental Body"
+        ],
+        "confidence_0_1": 0.892,
+        "source": "harness"
+      },
+      "candidates": [
+        {
+          "iri": "https://folio.openlegalstandard.org/R0DB70442Cf8b73D9275F14a",
+          "label": "U.S. Dept. of Justice",
+          "branch": "Governmental Body",
+          "confidence_0_1": 0.892
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RA731f594B650D6876859259",
+          "label": "Office of Justice Programs",
+          "branch": "Governmental Body",
+          "confidence_0_1": 0.892
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RBU1Gc9qX3aN9NO6DsQX5pj",
+          "label": "European Court of Justice",
+          "branch": "Governmental Body",
+          "confidence_0_1": 0.892
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RCE6337CAA1d611139082817",
+          "label": "Bureau of Justice Statistics",
+          "branch": "Governmental Body",
+          "confidence_0_1": 0.892
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RCNCBNpw84e0SAwaLCvbKNf",
+          "label": "Obstruction of Justice",
+          "branch": "Objectives",
+          "confidence_0_1": 0.892
+        }
+      ]
+    },
+    {
+      "id": "lr-homonym-state",
+      "text": "state",
+      "category": "homonym_trap",
+      "extraction_path": "concept_resolver.resolve",
+      "primary": {
+        "iri": "https://folio.openlegalstandard.org/RB7XcnatvzPCEMLISMA0Pnx",
+        "iri_hash": "RB7XcnatvzPCEMLISMA0Pnx",
+        "label": "State Court",
+        "branch": "Forums and Venues",
+        "branches": [
+          "Forums and Venues"
+        ],
+        "confidence_0_1": 0.952,
+        "source": "harness"
+      },
+      "candidates": [
+        {
+          "iri": "https://folio.openlegalstandard.org/RB7XcnatvzPCEMLISMA0Pnx",
+          "label": "State Court",
+          "branch": "Forums and Venues",
+          "confidence_0_1": 0.952
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RDgGcpXGlTkoTivF8Ol8w09",
+          "label": "State Legislator",
+          "branch": "Legal Entity",
+          "confidence_0_1": 0.952
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R0480ee8B57a1441863FE362",
+          "label": "U.S. Dept. of State",
+          "branch": "Governmental Body",
+          "confidence_0_1": 0.892
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RBZXbv75cyMrROEWybfqeTJ",
+          "label": "State Governmental Leader",
+          "branch": "Legal Entity",
+          "confidence_0_1": 0.892
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RDpdutTNI2rbLZMnb9oqlOc",
+          "label": "State Governmental Body",
+          "branch": "Governmental Body",
+          "confidence_0_1": 0.892
+        }
+      ]
+    },
+    {
+      "id": "lr-homonym-tax",
+      "text": "tax",
+      "category": "homonym_trap",
+      "extraction_path": "concept_resolver.resolve",
+      "primary": {
+        "iri": "https://folio.openlegalstandard.org/R1B9b8f8D5c8164D9da3B238",
+        "iri_hash": "R1B9b8f8D5c8164D9da3B238",
+        "label": "U.S. Tax Court",
+        "branch": "Governmental Body",
+        "branches": [
+          "Governmental Body"
+        ],
+        "confidence_0_1": 0.952,
+        "source": "harness"
+      },
+      "candidates": [
+        {
+          "iri": "https://folio.openlegalstandard.org/R153Tv1X1AyYIr4xBxbE2l",
+          "label": "Tax Rate Percent",
+          "branch": "Engagement Terms",
+          "confidence_0_1": 0.952
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R18qjSeTEcA0ftKswAFKWG",
+          "label": "Tax Detail",
+          "branch": "Engagement Terms",
+          "confidence_0_1": 0.952
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R1B9b8f8D5c8164D9da3B238",
+          "label": "U.S. Tax Court",
+          "branch": "Governmental Body",
+          "confidence_0_1": 0.952
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R527Rr0DAZ1Lu9VPx6QRbj",
+          "label": "Tax Practice",
+          "branch": "Service",
+          "confidence_0_1": 0.952
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R6NLFwVRdI5dCvtQ1dm4f2",
+          "label": "Tax Court",
+          "branch": "Forums and Venues",
+          "confidence_0_1": 0.952
+        }
+      ]
+    },
+    {
+      "id": "lr-homonym-charge",
+      "text": "charge",
+      "category": "homonym_trap",
+      "extraction_path": "concept_resolver.resolve",
+      "primary": {
+        "iri": "https://folio.openlegalstandard.org/R8qRNxxw553cG2hpeC6FJ3s",
+        "iri_hash": "R8qRNxxw553cG2hpeC6FJ3s",
+        "label": "Fee Charge Date",
+        "branch": "Engagement Terms",
+        "branches": [
+          "Engagement Terms"
+        ],
+        "confidence_0_1": 0.892,
+        "source": "harness"
+      },
+      "candidates": [
+        {
+          "iri": "https://folio.openlegalstandard.org/R8bI7utrpB2lXtuUuLqUWqa",
+          "label": "Discharge in Bankruptcy",
+          "branch": "Objectives",
+          "confidence_0_1": 0.892
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R8qRNxxw553cG2hpeC6FJ3s",
+          "label": "Fee Charge Date",
+          "branch": "Engagement Terms",
+          "confidence_0_1": 0.892
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RD1NJOilfS2J7giDdQdLPek",
+          "label": "Unlawful Discharge of a Weapon",
+          "branch": "Objectives",
+          "confidence_0_1": 0.892
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RBuClJDn4xw8zw9X8LMNr6q",
+          "label": "Failure To Discharge a Mandatory Duty",
+          "branch": "Objectives",
+          "confidence_0_1": 0.82
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RBwjfSdzaRLqTyzD43IzXmL",
+          "label": "\"Encumbrance\" Definition",
+          "branch": "Objectives",
+          "confidence_0_1": 0.82
+        }
+      ]
+    },
+    {
+      "id": "lr-homonym-action",
+      "text": "Action",
+      "category": "homonym_trap",
+      "extraction_path": "concept_resolver.resolve",
+      "primary": {
+        "iri": "https://folio.openlegalstandard.org/R8iqvgE2NjybgksTeqsGhr3",
+        "iri_hash": "R8iqvgE2NjybgksTeqsGhr3",
+        "label": "Concert of Action Crimes",
+        "branch": "Objectives",
+        "branches": [
+          "Objectives"
+        ],
+        "confidence_0_1": 0.892,
+        "source": "harness"
+      },
+      "candidates": [
+        {
+          "iri": "https://folio.openlegalstandard.org/R8iqvgE2NjybgksTeqsGhr3",
+          "label": "Concert of Action Crimes",
+          "branch": "Objectives",
+          "confidence_0_1": 0.892
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R8jYAnNATrfoBxAtIKpf72X",
+          "label": "Civil Claims",
+          "branch": "Objectives",
+          "confidence_0_1": 0.892
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R9m7fEEboCdA3CLA3ndg65V",
+          "label": "Action to Quiet Title",
+          "branch": "Objectives",
+          "confidence_0_1": 0.892
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RCg7sZurj0WriXwfKokeRyD",
+          "label": "Class Action [Certified Class]",
+          "branch": "Objectives",
+          "confidence_0_1": 0.892
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RDkwKnlvFjjIktxrGokIDMx",
+          "label": "Action Prohibited/Omission Required by the Agreement Language",
+          "branch": "Objectives",
+          "confidence_0_1": 0.892
+        }
+      ]
+    },
+    {
+      "id": "lr-homonym-trial",
+      "text": "trial",
+      "category": "homonym_trap",
+      "extraction_path": "concept_resolver.resolve",
+      "primary": {
+        "iri": "https://folio.openlegalstandard.org/R9dd6R73IfKyiskT5Jf62R7",
+        "iri_hash": "R9dd6R73IfKyiskT5Jf62R7",
+        "label": "Trial Practice",
+        "branch": "Service",
+        "branches": [
+          "Service"
+        ],
+        "confidence_0_1": 0.952,
+        "source": "harness"
+      },
+      "candidates": [
+        {
+          "iri": "https://folio.openlegalstandard.org/R72XhyLUz5P5kgI2yKvVMwO",
+          "label": "Trial Brief",
+          "branch": "Document / Artifact",
+          "confidence_0_1": 0.952
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R7SdenAJ4aI0wyuxBsP7c09",
+          "label": "Trial Motions",
+          "branch": "Document / Artifact",
+          "confidence_0_1": 0.952
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R9dd6R73IfKyiskT5Jf62R7",
+          "label": "Trial Practice",
+          "branch": "Service",
+          "confidence_0_1": 0.952
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RD3V4wUvCRlZq9dBk03og9",
+          "label": "Trial Exhibit",
+          "branch": "Document / Artifact",
+          "confidence_0_1": 0.952
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/Rchny3YFXoQyenv6XUbyo0",
+          "label": "Trial Events",
+          "branch": "Event",
+          "confidence_0_1": 0.952
+        }
+      ]
+    },
+    {
+      "id": "lr-place-effect",
+      "text": "effect of answers",
+      "category": "place_agency_generic",
+      "extraction_path": "concept_resolver.resolve",
+      "primary": {
+        "iri": "https://folio.openlegalstandard.org/R2EyNORGNyiB9mHeePFGD",
+        "iri_hash": "R2EyNORGNyiB9mHeePFGD",
+        "label": "Answer",
+        "branch": "Document / Artifact",
+        "branches": [
+          "Document / Artifact"
+        ],
+        "confidence_0_1": 0.806,
+        "source": "harness"
+      },
+      "candidates": [
+        {
+          "iri": "https://folio.openlegalstandard.org/R2EyNORGNyiB9mHeePFGD",
+          "label": "Answer",
+          "branch": "Document / Artifact",
+          "confidence_0_1": 0.806
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RXx1zuWf6YAl8qcKgzeMai",
+          "label": "Pleadings",
+          "branch": "Document / Artifact",
+          "confidence_0_1": 0.685
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R7zvYKadqTXgMZV8ghLsloR",
+          "label": "Trial Court Practice Documents",
+          "branch": "Document / Artifact",
+          "confidence_0_1": 0.582
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/Rjco9ohucVSJ0XxprM5Opb",
+          "label": "Litigation Document",
+          "branch": "Document / Artifact",
+          "confidence_0_1": 0.495
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R9RKKV89o69CwHCRTa8p3Fz",
+          "label": "Legal Effect Clause",
+          "branch": "Objectives",
+          "confidence_0_1": 0.473
+        }
+      ]
+    },
+    {
+      "id": "lr-place-verdictforms",
+      "text": "verdict forms",
+      "category": "place_agency_generic",
+      "extraction_path": "concept_resolver.resolve",
+      "primary": {
+        "iri": "https://folio.openlegalstandard.org/RvgSllm1V4c8HFGjBKE92i",
+        "iri_hash": "RvgSllm1V4c8HFGjBKE92i",
+        "label": "Verdict",
+        "branch": "Document / Artifact",
+        "branches": [
+          "Document / Artifact"
+        ],
+        "confidence_0_1": 0.813,
+        "source": "harness"
+      },
+      "candidates": [
+        {
+          "iri": "https://folio.openlegalstandard.org/RvgSllm1V4c8HFGjBKE92i",
+          "label": "Verdict",
+          "branch": "Document / Artifact",
+          "confidence_0_1": 0.813
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RB8wppcP6f2OWeggLP1jecD",
+          "label": "Form",
+          "branch": "Document / Artifact",
+          "confidence_0_1": 0.806
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RDBXUrFP9mCZLCxzqy8nbEX",
+          "label": "Trial Court Created Documents",
+          "branch": "Document / Artifact",
+          "confidence_0_1": 0.691
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RTPFix1eiYqgdushRunICo",
+          "label": "Knowledge Type",
+          "branch": "Document / Artifact",
+          "confidence_0_1": 0.685
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R7zvYKadqTXgMZV8ghLsloR",
+          "label": "Trial Court Practice Documents",
+          "branch": "Document / Artifact",
+          "confidence_0_1": 0.587
+        }
+      ]
+    },
+    {
+      "id": "lr-place-presumptions",
+      "text": "Presumptions",
+      "category": "place_agency_generic",
+      "extraction_path": "concept_resolver.resolve",
+      "primary": {
+        "iri": "https://folio.openlegalstandard.org/R7azvKC8RwopK0ecoTMqfH1",
+        "iri_hash": "R7azvKC8RwopK0ecoTMqfH1",
+        "label": "Presumption of Innocence",
+        "branch": "Objectives",
+        "branches": [
+          "Objectives"
+        ],
+        "confidence_0_1": 0.757,
+        "source": "harness"
+      },
+      "candidates": [
+        {
+          "iri": "https://folio.openlegalstandard.org/R7azvKC8RwopK0ecoTMqfH1",
+          "label": "Presumption of Innocence",
+          "branch": "Objectives",
+          "confidence_0_1": 0.757
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R9rQnpq7IHnd86Rla1MuJJd",
+          "label": "Debtor's Rebuttal of Presumption of Abuse",
+          "branch": "Document / Artifact",
+          "confidence_0_1": 0.757
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RMDFW4aA6Bbtce0T9sqGZX",
+          "label": "Presumption of Death From Absence",
+          "branch": "Objectives",
+          "confidence_0_1": 0.757
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RhpHSn02gx8Bc6vKb1Yamb",
+          "label": "Exemption of Presumption of Abuse Form",
+          "branch": "Document / Artifact",
+          "confidence_0_1": 0.757
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RoA3iT57OSgVnM982fPGUE",
+          "label": "Rebuttal of Presumption of Undue Hardship",
+          "branch": "Objectives",
+          "confidence_0_1": 0.757
+        }
+      ]
+    },
+    {
+      "id": "lr-place-decisionmaker",
+      "text": "Decision Maker",
+      "category": "place_agency_generic",
+      "extraction_path": "concept_resolver.resolve",
+      "primary": {
+        "iri": "https://folio.openlegalstandard.org/R0FFe08906d0c62362d2849e",
+        "iri_hash": "R0FFe08906d0c62362d2849e",
+        "label": "U.S. Army Intelligence and Security Command",
+        "branch": "Governmental Body",
+        "branches": [
+          "Governmental Body"
+        ],
+        "confidence_0_1": 0.6,
+        "source": "harness"
+      },
+      "candidates": [
+        {
+          "iri": "https://folio.openlegalstandard.org/R0FFe08906d0c62362d2849e",
+          "label": "U.S. Army Intelligence and Security Command",
+          "branch": "Governmental Body",
+          "confidence_0_1": 0.6
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R7C48e31DB25e6A076a7459d",
+          "label": "United States Army",
+          "branch": "Governmental Body",
+          "confidence_0_1": 0.51
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R7ASJC76FQwJNtH4rbUqULk",
+          "label": "Temporary Restraining Order",
+          "branch": "Objectives",
+          "confidence_0_1": 0.495
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R4M01dzavP5fqzIsJ8ZEPa",
+          "label": "Arbitration and Award",
+          "branch": "Objectives",
+          "confidence_0_1": 0.468
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RCcObg4twiFtz9WZqgGQLpK",
+          "label": "Judicial Branch Monitoring Practice",
+          "branch": "Service",
+          "confidence_0_1": 0.436
+        }
+      ]
+    },
+    {
+      "id": "lr-compound-fofcol",
+      "text": "Proposed Findings of Fact and Conclusions of Law",
+      "category": "compound_multihead",
+      "extraction_path": "concept_resolver.resolve",
+      "primary": {
+        "iri": "https://folio.openlegalstandard.org/RNVlq2ReYjeb3r8UkUYvso",
+        "iri_hash": "RNVlq2ReYjeb3r8UkUYvso",
+        "label": "Proposed Findings of Fact",
+        "branch": "Document / Artifact",
+        "branches": [
+          "Document / Artifact"
+        ],
+        "confidence_0_1": 0.83,
+        "source": "harness"
+      },
+      "candidates": [
+        {
+          "iri": "https://folio.openlegalstandard.org/RNVlq2ReYjeb3r8UkUYvso",
+          "label": "Proposed Findings of Fact",
+          "branch": "Document / Artifact",
+          "confidence_0_1": 0.83
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R9G2HzzbJMx6tThsp2m6kjM",
+          "label": "Proposed Conclusions of Law",
+          "branch": "Document / Artifact",
+          "confidence_0_1": 0.706
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R7zvYKadqTXgMZV8ghLsloR",
+          "label": "Trial Court Practice Documents",
+          "branch": "Document / Artifact",
+          "confidence_0_1": 0.6
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/Rjco9ohucVSJ0XxprM5Opb",
+          "label": "Litigation Document",
+          "branch": "Document / Artifact",
+          "confidence_0_1": 0.51
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RTfFJVgqB5so6U5f7y0KAv",
+          "label": "Motion for Findings of Fact",
+          "branch": "Document / Artifact",
+          "confidence_0_1": 0.473
+        }
+      ]
+    },
+    {
+      "id": "lr-compound-arbmed",
+      "text": "Arbitration and Mediation",
+      "category": "compound_multihead",
+      "extraction_path": "concept_resolver.resolve",
+      "primary": {
+        "iri": "https://folio.openlegalstandard.org/RDtgiank9cPXBJiBHgaT4AT",
+        "iri_hash": "RDtgiank9cPXBJiBHgaT4AT",
+        "label": "Judicial Arbitration and Mediation Services",
+        "branch": "Forums and Venues",
+        "branches": [
+          "Forums and Venues"
+        ],
+        "confidence_0_1": 0.952,
+        "source": "harness"
+      },
+      "candidates": [
+        {
+          "iri": "https://folio.openlegalstandard.org/R56Ur1GMPPcmHKGn3BVaK3",
+          "label": "AAA Employment Arbitration Rules and Mediation Procedures",
+          "branch": "Legal Authorities",
+          "confidence_0_1": 0.952
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R7ltqLFbA95B5Hwmwgf8WgF",
+          "label": "AAA Commercial Arbitration Rules and Mediation Procedures",
+          "branch": "Legal Authorities",
+          "confidence_0_1": 0.952
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RDtgiank9cPXBJiBHgaT4AT",
+          "label": "Judicial Arbitration and Mediation Services",
+          "branch": "Forums and Venues",
+          "confidence_0_1": 0.952
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RE06c691EE24d1E4863BF83d",
+          "label": "Federal Mediation and Conciliation Service",
+          "branch": "Governmental Body",
+          "confidence_0_1": 0.952
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/Rvh4toXuvsKHyb8iiH8ueK",
+          "label": "AAA Construction Industry Arbitration Rules and Mediation Procedures",
+          "branch": "Legal Authorities",
+          "confidence_0_1": 0.952
+        }
+      ]
+    },
+    {
+      "id": "lr-compound-fofcol-plain",
+      "text": "Findings of Fact and Conclusions of Law",
+      "category": "compound_multihead",
+      "extraction_path": "concept_resolver.resolve",
+      "primary": {
+        "iri": "https://folio.openlegalstandard.org/RNVlq2ReYjeb3r8UkUYvso",
+        "iri_hash": "RNVlq2ReYjeb3r8UkUYvso",
+        "label": "Proposed Findings of Fact",
+        "branch": "Document / Artifact",
+        "branches": [
+          "Document / Artifact"
+        ],
+        "confidence_0_1": 0.631,
+        "source": "harness"
+      },
+      "candidates": [
+        {
+          "iri": "https://folio.openlegalstandard.org/RNVlq2ReYjeb3r8UkUYvso",
+          "label": "Proposed Findings of Fact",
+          "branch": "Document / Artifact",
+          "confidence_0_1": 0.631
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RTfFJVgqB5so6U5f7y0KAv",
+          "label": "Motion for Findings of Fact",
+          "branch": "Document / Artifact",
+          "confidence_0_1": 0.631
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R7ZrWzdAOf6mXVtcQ49gWat",
+          "label": "Judicial Finding of Fact",
+          "branch": "Document / Artifact",
+          "confidence_0_1": 0.568
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R8zwKGkogGKIKWSVWb1ItRL",
+          "label": "Motions in Trial Courts",
+          "branch": "Document / Artifact",
+          "confidence_0_1": 0.536
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RiuB3WjtPaioVphDpqLzVK",
+          "label": "Proposed Court Filings",
+          "branch": "Document / Artifact",
+          "confidence_0_1": 0.536
+        }
+      ]
+    },
+    {
+      "id": "lr-proposed-novelterm",
+      "text": "Zorbleflorp Compliance Directive",
+      "category": "proposed_class",
+      "extraction_path": "concept_resolver.resolve",
+      "primary": {
+        "iri": "https://folio.openlegalstandard.org/R9IoAlyOWrsbtjuz7qo2cd7",
+        "iri_hash": "R9IoAlyOWrsbtjuz7qo2cd7",
+        "label": "Export Controls Practice",
+        "branch": "Service",
+        "branches": [
+          "Service"
+        ],
+        "confidence_0_1": 0.886,
+        "source": "harness"
+      },
+      "candidates": [
+        {
+          "iri": "https://folio.openlegalstandard.org/R9IoAlyOWrsbtjuz7qo2cd7",
+          "label": "Export Controls Practice",
+          "branch": "Service",
+          "confidence_0_1": 0.886
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RCZwssbqfmu0Lds0LPDV34F",
+          "label": "Compliance",
+          "branch": "Objectives",
+          "confidence_0_1": 0.813
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RDK1QEdQg1T8B5HQqMK2pZN",
+          "label": "Service",
+          "branch": "",
+          "confidence_0_1": 0.806
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R8x520MB0xME0o4Wrg2o1so",
+          "label": "International Trade Practice",
+          "branch": "Service",
+          "confidence_0_1": 0.753
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RClhbl4E1TJp9LygIXewIhn",
+          "label": "Deontic Specification",
+          "branch": "Objectives",
+          "confidence_0_1": 0.691
+        }
+      ]
+    }
+  ],
+  "entity_ruler": [
+    {
+      "id": "er-arbmed",
+      "text": "The parties agreed to binding Arbitration and Mediation to resolve the dispute.",
+      "category": "exact",
+      "extraction_path": "entity_ruler.find_matches",
+      "matches": [
+        {
+          "text": "Arbitration",
+          "start": 30,
+          "end": 41,
+          "iri": "https://folio.openlegalstandard.org/RXO2u2WBkUUcEG1jczLIcA",
+          "iri_hash": "RXO2u2WBkUUcEG1jczLIcA",
+          "match_type": "alternative"
+        },
+        {
+          "text": "Mediation",
+          "start": 46,
+          "end": 55,
+          "iri": "https://folio.openlegalstandard.org/R9zgcjBBIdWMnwIR8nqsoS8",
+          "iri_hash": "R9zgcjBBIdWMnwIR8nqsoS8",
+          "match_type": "alternative"
+        },
+        {
+          "text": "dispute",
+          "start": 71,
+          "end": 78,
+          "iri": "https://folio.openlegalstandard.org/RDigDgTiLFmt7iX3436yCOT",
+          "iri_hash": "RDigDgTiLFmt7iX3436yCOT",
+          "match_type": "alternative"
+        }
+      ]
+    },
+    {
+      "id": "er-lawyer-hearing",
+      "text": "The Lawyer filed a Motion before the Hearing on the merits.",
+      "category": "exact",
+      "extraction_path": "entity_ruler.find_matches",
+      "matches": [
+        {
+          "text": "Lawyer",
+          "start": 4,
+          "end": 10,
+          "iri": "https://folio.openlegalstandard.org/RcTA2iQmrtqOnX3WrjJIp8",
+          "iri_hash": "RcTA2iQmrtqOnX3WrjJIp8",
+          "match_type": "preferred"
+        },
+        {
+          "text": "Motion",
+          "start": 19,
+          "end": 25,
+          "iri": "https://folio.openlegalstandard.org/R79jXpStbWPIClnqZrLu4yP",
+          "iri_hash": "R79jXpStbWPIClnqZrLu4yP",
+          "match_type": "lemma_preferred"
+        },
+        {
+          "text": "Hearing",
+          "start": 37,
+          "end": 44,
+          "iri": "https://folio.openlegalstandard.org/RIWfMispL6dMcdxJSr8nam",
+          "iri_hash": "RIWfMispL6dMcdxJSr8nam",
+          "match_type": "preferred"
+        }
+      ]
+    },
+    {
+      "id": "er-homonym-action-state",
+      "text": "Prompt action was taken by the state agency after the tax was assessed.",
+      "category": "homonym_trap",
+      "extraction_path": "entity_ruler.find_matches",
+      "matches": [
+        {
+          "text": "Prompt",
+          "start": 0,
+          "end": 6,
+          "iri": "https://folio.openlegalstandard.org/R8zA9PP2uC2sydC86U0I4Gi",
+          "iri_hash": "R8zA9PP2uC2sydC86U0I4Gi",
+          "match_type": "preferred"
+        },
+        {
+          "text": "action",
+          "start": 7,
+          "end": 13,
+          "iri": "https://folio.openlegalstandard.org/RBnws1cVX4kf2XpFVgfZA1c",
+          "iri_hash": "RBnws1cVX4kf2XpFVgfZA1c",
+          "match_type": "lemma_alternative"
+        },
+        {
+          "text": "state",
+          "start": 31,
+          "end": 36,
+          "iri": "https://folio.openlegalstandard.org/R0480ee8B57a1441863FE362",
+          "iri_hash": "R0480ee8B57a1441863FE362",
+          "match_type": "alternative"
+        },
+        {
+          "text": "tax",
+          "start": 54,
+          "end": 57,
+          "iri": "https://folio.openlegalstandard.org/R1B9b8f8D5c8164D9da3B238",
+          "iri_hash": "R1B9b8f8D5c8164D9da3B238",
+          "match_type": "alternative"
+        }
+      ]
+    },
+    {
+      "id": "er-settlement",
+      "text": "The Settlement Agreement resolved all claims between the parties.",
+      "category": "alias",
+      "extraction_path": "entity_ruler.find_matches",
+      "matches": [
+        {
+          "text": "Settlement Agreement",
+          "start": 4,
+          "end": 24,
+          "iri": "https://folio.openlegalstandard.org/RBVGGEdVgHfVPEPq5dLPjrS",
+          "iri_hash": "RBVGGEdVgHfVPEPq5dLPjrS",
+          "match_type": "preferred"
+        },
+        {
+          "text": "claims",
+          "start": 38,
+          "end": 44,
+          "iri": "https://folio.openlegalstandard.org/R9q7GJc1zsYT0P4Xdp6l9Oz",
+          "iri_hash": "R9q7GJc1zsYT0P4Xdp6l9Oz",
+          "match_type": "alternative"
+        }
+      ]
+    }
+  ],
+  "reconciler": [
+    {
+      "id": "rc-both-agree",
+      "extraction_path": "reconciler.reconcile",
+      "results": [
+        {
+          "concept_text": "Arbitration",
+          "iri": "https://folio.openlegalstandard.org/RARB",
+          "confidence": 0.81,
+          "branches": [
+            "Service"
+          ],
+          "source": "reconciled",
+          "category": "both_agree"
+        }
+      ]
+    },
+    {
+      "id": "rc-ruler-only-below-threshold",
+      "extraction_path": "reconciler.reconcile",
+      "results": []
+    },
+    {
+      "id": "rc-ruler-only-above-threshold",
+      "extraction_path": "reconciler.reconcile",
+      "results": [
+        {
+          "concept_text": "Burden of Proof",
+          "iri": "https://folio.openlegalstandard.org/RBOP",
+          "confidence": 0.72,
+          "branches": [
+            "Objectives"
+          ],
+          "source": "entity_ruler",
+          "category": "ruler_only"
+        }
+      ]
+    },
+    {
+      "id": "rc-llm-only",
+      "extraction_path": "reconciler.reconcile",
+      "results": [
+        {
+          "concept_text": "Novel Doctrine",
+          "iri": "",
+          "confidence": 0.65,
+          "branches": [],
+          "source": "llm",
+          "category": "llm_only"
+        }
+      ]
+    },
+    {
+      "id": "rc-empty-iri-crossmatch",
+      "extraction_path": "reconciler.reconcile",
+      "results": [
+        {
+          "concept_text": "Mediation",
+          "iri": "https://folio.openlegalstandard.org/RMED",
+          "confidence": 0.734,
+          "branches": [
+            "Service"
+          ],
+          "source": "reconciled",
+          "category": "both_agree"
+        }
+      ]
+    }
+  ]
+}

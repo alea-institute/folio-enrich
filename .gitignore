@@ -9,3 +9,7 @@ Enrich LLM_PROMPTS_*.md
 DocType_high_value.txt
 UX-REFRESH-INSTRUCTIONS.md
 legal-citation-tools-memo.md
+
+# migration harness: Stage-1 comparison artifacts (regenerated, not committed)
+backend/migration/captures/candidate.json
+backend/migration/captures/delta.json
