@@ -628,7 +628,7 @@ cd backend
 .venv/bin/python -m pytest tests/ -v
 ```
 
-**586 tests** across 45 test files covering:
+**887 tests** across 74 test files covering:
 
 | Area | Tests Cover |
 |------|------------|
@@ -736,7 +736,7 @@ folio-enrich/
 │   │   └── storage/
 │   │       ├── job_store.py                 # Atomic JSON job persistence
 │   │       └── feedback_store.py            # Feedback persistence
-│   ├── tests/                               # 586 tests across 45 files
+│   ├── tests/                               # 887 tests across 74 files
 │   └── pyproject.toml                       # Dependencies + build config
 ├── frontend/
 │   └── index.html                           # Single-file SPA (vanilla JS, dark theme)
@@ -760,6 +760,7 @@ folio-enrich/
 
 | Library | Purpose |
 |---------|---------|
+| [folio-resolve](https://pypi.org/project/folio-resolve/) | Shared FOLIO source-text→concept engine (scorer, `LabelResolver`, gates, alias blocklist) |
 | [pyahocorasick](https://pypi.org/project/pyahocorasick/) | Multi-pattern string matching (concepts + properties) |
 | [faiss-cpu](https://github.com/facebookresearch/faiss) | Vector similarity search |
 | [nupunkt](https://pypi.org/project/nupunkt/) | Sentence segmentation |
@@ -770,12 +771,12 @@ folio-enrich/
 
 | Library | Purpose |
 |---------|---------|
-| [PyMuPDF](https://pymupdf.readthedocs.io/) | PDF text extraction |
+| [pypdf](https://pypdf.readthedocs.io/) | PDF text extraction (BSD; replaced AGPL PyMuPDF) |
 | [python-docx](https://python-docx.readthedocs.io/) | DOCX handling |
 | [beautifulsoup4](https://www.crummy.com/software/BeautifulSoup/) | HTML parsing |
 | [markdown-it-py](https://pypi.org/project/markdown-it-py/) | Markdown parsing |
 | [striprtf](https://pypi.org/project/striprtf/) | RTF format handling |
-| [extract-msg](https://pypi.org/project/extract-msg/) | Email (EML/MSG) parsing |
+| [olefile](https://pypi.org/project/olefile/) | Outlook `.msg` MAPI stream reading (BSD; replaced GPL extract-msg) |
 
 ### Export
 
@@ -792,9 +793,22 @@ folio-enrich/
 | [uvicorn](https://www.uvicorn.org/) | ASGI server |
 | [httpx](https://www.python-httpx.org/) | HTTP client for LLM APIs |
 | [sse-starlette](https://pypi.org/project/sse-starlette/) | Server-Sent Events |
+| [psutil](https://pypi.org/project/psutil/) | Process/memory telemetry |
+
+### Optional
+
+| Library | Purpose |
+|---------|---------|
+| [sentence-transformers](https://www.sbert.net/) | Local embeddings (`pip install -e ".[embeddings]"`; pulls torch). Without it, semantic FOLIO matching degrades gracefully |
+
+Every component's license — plus the two copyleft dependencies deliberately
+removed (PyMuPDF/AGPL → pypdf; extract-msg/GPL → olefile) — is logged in
+[THIRD-PARTY.md](THIRD-PARTY.md).
 
 ---
 
 ## License
 
-See [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE). Third-party components, their licenses, and the
+required attributions (including FOLIO's CC-BY 4.0 and the vendored flag-icons
+artwork) are inventoried in [THIRD-PARTY.md](THIRD-PARTY.md).
