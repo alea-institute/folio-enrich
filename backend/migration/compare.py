@@ -9,6 +9,12 @@ Canaries (the migration's acceptance gate):
   * place/agency mis-maps  -> must trend to 0 post-migration (generic terms must stop
     latching onto place/governmental-body labels).
   * named recoveries       -> must NOT drop (the concepts Damien named must still resolve).
+  * candidate recall       -> [Stage 2] the ranked candidate set per term must NOT shrink. This
+    is the canary that catches "retire search.py by deleting it": on the committed Stage-2
+    baseline the library primary is right on 24/24 rows, but the ranked set collapses 120 -> 15
+    without the fork's recall gathering.
+  * fork parity            -> [Stage 2] the ``search_fork`` seam's top-1 per term must not move
+    when the swap is meant to be a pure internals change (pass --expect-changes to allow it).
 
 Usage:
     .venv/bin/python migration/compare.py --baseline baseline --candidate candidate
@@ -181,10 +187,57 @@ def classify_set(base_rows: list[dict], cand_rows: list[dict], key: str, render)
     return deltas
 
 
+def classify_candidate_recall(base: dict, cand: dict) -> dict:
+    """Stage-2 canary: the ranked candidate set per term must not shrink.
+
+    ``label_resolution[].candidates`` is what ConceptResolver.resolve_multi returns — the ranked
+    set the UI, the reconciler, and every multi-candidate consumer read. A retirement of the
+    recall path shows up here first.
+    """
+    b = {r["id"]: len(r.get("candidates", [])) for r in base.get("label_resolution", [])}
+    c = {r["id"]: len(r.get("candidates", [])) for r in cand.get("label_resolution", [])}
+    shrunk = [
+        {"id": i, "baseline": b[i], "candidate": c.get(i, 0)}
+        for i in b
+        if c.get(i, 0) < b[i]
+    ]
+    return {
+        "baseline_total": sum(b.values()),
+        "candidate_total": sum(c.values()),
+        "terms_shrunk": shrunk,
+        "library_only_total": sum(
+            len(r.get("candidates", [])) for r in cand.get("library_only", [])
+        ),
+    }
+
+
+def classify_fork_parity(base: dict, cand: dict) -> dict:
+    """Stage-2 canary: the fork's own top-1 per term (seam 4). Empty unless internals moved."""
+    def _top1(capture: dict) -> dict[str, str]:
+        out: dict[str, str] = {}
+        for row in capture.get("search_fork", []):
+            results = row.get("results") or []
+            out[row["id"]] = results[0]["iri"] if results else ""
+        return out
+
+    b, c = _top1(base), _top1(cand)
+    moved = [
+        {"id": i, "baseline": b[i], "candidate": c.get(i, "")}
+        for i in b
+        if c.get(i, "") != b[i]
+    ]
+    return {"terms_compared": len(b), "top1_moved": moved}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--baseline", default="baseline")
     ap.add_argument("--candidate", default="candidate")
+    ap.add_argument(
+        "--expect-changes",
+        action="store_true",
+        help="allow the Stage-2 fork-parity canary to move (a DOCUMENTED deliberate change)",
+    )
     args = ap.parse_args()
 
     base = _load(args.baseline)
@@ -206,10 +259,15 @@ def main() -> int:
     for d in lr_deltas:
         counts[d["bucket"]] += 1
 
+    recall = classify_candidate_recall(base, cand)
+    parity = classify_fork_parity(base, cand)
+
     canary_pass = (
         not canary["named_recoveries_dropped"]
         and not canary["new_place_mismaps"]
         and canary["place_mismaps_candidate"] <= canary["place_mismaps_baseline"]
+        and not recall["terms_shrunk"]
+        and (args.expect_changes or not parity["top1_moved"])
     )
 
     delta = {
@@ -219,6 +277,9 @@ def main() -> int:
         "environment": {"baseline": base["environment"], "candidate": cand["environment"]},
         "label_resolution_counts": counts,
         "canary": canary,
+        "candidate_recall": recall,
+        "fork_parity": parity,
+        "expect_changes": args.expect_changes,
         "canary_pass": canary_pass,
         "label_resolution_deltas": lr_deltas,
         "entity_ruler_deltas": er_deltas,
@@ -234,6 +295,10 @@ def main() -> int:
           f"{canary['place_mismaps_candidate']}")
     print(f"canary named recoveries dropped: {canary['named_recoveries_dropped']}")
     print(f"canary new place mis-maps: {canary['new_place_mismaps']}")
+    print(f"canary candidate recall: {recall['baseline_total']} -> {recall['candidate_total']} "
+          f"(terms shrunk: {len(recall['terms_shrunk'])})")
+    print(f"canary fork parity: {len(parity['top1_moved'])} of {parity['terms_compared']} "
+          f"top-1 moved{' (allowed)' if args.expect_changes else ''}")
     print(f"CANARY PASS: {canary_pass}")
     print(f"entity_ruler deltas: {len(er_deltas)} docs changed")
     print(f"reconciler deltas: {len(rc_deltas)} cases changed")
@@ -261,6 +326,16 @@ def _write_markdown(delta: dict) -> None:
                  f"{can['place_mismaps_candidate']}** (target: -> 0)")
     lines.append(f"- New place mis-maps introduced (must be empty): `{can['new_place_mismaps']}`")
     lines.append(f"- Named recoveries dropped (must be empty): `{can['named_recoveries_dropped']}`")
+    rec = delta.get("candidate_recall")
+    if rec:
+        lines.append(f"- Ranked candidate recall: **{rec['baseline_total']} -> "
+                     f"{rec['candidate_total']}** (terms shrunk, must be empty: "
+                     f"`{[t['id'] for t in rec['terms_shrunk']]}`); library-only reference: "
+                     f"{rec['library_only_total']}")
+    par = delta.get("fork_parity")
+    if par:
+        lines.append(f"- Fork top-1 moved (must be empty unless --expect-changes): "
+                     f"`{[t['id'] for t in par['top1_moved']]}`")
     lines.append(f"- **CANARY PASS: {delta['canary_pass']}**\n")
 
     lines.append("## Label-resolution deltas (before -> after)\n")
