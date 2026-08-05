@@ -135,3 +135,76 @@ class TestAhoCorasickMatcher:
         # Don't call build() — should auto-build
         results = matcher.search("This is a test.")
         assert len(results) == 1
+
+
+class TestCaseSensitiveSearch:
+    """`case_sensitive=True` was silently inverted until 2026-08-05.
+
+    Patterns are keyed lowercase by `add_pattern`, but the flag used to walk the
+    *original*-cased text against that lowercase trie, so it matched only text that
+    happened already to be lowercase — the opposite of what the name promises. There were
+    zero call sites, so this was a latent trap rather than a live defect; these tests keep
+    it shut. Semantics now match folio-resolve's matcher (the shootout's `py` engine).
+    """
+
+    TEXT = "The Court ruled. the court adjourned. THE COURT reconvened."
+
+    def _matcher(self):
+        matcher = AhoCorasickMatcher()
+        matcher.add_patterns({"Court": {"iri": "c"}, "ruled": {"iri": "r"}})
+        matcher.build()
+        return matcher
+
+    def test_case_sensitive_keeps_only_the_registered_casing(self):
+        results = self._matcher().search(self.TEXT, case_sensitive=True)
+        assert [(r.start, r.end, r.pattern) for r in results] == [
+            (4, 9, "Court"),
+            (10, 15, "ruled"),
+        ]
+
+    def test_case_sensitive_slice_equals_the_pattern(self):
+        """The regression's signature: a hit whose text is not the pattern it claims."""
+        for r in self._matcher().search(self.TEXT, case_sensitive=True):
+            assert self.TEXT[r.start : r.end] == r.pattern
+
+    def test_case_sensitive_rejects_other_casings(self):
+        spans = {(r.start, r.end) for r in self._matcher().search(self.TEXT, case_sensitive=True)}
+        assert (21, 26) not in spans, "lowercase 'court' must not match pattern 'Court'"
+        assert (42, 47) not in spans, "uppercase 'COURT' must not match pattern 'Court'"
+
+    def test_case_insensitive_still_finds_every_casing(self):
+        """The production path is unchanged — all three casings still match."""
+        results = self._matcher().search(self.TEXT, case_sensitive=False)
+        assert [(r.start, r.end, r.pattern) for r in results] == [
+            (4, 9, "Court"),
+            (10, 15, "ruled"),
+            (21, 26, "Court"),
+            (42, 47, "Court"),
+        ]
+
+    def test_case_sensitive_lowercase_pattern_matches_only_lowercase(self):
+        matcher = AhoCorasickMatcher()
+        matcher.add_pattern("court", {"iri": "c"})
+        matcher.build()
+        results = matcher.search(self.TEXT, case_sensitive=True)
+        assert [(r.start, r.end) for r in results] == [(21, 26)]
+
+    def test_case_sensitive_default_is_false(self):
+        """Nothing on the production path passes the flag; the default must stay lenient."""
+        matcher = AhoCorasickMatcher()
+        matcher.add_pattern("Motion to Dismiss", {"iri": "m"})
+        matcher.build()
+        assert len(matcher.search("The motion to dismiss was granted.")) == 1
+
+    def test_matches_folio_resolve_semantics(self):
+        """Pin the library as the oracle — this is the contract the port aligns to."""
+        pytest.importorskip("folio_resolve")
+        from folio_resolve.matching.aho_corasick import AhoCorasickMatcher as LibMatcher
+
+        lib = LibMatcher()
+        lib.add_patterns({"Court": {"iri": "c"}, "ruled": {"iri": "r"}})
+        lib.build()
+        for flag in (True, False):
+            ours = [(r.start, r.end, r.pattern) for r in self._matcher().search(self.TEXT, case_sensitive=flag)]
+            theirs = [(r.start, r.end, r.pattern) for r in lib.search(self.TEXT, case_sensitive=flag)]
+            assert ours == theirs, f"diverged from folio-resolve at case_sensitive={flag}"

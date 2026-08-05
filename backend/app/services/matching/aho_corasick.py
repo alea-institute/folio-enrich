@@ -48,10 +48,20 @@ class AhoCorasickMatcher:
         self._built = True
 
     def search(self, text: str, case_sensitive: bool = False) -> list[MatchResult]:
+        """Find every pattern occurrence in ``text``, word-boundary validated.
+
+        ``case_sensitive=True`` keeps only hits whose matched slice equals the pattern as it
+        was registered. The automaton itself is always walked case-insensitively, because
+        :meth:`add_pattern` keys it lowercase: walking the *original*-cased text against a
+        lowercase trie — what this did before — could only ever match already-lowercase input,
+        so ``search("The Court ruled.", case_sensitive=True)`` against pattern ``"Court"``
+        missed the real ``Court`` at offset 4 and reported the lowercase ``court`` later in
+        the string as a ``"Court"`` hit. Matches folio-resolve's semantics.
+        """
         if not self._built:
             self.build()
 
-        search_text = text if case_sensitive else text.lower()
+        search_text = text.lower()
         raw_matches: list[MatchResult] = []
 
         for end_idx, (pattern, value) in self._automaton.iter(search_text):
@@ -60,6 +70,8 @@ class AhoCorasickMatcher:
             if not _is_word_boundary(search_text, start_idx - 1):
                 continue
             if not _is_word_boundary(search_text, end_idx + 1):
+                continue
+            if case_sensitive and text[start_idx : end_idx + 1] != pattern:
                 continue
 
             raw_matches.append(
