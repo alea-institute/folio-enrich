@@ -27,9 +27,14 @@ dependencies = [
     "citeurl>=12.0",
     "psutil>=6.0.0",
     # Shared FOLIO source-text->concept matching engine (migration SCHEDULE.md row 2).
-    # Resolved from PyPI (MIT, Damien's own). For local library dev:
-    # uv pip install -e ../../folio-resolve
-    "folio-resolve>=0.1.0",
+    # Resolved from PyPI (MIT, Damien's own).
+    # EXACT pin, deliberately: this backend used to run an editable install onto the
+    # ../../folio-resolve working tree, so its behavior silently tracked whatever branch was
+    # checked out there. 0.3.1 carries the F4/F13 determinism corrections (folio-resolve
+    # docs/migration/2026-08-05-v0.3.1-consumer-impact.md §4.2, §4.4), so the version must be a
+    # reviewable edit here. For local library dev, use a throwaway venv — do NOT
+    # `uv pip install -e` into this one.
+    "folio-resolve==0.3.1",
 ]
 
 [project.optional-dependencies]
