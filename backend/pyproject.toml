@@ -32,9 +32,10 @@ dependencies = [
     # ../../folio-resolve working tree, so its behavior silently tracked whatever branch was
     # checked out there. 0.3.1 carries the F4/F13 determinism corrections (folio-resolve
     # docs/migration/2026-08-05-v0.3.1-consumer-impact.md §4.2, §4.4), so the version must be a
-    # reviewable edit here. For local library dev, use a throwaway venv — do NOT
+    # reviewable edit here. 0.4.0 adds deterministic recall as an opt-in capability;
+    # this consumer's default path remains unchanged. For local library dev, use a throwaway venv — do NOT
     # `uv pip install -e` into this one.
-    "folio-resolve==0.3.1",
+    "folio-resolve==0.4.0",
 ]
 
 [project.optional-dependencies]
