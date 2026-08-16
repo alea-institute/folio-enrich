@@ -7,10 +7,14 @@ import pytest
 
 from app.models.annotation import Annotation, ConceptMatch, Span
 from app.models.job import Job, JobStatus
+from tests.helpers import FakeLLMProvider
 from eval import synthetic_runner
 
 
 class _FakePipeline:
+    def __init__(self, stage_names=synthetic_runner.STAGE_NAMES):
+        self.stage_names = stage_names
+
     async def run(self, job: Job) -> Job:
         text = job.input.content
         iri = f"https://example.test/{text.split()[0].lower()}"
@@ -22,7 +26,7 @@ class _FakePipeline:
             )
         ]
         job.result.metadata[synthetic_runner.SNAPSHOT_METADATA_KEY] = {
-            name: [iri] for name in synthetic_runner.STAGE_NAMES
+            name: [iri] for name in self.stage_names
         }
         job.status = JobStatus.COMPLETED
         return job
@@ -82,3 +86,67 @@ def test_malformed_items_file_exits_nonzero(tmp_path: Path):
         synthetic_runner.main(["--items", str(items), "--out", str(tmp_path / "out.jsonl")])
     assert exc.value.code != 0
 
+
+@pytest.mark.asyncio
+async def test_llm_on_lane_includes_llm_stages(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    items = tmp_path / "items.jsonl"
+    output = tmp_path / "out.jsonl"
+    deterministic_output = tmp_path / "deterministic.jsonl"
+    _write_items(items)
+    llm = FakeLLMProvider()
+    llm.api_key = "secret-sentinel-that-must-not-appear"
+    real_pipeline = synthetic_runner._make_llm_pipeline(tmp_path / "jobs", llm)
+    config = real_pipeline._config
+    assert config is not None
+    configured_stages = [
+        *config.pre_parallel,
+        config.entity_ruler,
+        config.llm_concept,
+        config.early_individual,
+        config.early_property,
+        config.early_triple,
+        config.document_type,
+        *config.post_parallel,
+    ]
+    llm_stage_names = tuple(stage.name for stage in configured_stages if stage is not None)
+    assert "llm_concept_identification" in llm_stage_names
+    assert "metadata" in llm_stage_names
+    monkeypatch.setattr(
+        synthetic_runner,
+        "_make_llm_pipeline",
+        lambda _jobs_dir, provider: _FakePipeline(llm_stage_names),
+    )
+    monkeypatch.setattr(synthetic_runner, "_make_pipeline", lambda _: _FakePipeline())
+
+    await synthetic_runner.run(items, output, lane="llm-on", llm=llm)
+    await synthetic_runner.run(items, deterministic_output, lane="deterministic")
+
+    rows = [json.loads(line) for line in output.read_text().splitlines()]
+    deterministic_rows = [
+        json.loads(line) for line in deterministic_output.read_text().splitlines()
+    ]
+    assert rows[0]["lane"] == "llm-on"
+    assert rows[0]["config"]["llm_provider"] == "FakeLLMProvider"
+    assert rows[0]["config"]["llm_model"] == "fake-model"
+    assert rows[0]["config"]["contextual_rerank_enabled"] is False
+    assert "secret-sentinel-that-must-not-appear" not in output.read_text()
+    assert set(rows[1]["stages"]) != set(deterministic_rows[1]["stages"])
+    assert "llm_concept_identification" in rows[1]["stages"]
+
+
+def test_llm_on_without_provider_env_exits_nonzero(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    items = tmp_path / "items.jsonl"
+    _write_items(items)
+    monkeypatch.delenv("FOLIO_ENRICH_LLM_PROVIDER", raising=False)
+    for key in synthetic_runner.PROVIDER_ENV_KEYS:
+        monkeypatch.delenv(key, raising=False)
+
+    with pytest.raises(SystemExit) as exc:
+        synthetic_runner.main([
+            "--items", str(items), "--out", str(tmp_path / "out.jsonl"), "--llm-on"
+        ])
+
+    assert exc.value.code != 0
+    assert "owner-run lane: provider env not configured" in capsys.readouterr().err

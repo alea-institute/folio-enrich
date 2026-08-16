@@ -17,7 +17,7 @@ import json
 import os
 import sys
 import tempfile
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from typing import Any, Iterator, Sequence
 
@@ -29,7 +29,7 @@ if str(BACKEND_ROOT) not in sys.path:
 from app.config import settings
 from app.models.document import DocumentInput
 from app.models.job import Job, JobStatus
-from app.pipeline.orchestrator import PipelineOrchestrator
+from app.pipeline.orchestrator import PipelineOrchestrator, TaskLLMs
 from app.pipeline.stages.base import PipelineStage
 from app.pipeline.stages.dependency_stage import TripleEnrichmentStage
 from app.pipeline.stages.entity_ruler_stage import EntityRulerStage
@@ -47,6 +47,17 @@ from app.storage.job_store import JobStore
 STAGE_NAMES = ("EntityRuler", "Reconciliation", "Resolution", "StringMatch")
 SNAPSHOT_METADATA_KEY = "_synthetic_stage_snapshots"
 _ERROR_METADATA_KEY = "_synthetic_stage_errors"
+PROVIDER_ENV_KEYS = (
+    "FOLIO_ENRICH_OPENAI_API_KEY",
+    "FOLIO_ENRICH_ANTHROPIC_API_KEY",
+    "FOLIO_ENRICH_GOOGLE_API_KEY",
+    "FOLIO_ENRICH_MISTRAL_API_KEY",
+    "FOLIO_ENRICH_COHERE_API_KEY",
+    "FOLIO_ENRICH_META_LLAMA_API_KEY",
+    "FOLIO_ENRICH_GROQ_API_KEY",
+    "FOLIO_ENRICH_XAI_API_KEY",
+    "FOLIO_ENRICH_GITHUB_MODELS_API_KEY",
+)
 
 # Pin every feature flag that can alter the no-LLM concept pipeline or cause
 # environment-dependent work.  Numeric scoring knobs remain package defaults
@@ -157,6 +168,43 @@ def _make_pipeline(jobs_dir: Path) -> PipelineOrchestrator:
     return PipelineOrchestrator(JobStore(base_dir=jobs_dir), stages=_deterministic_stages())
 
 
+def _snapshot_pipeline_config(pipeline: PipelineOrchestrator) -> None:
+    """Instrument the shipped parallel pipeline without changing its topology."""
+    config = pipeline._config
+    assert config is not None
+    metadata_keys = {
+        "entity_ruler": "ruler_concepts",
+        "reconciliation": "reconciled_concepts",
+        "resolution": "resolved_concepts",
+    }
+
+    def wrap(stage: PipelineStage | None) -> PipelineStage | None:
+        if stage is None:
+            return None
+        return _SnapshotStage(stage, stage.name, metadata_keys.get(stage.name))
+
+    config.pre_parallel = [wrap(stage) for stage in config.pre_parallel]  # type: ignore[list-item]
+    config.entity_ruler = wrap(config.entity_ruler)
+    config.llm_concept = wrap(config.llm_concept)
+    config.early_individual = wrap(config.early_individual)
+    config.early_property = wrap(config.early_property)
+    config.early_triple = wrap(config.early_triple)
+    config.document_type = wrap(config.document_type)
+    config.post_parallel = [wrap(stage) for stage in config.post_parallel]  # type: ignore[list-item]
+
+
+def _make_llm_pipeline(jobs_dir: Path, llm: Any) -> PipelineOrchestrator:
+    """Build providers and stages through the same path as the enrich server."""
+    task_llms = TaskLLMs.from_settings(fallback=llm)
+    pipeline = PipelineOrchestrator(
+        JobStore(base_dir=jobs_dir), llm=llm, task_llms=task_llms
+    )
+    pipeline._synthetic_task_llms = task_llms
+    pipeline._synthetic_requires_area_of_law = task_llms.area_of_law is not None
+    _snapshot_pipeline_config(pipeline)
+    return pipeline
+
+
 @contextmanager
 def _pinned_settings() -> Iterator[None]:
     previous = {name: getattr(settings, name) for name in PINNED_FLAGS}
@@ -192,40 +240,100 @@ def _load_items(path: Path) -> list[dict[str, Any]]:
     return items
 
 
-def _header(lane: str) -> dict[str, Any]:
+def _header(
+    lane: str,
+    llm: Any = None,
+    *,
+    provider_name: str | None = None,
+    task_llms: TaskLLMs | None = None,
+) -> dict[str, Any]:
     scoring = {
         "max_candidates": settings.max_candidates,
         "skip_backups_for_exact_matches": settings.skip_backups_for_exact_matches,
         "semantic_similarity_threshold": settings.semantic_similarity_threshold,
         "pos_concept_mismatch_penalty": settings.pos_concept_mismatch_penalty,
     }
+    if lane == "deterministic":
+        config = {**PINNED_FLAGS, **scoring, "llm_provider": None, "registry_embeddings": False}
+    else:
+        llm_tasks = {}
+        if task_llms is not None:
+            for task, provider in vars(task_llms).items():
+                if provider is not None:
+                    config_task = "property" if task == "property_llm" else task
+                    llm_tasks[task] = {
+                        "provider": (
+                            getattr(settings, f"llm_{config_task}_provider", "")
+                            or provider_name
+                            or type(provider).__name__
+                        ),
+                        "model": provider.model,
+                    }
+        config = {
+            "embedding_disabled": settings.embedding_disabled,
+            "contextual_rerank_enabled": settings.contextual_rerank_enabled,
+            **scoring,
+            "llm_provider": provider_name or type(llm).__name__,
+            "llm_model": getattr(llm, "model", None),
+            "llm_tasks": llm_tasks,
+            "registry_embeddings": True,
+        }
     return {
         "kind": "synthetic-stack-run",
         "stack": "folio-enrich",
         "lane": lane,
         "folio_resolve_version": _version("folio-resolve"),
         "folio_python_version": _version("folio-python"),
-        "config": {**PINNED_FLAGS, **scoring, "llm_provider": None, "registry_embeddings": False},
+        "config": config,
     }
 
 
-async def run(items_path: Path, out_path: Path, *, lane: str = "deterministic") -> None:
+async def run(
+    items_path: Path,
+    out_path: Path,
+    *,
+    lane: str = "deterministic",
+    llm: Any = None,
+) -> None:
     items = _load_items(items_path)
     rows: list[dict[str, Any]] = []
-    with _pinned_settings(), tempfile.TemporaryDirectory(prefix="folio-enrich-synthetic-") as temp:
-        pipeline = _make_pipeline(Path(temp) / "jobs")
-        header = _header(lane)
+    settings_context = _pinned_settings() if lane == "deterministic" else nullcontext()
+    with settings_context, tempfile.TemporaryDirectory(prefix="folio-enrich-synthetic-") as temp:
+        provider_name = None
+        if lane == "llm-on":
+            if llm is None:
+                from app.pipeline.orchestrator import _try_get_llm
+
+                llm = _try_get_llm()
+                provider_name = settings.llm_provider
+            if llm is None:
+                raise RuntimeError("owner-run lane: provider env not configured")
+            pipeline = _make_llm_pipeline(Path(temp) / "jobs", llm)
+        else:
+            pipeline = _make_pipeline(Path(temp) / "jobs")
+        header = _header(
+            lane,
+            llm,
+            provider_name=provider_name,
+            task_llms=getattr(pipeline, "_synthetic_task_llms", None),
+        )
         for item in items:
             job = await pipeline.run(Job(input=DocumentInput(content=item["text"])))
             errors = job.result.metadata.get(_ERROR_METADATA_KEY, [])
+            if (
+                getattr(pipeline, "_synthetic_requires_area_of_law", False)
+                and "areas_of_law" not in job.result.metadata
+            ):
+                errors = [*errors, "area_of_law: LLM assessment did not complete"]
             if errors or job.status != JobStatus.COMPLETED:
                 detail = "; ".join(errors) or job.error or job.status.value
                 raise RuntimeError(f"item {item['item_id']}: pipeline failed: {detail}")
             snapshots = job.result.metadata.get(SNAPSHOT_METADATA_KEY, {})
+            stage_names = STAGE_NAMES if lane == "deterministic" else tuple(snapshots)
             rows.append({
                 "item_id": item["item_id"],
                 "iris": _annotation_iris(job, committed_only=True),
-                "stages": {name: sorted(set(snapshots.get(name, []))) for name in STAGE_NAMES},
+                "stages": {name: sorted(set(snapshots.get(name, []))) for name in stage_names},
             })
     out_path.parent.mkdir(parents=True, exist_ok=True)
     payload = [header, *rows]
@@ -233,13 +341,9 @@ async def run(items_path: Path, out_path: Path, *, lane: str = "deterministic") 
 
 
 def _provider_env_present() -> bool:
-    keys = (
-        "FOLIO_ENRICH_OPENAI_API_KEY", "FOLIO_ENRICH_ANTHROPIC_API_KEY",
-        "FOLIO_ENRICH_GOOGLE_API_KEY", "FOLIO_ENRICH_MISTRAL_API_KEY",
-        "FOLIO_ENRICH_COHERE_API_KEY", "FOLIO_ENRICH_GROQ_API_KEY",
-        "FOLIO_ENRICH_XAI_API_KEY", "FOLIO_ENRICH_GITHUB_MODELS_API_KEY",
+    return bool(os.environ.get("FOLIO_ENRICH_LLM_PROVIDER")) or any(
+        os.environ.get(key) for key in PROVIDER_ENV_KEYS
     )
-    return any(os.environ.get(key) for key in keys)
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -251,8 +355,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     args = parser.parse_args(argv)
     if args.llm_on:
         if not _provider_env_present():
-            parser.error("owner-run lane: configure providers via env")
-        parser.error("owner-run lane: LLM wiring is deferred to U11")
+            parser.error("owner-run lane: provider env not configured")
+        args.lane = "llm-on"
     try:
         asyncio.run(run(args.items, args.out, lane=args.lane))
     except Exception as exc:
