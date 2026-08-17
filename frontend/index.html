@@ -5,7 +5,69 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FOLIO Enrich</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<script src="https://unpkg.com/elkjs@0.11.1/lib/elk.bundled.js"></script>
+<script>
+(() => {
+  const ACCESS_FRAGMENT_KEY = 'annotation-access';
+  const LEGACY_KEYS = ['folioEnrichAnnotationToken', 'folioEnrichAdminToken'];
+  let exchangeQueue = Promise.resolve();
+
+  function removeCredentialFragment(params) {
+    params.delete(ACCESS_FRAGMENT_KEY);
+    const remainingHash = params.toString();
+    const cleanUrl = window.location.pathname + window.location.search
+      + (remainingHash ? '#' + remainingHash : '');
+    try {
+      history.replaceState(null, '', cleanUrl);
+      return true;
+    } catch {
+      window.location.replace(cleanUrl);
+      return false;
+    }
+  }
+
+  function captureCredential() {
+    const params = new URLSearchParams(window.location.hash.slice(1));
+    let token = params.get(ACCESS_FRAGMENT_KEY) || '';
+    if (token && !removeCredentialFragment(params)) return '';
+    try {
+      if (!token) {
+        for (const key of LEGACY_KEYS) {
+          token = localStorage.getItem(key) || '';
+          if (token) break;
+        }
+      }
+      for (const key of LEGACY_KEYS) localStorage.removeItem(key);
+    } catch { /* the fragment is still removed; this credential is never persisted */ }
+    return token;
+  }
+
+  function exchangeCapturedCredential() {
+    const token = captureCredential();
+    if (!token) return Promise.resolve({ attempted: false, ok: false });
+    const exchange = exchangeQueue
+      .catch(() => undefined)
+      .then(() => fetch('/gold/access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      }))
+      .then(response => ({ attempted: true, ok: response.ok, status: response.status }))
+      .catch(() => ({ attempted: true, ok: false, status: 0 }));
+    exchangeQueue = exchange;
+    return exchange;
+  }
+
+  window.__annotationAccessBootstrap = exchangeCapturedCredential();
+  window.addEventListener('hashchange', () => {
+    if (!new URLSearchParams(window.location.hash.slice(1)).has(ACCESS_FRAGMENT_KEY)) return;
+    window.__annotationAccessBootstrap = exchangeCapturedCredential();
+    window.__annotationAccessBootstrap.then(result => {
+      window.dispatchEvent(new CustomEvent('annotation-access-updated', { detail: result }));
+    });
+  });
+})();
+</script>
+<script src="/static/vendor/elkjs-0.11.1/elk.bundled.js"></script>
 <style>
   /* ══════════ LAYER 1: PALETTE PRIMITIVES ══════════
      Raw color values. These NEVER change between themes.
@@ -3806,10 +3868,10 @@
           <label><input type="checkbox" id="propositionModeToggle" onchange="togglePropositionMode(this.checked)"> Annotation mode</label>
           <span class="proposition-status" id="propositionModeStatus">Off</span>
           <div class="proposition-admin-token">
-            <label for="propositionAdminTokenInput">Admin token</label>
-            <input type="password" id="propositionAdminTokenInput" autocomplete="current-password" aria-describedby="propositionAdminTokenHint" onkeydown="if (event.key === 'Enter') savePropositionAdminToken()">
-            <button type="button" class="secondary small" onclick="savePropositionAdminToken()">Save</button>
-            <span class="proposition-admin-token-hint" id="propositionAdminTokenHint">Required on deployed instances; leave empty locally.</span>
+            <label for="propositionAnnotationTokenInput">Annotation access</label>
+            <input type="password" id="propositionAnnotationTokenInput" autocomplete="off" aria-describedby="propositionAnnotationTokenHint" onkeydown="if (event.key === 'Enter') savePropositionAnnotationToken()">
+            <button type="button" class="secondary small" onclick="savePropositionAnnotationToken()">Save</button>
+            <span class="proposition-admin-token-hint" id="propositionAnnotationTokenHint">Use a scoped annotation link or access code; leave empty locally.</span>
           </div>
           <button class="secondary small" id="startPropositionSessionBtn" onclick="ensurePropositionSession(true)" style="display:none">Start annotation session</button>
           <label class="proposition-status"><input type="checkbox" id="propositionBaselineToggle"> Lexicon-only baseline session</label>
@@ -4160,27 +4222,35 @@ let propositionBlindArmed = false;
 let propositionDraft = null;
 let propositionSettings = null;
 let propositionCompleteness = null;
-const PROPOSITION_ADMIN_TOKEN_KEY = 'folioEnrichAdminToken';
+const PROPOSITION_ACCESS_DEFAULT_HINT = 'Use a scoped annotation link or access code; leave empty locally.';
 
-function loadPropositionAdminToken() {
-  try { return localStorage.getItem(PROPOSITION_ADMIN_TOKEN_KEY) || ''; } catch { return ''; }
-}
-
-function savePropositionAdminToken() {
-  const input = document.getElementById('propositionAdminTokenInput');
-  if (!input) return;
-  try {
-    if (input.value) localStorage.setItem(PROPOSITION_ADMIN_TOKEN_KEY, input.value);
-    else localStorage.removeItem(PROPOSITION_ADMIN_TOKEN_KEY);
-    _showInfoToast(input.value ? 'Admin token saved in this browser.' : 'Admin token cleared.');
-  } catch {
-    _showInfoToast('Could not save the admin token in this browser.');
+function setPropositionAccessState(message = PROPOSITION_ACCESS_DEFAULT_HINT, isError = false) {
+  const input = document.getElementById('propositionAnnotationTokenInput');
+  const hint = document.getElementById('propositionAnnotationTokenHint');
+  if (input) input.setAttribute('aria-invalid', isError ? 'true' : 'false');
+  if (hint) {
+    hint.textContent = message;
+    hint.setAttribute('role', isError ? 'alert' : 'status');
   }
 }
 
-function restorePropositionAdminToken() {
-  const input = document.getElementById('propositionAdminTokenInput');
-  if (input) input.value = loadPropositionAdminToken();
+async function savePropositionAnnotationToken() {
+  const input = document.getElementById('propositionAnnotationTokenInput');
+  if (!input) return;
+  const token = input.value;
+  input.value = '';
+  const response = await fetch(`${API}/gold/access`, {
+    method: token ? 'POST' : 'DELETE',
+    headers: token ? { 'Content-Type': 'application/json' } : {},
+    body: token ? JSON.stringify({ token }) : undefined,
+  }).catch(() => null);
+  if (!response?.ok) {
+    setPropositionAccessState('Annotation access was rejected. Check the link or access code.', true);
+    input.focus();
+    return;
+  }
+  setPropositionAccessState(token ? 'Annotation access is ready in this browser.' : PROPOSITION_ACCESS_DEFAULT_HINT);
+  _showInfoToast(token ? 'Annotation access is ready in this browser.' : 'Annotation access cleared.');
 }
 
 function resetPropositionSessionState() {
@@ -5141,7 +5211,19 @@ async function init() {
   // Restore UI state immediately (before any async calls)
   if (showThinking) applyShowThinkingStyle(document.getElementById('showThinkingBtn'), true);
   if (debugMode) applyDebugBtnStyle(document.getElementById('debugModeBtn'), true);
-  restorePropositionAdminToken();
+  const annotationAccess = await window.__annotationAccessBootstrap;
+  if (annotationAccess?.attempted) {
+    if (annotationAccess.ok) {
+      setPropositionAccessState('Annotation access is ready in this browser.');
+      requestAnimationFrame(() => _showInfoToast('Annotation access is ready in this browser.'));
+    } else {
+      setPropositionAccessState('Annotation access was rejected. Request a fresh scoped link.', true);
+    }
+  }
+  window.addEventListener('annotation-access-updated', event => {
+    if (event.detail?.ok) setPropositionAccessState('Annotation access is ready in this browser.');
+    else setPropositionAccessState('Annotation access was rejected. Request a fresh scoped link.', true);
+  });
 
   // Restore detail panel visibility from localStorage
   const detailVisible = localStorage.getItem('detailPanelVisible');
@@ -11930,15 +12012,14 @@ function applyPropositionSettings(value) {
 
 function propositionApiError(error) {
   _showInfoToast(error.message || String(error));
-  if (error.goldAuthFailure) document.getElementById('propositionAdminTokenInput')?.focus();
+  if (error.goldAuthFailure) {
+    setPropositionAccessState('Annotation access expired or was rejected. Use a fresh scoped link.', true);
+    document.getElementById('propositionAnnotationTokenInput')?.focus();
+  }
 }
 
 async function propositionFetch(path, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
-  if (path.startsWith('/gold')) {
-    const adminToken = loadPropositionAdminToken();
-    if (adminToken) headers['X-Admin-Token'] = adminToken;
-  }
   const response = await fetch(`${API}${path}`, {
     ...options,
     headers,

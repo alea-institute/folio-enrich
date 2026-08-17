@@ -134,6 +134,11 @@ class Settings(BaseSettings):
     # unauthenticated. Set on public deployments. Mirrors require_user_api_key.
     admin_token: str = ""
 
+    # Least-privilege credential for proposition gold annotation. Unlike the
+    # admin token, this is accepted only by mutating /gold routes. Deployed UAT
+    # instances should set a distinct, independently rotatable value.
+    annotation_token: str = ""
+
     # Translation matching — index FOLIO translations for text matching
     translation_matching_enabled: bool = False
 

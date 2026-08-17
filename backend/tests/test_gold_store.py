@@ -329,7 +329,7 @@ async def test_route_happy_path(tmp_path: Path, monkeypatch, client) -> None:
 
 
 @pytest.mark.asyncio
-async def test_gold_mutations_require_configured_admin_token(
+async def test_gold_mutations_require_configured_annotation_or_admin_token(
     tmp_path: Path, monkeypatch, client
 ) -> None:
     from app.api.routes import gold
@@ -351,10 +351,71 @@ async def test_gold_mutations_require_configured_admin_token(
     }
 
     monkeypatch.setattr(settings, "admin_token", "s3cret")
+    monkeypatch.setattr(settings, "annotation_token", "annotate-only")
+    exchange = await client.post("/gold/access", json={"token": "annotate-only"})
+    assert exchange.status_code == 200
+    set_cookie = exchange.headers["set-cookie"]
+    assert "folio_annotation_access=" in set_cookie
+    assert "HttpOnly" in set_cookie
+    assert "Secure" in set_cookie
+    assert "SameSite=strict" in set_cookie
+    assert "Path=/gold" in set_cookie
     assert (await client.post("/gold/sessions", json=payload)).status_code == 403
     assert (
         await client.post("/gold/sessions", json=payload, headers={"X-Admin-Token": "s3cret"})
     ).status_code == 201
+    assert (
+        await client.post(
+            "/gold/sessions",
+            json=payload,
+            headers={"X-Annotation-Token": "annotate-only"},
+        )
+    ).status_code == 201
+    assert (
+        await client.post(
+            "/gold/sessions",
+            json=payload,
+            headers={
+                "Cookie": "folio_annotation_access=annotate-only",
+                "Origin": "http://test",
+            },
+        )
+    ).status_code == 201
+    assert (
+        await client.post(
+            "/gold/sessions",
+            json=payload,
+            headers={
+                "Cookie": "folio_annotation_access=annotate-only",
+                "Origin": "https://mapper.example",
+            },
+        )
+    ).status_code == 403
 
     monkeypatch.setattr(settings, "admin_token", "")
+    monkeypatch.setattr(settings, "annotation_token", "")
     assert (await client.post("/gold/sessions", json=payload)).status_code == 201
+
+
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("POST", "/gold/sessions"),
+        ("PATCH", "/gold/sessions/example/candidates/example"),
+        ("POST", "/gold/sessions/example/annotations"),
+        ("POST", "/gold/sessions/example/learnings"),
+        ("POST", "/gold/sessions/example/blind-segment"),
+        ("POST", "/gold/sessions/example/blind-segment/reveal"),
+        ("POST", "/gold/sessions/example/coverage-pass"),
+        ("POST", "/gold/sessions/example/export"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_every_gold_mutation_rejects_missing_credentials(
+    method: str, path: str, monkeypatch, client
+) -> None:
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "admin_token", "admin-secret")
+    monkeypatch.setattr(settings, "annotation_token", "annotation-secret")
+    assert (await client.request(method, path, json={})).status_code == 403
