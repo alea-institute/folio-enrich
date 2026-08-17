@@ -19,7 +19,7 @@ def proposition(prop_id: str, text: str, start: int) -> Proposition:
         start_char=start,
         end_char=start + len(text),
         text=text,
-        proposition_type="judicial proposition of law",
+        proposition_type="Judicial Legal Conclusion",
         asserter=ActorRef(role="court"),
         validator=None,
         disposition=Disposition.ACCEPTED,

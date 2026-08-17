@@ -229,6 +229,7 @@ class GoldStore:
             candidate["original"] = migrate_proposition_payload(candidate["original"])
         for annotation in raw.get("hand_added", []):
             annotation["proposition"] = migrate_proposition_payload(annotation["proposition"])
+        raw["schema_version"] = SCHEMA_VERSION
         return AnnotationSession.model_validate(raw)
 
     @staticmethod

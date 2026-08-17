@@ -11919,8 +11919,14 @@ function renderPropertiesTab(properties) {
   });
 }
 
-const PROPOSITION_TYPES = ['party proposition of law', 'party proposition of fact', 'judicial proposition of law', 'judicial proposition of fact', 'stipulation', 'arguendo assumption', 'judicial notice'];
+let PROPOSITION_TYPES = ['Legal Proposition', 'Factual Statement', 'Judicial Legal Conclusion', 'Judicial Finding of Fact', 'stipulation', 'arguendo assumption', 'judicial notice', 'cited-authority proposition', 'hypothetical illustration', 'policy proposition'];
 const PROPOSITION_ROLES = ['party', 'plaintiff', 'defendant', 'appellant', 'appellee', 'petitioner', 'respondent', 'both_parties', 'court', 'secondary_source', 'system'];
+
+function applyPropositionSettings(value) {
+  propositionSettings = value;
+  const taxonomyTypes = Object.keys(value?.proposition_taxonomy || {});
+  if (taxonomyTypes.length) PROPOSITION_TYPES = taxonomyTypes;
+}
 
 function propositionApiError(error) {
   _showInfoToast(error.message || String(error));
@@ -11948,7 +11954,7 @@ async function propositionFetch(path, options = {}) {
 
 async function togglePropositionMode(enabled) {
   try {
-    propositionSettings = await propositionFetch('/settings', { method: 'GET' });
+    applyPropositionSettings(await propositionFetch('/settings', { method: 'GET' }));
     await propositionFetch('/settings', { method: 'PUT', body: JSON.stringify({ proposition_extraction_enabled: enabled }) });
     propositionAnnotationMode = enabled;
     propositionAddArmed = false;
@@ -11991,7 +11997,7 @@ async function ensurePropositionSession(force, { lookupOnly = false } = {}) {
     if (!propositionSettings) {
       const settings = await propositionFetch('/settings', { method: 'GET' });
       if (currentJobId !== activeJobId) return;
-      propositionSettings = settings;
+      applyPropositionSettings(settings);
     }
     const overrideLlm = propositionSettings.task_llm_overrides?.proposition || {};
     const globalLlm = { provider: propositionSettings.llm_provider, model: propositionSettings.llm_model };
@@ -12278,7 +12284,7 @@ async function handlePropositionSelection() {
     } catch (error) { if (currentJobId === activeJobId && propositionSession?.session_id === activeSessionId) propositionApiError(error); }
     return;
   }
-  propositionDraft = { id: `hand-${crypto.randomUUID()}`, start_char: start, end_char: start + text.length, text, proposition_type: 'party proposition of law', is_new_type: false, asserter: null, validator: null, disposition: 'unresolved', citation_edges: [], triple_ids: [] };
+  propositionDraft = { id: `hand-${crypto.randomUUID()}`, start_char: start, end_char: start + text.length, text, proposition_type: 'Legal Proposition', is_new_type: false, asserter: null, validator: null, disposition: 'unresolved', citation_edges: [], triple_ids: [] };
   propositionAddArmed = false;
   selection.removeAllRanges();
   renderPropositionsTab();

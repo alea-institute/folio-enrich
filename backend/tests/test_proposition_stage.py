@@ -59,13 +59,13 @@ async def test_flag_off_returns_job_unchanged(monkeypatch) -> None:
     [
         (
             "Plaintiff contends the statute requires notice.",
-            "party proposition of law",
+            "Legal Proposition",
             "plaintiff",
             "the statute requires notice",
         ),
         (
             "We hold that the contract is void.",
-            "judicial proposition of law",
+            "Judicial Legal Conclusion",
             "court",
             "the contract is void",
         ),
@@ -165,7 +165,7 @@ async def test_llm_assist_builds_and_merges_same_span_different_type(
     fake = FakeLLM(response={"propositions": [{
         "start_char": start,
         "end_char": start + len(content),
-        "proposition_type": "party proposition of fact",
+        "proposition_type": "Factual Statement",
         "asserter_role": "plaintiff",
         "validator_mode": None,
         "disposition": "unresolved",
@@ -176,8 +176,8 @@ async def test_llm_assist_builds_and_merges_same_span_different_type(
 
     assert len(result.result.propositions) == 2
     assert {item.proposition_type for item in result.result.propositions} == {
-        "party proposition of fact",
-        "party proposition of law",
+        "Factual Statement",
+        "Legal Proposition",
     }
     assert len({item.id for item in result.result.propositions}) == 2
 
@@ -189,13 +189,13 @@ async def test_llm_assist_builds_and_merges_same_span_different_type(
         {
             "start_char": 0,
             "end_char": 10_000,
-            "proposition_type": "party proposition of law",
+            "proposition_type": "Legal Proposition",
         },
         {"start_char": 0, "end_char": 4},
         {
             "start_char": {"not": "an integer"},
             "end_char": 4,
-            "proposition_type": "party proposition of law",
+            "proposition_type": "Legal Proposition",
         },
     ],
 )
@@ -222,7 +222,7 @@ async def test_llm_assist_provider_failure_preserves_lexicon_candidates(
     )
 
     assert len(result.result.propositions) == 1
-    assert result.result.propositions[0].proposition_type == "party proposition of law"
+    assert result.result.propositions[0].proposition_type == "Legal Proposition"
 
 
 @pytest.mark.asyncio
@@ -236,7 +236,7 @@ async def test_sse_emits_each_proposition_id_once() -> None:
         start_char=0,
         end_char=6,
         text="notice",
-        proposition_type="party proposition of law",
+        proposition_type="Legal Proposition",
         asserter=ActorRef(role="plaintiff"),
         validator=None,
         disposition=Disposition.UNRESOLVED,

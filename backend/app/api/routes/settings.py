@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter
+from folio_propositions import WORKING_TAXONOMY
 from pydantic import BaseModel
 
 from app.config import settings
@@ -154,6 +155,7 @@ async def get_settings() -> dict:
     # Translation matching
     result["translation_matching_enabled"] = settings.translation_matching_enabled
     result["proposition_extraction_enabled"] = settings.proposition_extraction_enabled
+    result["proposition_taxonomy"] = dict(WORKING_TAXONOMY)
     return result
 
 
