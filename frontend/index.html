@@ -10,6 +10,7 @@
   const ACCESS_FRAGMENT_KEY = 'annotation-access';
   const LEGACY_KEYS = ['folioEnrichAnnotationToken', 'folioEnrichAdminToken'];
   let exchangeQueue = Promise.resolve();
+  let latestOperationId = 0;
 
   function removeCredentialFragment(params) {
     params.delete(ACCESS_FRAGMENT_KEY);
@@ -41,27 +42,44 @@
     return token;
   }
 
-  function exchangeCapturedCredential() {
-    const token = captureCredential();
-    if (!token) return Promise.resolve({ attempted: false, ok: false });
+  function queueCredentialOperation(token) {
+    const operationId = ++latestOperationId;
     const exchange = exchangeQueue
       .catch(() => undefined)
       .then(() => fetch('/gold/access', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token }),
+        method: token ? 'POST' : 'DELETE',
+        headers: token ? { 'Content-Type': 'application/json' } : {},
+        body: token ? JSON.stringify({ token }) : undefined,
       }))
-      .then(response => ({ attempted: true, ok: response.ok, status: response.status }))
-      .catch(() => ({ attempted: true, ok: false, status: 0 }));
+      .then(response => ({
+        attempted: true,
+        ok: response.ok,
+        status: response.status,
+        current: operationId === latestOperationId,
+      }))
+      .catch(() => ({
+        attempted: true,
+        ok: false,
+        status: 0,
+        current: operationId === latestOperationId,
+      }));
     exchangeQueue = exchange;
     return exchange;
   }
 
+  function exchangeCapturedCredential() {
+    const token = captureCredential();
+    if (!token) return Promise.resolve({ attempted: false, ok: false, current: true });
+    return queueCredentialOperation(token);
+  }
+
+  window.__setAnnotationAccessToken = queueCredentialOperation;
   window.__annotationAccessBootstrap = exchangeCapturedCredential();
   window.addEventListener('hashchange', () => {
     if (!new URLSearchParams(window.location.hash.slice(1)).has(ACCESS_FRAGMENT_KEY)) return;
     window.__annotationAccessBootstrap = exchangeCapturedCredential();
     window.__annotationAccessBootstrap.then(result => {
+      if (!result.current) return;
       window.dispatchEvent(new CustomEvent('annotation-access-updated', { detail: result }));
     });
   });
@@ -4239,12 +4257,9 @@ async function savePropositionAnnotationToken() {
   if (!input) return;
   const token = input.value;
   input.value = '';
-  const response = await fetch(`${API}/gold/access`, {
-    method: token ? 'POST' : 'DELETE',
-    headers: token ? { 'Content-Type': 'application/json' } : {},
-    body: token ? JSON.stringify({ token }) : undefined,
-  }).catch(() => null);
-  if (!response?.ok) {
+  const result = await window.__setAnnotationAccessToken(token);
+  if (!result.current) return;
+  if (!result.ok) {
     setPropositionAccessState('Annotation access was rejected. Check the link or access code.', true);
     input.focus();
     return;
@@ -5212,7 +5227,7 @@ async function init() {
   if (showThinking) applyShowThinkingStyle(document.getElementById('showThinkingBtn'), true);
   if (debugMode) applyDebugBtnStyle(document.getElementById('debugModeBtn'), true);
   const annotationAccess = await window.__annotationAccessBootstrap;
-  if (annotationAccess?.attempted) {
+  if (annotationAccess?.attempted && annotationAccess.current) {
     if (annotationAccess.ok) {
       setPropositionAccessState('Annotation access is ready in this browser.');
       requestAnimationFrame(() => _showInfoToast('Annotation access is ready in this browser.'));
