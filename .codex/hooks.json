@@ -1,0 +1,24 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/bin/cockpit-inbox-hook.sh folio-enrich"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/bin/cockpit-queue-drain.sh --hook Stop folio-enrich"
+          }
+        ]
+      }
+    ]
+  }
+}

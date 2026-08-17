@@ -1,0 +1,13 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-08-17T19:35:29Z",
+  "trigger": "precompact-auto",
+  "phase": "03-consolidated-system-status-chip",
+  "phase_dir": ".planning/phases/03-consolidated-system-status-chip",
+  "git": {
+    "branch": "main",
+    "head": "7df7772",
+    "modified_files": 6
+  },
+  "note": "Auto-saved by PreCompact hook. Run /gsd-resume-work in a fresh session."
+}
