@@ -13,7 +13,9 @@ COPY pyproject.toml .
 RUN pip install --no-cache-dir .
 
 # Download spacy model
-RUN python -m spacy download en_core_web_sm
+# Pinned model wheel: `spacy download` fetches a compatibility table that
+# rate-limits (429) on shared build IPs; the release asset URL does not.
+RUN pip install --no-cache-dir https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
 
 # Copy application code
 COPY app/ app/
