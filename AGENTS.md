@@ -8,3 +8,7 @@
 
 ## UX
 - When discussing UI/UX topics, always apply UX best practices (accessibility, consistency, feedback, error prevention, progressive disclosure, proximity, hierarchy, contrast, etc.) without being asked.
+
+## Remote Control
+- Assume Damien is using Remote Control and provide directly clickable live DEV and PROD URLs for deployed work whenever applicable.
+- Do not assume Damien can access a server-local admin token; prefer a durable remote authentication flow and explain any access requirement inline.
