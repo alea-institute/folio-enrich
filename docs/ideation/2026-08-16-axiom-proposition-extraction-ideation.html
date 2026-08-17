@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Axioms &amp; Propositions — Ideation</title>
+</head>
+<body>
+<style>
+  :root{
+    --bg:#FBF8F2; --card:#FFFFFF; --ink:#28241D; --muted:#6E6759;
+    --accent:#8C3A2B; --accent-soft:#F6E8E2; --accent-text:#7A2F22;
+    --teal:#16606C; --teal-soft:#E3EFF0; --teal-text:#124F59;
+    --gold:#8A6D1F; --gold-soft:#F5EDD6; --line:#E4DDD0;
+    --ok:#2F6B3A; --ok-soft:#E6F0E4; --warn:#8A6D1F;
+    --serif:"Charter","Bitstream Charter","Iowan Old Style",Georgia,"Times New Roman",serif;
+    --sans:"Seravek","Gill Sans Nova",Verdana,"DejaVu Sans",system-ui,sans-serif;
+    --mono:ui-monospace,"Cascadia Code","JetBrains Mono","DejaVu Sans Mono",Menlo,monospace;
+  }
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15.5px;line-height:1.6;margin:0;padding:0 20px 60px}
+  .page{max-width:920px;margin-inline:auto}
+  p,li,dd{max-width:72ch}
+  h1,h2,h3,h4{font-family:var(--serif);font-weight:700;line-height:1.2;letter-spacing:-0.01em}
+  h1{font-size:2.1rem;margin:.4em 0 .2em}
+  h2{font-size:1.45rem;margin:2.2em 0 .6em;padding-top:1.2em;border-top:1px solid var(--line)}
+  h3{font-size:1.12rem;margin:1.6em 0 .4em}
+  h4{font-size:1rem;margin:1.2em 0 .3em}
+  a{color:var(--teal-text)}
+  code{font-family:var(--mono);font-size:.86em;background:#F1ECE1;border-radius:4px;padding:.08em .35em}
+  .eyebrow{font-family:var(--sans);text-transform:uppercase;letter-spacing:.14em;font-size:.72rem;color:var(--accent-text);font-weight:600;margin-top:2.4rem}
+  header.doc-head{padding-top:2.6rem}
+  .meta{display:flex;flex-wrap:wrap;gap:.5rem 1.6rem;color:var(--muted);font-size:.85rem;margin:.5rem 0 0}
+  .meta b{color:var(--ink);font-weight:600}
+  .stats{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.4rem 0 0}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:.55rem .9rem;font-size:.83rem;color:var(--muted)}
+  .stat b{display:block;color:var(--ink);font-size:1.05rem;font-family:var(--serif)}
+  .lede{font-size:1.05rem;max-width:70ch;color:#3E382E}
+  ul.axes{list-style:none;padding:0;display:grid;gap:.45rem}
+  ul.axes li{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:.55rem .85rem;font-size:.92rem}
+  ul.axes li b{font-family:var(--serif)}
+  article.idea{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:1.4rem 1.6rem 1.2rem;margin:1.4rem 0}
+  article.idea h3{margin:.1rem 0 .5rem;font-size:1.25rem}
+  .chips{display:flex;flex-wrap:wrap;gap:.45rem;margin:.2rem 0 .9rem}
+  .chip{border-radius:999px;padding:.18rem .7rem;font-size:.74rem;font-weight:600;letter-spacing:.04em}
+  .chip.rank{background:var(--accent-soft);color:var(--accent-text)}
+  .chip.axis{background:var(--teal-soft);color:var(--teal-text)}
+  .chip.conf{background:var(--ok-soft);color:var(--ok)}
+  .chip.cx{background:var(--gold-soft);color:var(--gold)}
+  .idea dl{margin:.8rem 0 0}
+  .idea dt{text-transform:uppercase;letter-spacing:.1em;font-size:.7rem;color:var(--muted);font-weight:700;margin-top:.9rem}
+  .idea dd{margin:.25rem 0 0}
+  .basis{background:#F7F3EA;border:1px solid var(--line);border-radius:8px;padding:.6rem .8rem;font-size:.9rem}
+  .basis .tag{font-family:var(--mono);font-size:.78em;color:var(--accent-text);font-weight:700}
+  .component{background:#FDFCF8;border:1px solid var(--line);border-radius:10px;padding:1rem 1.2rem;margin:.9rem 0}
+  .component h4{margin:.1rem 0 .35rem}
+  .component p{font-size:.93rem;margin:.35rem 0}
+  .decision{background:var(--teal-soft);border:1px solid #BFD8DB;border-radius:10px;padding:.9rem 1.1rem;margin:.9rem 0;font-size:.93rem}
+  .decision .lbl{text-transform:uppercase;letter-spacing:.1em;font-size:.68rem;font-weight:700;color:var(--teal-text)}
+  figure{margin:1.2rem 0;padding:0}
+  figcaption{font-size:.8rem;color:var(--muted);margin-top:.4rem;max-width:72ch}
+  svg{max-width:100%;height:auto;display:block}
+  table{border-collapse:collapse;width:100%;font-size:.9rem;margin:1rem 0}
+  th,td{border:1px solid var(--line);padding:.5rem .7rem;text-align:left;vertical-align:top}
+  th{background:#F3EEE3;font-family:var(--serif);font-size:.88rem}
+  tr.refuted td{background:#FBEDE9}
+  .note{background:var(--gold-soft);border:1px solid #E3D5A8;border-radius:10px;padding:.8rem 1rem;font-size:.9rem;max-width:76ch}
+  .note .lbl{text-transform:uppercase;letter-spacing:.1em;font-size:.7rem;font-weight:700;color:var(--gold)}
+  footer.composition-signal{margin-top:3.5rem;padding-top:1rem;border-top:1px solid var(--line);color:var(--muted);font-size:.78rem}
+</style>
+<div class="page">
+
+<header class="doc-head">
+  <div class="eyebrow">Ideation · repo-grounded · merged system</div>
+  <h1>Axioms &amp; Propositions</h1>
+  <p class="lede">The unified Proposition System for <code>folio-enrich</code> and <code>folio-insights</code> — six verified ideation survivors merged into one architecture, with the build decisions recorded.</p>
+  <div class="meta">
+    <span><b>Date</b> 2026-08-16 (merged same day)</span>
+    <span><b>Topic</b> axiom-proposition-extraction</span>
+    <span><b>Mode</b> repo-grounded (folio-enrich + folio-insights)</span>
+  </div>
+  <div class="meta" style="margin-top:.3rem">
+    <span><b>Focus</b> Is folio-insights a feature of folio-enrich? · three-stage axiom pipeline · bottom-up FOLIO additions via folio-resolve · proposition taxonomy (asserting/validating entities)</span>
+  </div>
+  <div class="stats">
+    <div class="stat"><b>48 → 7 → 1</b> raw → survivors → merged system</div>
+    <div class="stat"><b>6 frames</b> 5 ideation agents</div>
+    <div class="stat"><b>5 axes</b> all covered</div>
+    <div class="stat"><b>22 / 3 / 1</b> verifier: sound / weak / refuted</div>
+  </div>
+</header>
+
+<section id="grounding-context">
+<h2>Grounding Context</h2>
+<p><b>Codebase context.</b> folio-enrich runs a 16-stage pipeline (parallel extraction ∥ post-parallel grounding); triples are the only extraction type with <em>no</em> LLM task and <em>no</em> normalization layer — predicates like <code>respond On</code> and subjects like <code>I. BACKGROUND</code> ship raw. folio-insights is production (14K LOC, 691 tests, Railway) and imports folio-enrich through a fragile <code>sys.path</code> bridge that has silently broken at least twice; <code>folio-resolve==0.4.0</code> already replaced one bridge seam with a pinned library. folio-insights' v1.0 UAT documented ~90% hallucinated FOLIO IRIs until deterministic folio-resolve grounding was merged — in-house proof of the uploaded spec's "grounding as filter, not union" thesis. Two schema gaps are documented in insights' own sources: no field captures <em>who asserts</em> a proposition, and extracted citations don't bind to the propositions they support. In enrich, every concept that fails FOLIO resolution is silently dropped (<code>resolution_stage.py:282</code>, no else-branch).</p>
+<p><b>External context.</b> SPIRES/OntoGPT validates extract-then-ground (biomedical only; ~41 F1 on relations); LangChain's <code>strict_mode</code> ships schema filtering at the extraction layer; the ECHR argument-mining corpora (Habernal, 15k+ spans, 80% IAA) are the closest prior art for the proposition taxonomy; LLMs4OL 2025 finds LLMs need human-in-the-loop for ontology additions. Market scan: legal knowledge graphs are table-stakes (NetDocuments, Noxtua, LegalOn), but nobody unifies span-level annotation with axiom extraction in one pipeline.</p>
+<p><b>User-supplied spec.</b> The uploaded three-stage build spec (LLMGraphTransformer → dedupe/normalize → SPIRES-as-gatekeeper, with doc-type-aware chunking, Jena/Fuseki storage, and per-stage model/caching economics) was treated as leverageable input, not constraint.</p>
+</section>
+
+<section id="topic-axes">
+<h2>Topic Axes</h2>
+<ul class="axes">
+  <li><b>repo-boundary</b> — merge vs. bridge vs. shared-library tier across folio-enrich / folio-insights / folio-resolve</li>
+  <li><b>axiom-pipeline</b> — extract → normalize → ground-as-filter, and where it slots into the 16-stage pipeline</li>
+  <li><b>proposition-taxonomy</b> — types, asserting/validating entities, propositions vs. triples, FOLIO mapping</li>
+  <li><b>ontology-enrichment</b> — bottom-up candidate FOLIO classes/properties, novelty checks, parent placement, review</li>
+  <li><b>surfacing-ux</b> — Propositions tab, exports, SSE, review/validation workflows</li>
+</ul>
+</section>
+
+<section id="ranked-ideas">
+<h2>Ranked Ideas</h2>
+<p>The original seven survivors were merged by the user's direction: ideas 1–6 compose into the single system below; idea 7 (Inverted Extraction) was cut. The six components' full bases survive inside the system card.</p>
+
+<article class="idea" id="idea-1">
+  <h3>1. The Proposition System</h3>
+  <div class="chips"><span class="chip rank">Merged 1–6</span><span class="chip axis">system-wide · all five axes</span><span class="chip conf">Confidence 85%</span><span class="chip cx">Complexity High (staged)</span></div>
+
+  <dl>
+    <dt>Unifying principle</dt>
+    <dd><b>Everything in the system is a proposition with an asserter and a validator — including the system's own outputs.</b> A party asserts; a court validates (accepted / rejected / revised / unresolved). The pipeline asserts an extraction; the grounding filter validates it. A reviewer asserts approval; the signed action validates a proposition into <em>axiom</em> status. The system asserts a candidate FOLIO addition; FOLIO governance validates it into the ontology. One relation, applied recursively — this is what makes six ideas one system.</dd>
+
+    <dt>The two-exit gate</dt>
+    <dd>The keystone mechanism: the grounding gate has <b>two outputs, and nothing is discarded</b>. Candidates that pass become grounded propositions (and may be promoted to axioms through the validation lifecycle). Candidates that fail become structured near-miss records (and may be promoted into FOLIO as proposal packets). Precision filtering and ontology enrichment are the same gate, viewed from its two exits.</dd>
+  </dl>
+
+  <figure>
+    <svg viewBox="0 0 760 300" role="img" aria-label="The two-exit grounding gate">
+      <rect x="20" y="30" width="185" height="46" rx="8" fill="#E3EFF0" stroke="#16606C"/>
+      <text x="112" y="49" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#124F59">EarlyPropositionStage</text>
+      <text x="112" y="66" text-anchor="middle" font-size="11" fill="#124F59">reporting verbs · zero-LLM</text>
+      <rect x="255" y="30" width="165" height="46" rx="8" fill="#F5EDD6" stroke="#8A6D1F"/>
+      <text x="337" y="49" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#6E5613">Normalize + LLM refine</text>
+      <text x="337" y="66" text-anchor="middle" font-size="11" fill="#6E5613">LLM_TASKS "proposition"</text>
+      <rect x="470" y="30" width="200" height="46" rx="8" fill="#F6E8E2" stroke="#8C3A2B"/>
+      <text x="570" y="49" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#7A2F22">Grounding gate</text>
+      <text x="570" y="66" text-anchor="middle" font-size="11" fill="#7A2F22">folio-resolve · post-Resolution</text>
+      <line x1="205" y1="53" x2="255" y2="53" stroke="#6E6759" stroke-width="2" marker-end="url(#arrM)"/>
+      <line x1="420" y1="53" x2="470" y2="53" stroke="#6E6759" stroke-width="2" marker-end="url(#arrM)"/>
+      <line x1="520" y1="76" x2="420" y2="140" stroke="#2F6B3A" stroke-width="2.5" marker-end="url(#arrMg)"/>
+      <text x="405" y="105" text-anchor="middle" font-size="11.5" fill="#2F6B3A" font-weight="bold">passes</text>
+      <line x1="620" y1="76" x2="620" y2="140" stroke="#8C3A2B" stroke-width="2.5" marker-end="url(#arrMr)"/>
+      <text x="668" y="112" text-anchor="middle" font-size="11.5" fill="#7A2F22" font-weight="bold">fails</text>
+      <rect x="255" y="140" width="230" height="60" rx="10" fill="#E6F0E4" stroke="#2F6B3A"/>
+      <text x="370" y="164" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#2F6B3A">grounded propositions</text>
+      <text x="370" y="182" text-anchor="middle" font-size="11" fill="#2F6B3A">→ doctrine assembly → axiom status</text>
+      <rect x="520" y="140" width="220" height="60" rx="10" fill="#F6E8E2" stroke="#8C3A2B"/>
+      <text x="630" y="164" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#7A2F22">near-miss records</text>
+      <text x="630" y="182" text-anchor="middle" font-size="11" fill="#7A2F22">→ proposal packets → FOLIO</text>
+      <line x1="630" y1="200" x2="630" y2="235" stroke="#8C3A2B" stroke-width="2" marker-end="url(#arrMr)"/>
+      <line x1="370" y1="200" x2="370" y2="235" stroke="#2F6B3A" stroke-width="2" marker-end="url(#arrMg)"/>
+      <rect x="255" y="235" width="230" height="46" rx="10" fill="#FDFCF8" stroke="#16606C"/>
+      <text x="370" y="255" text-anchor="middle" font-size="12" font-weight="bold" fill="#124F59">folio-insights</text>
+      <text x="370" y="271" text-anchor="middle" font-size="11" fill="#124F59">cross-document · governance</text>
+      <rect x="520" y="235" width="220" height="46" rx="10" fill="#FDFCF8" stroke="#8A6D1F"/>
+      <text x="630" y="255" text-anchor="middle" font-size="12" font-weight="bold" fill="#6E5613">FOLIO grows</text>
+      <text x="630" y="271" text-anchor="middle" font-size="11" fill="#6E5613">better matching next run</text>
+      <defs>
+        <marker id="arrM" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="#6E6759"/></marker>
+        <marker id="arrMg" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="#2F6B3A"/></marker>
+        <marker id="arrMr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9 z" fill="#8C3A2B"/></marker>
+      </defs>
+    </svg>
+    <figcaption>Nothing is discarded: passes become propositions and candidate axioms; fails become candidate FOLIO additions. Both product lines come out of one filter.</figcaption>
+  </figure>
+
+  <h4>The five layers</h4>
+  <table>
+    <thead><tr><th>Layer</th><th>What it is</th><th>Lives in</th><th>From ideas</th></tr></thead>
+    <tbody>
+      <tr><td><b>Vocabulary</b></td><td><code>Proposition</code> model — double-entry ledger, typed citation edges, axiom-as-status, per-ontology shapes — plus the per-document interchange record</td><td><code>folio-propositions</code> library (new)</td><td>#3, #1</td></tr>
+      <tr><td><b>Per-document extraction</b></td><td>EarlyPropositionStage (reporting verbs, zero-LLM) → normalize → LLM refine → folio-resolve grounding-as-filter; thread-UI Propositions tab + review controls</td><td>folio-enrich</td><td>#5, #2</td></tr>
+      <tr><td><b>Cross-document assembly</b></td><td>Doctrine merging, NLI contradiction detection, conflicting-authorities shards, promotion governance (signed actions)</td><td>folio-insights</td><td>#1, #3</td></tr>
+      <tr><td><b>Ontology feedback</b></td><td>Near-miss capture at every rejection point → proposal packets (spans, novelty, BranchJudge parent placement) → SHACL+NLI floor → governed FOLIO submission</td><td>both, via library</td><td>#4</td></tr>
+      <tr><td><b>Ground truth</b></td><td>Gold opinions annotated with the LLM-assisted tool; taxonomy falsifier + regression benchmark + labeled data</td><td>folio-enrich (tooling)</td><td>#6</td></tr>
+    </tbody>
+  </table>
+  <p>The repo-boundary rule that routes every component: <b>does it need more than one document?</b> No → folio-enrich. Yes → folio-insights. Is it vocabulary or logic both need → <code>folio-propositions</code>. The five remaining <code>sys.path</code> bridge adapters (<code>folio_service</code>, <code>embedding_service</code>, <code>normalizer</code>, <code>aho_corasick_matcher</code>, <code>citation_extractor</code>) get extracted to the library tier on the folio-resolve precedent, with consumer contract tests running in folio-enrich's CI.</p>
+
+  <h4>The double-entry ledger (schema spine)</h4>
+  <p>Every proposition carries two mandatory sides — <code>asserted_by</code> and <code>adjudicated_by</code>, where null is a first-class state — plus a disposition enum and CiTO-style typed citation edges (<code>supports / distinguishes / overrules / follows / cites-record-evidence</code>). Asserters and validators are <code>TripleLink</code>-style edges to already-extracted Individuals. Unbalanced entries mechanically name the missed proposition types:</p>
+  <table>
+    <thead><tr><th>asserted_by</th><th>adjudicated_by</th><th>What it names</th></tr></thead>
+    <tbody>
+      <tr><td>party</td><td>court</td><td>the classic litigated proposition (accepted / rejected / revised)</td></tr>
+      <tr><td>party</td><td><em>null</em></td><td><b>open position</b> — asserted, never ruled on (waived, moot, unreached)</td></tr>
+      <tr><td>both parties</td><td><em>null / pro-forma</em></td><td><b>stipulation</b> — settled bilaterally (sometimes court-approved)</td></tr>
+      <tr><td>court (assumed)</td><td>court (declined)</td><td><b>arguendo</b> — assumed without deciding</td></tr>
+      <tr><td><em>null</em></td><td>court</td><td><b>judicial notice</b> — validated with no party assertion</td></tr>
+    </tbody>
+  </table>
+  <p>Axiom is not a sibling type: it is the status a proposition <em>earns</em> through validation events (folio-insights' <code>promote / demote / supersede</code> SignedActions already implement the lifecycle). SVO triples are contained fragments. Shapes are parameterized per Ontology aggregate — litigation shape for FOLIO, disputatio shape for the Catholic Canon ontology already live in production.</p>
+
+  <h4>The library is carved out of insights, not built beside it</h4>
+  <p>folio-propositions and folio-insights are not rivals — one is a <em>vocabulary</em>, the other an <em>application</em> — but insights already contains a proposition vocabulary (its shard models in <code>envelope.py</code> / <code>subtypes.py</code>). Building folio-propositions as a new schema alongside it would create two competing definitions of "proposition" — the schema-level version of the sys.path bridge. So the library is the <b>extraction of insights' vocabulary layer</b> (plus the ledger design) into the shared tier, which insights consumes back — the folio-resolve playbook, replayed for the domain model. Alternatives weighed and rejected: making insights itself the shared dependency (drags an application's dependency weight into enrich, inverts the layering, and manufactures a circular import since insights already consumes enrich components); or no library at all (two definitions, silent drift, a mapping layer nobody owns).</p>
+  <p>The unification is real, not forced — insights' five shard types are <em>configurations</em> of the one Proposition model:</p>
+  <table>
+    <thead><tr><th>insights shard type</th><th>In the ledger vocabulary</th></tr></thead>
+    <tbody>
+      <tr><td><code>simple_assertion</code></td><td>proposition with a plain balanced entry</td></tr>
+      <tr><td><code>hypothesis</code></td><td>asserted_by = system (generated), adjudicated_by = null</td></tr>
+      <tr><td><code>gloss</code></td><td>asserter = secondary source; citation edge type <code>interprets / elaborates</code></td></tr>
+      <tr><td><code>disputed_proposition</code></td><td>a thread of propositions linked by stance edges (utrum → objections → respondeo)</td></tr>
+      <tr><td><code>conflicting_authorities</code></td><td><b>cross-document</b> composite of ledger conflicts (sic/non) — stays insights-level, built <em>from</em> library propositions</td></tr>
+    </tbody>
+  </table>
+  <p>The last row is the boundary in miniature: single-document shapes belong to the library; cross-document composites belong to the app. The document/corpus rule routes the shard types themselves.</p>
+
+  <h4>Build decisions (settled 2026-08-16)</h4>
+  <div class="decision"><span class="lbl">Decision · Library timing</span><br><b>Models-first hybrid.</b> <code>folio-propositions</code> is created in Phase A holding only the Pydantic models + interchange schema, after the gold-doc exercise validates them. Stage logic starts in folio-enrich and migrates into the library as it stabilizes. No sixth bridge adapter ever forms; no premature API freeze.</div>
+  <div class="decision"><span class="lbl">Decision · v2.0 alignment</span><br><b>The folio-propositions model and folio-insights' v2.0 shard-envelope redesign are one work item.</b> Insights' v2.0 PRD (review 2026-08-23) defines typed shards with 15-field provenance envelopes — that <em>is</em> proposition-vocabulary work. The ledger schema, typed citation edges, and axiom-as-status go into that review as the proposed v2.0 schema, authored in the library; insights v2.0 consumes it. The review date (targeted 2026-08-23) is a soft target — the schema ships to review when it has survived annotation, not on a calendar gate.</div>
+  <div class="decision"><span class="lbl">Decision · Sequencing &amp; annotation process</span><br><b>Parallel tracks with an LLM-assisted annotation tool.</b> An LLM-backed tool pre-selects candidate proposition spans and applies rudimentary classifiers from the working taxonomy; the annotator (Damien) edits or deletes pre-selected spans, adds his own, and can augment the taxonomy with new proposition types as he goes. Gold opinions span court levels — district, appellate, supreme; state and federal — so the taxonomy is falsified against genre diversity, not one document's habits. Agile: the MVP skeleton (stage scaffolding, tab plumbing, review controls) is built in parallel, since the annotation tool's pre-select + edit/add surface <em>is</em> the same component as the Propositions tab's review controls — the tracks converge on shared code, and every gold annotation doubles as labeled eval/training data.</div>
+
+  <h4>Build phases</h4>
+  <table>
+    <thead><tr><th>Phase</th><th>Work</th><th>Gate</th></tr></thead>
+    <tbody>
+      <tr><td><b>A</b></td><td>Gold-opinion annotation (LLM-assisted tool) ∥ MVP skeleton; draft schema; <code>folio-propositions</code> created with models + interchange record, carved from insights' shard vocabulary</td><td>taxonomy survives annotation across court levels; schema lands at the insights v2.0 PRD review (2026-08-23)</td></tr>
+      <tr><td><b>B</b></td><td>Propositions MVP in enrich: zero-LLM reporting-verb stage, Individual linking, thread-UI tab, review controls</td><td>benchmark vs. gold set</td></tr>
+      <tr><td><b>C</b></td><td>LLM refinement + grounding-as-filter (with the spec's filter-vs-union A/B run on the gold set); near-miss instrumentation lands as the gate's second exit</td><td>F1 vs. gold set; measured cost</td></tr>
+      <tr><td><b>D</b></td><td>Library extraction completes (bridge adapters retired, contract tests in CI); insights consumes per-doc records for doctrine assembly</td><td>contract suite green in both repos</td></tr>
+      <tr><td><b>E</b></td><td>Full flywheel: proposal packets, SHACL+NLI floor, governed FOLIO submissions; reviewer actions recorded as validation propositions</td><td>first accepted FOLIO proposal</td></tr>
+    </tbody>
+  </table>
+
+  <dl>
+    <dt>Basis (carried from the six merged survivors, all verifier-checked)</dt>
+    <dd class="basis"><span class="tag">direct:</span> <code>orchestrator.py:31</code> — no proposition/axiom task in <code>LLM_TASKS</code>; <code>resolution_stage.py:282</code> — silent drop of unresolved concepts (no else-branch); <code>dependency_stage.py:96-115</code> — the substring linker that binds asserters/validators to Individuals; insights' documented ~90% IRI-hallucination incident cured by deterministic folio-resolve grounding; the two documented schema gaps (no asserting-entity field; unbound citations); <code>envelope.py</code> SignedActions (promote/demote/supersede) verified real and RBAC-gated; <code>ReviewControls.svelte</code> + display-only enrich tabs verified. <span class="tag">external:</span> Linux stable-ABI doctrine + Pact contract testing; CiTO/SPAR typed citation edges; double-entry bookkeeping's completeness invariant; NASA ASRS near-miss capture; Wikidata property proposals; ECHR/Habernal corpora (80% IAA) proving annotatability; LLMs4OL 2025 (human-in-the-loop required for ontology additions).</dd>
+    <dt>Rationale</dt>
+    <dd>Answers the original question — "is folio-insights just a feature of folio-enrich?" — with something better than merge or status quo: one product family, three declared layers, routed by the document/corpus rule. Nearly every mechanism reuses shipped, tested code (the resolver, the linker, BranchJudge, the review UI, the signing envelope); the genuinely new build is the schema, the reporting-verb lexicon, the near-miss store, and the wiring. Strategically it makes the ecosystem FOLIO's upstream intake — a position no competitor in the market scan occupies.</dd>
+    <dt>Downsides</dt>
+    <dd>It is a program, not a feature — five phases, two repos, one new library, and FOLIO governance buy-in for the flywheel's final leg. Cross-job storage for near-miss records is new infrastructure (enrich is per-job filesystem today). Threshold calibration (novelty, confidence bands) needs the gold set first. Attestations are single-signer until insights' deferred N-of-M multi-sig lands. Discipline risks: the ledger invariant degenerates if null-typing is sloppy, and the library boundary only pays rent if the contract tests actually gate CI.</dd>
+  </dl>
+</article>
+</section>
+
+<section id="rejection-summary">
+<h2>Rejection Summary</h2>
+<p>48 raw ideas from six frames were deduped to 25 candidates + 4 syntheses, adversarially verified by a fresh-context agent (22 sound / 3 weak / 1 refuted), cut to 7 survivors — then survivors 1–6 were merged into the single system above at the user's direction.</p>
+<table>
+  <thead><tr><th>Idea</th><th>Reason</th></tr></thead>
+  <tbody>
+    <tr><td>Inverted Extraction (survivor 7: FOLIO's domain/range pairs imply candidate axioms; documents evidence them)</td><td><b>Cut by user decision</b> after review; also the set's lowest confidence (65%). The forward pipeline covers the need; support-counting could return later as an analytics mode.</td></tr>
+    <tr class="refuted"><td>Crowd validation on the public demos (DID consensus promotion)</td><td><b>Basis refuted:</b> insights' <code>cosigners</code> field is documented "RESERVED, present-but-empty" for the deferred N-of-M multi-sig milestone. Revisit single-signer, or when multi-sig lands.</td></tr>
+    <tr><td>Corpus-scale seed doctrine graph, extract-by-diff</td><td>Premature spend before the gold-set benchmark validates extraction quality. Revisit post-Phase C.</td></tr>
+    <tr><td>Stage-plugin seam (insights registers stages into enrich)</td><td>Alternative to the library tier; pinned libraries + contract tests achieve the decoupling without runtime plugin coupling.</td></tr>
+    <tr><td>Predicate normalization stage (standalone)</td><td>Folded into Phases B–C. Verifier note: the "85×len(query)/len(label)" coverage formula cited from project memory was planned in a closed PR and never shipped — dropped from all bases.</td></tr>
+    <tr><td>DocumentTypeStage-driven chunking</td><td>Folded into Phase C as an implementation note.</td></tr>
+    <tr><td>Flat Propositions tab (Triples clone)</td><td>Superseded by the structure-preserving thread/argument rendering.</td></tr>
+    <tr><td>Reviewer-actions-as-propositions</td><td>Absorbed into the system's unifying principle and Phase E.</td></tr>
+    <tr><td>LLVM-IR / kernel-ABI / variant-calling framings as standalone ideas</td><td>Absorbed as framing into the merged system; decorative beyond that.</td></tr>
+    <tr><td>~18 cross-frame near-duplicates (bridge migration ×3, entity binding ×4, silent-drop capture ×4, review-UI port ×2…)</td><td>Merged at dedupe; convergence across independent frames treated as a strength signal.</td></tr>
+  </tbody>
+</table>
+<div class="note"><span class="lbl">Verifier corrections carried into the merged system</span><br>
+(1) The five real bridge functions are <code>folio_service / embedding_service / normalizer / aho_corasick_matcher / citation_extractor</code>. (2) The "&lt;0.30 nearest-neighbor = novel" threshold was evidence-dossier speculation, not shipped code; the shipped <code>0.45</code> backup-relevance threshold is the calibration starting point. (3) folio-insights' hallucination remediation is partially landed (deterministic grounding merged; source-grounded extraction still open). (4) Stipulations often require court approval — the ledger's "no adjudicator" row is a tendency, not a rule.</div>
+<p>Axis coverage: the merged system spans all five axes; no gaps.</p>
+</section>
+
+<footer class="composition-signal">Composed 2026-08-16 by ce-ideate (compound-engineering) from the user's proposition-taxonomy brief + uploaded <code>ontology_extraction_pipeline_build_spec.md</code>; grounded in folio-enrich, folio-insights, and 5 evidence dossiers; verified by a fresh-context basis check; ideas 1–6 merged into the Proposition System per user direction, same day.</footer>
+</div>
+
+</body>
+</html>
