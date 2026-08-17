@@ -2205,6 +2205,9 @@
   .proposition-toolbar, .proposition-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .proposition-toolbar { padding-bottom:10px; border-bottom:1px solid var(--border); }
   .proposition-status { font-size:11px; color:var(--text-dim); }
+  .proposition-admin-token { display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
+  .proposition-admin-token input { width:150px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; background:var(--surface2); color:var(--text); font-size:11px; }
+  .proposition-admin-token-hint { flex-basis:100%; font-size:10px; color:var(--text-dim); }
   .proposition-document { margin-top:10px; max-height:34vh; overflow:auto; padding:14px; border:1px solid var(--border); border-radius:7px; background:var(--surface2); white-space:pre-wrap; line-height:1.65; font-size:13px; }
   .proposition-document.add-armed { cursor:text; outline:2px solid var(--orange); outline-offset:1px; }
   .proposition-document.blind-armed { cursor:text; outline:2px solid var(--text-dim); outline-offset:1px; }
@@ -3802,6 +3805,12 @@
         <div class="proposition-toolbar">
           <label><input type="checkbox" id="propositionModeToggle" onchange="togglePropositionMode(this.checked)"> Annotation mode</label>
           <span class="proposition-status" id="propositionModeStatus">Off</span>
+          <div class="proposition-admin-token">
+            <label for="propositionAdminTokenInput">Admin token</label>
+            <input type="password" id="propositionAdminTokenInput" autocomplete="current-password" aria-describedby="propositionAdminTokenHint" onkeydown="if (event.key === 'Enter') savePropositionAdminToken()">
+            <button type="button" class="secondary small" onclick="savePropositionAdminToken()">Save</button>
+            <span class="proposition-admin-token-hint" id="propositionAdminTokenHint">Required on deployed instances; leave empty locally.</span>
+          </div>
           <button class="secondary small" id="startPropositionSessionBtn" onclick="ensurePropositionSession(true)" style="display:none">Start annotation session</button>
           <label class="proposition-status"><input type="checkbox" id="propositionBaselineToggle"> Lexicon-only baseline session</label>
           <button class="secondary small" id="addPropositionSpanBtn" onclick="togglePropositionAddMode()" disabled>+ Add span</button>
@@ -4151,6 +4160,28 @@ let propositionBlindArmed = false;
 let propositionDraft = null;
 let propositionSettings = null;
 let propositionCompleteness = null;
+const PROPOSITION_ADMIN_TOKEN_KEY = 'folioEnrichAdminToken';
+
+function loadPropositionAdminToken() {
+  try { return localStorage.getItem(PROPOSITION_ADMIN_TOKEN_KEY) || ''; } catch { return ''; }
+}
+
+function savePropositionAdminToken() {
+  const input = document.getElementById('propositionAdminTokenInput');
+  if (!input) return;
+  try {
+    if (input.value) localStorage.setItem(PROPOSITION_ADMIN_TOKEN_KEY, input.value);
+    else localStorage.removeItem(PROPOSITION_ADMIN_TOKEN_KEY);
+    _showInfoToast(input.value ? 'Admin token saved in this browser.' : 'Admin token cleared.');
+  } catch {
+    _showInfoToast('Could not save the admin token in this browser.');
+  }
+}
+
+function restorePropositionAdminToken() {
+  const input = document.getElementById('propositionAdminTokenInput');
+  if (input) input.value = loadPropositionAdminToken();
+}
 
 function resetPropositionSessionState() {
   propositionSession = null;
@@ -5042,6 +5073,7 @@ async function init() {
   // Restore UI state immediately (before any async calls)
   if (showThinking) applyShowThinkingStyle(document.getElementById('showThinkingBtn'), true);
   if (debugMode) applyDebugBtnStyle(document.getElementById('debugModeBtn'), true);
+  restorePropositionAdminToken();
 
   // Restore detail panel visibility from localStorage
   const detailVisible = localStorage.getItem('detailPanelVisible');
@@ -11823,16 +11855,24 @@ const PROPOSITION_ROLES = ['party', 'plaintiff', 'defendant', 'appellant', 'appe
 
 function propositionApiError(error) {
   _showInfoToast(error.message || String(error));
+  if (error.goldAuthFailure) document.getElementById('propositionAdminTokenInput')?.focus();
 }
 
 async function propositionFetch(path, options = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  if (path.startsWith('/gold')) {
+    const adminToken = loadPropositionAdminToken();
+    if (adminToken) headers['X-Admin-Token'] = adminToken;
+  }
   const response = await fetch(`${API}${path}`, {
     ...options,
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    headers,
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail));
+    const error = new Error(typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail));
+    error.goldAuthFailure = path.startsWith('/gold') && (response.status === 401 || response.status === 403);
+    throw error;
   }
   return response.json();
 }
