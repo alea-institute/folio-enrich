@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
+from folio_propositions import Proposition
 
 from app.models.annotation import Annotation, Individual, PropertyAnnotation, SPOTriple
 from app.models.document import DEFAULT_ONTOLOGY, CanonicalText, DocumentInput
@@ -32,6 +33,7 @@ class JobResult(BaseModel):
     individuals: list[Individual] = Field(default_factory=list)
     properties: list[PropertyAnnotation] = Field(default_factory=list)
     triples: list[SPOTriple] = Field(default_factory=list)
+    propositions: list[Proposition] = Field(default_factory=list)
     metadata: dict = Field(default_factory=dict)
     # Ontology this result was produced against (stamped by the orchestrator from
     # job.input.ontology). Exporters/clients read these instead of assuming FOLIO.

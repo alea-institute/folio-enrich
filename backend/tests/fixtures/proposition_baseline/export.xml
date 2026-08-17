@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='utf-8'?>
+<annotations job_id="d3e79092-f12a-5d3b-91e3-e171c7263277" status="completed">
+  <document>
+    <format>plain_text</format>
+  </document>
+  <metadata>
+    <field name="activity_log">[{'ts': '2025-01-02T03:04:05Z', 'stage': 'ingestion', 'msg': 'Ingested 50 characters from DocumentFormat.PLAIN_TEXT'}, {'ts': '2025-01-02T03:04:05Z', 'stage': 'normalization', 'msg': 'Normalized into 1 chunks, 1 sentences'}]</field>
+  </metadata>
+  <annotations_list />
+  <individuals />
+  <properties />
+  <triples />
+</annotations>

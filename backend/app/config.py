@@ -103,6 +103,11 @@ class Settings(BaseSettings):
     llm_property_provider: str = ""
     llm_property_model: str = ""
 
+    # Proposition pre-selection (default OFF for byte-neutral rollout)
+    proposition_extraction_enabled: bool = False
+    llm_proposition_provider: str = ""
+    llm_proposition_model: str = ""
+
     # FOLIO OWL auto-update
     folio_auto_update: bool = True
     folio_update_check_interval_hours: int = 24

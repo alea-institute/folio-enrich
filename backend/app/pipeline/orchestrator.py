@@ -19,6 +19,7 @@ from app.pipeline.stages.metadata_stage import MetadataStage
 from app.pipeline.stages.dependency_stage import TripleEnrichmentStage
 from app.pipeline.stages.individual_stage import EarlyIndividualStage, LLMIndividualStage
 from app.pipeline.stages.property_stage import EarlyPropertyStage, LLMPropertyStage
+from app.pipeline.stages.proposition_stage import EarlyPropositionStage
 from app.pipeline.stages.triple_stage import EarlyTripleStage
 from app.pipeline.stages.document_type_stage import DocumentTypeStage
 from app.pipeline.stages.rerank_stage import ContextualRerankStage
@@ -28,7 +29,7 @@ from app.storage.job_store import JobStore
 logger = logging.getLogger(__name__)
 
 # Task names for per-task LLM configuration
-LLM_TASKS = ("classifier", "extractor", "concept", "branch_judge", "area_of_law", "synthetic", "individual", "property", "document_type")
+LLM_TASKS = ("classifier", "extractor", "concept", "branch_judge", "area_of_law", "synthetic", "individual", "property", "proposition", "document_type")
 
 # Map task names to TaskLLMs field names (needed when task name is a Python builtin)
 _TASK_FIELD_MAP: dict[str, str] = {"property": "property_llm"}
@@ -51,6 +52,7 @@ class TaskLLMs:
     synthetic: LLMProvider | None = None
     individual: LLMProvider | None = None
     property_llm: LLMProvider | None = None
+    proposition: LLMProvider | None = None
     document_type: LLMProvider | None = None
 
     # --- convenience helpers ------------------------------------------------
@@ -87,6 +89,7 @@ class PipelineConfig:
     llm_concept: PipelineStage | None = None
     early_individual: PipelineStage | None = None
     early_property: PipelineStage | None = None
+    early_proposition: PipelineStage | None = None
     early_triple: PipelineStage | None = None
     document_type: PipelineStage | None = None
     post_parallel: list[PipelineStage] = field(default_factory=list)
@@ -108,6 +111,7 @@ def build_pipeline_config(
     extractor_llm = (task_llms.extractor if task_llms else llm) or llm
     individual_llm = (task_llms.individual if task_llms else llm) or llm
     property_llm = (task_llms.property_llm if task_llms else llm) or llm
+    proposition_llm = (task_llms.proposition if task_llms else llm) or llm
     document_type_llm = (task_llms.document_type if task_llms else llm) or llm
 
     config = PipelineConfig(
@@ -126,6 +130,9 @@ def build_pipeline_config(
 
     # Early property extraction (Aho-Corasick) runs in parallel
     config.early_property = EarlyPropertyStage()
+
+    # Proposition lexicon/dependency extraction plus optional LLM assist
+    config.early_proposition = EarlyPropositionStage(proposition_llm)
 
     # Early triple extraction (dependency parsing) runs in parallel
     config.early_triple = EarlyTripleStage()
@@ -185,6 +192,7 @@ def build_stages(
     extractor_llm = (task_llms.extractor if task_llms else llm) or llm
     individual_llm = (task_llms.individual if task_llms else llm) or llm
     property_llm = (task_llms.property_llm if task_llms else llm) or llm
+    proposition_llm = (task_llms.proposition if task_llms else llm) or llm
     document_type_llm = (task_llms.document_type if task_llms else llm) or llm
 
     stages: list[PipelineStage] = [
@@ -198,6 +206,9 @@ def build_stages(
 
     # Early property extraction (Aho-Corasick) — fast, no LLM
     stages.append(EarlyPropertyStage())
+
+    # Early proposition pre-selection — lexicon-first, optional LLM assist
+    stages.append(EarlyPropositionStage(proposition_llm))
 
     # Early triple extraction (dependency parsing) — fast, no LLM
     stages.append(EarlyTripleStage())
@@ -475,6 +486,21 @@ class PipelineOrchestrator:
                     logger.warning("Stage %s failed for job %s: %s — continuing",
                                    config.early_triple.name, j.id, e)
 
+            async def run_early_proposition(j: Job) -> None:
+                if config.early_proposition is None:
+                    return
+                from app.config import settings
+                if not settings.proposition_extraction_enabled:
+                    return
+                logger.info("Running stage %s for job %s (parallel)", config.early_proposition.name, j.id)
+                try:
+                    await config.early_proposition.execute(j)
+                    j.updated_at = datetime.now(timezone.utc)
+                    await self.job_store.save(j)
+                except Exception as e:
+                    logger.warning("Stage %s failed for job %s: %s — continuing",
+                                   config.early_proposition.name, j.id, e)
+
             async def run_document_type(j: Job) -> None:
                 if config.document_type is None:
                     return
@@ -492,6 +518,7 @@ class PipelineOrchestrator:
                 run_llm_concept(job),
                 run_early_individual(job),
                 run_early_property(job),
+                run_early_proposition(job),
                 run_early_triple(job),
                 run_document_type(job),
             )

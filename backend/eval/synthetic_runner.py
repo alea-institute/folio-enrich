@@ -37,6 +37,7 @@ from app.pipeline.stages.individual_stage import EarlyIndividualStage, LLMIndivi
 from app.pipeline.stages.ingestion_stage import IngestionStage
 from app.pipeline.stages.normalization_stage import NormalizationStage
 from app.pipeline.stages.property_stage import EarlyPropertyStage, LLMPropertyStage
+from app.pipeline.stages.proposition_stage import EarlyPropositionStage
 from app.pipeline.stages.reconciliation_stage import ReconciliationStage
 from app.pipeline.stages.resolution_stage import ResolutionStage
 from app.pipeline.stages.string_match_stage import StringMatchStage
@@ -154,6 +155,7 @@ def _deterministic_stages() -> list[PipelineStage]:
         _SnapshotStage(EntityRulerStage(registry_embeddings=False), "EntityRuler", "ruler_concepts"),
         EarlyIndividualStage(),
         EarlyPropertyStage(),
+        EarlyPropositionStage(llm=None),
         EarlyTripleStage(),
         _SnapshotStage(ReconciliationStage(registry_embeddings=False), "Reconciliation", "reconciled_concepts"),
         _SnapshotStage(ResolutionStage(registry_embeddings=False), "Resolution", "resolved_concepts"),
@@ -188,6 +190,7 @@ def _snapshot_pipeline_config(pipeline: PipelineOrchestrator) -> None:
     config.llm_concept = wrap(config.llm_concept)
     config.early_individual = wrap(config.early_individual)
     config.early_property = wrap(config.early_property)
+    config.early_proposition = wrap(config.early_proposition)
     config.early_triple = wrap(config.early_triple)
     config.document_type = wrap(config.document_type)
     config.post_parallel = [wrap(stage) for stage in config.post_parallel]  # type: ignore[list-item]

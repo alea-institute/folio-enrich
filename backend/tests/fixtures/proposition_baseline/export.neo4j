@@ -1,0 +1,6 @@
+# NODES
+:ID,name,iri,branch,:LABEL
+doc_d3e79092-f12a-5d3b-91e3-e171c7263277,d3e79092-f12a-5d3b-91e3-e171c7263277,,,Document
+
+# RELATIONSHIPS
+:START_ID,:END_ID,:TYPE,confidence,span_start,span_end

@@ -38,6 +38,7 @@ TASK_TIER_MAP: dict[str, ModelTier] = {
     "extractor": ModelTier.COMPLEX,
     "individual": ModelTier.COMPLEX,
     "property": ModelTier.COMPLEX,
+    "proposition": ModelTier.COMPLEX,
 }
 
 

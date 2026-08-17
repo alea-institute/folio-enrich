@@ -1,0 +1,19 @@
+{
+  "@context": {
+    "oa": "http://www.w3.org/ns/oa#",
+    "owl": "http://www.w3.org/2002/07/owl#",
+    "skos": "http://www.w3.org/2004/02/skos/core#",
+    "schema": "http://schema.org/",
+    "folio": "https://folio.openlegalstandard.org/",
+    "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
+    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    "dc": "http://purl.org/dc/elements/1.1/"
+  },
+  "@type": "oa:AnnotationCollection",
+  "schema:name": "FOLIO Enrich annotations for job d3e79092-f12a-5d3b-91e3-e171c7263277",
+  "oa:annotatedAt": "2025-01-02T03:04:05+00:00",
+  "annotations": [],
+  "individuals": [],
+  "properties": [],
+  "triples": []
+}

@@ -27,9 +27,10 @@ def _reset_singleton():
 # ── Task tier mapping ──────────────────────────────────────────
 
 class TestTaskTierMap:
-    def test_all_9_tasks_covered(self):
+    def test_all_10_tasks_covered(self):
         expected = {"document_type", "area_of_law", "concept", "branch_judge",
-                    "synthetic", "classifier", "extractor", "individual", "property"}
+                    "synthetic", "classifier", "extractor", "individual", "property",
+                    "proposition"}
         assert set(TASK_TIER_MAP.keys()) == expected
 
     def test_simple_tasks(self):
@@ -41,7 +42,7 @@ class TestTaskTierMap:
             assert TASK_TIER_MAP[task] == ModelTier.MEDIUM
 
     def test_complex_tasks(self):
-        for task in ("classifier", "extractor", "individual", "property"):
+        for task in ("classifier", "extractor", "individual", "property", "proposition"):
             assert TASK_TIER_MAP[task] == ModelTier.COMPLEX
 
 
@@ -76,7 +77,7 @@ class TestModelSelection:
     def test_get_tier_config(self):
         manager = OllamaManager.get_instance()
         config = manager.get_tier_config()
-        assert len(config) == 9
+        assert len(config) == 10
         assert config["document_type"]["tier"] == "simple"
         assert config["document_type"]["model"] == "qwen3:4b"
         assert config["classifier"]["tier"] == "complex"

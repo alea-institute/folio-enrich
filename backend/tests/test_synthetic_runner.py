@@ -104,6 +104,7 @@ async def test_llm_on_lane_includes_llm_stages(tmp_path: Path, monkeypatch: pyte
         config.llm_concept,
         config.early_individual,
         config.early_property,
+        config.early_proposition,
         config.early_triple,
         config.document_type,
         *config.post_parallel,

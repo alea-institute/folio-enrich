@@ -19,6 +19,7 @@ async def job_event_stream(
     seen_ids: set[str] = set()
     seen_individual_ids: set[str] = set()
     seen_property_ids: set[str] = set()
+    seen_proposition_ids: set[str] = set()
     seen_triple_ids: set[str] = set()
     last_states: dict[str, str] = {}
     last_activity_count: int = 0
@@ -123,6 +124,15 @@ async def job_event_stream(
                     "match_type": prop.match_type,
                 }
                 yield {"event": "property_added", "data": json.dumps(prop_data)}
+
+        # Emit new propositions
+        for proposition in job.result.propositions:
+            if proposition.id not in seen_proposition_ids:
+                seen_proposition_ids.add(proposition.id)
+                yield {
+                    "event": "proposition_added",
+                    "data": json.dumps(proposition.model_dump(mode="json")),
+                }
 
         # Emit new triples
         for triple in job.result.triples:

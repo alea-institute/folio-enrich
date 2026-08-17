@@ -1,0 +1,4 @@
+@prefix oa: <http://www.w3.org/ns/oa#> .
+
+<urn:folio-enrich:job:d3e79092-f12a-5d3b-91e3-e171c7263277> a oa:AnnotationCollection .
+
