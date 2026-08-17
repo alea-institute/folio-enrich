@@ -128,8 +128,8 @@ class JobStore:
         deleted = 0
 
         for path in list(self.base_dir.glob("*.json")):
-            if path.stem in PROTECTED_JOB_IDS:
-                continue  # never delete seeded demo jobs
+            if path.stem in PROTECTED_JOB_IDS or self._has_unexported_gold_session(path.stem):
+                continue
             try:
                 data = json.loads(path.read_text())
                 updated = data.get("updated_at") or data.get("created_at")
@@ -142,3 +142,15 @@ class JobStore:
                 continue
 
         return deleted
+
+    def _has_unexported_gold_session(self, job_id: str) -> bool:
+        """Derive gold-session protection from disk so it survives restarts."""
+        session_dir = self.base_dir / "gold_sessions"
+        for session_path in session_dir.glob("*.json"):
+            try:
+                data = json.loads(session_path.read_text())
+                if data.get("job_id") == job_id and not data.get("exported_at"):
+                    return True
+            except Exception:
+                continue
+        return False

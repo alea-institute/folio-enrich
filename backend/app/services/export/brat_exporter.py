@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.models.job import Job
 from app.services.export.base import ExporterBase
+from folio_propositions import Proposition
 
 
 class BratExporter(ExporterBase):
@@ -83,4 +84,37 @@ class BratExporter(ExporterBase):
                 lines.append(f"R{r_idx}\t{t.predicate.replace(' ', '_')} Arg1:T{subj_t} Arg2:T{obj_t}")
                 r_idx += 1
 
+        # Keep the legacy export byte-identical unless propositions actually exist.
+        if job.result.propositions:
+            proposition_lines = self.export_propositions(
+                job.result.propositions, t_start=t_idx, a_start=a_idx
+            )
+            if proposition_lines:
+                lines.extend(proposition_lines.splitlines())
+
+        return "\n".join(lines)
+
+    @staticmethod
+    def export_propositions(
+        propositions: list[Proposition], *, t_start: int = 1, a_start: int = 1
+    ) -> str:
+        lines: list[str] = []
+        t_idx, a_idx = t_start, a_start
+        for proposition in propositions:
+            if proposition.start_char is None or proposition.end_char is None:
+                continue
+            label = proposition.proposition_type.upper().replace(" ", "_").replace("-", "_")
+            text = proposition.text or ""
+            lines.append(
+                f"T{t_idx}\t{label} {proposition.start_char} {proposition.end_char}\t{text}"
+            )
+            if proposition.asserter is not None:
+                lines.append(f"A{a_idx}\tAsserter T{t_idx} {proposition.asserter.role.value}")
+                a_idx += 1
+            if proposition.validator is not None:
+                lines.append(f"A{a_idx}\tValidator T{t_idx} {proposition.validator.role.value}")
+                a_idx += 1
+            lines.append(f"A{a_idx}\tDisposition T{t_idx} {proposition.disposition.value}")
+            a_idx += 1
+            t_idx += 1
         return "\n".join(lines)

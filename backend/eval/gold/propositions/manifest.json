@@ -1,0 +1,35 @@
+{
+  "manifest_schema_version": 1,
+  "opinions": [
+    {
+      "annotator": "damien",
+      "counts": {
+        "accepted": 1,
+        "deleted": 1,
+        "edited": 1,
+        "unreviewed": 0
+      },
+      "density": {
+        "opinion": 157.89473684210526,
+        "word_count": 19
+      },
+      "document_id": "demo-smoke",
+      "exported_at": "2026-08-17T12:01:32.257457+00:00",
+      "hand_added_count": 1,
+      "job_id": "bba36cde-574c-4ec5-ab98-97d52e163258",
+      "pre_selector": {
+        "lexicon_config": {},
+        "lexicon_version": "phase-a-v1",
+        "llm_model": null,
+        "llm_provider": null,
+        "source": "lexicon-only"
+      },
+      "precision": 0.6666666666666666,
+      "recall_proxy": 0.6666666666666667,
+      "schema_version": 1,
+      "session_id": "d8a6c27c-01d7-4ad7-82cb-432d8e78893a",
+      "slug": "demo-smoke",
+      "wrapper_schema_version": 1
+    }
+  ]
+}

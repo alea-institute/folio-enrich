@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import concepts, enrich, export, feedback, folio_update, health, ollama, ontologies, settings, synthetic
+from app.api.routes import concepts, enrich, export, feedback, folio_update, gold, health, ollama, ontologies, settings, synthetic
 from app.config import settings as app_settings
 from app.middleware.error_handler import register_error_handlers
 from app.middleware.rate_limit import RateLimitMiddleware
@@ -218,6 +218,7 @@ app.include_router(export.router)
 app.include_router(synthetic.router)
 app.include_router(concepts.router)
 app.include_router(feedback.router)
+app.include_router(gold.router)
 app.include_router(settings.router)
 app.include_router(ollama.router)
 app.include_router(folio_update.router)
