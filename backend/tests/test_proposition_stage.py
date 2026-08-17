@@ -5,6 +5,7 @@ from copy import deepcopy
 from uuid import UUID
 
 import pytest
+from folio_propositions import WORKING_TAXONOMY
 
 from app.config import settings
 from app.models.document import DocumentInput
@@ -28,9 +29,11 @@ class FakeLLM:
     def __init__(self, response: dict | None = None) -> None:
         self.response = response or {"propositions": []}
         self.prompts: list[str] = []
+        self.schemas: list[dict] = []
 
     async def structured(self, prompt: str, schema: dict, **kwargs) -> dict:
         self.prompts.append(prompt)
+        self.schemas.append(schema)
         return self.response
 
 
@@ -38,6 +41,14 @@ class RaisingLLM(FakeLLM):
     async def structured(self, prompt: str, schema: dict, **kwargs) -> dict:
         self.prompts.append(prompt)
         raise RuntimeError("provider unavailable")
+
+
+def test_every_lexicon_frame_uses_the_working_taxonomy() -> None:
+    from app.services.proposition.lexicon import REPORTING_VERBS
+
+    assert {
+        frame.proposition_type for frame in REPORTING_VERBS.values()
+    } <= set(WORKING_TAXONOMY)
 
 
 @pytest.mark.asyncio
@@ -59,15 +70,21 @@ async def test_flag_off_returns_job_unchanged(monkeypatch) -> None:
     [
         (
             "Plaintiff contends the statute requires notice.",
-            "party proposition of law",
+            "Legal Proposition",
             "plaintiff",
             "the statute requires notice",
         ),
         (
             "We hold that the contract is void.",
-            "judicial proposition of law",
+            "Judicial Legal Conclusion",
             "court",
             "the contract is void",
+        ),
+        (
+            "The Restatement states that duty exists.",
+            "cited-authority proposition",
+            "secondary_source",
+            "duty exists",
         ),
     ],
 )
@@ -151,6 +168,11 @@ async def test_llm_assist_is_routed_through_proposition_task(monkeypatch) -> Non
         await _job("The statute requires notice.")
     )
     assert len(fake.prompts) == 1
+    item_schema = fake.schemas[0]["properties"]["propositions"]["items"]
+    assert item_schema["properties"]["proposition_type"]["enum"] == list(
+        WORKING_TAXONOMY
+    )
+    assert "Allowed proposition types:" in fake.prompts[0]
 
 
 @pytest.mark.asyncio
@@ -165,7 +187,7 @@ async def test_llm_assist_builds_and_merges_same_span_different_type(
     fake = FakeLLM(response={"propositions": [{
         "start_char": start,
         "end_char": start + len(content),
-        "proposition_type": "party proposition of fact",
+        "proposition_type": "Factual Statement",
         "asserter_role": "plaintiff",
         "validator_mode": None,
         "disposition": "unresolved",
@@ -176,8 +198,8 @@ async def test_llm_assist_builds_and_merges_same_span_different_type(
 
     assert len(result.result.propositions) == 2
     assert {item.proposition_type for item in result.result.propositions} == {
-        "party proposition of fact",
-        "party proposition of law",
+        "Factual Statement",
+        "Legal Proposition",
     }
     assert len({item.id for item in result.result.propositions}) == 2
 
@@ -189,13 +211,13 @@ async def test_llm_assist_builds_and_merges_same_span_different_type(
         {
             "start_char": 0,
             "end_char": 10_000,
-            "proposition_type": "party proposition of law",
+            "proposition_type": "Legal Proposition",
         },
         {"start_char": 0, "end_char": 4},
         {
             "start_char": {"not": "an integer"},
             "end_char": 4,
-            "proposition_type": "party proposition of law",
+            "proposition_type": "Legal Proposition",
         },
     ],
 )
@@ -222,7 +244,7 @@ async def test_llm_assist_provider_failure_preserves_lexicon_candidates(
     )
 
     assert len(result.result.propositions) == 1
-    assert result.result.propositions[0].proposition_type == "party proposition of law"
+    assert result.result.propositions[0].proposition_type == "Legal Proposition"
 
 
 @pytest.mark.asyncio
@@ -236,7 +258,7 @@ async def test_sse_emits_each_proposition_id_once() -> None:
         start_char=0,
         end_char=6,
         text="notice",
-        proposition_type="party proposition of law",
+        proposition_type="Legal Proposition",
         asserter=ActorRef(role="plaintiff"),
         validator=None,
         disposition=Disposition.UNRESOLVED,

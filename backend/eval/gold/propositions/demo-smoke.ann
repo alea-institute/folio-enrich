@@ -1,7 +1,7 @@
-T1	PARTY_PROPOSITION_OF_LAW 19 46	the statute requires notice
+T1	LEGAL_PROPOSITION 19 46	the statute requires notice
 A1	Asserter T1 plaintiff
 A2	Disposition T1 accepted
-T2	JUDICIAL_PROPOSITION_OF_LAW 61 81	the contract is void
+T2	JUDICIAL_LEGAL_CONCLUSION 61 81	the contract is void
 A3	Asserter T2 court
 A4	Validator T2 court
 A5	Disposition T2 revised

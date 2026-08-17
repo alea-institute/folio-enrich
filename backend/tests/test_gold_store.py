@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
-from folio_propositions import ActorRef, Disposition, Proposition
+from folio_propositions import SCHEMA_VERSION, ActorRef, Disposition, Proposition
 
 from app.models.document import CanonicalText, DocumentInput
 from app.models.job import Job, JobResult, JobStatus
@@ -25,7 +25,7 @@ def proposition(
         start_char=start,
         end_char=start + len(text),
         text=text,
-        proposition_type="judicial proposition of law",
+        proposition_type="Judicial Legal Conclusion",
         asserter=ActorRef(role="court"),
         validator=None,
         disposition=disposition,
@@ -212,12 +212,70 @@ def test_library_migration_hook_receives_payload(monkeypatch) -> None:
     assert calls == [(payload, 2)]
 
 
+@pytest.mark.asyncio
+async def test_session_save_upgrades_v2_payloads_and_session_stamp(tmp_path: Path) -> None:
+    store, _, _, session = await make_store(tmp_path, [proposition("p1")])
+    path = store._path(session.session_id)
+    raw = json.loads(path.read_text())
+    raw["schema_version"] = 2
+    for key in ("proposition", "original"):
+        raw["candidates"][0][key]["schema_version"] = 2
+        raw["candidates"][0][key]["proposition_type"] = (
+            "judicial proposition of law"
+        )
+    path.write_text(json.dumps(raw))
+
+    updated = await store.record_candidate_outcome(
+        session.session_id, "p1", outcome="accepted"
+    )
+
+    assert updated.schema_version == SCHEMA_VERSION == 3
+    assert updated.candidates[0].proposition.proposition_type == (
+        "Judicial Legal Conclusion"
+    )
+    persisted = json.loads(path.read_text())
+    assert persisted["schema_version"] == 3
+    assert persisted["candidates"][0]["original"]["schema_version"] == 3
+
+
+@pytest.mark.asyncio
+async def test_session_save_upgrades_v2_blind_diff_snapshots(tmp_path: Path) -> None:
+    store, _, _, session = await make_store(tmp_path, [proposition("p1")])
+    path = store._path(session.session_id)
+    raw = json.loads(path.read_text())
+    legacy = raw["candidates"][0]["proposition"]
+    legacy["schema_version"] = 2
+    legacy["proposition_type"] = "judicial proposition of law"
+    raw["schema_version"] = 2
+    raw["blind_diff_report"] = {
+        "matched_pairs": [{"tool": deepcopy(legacy), "annotator": deepcopy(legacy)}],
+        "tool_only": [deepcopy(legacy)],
+        "annotator_only": [deepcopy(legacy)],
+    }
+    path.write_text(json.dumps(raw))
+
+    await store.record_candidate_outcome(session.session_id, "p1", outcome="accepted")
+
+    persisted = json.loads(path.read_text())
+    report = persisted["blind_diff_report"]
+    snapshots = [
+        report["matched_pairs"][0]["tool"],
+        report["matched_pairs"][0]["annotator"],
+        report["tool_only"][0],
+        report["annotator_only"][0],
+    ]
+    assert {item["schema_version"] for item in snapshots} == {SCHEMA_VERSION}
+    assert {item["proposition_type"] for item in snapshots} == {
+        "Judicial Legal Conclusion"
+    }
+
+
 def test_proposition_brat_attributes_and_empty_output() -> None:
     from app.services.export.brat_exporter import BratExporter
 
     assert BratExporter.export_propositions([]) == ""
     output = BratExporter.export_propositions([proposition("p1")])
-    assert "T1\tJUDICIAL_PROPOSITION_OF_LAW 3 19\tthe rule applies" in output
+    assert "T1\tJUDICIAL_LEGAL_CONCLUSION 3 19\tthe rule applies" in output
     assert "Asserter T1 court" in output
     assert "Disposition T1 accepted" in output
 

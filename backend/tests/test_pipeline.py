@@ -1,10 +1,11 @@
 import asyncio
+import json
 from pathlib import Path
 
 import pytest
 
 from app.models.document import DocumentFormat, DocumentInput
-from app.models.job import Job, JobStatus
+from app.models.job import Job, JobResult, JobStatus
 from app.pipeline.orchestrator import PipelineOrchestrator
 from app.storage.job_store import JobStore
 
@@ -80,6 +81,42 @@ class TestJobStore:
 
         jobs = await store.list_jobs()
         assert len(jobs) == 2
+
+    @pytest.mark.asyncio
+    async def test_load_and_list_migrate_v2_propositions(self, tmp_path: Path):
+        from folio_propositions import ActorRef, Proposition
+
+        store = JobStore(base_dir=tmp_path / "jobs")
+        job = Job(
+            input=DocumentInput(content="legacy"),
+            result=JobResult(
+                propositions=[
+                    Proposition(
+                        id="legacy-proposition",
+                        proposition_type="Judicial Legal Conclusion",
+                        asserter=ActorRef(role="court"),
+                        validator=None,
+                        disposition="accepted",
+                    )
+                ]
+            ),
+        )
+        await store.save(job)
+        path = store._job_path(job.id)
+        raw = json.loads(path.read_text())
+        raw["result"]["propositions"][0].update(
+            schema_version=2,
+            proposition_type="judicial proposition of law",
+        )
+        path.write_text(json.dumps(raw))
+
+        loaded = await store.load(job.id)
+        listed = await store.list_jobs()
+
+        assert loaded.result.propositions[0].proposition_type == (
+            "Judicial Legal Conclusion"
+        )
+        assert listed[0].result.propositions[0].schema_version == 3
 
     @pytest.mark.asyncio
     async def test_delete_job(self, tmp_path: Path):

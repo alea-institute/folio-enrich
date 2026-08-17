@@ -4,8 +4,8 @@ import enum
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field
-from folio_propositions import Proposition
+from folio_propositions import Proposition, migrate_record
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.annotation import Annotation, Individual, PropertyAnnotation, SPOTriple
 from app.models.document import DEFAULT_ONTOLOGY, CanonicalText, DocumentInput
@@ -41,6 +41,16 @@ class JobResult(BaseModel):
     ontology_id: str = DEFAULT_ONTOLOGY
     ontology_name: str = "FOLIO"
     base_iri: str = "https://folio.openlegalstandard.org/"
+
+    @field_validator("propositions", mode="before")
+    @classmethod
+    def migrate_persisted_propositions(cls, value):
+        if not isinstance(value, list):
+            return value
+        return [
+            migrate_record(item) if isinstance(item, dict) else item
+            for item in value
+        ]
 
 
 class Job(BaseModel):

@@ -61,6 +61,19 @@ def migrate_proposition_payload(data: dict[str, Any], target_version: int = SCHE
     return migrate_record(data, target_version=target_version)
 
 
+def migrate_embedded_propositions(value: Any) -> Any:
+    if isinstance(value, list):
+        return [migrate_embedded_propositions(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    if "proposition_type" in value and "schema_version" in value:
+        return migrate_proposition_payload(value)
+    return {
+        key: migrate_embedded_propositions(item)
+        for key, item in value.items()
+    }
+
+
 class PreSelector(BaseModel):
     source: Literal["lexicon-only", "lexicon+llm"]
     lexicon_version: str | None = None
@@ -229,6 +242,10 @@ class GoldStore:
             candidate["original"] = migrate_proposition_payload(candidate["original"])
         for annotation in raw.get("hand_added", []):
             annotation["proposition"] = migrate_proposition_payload(annotation["proposition"])
+        raw["blind_diff_report"] = migrate_embedded_propositions(
+            raw.get("blind_diff_report")
+        )
+        raw["schema_version"] = SCHEMA_VERSION
         return AnnotationSession.model_validate(raw)
 
     @staticmethod

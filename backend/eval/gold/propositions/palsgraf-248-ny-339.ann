@@ -1,16 +1,16 @@
-T1	JUDICIAL_PROPOSITION_OF_LAW 2201 2268	to be protected against intentional invasion of her bodily security
+T1	JUDICIAL_LEGAL_CONCLUSION 2201 2268	to be protected against intentional invasion of her bodily security
 A1	Asserter T1 court
 A2	Validator T1 court
 A3	Disposition T1 accepted
-T2	JUDICIAL_PROPOSITION_OF_LAW 2316 2470	to be protected against unintentional invasion by conduct involving in the thought of reasonable men an unreasonable hazard that such invasion would ensue
+T2	JUDICIAL_LEGAL_CONCLUSION 2316 2470	to be protected against unintentional invasion by conduct involving in the thought of reasonable men an unreasonable hazard that such invasion would ensue
 A4	Asserter T2 court
 A5	Validator T2 court
 A6	Disposition T2 accepted
-T3	JUDICIAL_PROPOSITION_OF_LAW 2663 2694	to be at the peril of the actor
+T3	JUDICIAL_LEGAL_CONCLUSION 2663 2694	to be at the peril of the actor
 A7	Asserter T3 court
 A8	Validator T3 court
 A9	Disposition T3 accepted
-T4	HYPOTHETICAL_PARTY_CLAIM 4914 4969	to be protected against invasion of his bodily security
+T4	HYPOTHETICAL_ILLUSTRATION 4914 4969	to be protected against invasion of his bodily security
 A10	Asserter T4 party
 A11	Disposition T4 unresolved
 T5	ARGUENDO_ASSUMPTION 12447 12530	would entail liability for any and all consequences, however novel or extraordinary
@@ -21,27 +21,27 @@ T6	ARGUENDO_ASSUMPTION 19089 19252	it be true that the fault of father, wife or 
 A15	Asserter T6 court
 A16	Validator T6 court
 A17	Disposition T6 assumed-arguendo
-T7	PARTY_PROPOSITION_OF_FACT 30740 30802	the explosion was the direct cause of the plaintiff's injuries
+T7	FACTUAL_STATEMENT 30740 30802	the explosion was the direct cause of the plaintiff's injuries
 A18	Asserter T7 appellant
 A19	Validator T7 court
 A20	Disposition T7 unresolved
-T8	DISSENTING_JUDICIAL_PROPOSITION 31889 31919	should be affirmed, with costs
+T8	JUDICIAL_LEGAL_CONCLUSION 31889 31919	should be affirmed, with costs
 A21	Asserter T8 court
 A22	Validator T8 court
 A23	Disposition T8 rejected
-T9	JUDICIAL_PROPOSITION_OF_LAW 1201 1364	The conduct of the defendant's guard, if a wrong in its relation to the holder of the package, was not a wrong in its relation to the plaintiff, standing far away.
+T9	JUDICIAL_LEGAL_CONCLUSION 1201 1364	The conduct of the defendant's guard, if a wrong in its relation to the holder of the package, was not a wrong in its relation to the plaintiff, standing far away.
 A24	Asserter T9 court
 A25	Validator T9 court
 A26	Disposition T9 accepted
-T10	JUDICIAL_PROPOSITION_OF_LAW 1365 1412	Relatively to her it was not negligence at all.
+T10	JUDICIAL_LEGAL_CONCLUSION 1365 1412	Relatively to her it was not negligence at all.
 A27	Asserter T10 court
 A28	Validator T10 court
 A29	Disposition T10 accepted
-T11	JUDICIAL_PROPOSITION_OF_FACT 1413 1530	Nothing in the situation gave notice that the falling package had in it the potency of peril to persons thus removed.
+T11	JUDICIAL_FINDING_OF_FACT 1413 1530	Nothing in the situation gave notice that the falling package had in it the potency of peril to persons thus removed.
 A30	Asserter T11 court
 A31	Validator T11 court
 A32	Disposition T11 accepted
-T12	JUDICIAL_PROPOSITION_OF_LAW 1531 1650	Negligence is not actionable unless it involves the invasion of a legally protected interest, the violation of a right.
+T12	JUDICIAL_LEGAL_CONCLUSION 1531 1650	Negligence is not actionable unless it involves the invasion of a legally protected interest, the violation of a right.
 A33	Asserter T12 court
 A34	Validator T12 court
 A35	Disposition T12 accepted
@@ -53,7 +53,7 @@ T14	CITED_AUTHORITY_PROPOSITION 1823 1888	Negligence is the absence of care, acc
 A39	Asserter T14 secondary_source
 A40	Validator T14 court
 A41	Disposition T14 accepted
-T15	JUDICIAL_PROPOSITION_OF_LAW 2734 3055	If no hazard was apparent to the eye of ordinary vigilance, an act innocent and harmless, at least to outward seeming, with reference to her, did not take to itself the quality of a tort because it happened to be a wrong, though apparently not one involving the risk of bodily insecurity, with reference to some one else.
+T15	JUDICIAL_LEGAL_CONCLUSION 2734 3055	If no hazard was apparent to the eye of ordinary vigilance, an act innocent and harmless, at least to outward seeming, with reference to her, did not take to itself the quality of a tort because it happened to be a wrong, though apparently not one involving the risk of bodily insecurity, with reference to some one else.
 A42	Asserter T15 court
 A43	Validator T15 court
 A44	Disposition T15 accepted
@@ -65,7 +65,7 @@ T17	CITED_AUTHORITY_PROPOSITION 3872 3929	The ideas of negligence and duty are s
 A48	Asserter T17 secondary_source
 A49	Validator T17 court
 A50	Disposition T17 accepted
-T18	JUDICIAL_PROPOSITION_OF_LAW 3996 4129	The plaintiff sues in her own right for a wrong personal to her, and not as the vicarious beneficiary of a breach of duty to another.
+T18	JUDICIAL_LEGAL_CONCLUSION 3996 4129	The plaintiff sues in her own right for a wrong personal to her, and not as the vicarious beneficiary of a breach of duty to another.
 A51	Asserter T18 court
 A52	Validator T18 court
 A53	Disposition T18 accepted
@@ -73,19 +73,19 @@ T19	POLICY_PROPOSITION 4130 4215	A different conclusion will involve us, and swi
 A54	Asserter T19 court
 A55	Validator T19 court
 A56	Disposition T19 accepted
-T20	JUDICIAL_PROPOSITION_OF_LAW 4782 4903	The passenger far away, if the victim of a wrong at all, has a cause of action, not derivative, but original and primary.
+T20	JUDICIAL_LEGAL_CONCLUSION 4782 4903	The passenger far away, if the victim of a wrong at all, has a cause of action, not derivative, but original and primary.
 A57	Asserter T20 court
 A58	Validator T20 court
 A59	Disposition T20 accepted
-T21	JUDICIAL_PROPOSITION_OF_FACT 5210 5271	The man was not injured in his person nor even put in danger.
+T21	JUDICIAL_FINDING_OF_FACT 5210 5271	The man was not injured in his person nor even put in danger.
 A60	Asserter T21 court
 A61	Validator T21 court
 A62	Disposition T21 accepted
-T22	JUDICIAL_PROPOSITION_OF_LAW 5348 5486	If there was a wrong to him at all, which may very well be doubted, it was a wrong to a property interest only, the safety of his package.
+T22	JUDICIAL_LEGAL_CONCLUSION 5348 5486	If there was a wrong to him at all, which may very well be doubted, it was a wrong to a property interest only, the safety of his package.
 A63	Asserter T22 court
 A64	Validator T22 court
 A65	Disposition T22 accepted
-T23	JUDICIAL_PROPOSITION_OF_LAW 5965 6079	Even then, the orbit of the danger as disclosed to the eye of reasonable vigilance would be the orbit of the duty.
+T23	JUDICIAL_LEGAL_CONCLUSION 5965 6079	Even then, the orbit of the danger as disclosed to the eye of reasonable vigilance would be the orbit of the duty.
 A66	Asserter T23 court
 A67	Validator T23 court
 A68	Disposition T23 accepted
@@ -101,15 +101,15 @@ T26	POLICY_PROPOSITION 6365 6553	Life will have to be made over, and human natur
 A75	Asserter T26 court
 A76	Validator T26 court
 A77	Disposition T26 accepted
-T27	PARTY_PROPOSITION_OF_LAW 6895 7071	We are told that one who drives at reckless speed through a crowded city street is guilty of a negligent act and, therefore, of a wrongful one irrespective of the consequences.
+T27	LEGAL_PROPOSITION 6895 7071	We are told that one who drives at reckless speed through a crowded city street is guilty of a negligent act and, therefore, of a wrongful one irrespective of the consequences.
 A78	Asserter T27 plaintiff
 A79	Validator T27 court
 A80	Disposition T27 revised
-T28	JUDICIAL_PROPOSITION_OF_LAW 7368 7529	The risk reasonably to be perceived defines the duty to be obeyed, and risk imports relation; it is risk to another or to others within the range of apprehension
+T28	JUDICIAL_LEGAL_CONCLUSION 7368 7529	The risk reasonably to be perceived defines the duty to be obeyed, and risk imports relation; it is risk to another or to others within the range of apprehension
 A81	Asserter T28 court
 A82	Validator T28 court
 A83	Disposition T28 accepted
-T29	JUDICIAL_PROPOSITION_OF_LAW 7643 7821	This does not mean, of course, that one who launches a destructive force is always relieved of liability if the force, though known to be destructive, pursues an unexpected path.
+T29	JUDICIAL_LEGAL_CONCLUSION 7643 7821	This does not mean, of course, that one who launches a destructive force is always relieved of liability if the force, though known to be destructive, pursues an unexpected path.
 A84	Asserter T29 court
 A85	Validator T29 court
 A86	Disposition T29 accepted
@@ -117,15 +117,15 @@ T30	CITED_AUTHORITY_PROPOSITION 7823 8018	It was not necessary that the defendan
 A87	Asserter T30 secondary_source
 A88	Validator T30 court
 A89	Disposition T30 accepted
-T31	JUDICIAL_PROPOSITION_OF_LAW 8154 8351	Some acts, such as shooting, are so imminently dangerous to any one who may come within reach of the missile, however unexpectedly, as to impose a duty of prevision not far from that of an insurer.
+T31	JUDICIAL_LEGAL_CONCLUSION 8154 8351	Some acts, such as shooting, are so imminently dangerous to any one who may come within reach of the missile, however unexpectedly, as to impose a duty of prevision not far from that of an insurer.
 A90	Asserter T31 court
 A91	Validator T31 court
 A92	Disposition T31 accepted
-T32	JUDICIAL_PROPOSITION_OF_LAW 8770 8870	These cases aside, wrong is defined in terms of the natural or probable, at least when unintentional
+T32	JUDICIAL_LEGAL_CONCLUSION 8770 8870	These cases aside, wrong is defined in terms of the natural or probable, at least when unintentional
 A93	Asserter T32 court
 A94	Validator T32 court
 A95	Disposition T32 accepted
-T33	JUDICIAL_PROPOSITION_OF_LAW 8951 9100	The range of reasonable apprehension is at times a question for the court, and at times, if varying inferences are possible, a question for the jury.
+T33	JUDICIAL_LEGAL_CONCLUSION 8951 9100	The range of reasonable apprehension is at times a question for the court, and at times, if varying inferences are possible, a question for the jury.
 A96	Asserter T33 court
 A97	Validator T33 court
 A98	Disposition T33 accepted
@@ -137,71 +137,71 @@ T35	HYPOTHETICAL_ILLUSTRATION 9274 9421	If the guard had thrown it down knowingl
 A102	Asserter T35 court
 A103	Validator T35 court
 A104	Disposition T35 accepted
-T36	JUDICIAL_PROPOSITION_OF_LAW 9534 9591	Liability can be no greater where the act is inadvertent.
+T36	JUDICIAL_LEGAL_CONCLUSION 9534 9591	Liability can be no greater where the act is inadvertent.
 A105	Asserter T36 court
 A106	Validator T36 court
 A107	Disposition T36 accepted
-T37	JUDICIAL_PROPOSITION_OF_LAW 9592 9642	Negligence, like risk, is thus a term of relation.
+T37	JUDICIAL_LEGAL_CONCLUSION 9592 9642	Negligence, like risk, is thus a term of relation.
 A108	Asserter T37 court
 A109	Validator T37 court
 A110	Disposition T37 accepted
-T38	JUDICIAL_PROPOSITION_OF_LAW 9823 9958	Negligence is not a tort unless it results in the commission of a wrong, and the commission of a wrong imports the violation of a right
+T38	JUDICIAL_LEGAL_CONCLUSION 9823 9958	Negligence is not a tort unless it results in the commission of a wrong, and the commission of a wrong imports the violation of a right
 A111	Asserter T38 court
 A112	Validator T38 court
 A113	Disposition T38 accepted
-T39	JUDICIAL_PROPOSITION_OF_LAW 10172 10302	One who seeks redress at law does not make out a cause of action by showing without more that there has been damage to his person.
+T39	JUDICIAL_LEGAL_CONCLUSION 10172 10302	One who seeks redress at law does not make out a cause of action by showing without more that there has been damage to his person.
 A114	Asserter T39 court
 A115	Validator T39 court
 A116	Disposition T39 accepted
-T40	JUDICIAL_PROPOSITION_OF_LAW 10303 10506	If the harm was not willful, he must show that the act as to him had possibilities of danger so many and apparent as to entitle him to be protected against the doing of it though the harm was unintended.
+T40	JUDICIAL_LEGAL_CONCLUSION 10303 10506	If the harm was not willful, he must show that the act as to him had possibilities of danger so many and apparent as to entitle him to be protected against the doing of it though the harm was unintended.
 A117	Asserter T40 court
 A118	Validator T40 court
 A119	Disposition T40 accepted
-T41	JUDICIAL_PROPOSITION_OF_FACT 10663 10732	Negligence as a basis of civil liability was unknown to mediaeval law
+T41	JUDICIAL_FINDING_OF_FACT 10663 10732	Negligence as a basis of civil liability was unknown to mediaeval law
 A120	Asserter T41 court
 A121	Validator T41 court
 A122	Disposition T41 accepted
-T42	JUDICIAL_PROPOSITION_OF_FACT 10843 10982	For damage to the person, the sole remedy was trespass, and trespass did not lie in the absence of aggression, and that direct and personal
+T42	JUDICIAL_FINDING_OF_FACT 10843 10982	For damage to the person, the sole remedy was trespass, and trespass did not lie in the absence of aggression, and that direct and personal
 A123	Asserter T42 court
 A124	Validator T42 court
 A125	Disposition T42 accepted
-T43	JUDICIAL_PROPOSITION_OF_LAW 11679 11803	The victim does not sue derivatively, or by right of subrogation, to vindicate an interest invaded in the person of another.
+T43	JUDICIAL_LEGAL_CONCLUSION 11679 11803	The victim does not sue derivatively, or by right of subrogation, to vindicate an interest invaded in the person of another.
 A126	Asserter T43 court
 A127	Validator T43 court
 A128	Disposition T43 accepted
-T44	JUDICIAL_PROPOSITION_OF_LAW 11945 11991	He sues for breach of a duty owing to himself.
+T44	JUDICIAL_LEGAL_CONCLUSION 11945 11991	He sues for breach of a duty owing to himself.
 A129	Asserter T44 court
 A130	Validator T44 court
 A131	Disposition T44 accepted
-T45	JUDICIAL_PROPOSITION_OF_LAW 11992 12073	The law of causation, remote or proximate, is thus foreign to the case before us.
+T45	JUDICIAL_LEGAL_CONCLUSION 11992 12073	The law of causation, remote or proximate, is thus foreign to the case before us.
 A132	Asserter T45 court
 A133	Validator T45 court
 A134	Disposition T45 accepted
-T46	JUDICIAL_PROPOSITION_OF_LAW 12074 12193	The question of liability is always anterior to the question of the measure of the consequences that go with liability.
+T46	JUDICIAL_LEGAL_CONCLUSION 12074 12193	The question of liability is always anterior to the question of the measure of the consequences that go with liability.
 A135	Asserter T46 court
 A136	Validator T46 court
 A137	Disposition T46 accepted
-T47	JUDICIAL_PROPOSITION_OF_LAW 12194 12329	If there is no tort to be redressed, there is no occasion to consider what damage might be recovered if there were a finding of a tort.
+T47	JUDICIAL_LEGAL_CONCLUSION 12194 12329	If there is no tort to be redressed, there is no occasion to consider what damage might be recovered if there were a finding of a tort.
 A138	Asserter T47 court
 A139	Validator T47 court
 A140	Disposition T47 accepted
-T48	JUDICIAL_PROPOSITION_OF_LAW 12874 12993	There is room for argument that a distinction is to be drawn according to the diversity of interests invaded by the act
+T48	JUDICIAL_LEGAL_CONCLUSION 12874 12993	There is room for argument that a distinction is to be drawn according to the diversity of interests invaded by the act
 A141	Asserter T48 court
 A142	Validator T48 court
 A143	Disposition T48 unresolved
-T49	JUDICIAL_PROPOSITION_OF_LAW 13346 13486	The judgment of the Appellate Division and that of the Trial Term should be reversed, and the complaint dismissed, with costs in all courts.
+T49	JUDICIAL_LEGAL_CONCLUSION 13346 13486	The judgment of the Appellate Division and that of the Trial Term should be reversed, and the complaint dismissed, with costs in all courts.
 A144	Asserter T49 court
 A145	Validator T49 court
 A146	Disposition T49 accepted
-T50	JUDICIAL_PROPOSITION_OF_FACT 13515 13623	Assisting a passenger to board a train, the defendant's servant negligently knocked a package from his arms.
+T50	JUDICIAL_FINDING_OF_FACT 13515 13623	Assisting a passenger to board a train, the defendant's servant negligently knocked a package from his arms.
 A147	Asserter T50 court
 A148	Validator T50 court
 A149	Disposition T50 accepted
-T51	JUDICIAL_PROPOSITION_OF_FACT 13754 13825	The concussion broke some scales standing a considerable distance away.
+T51	JUDICIAL_FINDING_OF_FACT 13754 13825	The concussion broke some scales standing a considerable distance away.
 A150	Asserter T51 court
 A151	Validator T51 court
 A152	Disposition T51 accepted
-T52	DISSENTING_JUDICIAL_PROPOSITION 14835 14890	We deal in terms of proximate cause, not of negligence.
+T52	JUDICIAL_LEGAL_CONCLUSION 14835 14890	We deal in terms of proximate cause, not of negligence.
 A153	Asserter T52 court
 A154	Validator T52 court
 A155	Disposition T52 rejected
@@ -209,33 +209,33 @@ T53	DEFINITIONAL_PROPOSITION 14891 15096	Negligence may be defined roughly as an
 A156	Asserter T53 court
 A157	Validator T53 court
 A158	Disposition T53 unresolved
-T54	JUDICIAL_PROPOSITION_OF_LAW 15371 15440	It is the act itself, not the intent of the actor, that is important.
+T54	JUDICIAL_LEGAL_CONCLUSION 15371 15440	It is the act itself, not the intent of the actor, that is important.
 A159	Asserter T54 court
 A160	Validator T54 court
 A161	Disposition T54 unresolved
-T55	JUDICIAL_PROPOSITION_OF_LAW 15728 15789	But here neither insanity nor infancy lessens responsibility.
+T55	JUDICIAL_LEGAL_CONCLUSION 15728 15789	But here neither insanity nor infancy lessens responsibility.
 A162	Asserter T55 court
 A163	Validator T55 court
 A164	Disposition T55 unresolved
-T56	JUDICIAL_PROPOSITION_OF_LAW 16022 16131	A licensee or trespasser upon my land has no claim to affirmative care on my part that the land be made safe.
+T56	JUDICIAL_LEGAL_CONCLUSION 16022 16131	A licensee or trespasser upon my land has no claim to affirmative care on my part that the land be made safe.
 A165	Asserter T56 court
 A166	Disposition T56 accepted
-T57	JUDICIAL_PROPOSITION_OF_LAW 16173 16326	Where a railroad is required to fence its tracks against cattle, no man's rights are injured should he wander upon the road because such fence is absent.
+T57	JUDICIAL_LEGAL_CONCLUSION 16173 16326	Where a railroad is required to fence its tracks against cattle, no man's rights are injured should he wander upon the road because such fence is absent.
 A167	Asserter T57 court
 A168	Validator T57 court
 A169	Disposition T57 accepted
-T58	JUDICIAL_PROPOSITION_OF_LAW 16374 16433	An unborn child may not demand immunity from personal harm.
+T58	JUDICIAL_LEGAL_CONCLUSION 16374 16433	An unborn child may not demand immunity from personal harm.
 A170	Asserter T58 court
 A171	Disposition T58 accepted
 T59	CITED_AUTHORITY_PROPOSITION 16494 16673	there is no negligence unless there is in the particular case a legal duty to take care, and this duty must be one which is owed to the plaintiff himself and not merely to others.
 A172	Asserter T59 secondary_source
 A173	Validator T59 court
 A174	Disposition T59 accepted
-T60	DISSENTING_JUDICIAL_PROPOSITION 16706 16744	This, I think too narrow a conception.
+T60	JUDICIAL_LEGAL_CONCLUSION 16706 16744	This, I think too narrow a conception.
 A175	Asserter T60 court
 A176	Validator T60 court
 A177	Disposition T60 rejected
-T61	DISSENTING_JUDICIAL_PROPOSITION 16745 16877	Where there is the unreasonable act, and some right that may be affected there is negligence whether damage does or does not result.
+T61	JUDICIAL_LEGAL_CONCLUSION 16745 16877	Where there is the unreasonable act, and some right that may be affected there is negligence whether damage does or does not result.
 A178	Asserter T61 court
 A179	Validator T61 court
 A180	Disposition T61 rejected
@@ -243,7 +243,7 @@ T62	HYPOTHETICAL_ILLUSTRATION 16898 17025	Should we drive down Broadway at a rec
 A181	Asserter T62 court
 A182	Validator T62 court
 A183	Disposition T62 unresolved
-T63	DISSENTING_JUDICIAL_PROPOSITION 17054 17202	It is a wrong not only to those who happen to be within the radius of danger but to all who might have been there -- a wrong to the public at large.
+T63	JUDICIAL_LEGAL_CONCLUSION 17054 17202	It is a wrong not only to those who happen to be within the radius of danger but to all who might have been there -- a wrong to the public at large.
 A184	Asserter T63 court
 A185	Validator T63 court
 A186	Disposition T63 rejected
@@ -251,52 +251,52 @@ T64	CITED_AUTHORITY_PROPOSITION 17595 17763	the measure of the defendant's duty 
 A187	Asserter T64 secondary_source
 A188	Validator T64 court
 A189	Disposition T64 unresolved
-T65	DISSENTING_JUDICIAL_PROPOSITION 17818 17938	Due care is a duty imposed on each one of us to protect society from unnecessary danger, not to protect A, B or C alone.
+T65	JUDICIAL_LEGAL_CONCLUSION 17818 17938	Due care is a duty imposed on each one of us to protect society from unnecessary danger, not to protect A, B or C alone.
 A190	Asserter T65 court
 A191	Validator T65 court
 A192	Disposition T65 rejected
-T66	JUDICIAL_PROPOSITION_OF_LAW 17939 18012	It may well be that there is no such thing as negligence in the abstract.
+T66	JUDICIAL_LEGAL_CONCLUSION 17939 18012	It may well be that there is no such thing as negligence in the abstract.
 A193	Asserter T66 court
 A194	Validator T66 court
 A195	Disposition T66 accepted
-T67	DISSENTING_JUDICIAL_PROPOSITION 18285 18358	Rather, a relationship between him and those whom he does in fact injure.
+T67	JUDICIAL_LEGAL_CONCLUSION 18285 18358	Rather, a relationship between him and those whom he does in fact injure.
 A196	Asserter T67 court
 A197	Validator T67 court
 A198	Disposition T67 rejected
-T68	DISSENTING_JUDICIAL_PROPOSITION 18359 18468	If his act has a tendency to harm some one, it harms him a mile away as surely as it does those on the scene.
+T68	JUDICIAL_LEGAL_CONCLUSION 18359 18468	If his act has a tendency to harm some one, it harms him a mile away as surely as it does those on the scene.
 A199	Asserter T68 court
 A200	Validator T68 court
 A201	Disposition T68 rejected
-T69	JUDICIAL_PROPOSITION_OF_LAW 18469 18543	We now permit children to recover for the negligent killing of the father.
+T69	JUDICIAL_LEGAL_CONCLUSION 18469 18543	We now permit children to recover for the negligent killing of the father.
 A202	Asserter T69 court
 A203	Disposition T69 accepted
-T70	JUDICIAL_PROPOSITION_OF_LAW 18613 18678	A husband may be compensated for the loss of his wife's services.
+T70	JUDICIAL_LEGAL_CONCLUSION 18613 18678	A husband may be compensated for the loss of his wife's services.
 A204	Asserter T70 court
 A205	Disposition T70 accepted
-T71	JUDICIAL_PROPOSITION_OF_LAW 18805 18894	An insurance company paying a fire loss recovers its payment of the negligent incendiary.
+T71	JUDICIAL_LEGAL_CONCLUSION 18805 18894	An insurance company paying a fire loss recovers its payment of the negligent incendiary.
 A206	Asserter T71 court
 A207	Disposition T71 accepted
 T72	CITED_AUTHORITY_PROPOSITION 19541 19610	The act being wrongful the doer was liable for its proximate results.
 A208	Asserter T72 secondary_source
 A209	Validator T72 court
 A210	Disposition T72 unresolved
-T73	DISSENTING_JUDICIAL_PROPOSITION 19669 19724	I think it states the law as it should be and as it is.
+T73	JUDICIAL_LEGAL_CONCLUSION 19669 19724	I think it states the law as it should be and as it is.
 A211	Asserter T73 court
 A212	Validator T73 court
 A213	Disposition T73 unresolved
-T74	DISSENTING_JUDICIAL_PROPOSITION 19937 20065	Every one owes to the world at large the duty of refraining from those acts that may unreasonably threaten the safety of others.
+T74	JUDICIAL_LEGAL_CONCLUSION 19937 20065	Every one owes to the world at large the duty of refraining from those acts that may unreasonably threaten the safety of others.
 A214	Asserter T74 court
 A215	Validator T74 court
 A216	Disposition T74 rejected
-T75	DISSENTING_JUDICIAL_PROPOSITION 20086 20268	Not only is he wronged to whom harm might reasonably be expected to result, but he also who is in fact injured, even if he be outside what would generally be thought the danger zone.
+T75	JUDICIAL_LEGAL_CONCLUSION 20086 20268	Not only is he wronged to whom harm might reasonably be expected to result, but he also who is in fact injured, even if he be outside what would generally be thought the danger zone.
 A217	Asserter T75 court
 A218	Validator T75 court
 A219	Disposition T75 rejected
-T76	DISSENTING_JUDICIAL_PROPOSITION 20269 20404	There needs be duty due the one complaining but this is not a duty to a particular individual because as to him harm might be expected.
+T76	JUDICIAL_LEGAL_CONCLUSION 20269 20404	There needs be duty due the one complaining but this is not a duty to a particular individual because as to him harm might be expected.
 A220	Asserter T76 court
 A221	Validator T76 court
 A222	Disposition T76 rejected
-T77	DISSENTING_JUDICIAL_PROPOSITION 20834 20935	Unreasonable risk being taken, its consequences are not confined to those who might probably be hurt.
+T77	JUDICIAL_LEGAL_CONCLUSION 20834 20935	Unreasonable risk being taken, its consequences are not confined to those who might probably be hurt.
 A223	Asserter T77 court
 A224	Validator T77 court
 A225	Disposition T77 rejected
@@ -304,19 +304,19 @@ T78	CITED_AUTHORITY_PROPOSITION 20568 20745	Indeed in the Di Caprio case we said
 A226	Asserter T78 secondary_source
 A227	Validator T78 court
 A228	Disposition T78 unresolved
-T79	DISSENTING_JUDICIAL_PROPOSITION 21051 21233	Her claim is for a breach of duty to herself -- not that she is subrogated to any right of action of the owner of the parcel or of a passenger standing at the scene of the explosion.
+T79	JUDICIAL_LEGAL_CONCLUSION 21051 21233	Her claim is for a breach of duty to herself -- not that she is subrogated to any right of action of the owner of the parcel or of a passenger standing at the scene of the explosion.
 A229	Asserter T79 court
 A230	Validator T79 court
 A231	Disposition T79 unresolved
-T80	JUDICIAL_PROPOSITION_OF_LAW 21299 21388	The plaintiff's rights must be injured, and this injury must be caused by the negligence.
+T80	JUDICIAL_LEGAL_CONCLUSION 21299 21388	The plaintiff's rights must be injured, and this injury must be caused by the negligence.
 A232	Asserter T80 court
 A233	Validator T80 court
 A234	Disposition T80 unresolved
-T81	DISSENTING_JUDICIAL_PROPOSITION 21673 21755	It does not matter that they are unusual, unexpected, unforeseen and unforseeable.
+T81	JUDICIAL_LEGAL_CONCLUSION 21673 21755	It does not matter that they are unusual, unexpected, unforeseen and unforseeable.
 A235	Asserter T81 court
 A236	Validator T81 court
 A237	Disposition T81 unresolved
-T82	JUDICIAL_PROPOSITION_OF_LAW 21785 21906	The damages must be so connected with the negligence that the latter may be said to be the proximate cause of the former.
+T82	JUDICIAL_LEGAL_CONCLUSION 21785 21906	The damages must be so connected with the negligence that the latter may be said to be the proximate cause of the former.
 A238	Asserter T82 court
 A239	Validator T82 court
 A240	Disposition T82 unresolved
@@ -352,25 +352,25 @@ T90	POLICY_PROPOSITION 26547 26595	There are no fixed rules to govern our judgme
 A262	Asserter T90 court
 A263	Validator T90 court
 A264	Disposition T90 unresolved
-T91	JUDICIAL_PROPOSITION_OF_LAW 27025 27166	The proximate cause, involved as it may be with many other causes, must be, at the least, something without which the event would not happen.
+T91	JUDICIAL_LEGAL_CONCLUSION 27025 27166	The proximate cause, involved as it may be with many other causes, must be, at the least, something without which the event would not happen.
 A265	Asserter T91 court
 A266	Validator T91 court
 A267	Disposition T91 unresolved
-T92	JUDICIAL_PROPOSITION_OF_LAW 27167 27270	The court must ask itself whether there was a natural and continuous sequence between cause and effect.
+T92	JUDICIAL_LEGAL_CONCLUSION 27167 27270	The court must ask itself whether there was a natural and continuous sequence between cause and effect.
 A268	Asserter T92 court
 A269	Validator T92 court
 A270	Disposition T92 unresolved
-T93	JUDICIAL_PROPOSITION_OF_FACT 27888 28000	the greater the distance either in time or space, the more surely do other causes intervene to affect the result
+T93	JUDICIAL_FINDING_OF_FACT 27888 28000	the greater the distance either in time or space, the more surely do other causes intervene to affect the result
 A271	Asserter T93 court
 A272	Validator T93 court
 A273	Disposition T93 unresolved
-T94	JUDICIAL_PROPOSITION_OF_FACT 29175 29262	No human foresight would suggest that a collision itself might injure one a block away.
+T94	JUDICIAL_FINDING_OF_FACT 29175 29262	No human foresight would suggest that a collision itself might injure one a block away.
 A274	Asserter T94 court
 A275	Disposition T94 accepted
-T95	JUDICIAL_PROPOSITION_OF_FACT 29263 29348	On the contrary, given an explosion, such a possibility might be reasonably expected.
+T95	JUDICIAL_FINDING_OF_FACT 29263 29348	On the contrary, given an explosion, such a possibility might be reasonably expected.
 A276	Asserter T95 court
 A277	Disposition T95 accepted
-T96	DISSENTING_JUDICIAL_PROPOSITION 29349 29532	I think the direct connection, the foresight of which the courts speak, assumes prevision of the explosion, for the immediate results of which, at least, the chauffeur is responsible.
+T96	JUDICIAL_LEGAL_CONCLUSION 29349 29532	I think the direct connection, the foresight of which the courts speak, assumes prevision of the explosion, for the immediate results of which, at least, the chauffeur is responsible.
 A278	Asserter T96 court
 A279	Validator T96 court
 A280	Disposition T96 unresolved
@@ -378,30 +378,30 @@ T97	POLICY_PROPOSITION 29569 29642	In fairness he should make good every injury 
 A281	Asserter T97 court
 A282	Validator T97 court
 A283	Disposition T97 unresolved
-T98	DISSENTING_JUDICIAL_PROPOSITION 30080 30188	The act upon which defendant's liability rests is knocking an apparently harmless package onto the platform.
+T98	JUDICIAL_LEGAL_CONCLUSION 30080 30188	The act upon which defendant's liability rests is knocking an apparently harmless package onto the platform.
 A284	Asserter T98 court
 A285	Validator T98 court
 A286	Disposition T98 rejected
-T99	DISSENTING_JUDICIAL_PROPOSITION 30189 30211	The act was negligent.
+T99	JUDICIAL_LEGAL_CONCLUSION 30189 30211	The act was negligent.
 A287	Asserter T99 court
 A288	Validator T99 court
 A289	Disposition T99 rejected
-T100	DISSENTING_JUDICIAL_PROPOSITION 30805 30933	So it was a substantial factor in producing the result -- there was here a natural and continuous sequence -- direct connection.
+T100	JUDICIAL_LEGAL_CONCLUSION 30805 30933	So it was a substantial factor in producing the result -- there was here a natural and continuous sequence -- direct connection.
 A290	Asserter T100 court
 A291	Validator T100 court
 A292	Disposition T100 unresolved
-T101	JUDICIAL_PROPOSITION_OF_FACT 31080 31129	There was no remoteness in time, little in space.
+T101	JUDICIAL_FINDING_OF_FACT 31080 31129	There was no remoteness in time, little in space.
 A293	Asserter T101 court
 A294	Validator T101 court
 A295	Disposition T101 unresolved
-T102	JUDICIAL_PROPOSITION_OF_FACT 31483 31525	But injury in some form was most probable.
+T102	JUDICIAL_FINDING_OF_FACT 31483 31525	But injury in some form was most probable.
 A296	Asserter T102 court
 A297	Validator T102 court
 A298	Disposition T102 unresolved
-T103	DISSENTING_JUDICIAL_PROPOSITION 31526 31662	Under these circumstances I cannot say as a matter of law that the plaintiff's injuries were not the proximate result of the negligence.
+T103	JUDICIAL_LEGAL_CONCLUSION 31526 31662	Under these circumstances I cannot say as a matter of law that the plaintiff's injuries were not the proximate result of the negligence.
 A299	Asserter T103 court
 A300	Validator T103 court
 A301	Disposition T103 rejected
-T104	JUDICIAL_PROPOSITION_OF_FACT 31694 31725	The court refused to so charge.
+T104	JUDICIAL_FINDING_OF_FACT 31694 31725	The court refused to so charge.
 A302	Asserter T104 court
 A303	Disposition T104 accepted

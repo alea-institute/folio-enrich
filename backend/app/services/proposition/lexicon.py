@@ -17,11 +17,11 @@ class PropositionFrame:
     validator_mode: str | None = None
 
 
-PARTY_LAW = PropositionFrame("party proposition of law", "party", "unresolved")
-PARTY_FACT = PropositionFrame("party proposition of fact", "party", "unresolved")
-COURT_LAW = PropositionFrame("judicial proposition of law", "court", "accepted", "ruled")
-COURT_FACT = PropositionFrame("judicial proposition of fact", "court", "accepted", "ruled")
-SOURCE = PropositionFrame("secondary-source proposition", "secondary_source", "unresolved")
+PARTY_LAW = PropositionFrame("Legal Proposition", "party", "unresolved")
+PARTY_FACT = PropositionFrame("Factual Statement", "party", "unresolved")
+COURT_LAW = PropositionFrame("Judicial Legal Conclusion", "court", "accepted", "ruled")
+COURT_FACT = PropositionFrame("Judicial Finding of Fact", "court", "accepted", "ruled")
+SOURCE = PropositionFrame("cited-authority proposition", "secondary_source", "unresolved")
 STIPULATION = PropositionFrame("stipulation", "both_parties", "accepted")
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from folio_propositions import ActorRef, AdjudicatorRef, Proposition
+from folio_propositions import WORKING_TAXONOMY, ActorRef, AdjudicatorRef, Proposition
 
 from app.models.job import Job
 from app.pipeline.stages.base import PipelineStage
@@ -51,7 +51,10 @@ class EarlyPropositionStage(PipelineStage):
             "Identify explicit proposition content spans in this judicial text. "
             "Return only spans supported verbatim by the text, with start_char, "
             "end_char, proposition_type, asserter_role, validator_mode (or null), "
-            "and disposition.\n\n" + text
+            "and disposition. Allowed proposition types: "
+            + ", ".join(WORKING_TAXONOMY)
+            + ".\n\n"
+            + text
         )
         result = await self.llm.structured(prompt, schema={
             "type": "object",
@@ -63,7 +66,10 @@ class EarlyPropositionStage(PipelineStage):
                         "properties": {
                             "start_char": {"type": "integer"},
                             "end_char": {"type": "integer"},
-                            "proposition_type": {"type": "string"},
+                            "proposition_type": {
+                                "type": "string",
+                                "enum": list(WORKING_TAXONOMY),
+                            },
                             "asserter_role": {"type": "string"},
                             "validator_mode": {"type": ["string", "null"]},
                             "disposition": {"type": "string"},

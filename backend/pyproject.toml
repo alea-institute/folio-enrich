@@ -40,7 +40,7 @@ dependencies = [
     # folio-resolve precedent: annotations must be stored in a reviewable released schema,
     # never a drifting working tree. Switch to the PyPI pin (folio-propositions==0.1.0)
     # once the package is published there.
-    "folio-propositions @ git+https://github.com/alea-institute/folio-propositions@v0.2.0",
+    "folio-propositions @ git+https://github.com/alea-institute/folio-propositions@v0.3.0",
 ]
 
 [project.optional-dependencies]
