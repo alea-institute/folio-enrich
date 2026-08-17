@@ -12063,6 +12063,7 @@ async function savePropositionOutcome(button, outcome) {
   const card = button.closest('.proposition-card');
   const activeJobId = currentJobId;
   const activeSessionId = propositionSession?.session_id;
+  if (!activeSessionId) { _showInfoToast('Annotation session not ready yet — try again in a moment'); return; }
   try {
     const explicit = card.querySelector('[data-field="explicit_unresolved"]').checked;
     const body = { outcome, explicit_unresolved: explicit };
@@ -12080,6 +12081,7 @@ async function saveHandAdded(button) {
   const card = button.closest('.proposition-card');
   const activeJobId = currentJobId;
   const activeSessionId = propositionSession?.session_id;
+  if (!activeSessionId) { _showInfoToast('Annotation session not ready yet — try again in a moment'); return; }
   try {
     const proposition = propositionFromCard(card);
     const explicit_unresolved = card.querySelector('[data-field="explicit_unresolved"]').checked;
@@ -12098,6 +12100,7 @@ async function recordNewTypeLearning(button) {
   const card = button.closest('.proposition-card');
   const activeJobId = currentJobId;
   const activeSessionId = propositionSession?.session_id;
+  if (!activeSessionId) { _showInfoToast('Annotation session not ready yet — try again in a moment'); return; }
   try {
     const p = propositionFromCard(card);
     const session = await propositionFetch(`/gold/sessions/${activeSessionId}/learnings`, { method: 'POST', body: JSON.stringify({ kind: 'new-type', tag: p.proposition_type, annotation_id: p.id, start_char: p.start_char, end_char: p.end_char }) });
@@ -12144,6 +12147,7 @@ async function handlePropositionSelection() {
     selection.removeAllRanges();
     const activeJobId = currentJobId;
     const activeSessionId = propositionSession?.session_id;
+    if (!activeSessionId) { _showInfoToast('Annotation session not ready yet — try again in a moment'); return; }
     try {
       const session = await propositionFetch(`/gold/sessions/${activeSessionId}/blind-segment`, {
         method: 'POST', body: JSON.stringify({ start_char: start, end_char: start + text.length }),
@@ -12167,6 +12171,7 @@ async function handlePropositionSelection() {
 async function revealBlindSegment() {
   const activeJobId = currentJobId;
   const activeSessionId = propositionSession?.session_id;
+  if (!activeSessionId) { _showInfoToast('Annotation session not ready yet — try again in a moment'); return; }
   try {
     const session = await propositionFetch(`/gold/sessions/${activeSessionId}/blind-segment/reveal`, { method: 'POST' });
     if (currentJobId !== activeJobId || propositionSession?.session_id !== activeSessionId) return;
@@ -12180,6 +12185,7 @@ async function revealBlindSegment() {
 async function recordCoveragePass() {
   const activeJobId = currentJobId;
   const activeSessionId = propositionSession?.session_id;
+  if (!activeSessionId) { _showInfoToast('Annotation session not ready yet — try again in a moment'); return; }
   try {
     const session = await propositionFetch(`/gold/sessions/${activeSessionId}/coverage-pass`, { method: 'POST' });
     if (currentJobId !== activeJobId || propositionSession?.session_id !== activeSessionId) return;
@@ -12193,6 +12199,7 @@ async function recordCoveragePass() {
 async function exportGoldRecord() {
   const activeJobId = currentJobId;
   const activeSessionId = propositionSession?.session_id;
+  if (!activeSessionId) { _showInfoToast('Annotation session not ready yet — try again in a moment'); return; }
   try {
     const result = await propositionFetch(`/gold/sessions/${activeSessionId}/export`, { method: 'POST', body: '{}' });
     if (currentJobId !== activeJobId || propositionSession?.session_id !== activeSessionId) return;
