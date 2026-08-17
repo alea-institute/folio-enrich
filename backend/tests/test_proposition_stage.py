@@ -5,6 +5,7 @@ from copy import deepcopy
 from uuid import UUID
 
 import pytest
+from folio_propositions import WORKING_TAXONOMY
 
 from app.config import settings
 from app.models.document import DocumentInput
@@ -28,9 +29,11 @@ class FakeLLM:
     def __init__(self, response: dict | None = None) -> None:
         self.response = response or {"propositions": []}
         self.prompts: list[str] = []
+        self.schemas: list[dict] = []
 
     async def structured(self, prompt: str, schema: dict, **kwargs) -> dict:
         self.prompts.append(prompt)
+        self.schemas.append(schema)
         return self.response
 
 
@@ -38,6 +41,14 @@ class RaisingLLM(FakeLLM):
     async def structured(self, prompt: str, schema: dict, **kwargs) -> dict:
         self.prompts.append(prompt)
         raise RuntimeError("provider unavailable")
+
+
+def test_every_lexicon_frame_uses_the_working_taxonomy() -> None:
+    from app.services.proposition.lexicon import REPORTING_VERBS
+
+    assert {
+        frame.proposition_type for frame in REPORTING_VERBS.values()
+    } <= set(WORKING_TAXONOMY)
 
 
 @pytest.mark.asyncio
@@ -68,6 +79,12 @@ async def test_flag_off_returns_job_unchanged(monkeypatch) -> None:
             "Judicial Legal Conclusion",
             "court",
             "the contract is void",
+        ),
+        (
+            "The Restatement states that duty exists.",
+            "cited-authority proposition",
+            "secondary_source",
+            "duty exists",
         ),
     ],
 )
@@ -151,6 +168,11 @@ async def test_llm_assist_is_routed_through_proposition_task(monkeypatch) -> Non
         await _job("The statute requires notice.")
     )
     assert len(fake.prompts) == 1
+    item_schema = fake.schemas[0]["properties"]["propositions"]["items"]
+    assert item_schema["properties"]["proposition_type"]["enum"] == list(
+        WORKING_TAXONOMY
+    )
+    assert "Allowed proposition types:" in fake.prompts[0]
 
 
 @pytest.mark.asyncio

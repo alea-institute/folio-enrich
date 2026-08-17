@@ -21,7 +21,7 @@ PARTY_LAW = PropositionFrame("Legal Proposition", "party", "unresolved")
 PARTY_FACT = PropositionFrame("Factual Statement", "party", "unresolved")
 COURT_LAW = PropositionFrame("Judicial Legal Conclusion", "court", "accepted", "ruled")
 COURT_FACT = PropositionFrame("Judicial Finding of Fact", "court", "accepted", "ruled")
-SOURCE = PropositionFrame("secondary-source proposition", "secondary_source", "unresolved")
+SOURCE = PropositionFrame("cited-authority proposition", "secondary_source", "unresolved")
 STIPULATION = PropositionFrame("stipulation", "both_parties", "accepted")
 
 

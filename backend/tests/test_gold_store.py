@@ -238,6 +238,38 @@ async def test_session_save_upgrades_v2_payloads_and_session_stamp(tmp_path: Pat
     assert persisted["candidates"][0]["original"]["schema_version"] == 3
 
 
+@pytest.mark.asyncio
+async def test_session_save_upgrades_v2_blind_diff_snapshots(tmp_path: Path) -> None:
+    store, _, _, session = await make_store(tmp_path, [proposition("p1")])
+    path = store._path(session.session_id)
+    raw = json.loads(path.read_text())
+    legacy = raw["candidates"][0]["proposition"]
+    legacy["schema_version"] = 2
+    legacy["proposition_type"] = "judicial proposition of law"
+    raw["schema_version"] = 2
+    raw["blind_diff_report"] = {
+        "matched_pairs": [{"tool": deepcopy(legacy), "annotator": deepcopy(legacy)}],
+        "tool_only": [deepcopy(legacy)],
+        "annotator_only": [deepcopy(legacy)],
+    }
+    path.write_text(json.dumps(raw))
+
+    await store.record_candidate_outcome(session.session_id, "p1", outcome="accepted")
+
+    persisted = json.loads(path.read_text())
+    report = persisted["blind_diff_report"]
+    snapshots = [
+        report["matched_pairs"][0]["tool"],
+        report["matched_pairs"][0]["annotator"],
+        report["tool_only"][0],
+        report["annotator_only"][0],
+    ]
+    assert {item["schema_version"] for item in snapshots} == {SCHEMA_VERSION}
+    assert {item["proposition_type"] for item in snapshots} == {
+        "Judicial Legal Conclusion"
+    }
+
+
 def test_proposition_brat_attributes_and_empty_output() -> None:
     from app.services.export.brat_exporter import BratExporter
 
