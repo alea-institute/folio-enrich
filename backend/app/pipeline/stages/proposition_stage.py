@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from uuid import NAMESPACE_URL, uuid5
 
 from folio_propositions import ActorRef, AdjudicatorRef, Proposition
 
@@ -11,6 +10,7 @@ from app.models.job import Job
 from app.pipeline.stages.base import PipelineStage
 from app.services.llm.base import LLMProvider
 from app.services.proposition.extractor import PropositionExtractor
+from app.services.proposition.identity import proposition_id
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +83,7 @@ class EarlyPropositionStage(PipelineStage):
                 role = item.get("asserter_role", "party")
                 validator_mode = item.get("validator_mode")
                 candidates.append(Proposition(
-                    id=str(uuid5(NAMESPACE_URL, f"folio-enrich:{job.id}:{start}:{end}")),
+                    id=proposition_id(job.id, start, end),
                     start_char=start,
                     end_char=end,
                     text=text[start:end],

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import tempfile
+from bisect import bisect_left
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
@@ -55,7 +56,7 @@ def migrate_session(data: dict[str, Any], target_wrapper_version: int) -> dict[s
 
 
 def migrate_proposition_payload(data: dict[str, Any], target_version: int = SCHEMA_VERSION) -> dict[str, Any]:
-    return migrate_record(deepcopy(data), target_version=target_version)
+    return migrate_record(data, target_version=target_version)
 
 
 class PreSelector(BaseModel):
@@ -469,6 +470,7 @@ class GoldStore:
         result: dict[str, Any] = {"opinion": len(gold) * 1000 / words if words else 0.0, "word_count": words}
         if canonical and canonical.elements and any(element.section_path for element in canonical.elements):
             sections: dict[str, dict[str, float | int]] = {}
+            gold_starts = sorted(p.start_char for p in gold if p.start_char is not None)
             offset = 0
             for element in canonical.elements:
                 start = canonical.full_text.find(element.text, offset)
@@ -479,7 +481,7 @@ class GoldStore:
                 name = " / ".join(element.section_path) or "(unsectioned)"
                 bucket = sections.setdefault(name, {"word_count": 0, "gold_count": 0, "density": 0.0})
                 bucket["word_count"] += len(element.text.split())
-                bucket["gold_count"] += sum(p.start_char is not None and start <= p.start_char < end for p in gold)
+                bucket["gold_count"] += bisect_left(gold_starts, end) - bisect_left(gold_starts, start)
             for bucket in sections.values():
                 bucket["density"] = bucket["gold_count"] * 1000 / bucket["word_count"] if bucket["word_count"] else 0.0
             result["sections"] = sections

@@ -4152,6 +4152,14 @@ let propositionDraft = null;
 let propositionSettings = null;
 let propositionCompleteness = null;
 
+function resetPropositionSessionState() {
+  propositionSession = null;
+  propositionDraft = null;
+  propositionCompleteness = null;
+  propositionAddArmed = false;
+  propositionBlindArmed = false;
+}
+
 // ── Ontology switcher state ──
 // activeOntology is seeded from the <html data-ontology> attribute that the
 // pre-paint resolver already set (URL param > localStorage > 'folio'). ONTOLOGIES
@@ -6513,11 +6521,7 @@ async function submitEnrichment() {
 
     const data = await r.json();
     currentJobId = data.job_id;
-    propositionSession = null;
-    propositionDraft = null;
-    propositionCompleteness = null;
-    propositionAddArmed = false;
-    propositionBlindArmed = false;
+    resetPropositionSessionState();
     setStatus(`Job ${currentJobId.slice(0,8)}... submitted`, 'running');
     startSSE();
   } catch (e) {
@@ -12400,11 +12404,7 @@ function clearAll() {
   accumulatedTriples = [];
   accumulatedPOS = null;
   activityEntries = [];
-  propositionSession = null;
-  propositionDraft = null;
-  propositionCompleteness = null;
-  propositionAddArmed = false;
-  propositionBlindArmed = false;
+  resetPropositionSessionState();
   // Clear feedback, dismiss, and data caches
   Object.keys(_feedbackCache).forEach(k => delete _feedbackCache[k]);
   Object.keys(_noteCache).forEach(k => delete _noteCache[k]);

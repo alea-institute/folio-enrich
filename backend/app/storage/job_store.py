@@ -126,9 +126,19 @@ class JobStore:
             retention_days = settings.job_retention_days
         cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
         deleted = 0
+        unexported_job_ids: set[str] = set()
+
+        for session_path in (self.base_dir / "gold_sessions").glob("*.json"):
+            try:
+                data = json.loads(session_path.read_text())
+                job_id = data.get("job_id")
+                if isinstance(job_id, str) and not data.get("exported_at"):
+                    unexported_job_ids.add(job_id)
+            except Exception:
+                continue
 
         for path in list(self.base_dir.glob("*.json")):
-            if path.stem in PROTECTED_JOB_IDS or self._has_unexported_gold_session(path.stem):
+            if path.stem in PROTECTED_JOB_IDS or path.stem in unexported_job_ids:
                 continue
             try:
                 data = json.loads(path.read_text())
@@ -142,15 +152,3 @@ class JobStore:
                 continue
 
         return deleted
-
-    def _has_unexported_gold_session(self, job_id: str) -> bool:
-        """Derive gold-session protection from disk so it survives restarts."""
-        session_dir = self.base_dir / "gold_sessions"
-        for session_path in session_dir.glob("*.json"):
-            try:
-                data = json.loads(session_path.read_text())
-                if data.get("job_id") == job_id and not data.get("exported_at"):
-                    return True
-            except Exception:
-                continue
-        return False

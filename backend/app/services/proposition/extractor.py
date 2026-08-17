@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from uuid import NAMESPACE_URL, uuid5
 
 from folio_propositions import ActorRef, AdjudicatorRef, CitationEdge, Proposition
 
@@ -15,6 +14,7 @@ from app.services.proposition.lexicon import (
     REPORTING_VERBS,
     PropositionFrame,
 )
+from app.services.proposition.identity import proposition_id
 
 
 _PARTY_ROLES = (
@@ -113,7 +113,7 @@ class PropositionExtractor:
         self, job: Job, sentence, start: int, end: int, content: str,
         frame: PropositionFrame, role: str,
     ) -> Proposition:
-        proposition_id = str(uuid5(NAMESPACE_URL, f"folio-enrich:{job.id}:{start}:{end}"))
+        identity = proposition_id(job.id, start, end)
         validator = (
             AdjudicatorRef(role="court", mode=frame.validator_mode)
             if frame.validator_mode else None
@@ -129,7 +129,7 @@ class PropositionExtractor:
                     authority_text=mention,
                 ))
         return Proposition(
-            id=proposition_id,
+            id=identity,
             start_char=start,
             end_char=end,
             text=content,
