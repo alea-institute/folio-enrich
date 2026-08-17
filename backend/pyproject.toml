@@ -58,6 +58,11 @@ dev = [
     "httpx>=0.28.0",
 ]
 
+[tool.hatch.metadata]
+# The folio-propositions dependency is a direct git-tag reference (see the pin
+# comment above); hatchling rejects those unless explicitly allowed.
+allow-direct-references = true
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
