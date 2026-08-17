@@ -60,6 +60,21 @@ async def test_blind_segment_masks_public_payload_but_retains_candidates(tmp_pat
 
 
 @pytest.mark.asyncio
+async def test_unrevealed_blind_candidate_cannot_be_mutated_or_exported(tmp_path: Path) -> None:
+    hidden = proposition("hidden", "abcdefghij", 10)
+    store, _, _, session = await make_store(tmp_path, [hidden])
+    await store.set_blind_segment(session.session_id, 8, 25)
+
+    with pytest.raises(ValueError, match="hidden by an unrevealed blind segment"):
+        await store.record_candidate_outcome(session.session_id, "hidden", outcome="accepted")
+    with pytest.raises(ValueError, match="blind segment has not been revealed"):
+        await store.export(session.session_id, "blind-bypass")
+
+    persisted = json.loads(store._path(session.session_id).read_text())
+    assert persisted["candidates"][0]["outcome"] == "unreviewed"
+
+
+@pytest.mark.asyncio
 async def test_blind_segment_rejects_already_reviewed_candidate(tmp_path: Path) -> None:
     store, _, _, session = await make_store(tmp_path, [proposition("reviewed", "abcdefghij", 10)])
     await store.record_candidate_outcome(session.session_id, "reviewed", outcome="accepted")

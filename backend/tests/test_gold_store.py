@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
@@ -129,11 +130,55 @@ async def test_selector_configs_and_edit_kinds(tmp_path: Path) -> None:
         session.session_id, "p1", outcome="edited", proposition=field
     )
     assert updated.candidates[0].edit_kind == "field"
-    boundary = proposition("p1", start=4)
+    boundary = proposition("p1", text="he rule applies", start=4)
     updated = await store.record_candidate_outcome(
         session.session_id, "p1", outcome="edited", proposition=boundary
     )
     assert updated.candidates[0].edit_kind == "boundary"
+
+
+@pytest.mark.asyncio
+async def test_concurrent_candidate_updates_preserve_both_outcomes(tmp_path: Path) -> None:
+    store, _, _, session = await make_store(
+        tmp_path, [proposition("p1"), proposition("p2", "the claim fails", 40)]
+    )
+
+    await asyncio.gather(
+        store.record_candidate_outcome(session.session_id, "p1", outcome="accepted"),
+        store.record_candidate_outcome(session.session_id, "p2", outcome="deleted"),
+    )
+
+    persisted = await store.get(session.session_id)
+    assert {candidate.proposition.id: candidate.outcome for candidate in persisted.candidates} == {
+        "p1": "accepted",
+        "p2": "deleted",
+    }
+
+
+@pytest.mark.asyncio
+async def test_default_export_slug_is_unique_per_session_and_reexport_is_idempotent(
+    tmp_path: Path,
+) -> None:
+    from app.services.gold.store import PreSelector
+
+    store, _, job, first = await make_store(tmp_path, [proposition("p1")])
+    second = await store.create_session(
+        job.id,
+        document_id=first.document_id,
+        pre_selector=PreSelector(source="lexicon-only"),
+    )
+    await store.record_candidate_outcome(first.session_id, "p1", outcome="accepted")
+    await store.record_candidate_outcome(second.session_id, "p1", outcome="deleted")
+
+    first_export = await store.export(first.session_id)
+    second_export = await store.export(second.session_id)
+    repeated = await store.export(first.session_id)
+
+    assert first_export.jsonl != second_export.jsonl
+    assert repeated.jsonl == first_export.jsonl
+    opinions = json.loads(repeated.manifest.read_text())["opinions"]
+    assert {item["session_id"] for item in opinions} == {first.session_id, second.session_id}
+    assert len(opinions) == 2
 
 
 def test_wrapper_and_payload_migrations_are_separate() -> None:
@@ -223,3 +268,35 @@ async def test_route_happy_path(tmp_path: Path, monkeypatch, client) -> None:
     exported = await client.post(f"/gold/sessions/{session_id}/export", json={"slug": "route"})
     assert exported.status_code == 200, exported.text
     assert Path(exported.json()["jsonl"]).exists()
+
+
+@pytest.mark.asyncio
+async def test_gold_mutations_require_configured_admin_token(
+    tmp_path: Path, monkeypatch, client
+) -> None:
+    from app.api.routes import gold
+    from app.config import settings
+    from app.services.gold.store import GoldStore
+
+    jobs = JobStore(tmp_path / "jobs")
+    monkeypatch.setattr(gold, "_job_store", jobs)
+    monkeypatch.setattr(gold, "_gold_store", GoldStore(jobs, tmp_path / "gold"))
+    job = Job(
+        input=DocumentInput(content="We hold that the rule applies."),
+        status=JobStatus.COMPLETED,
+        result=JobResult(canonical_text=CanonicalText(full_text="We hold that the rule applies.")),
+    )
+    await jobs.save(job)
+    payload = {
+        "job_id": str(job.id),
+        "pre_selector": {"source": "lexicon-only"},
+    }
+
+    monkeypatch.setattr(settings, "admin_token", "s3cret")
+    assert (await client.post("/gold/sessions", json=payload)).status_code == 403
+    assert (
+        await client.post("/gold/sessions", json=payload, headers={"X-Admin-Token": "s3cret"})
+    ).status_code == 201
+
+    monkeypatch.setattr(settings, "admin_token", "")
+    assert (await client.post("/gold/sessions", json=payload)).status_code == 201
