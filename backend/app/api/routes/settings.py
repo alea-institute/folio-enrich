@@ -89,6 +89,8 @@ class SettingsUpdate(BaseModel):
     llm_area_of_law_model: str | None = None
     llm_synthetic_provider: str | None = None
     llm_synthetic_model: str | None = None
+    llm_proposition_provider: str | None = None
+    llm_proposition_model: str | None = None
     # Ollama tier models
     ollama_auto_manage: bool | None = None
     ollama_model_simple: str | None = None
@@ -99,10 +101,12 @@ class SettingsUpdate(BaseModel):
     folio_update_check_interval_hours: int | None = None
     # Translation matching
     translation_matching_enabled: bool | None = None
+    # Proposition annotation pre-selection
+    proposition_extraction_enabled: bool | None = None
 
 
 _TASK_LLM_FIELDS = (
-    "classifier", "extractor", "concept", "branch_judge", "area_of_law", "synthetic",
+    "classifier", "extractor", "concept", "branch_judge", "area_of_law", "synthetic", "proposition",
 )
 
 
@@ -149,6 +153,7 @@ async def get_settings() -> dict:
     result["folio_update_check_interval_hours"] = settings.folio_update_check_interval_hours
     # Translation matching
     result["translation_matching_enabled"] = settings.translation_matching_enabled
+    result["proposition_extraction_enabled"] = settings.proposition_extraction_enabled
     return result
 
 
@@ -196,6 +201,8 @@ async def update_settings(update: SettingsUpdate) -> dict:
             svc = FolioService.get_instance()
             svc._labels_cache = None
             svc._labels_multi_cache = None
+    if update.proposition_extraction_enabled is not None:
+        settings.proposition_extraction_enabled = update.proposition_extraction_enabled
     return {"status": "ok", "message": "Settings updated"}
 
 

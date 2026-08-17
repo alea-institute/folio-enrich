@@ -2201,6 +2201,31 @@
   }
   .prop-card .prop-conf { font-size: 11px; color: var(--text-dim); min-width: 28px; text-align: right; }
 
+  /* Proposition annotation tab (minimal cycle-one tool) */
+  .proposition-toolbar, .proposition-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .proposition-toolbar { padding-bottom:10px; border-bottom:1px solid var(--border); }
+  .proposition-status { font-size:11px; color:var(--text-dim); }
+  .proposition-document { margin-top:10px; max-height:34vh; overflow:auto; padding:14px; border:1px solid var(--border); border-radius:7px; background:var(--surface2); white-space:pre-wrap; line-height:1.65; font-size:13px; }
+  .proposition-document.add-armed { cursor:text; outline:2px solid var(--orange); outline-offset:1px; }
+  .proposition-span { background:color-mix(in srgb, var(--orange) 18%, transparent); border-bottom:2px solid var(--orange); cursor:pointer; border-radius:2px; }
+  .proposition-span:focus { outline:2px solid var(--accent); outline-offset:2px; }
+  .proposition-add-banner { margin:8px 0; padding:6px 9px; border-radius:5px; background:var(--conf-mid-bg); color:var(--conf-mid); font-size:12px; }
+  .proposition-candidates { margin-top:12px; display:grid; gap:10px; }
+  .proposition-card { padding:12px; border:1px solid var(--border); border-radius:8px; background:var(--surface); }
+  .proposition-card:focus { outline:2px solid var(--accent); outline-offset:2px; }
+  .proposition-card.deleted { opacity:.65; }
+  .proposition-card-head { display:flex; gap:8px; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
+  .proposition-quote { font-weight:600; font-size:13px; overflow-wrap:anywhere; }
+  .proposition-outcome { font-size:9px; font-weight:700; text-transform:uppercase; padding:3px 7px; border-radius:10px; background:var(--surface3); white-space:nowrap; }
+  .proposition-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  .proposition-field { display:flex; flex-direction:column; gap:3px; font-size:10px; color:var(--text-dim); }
+  .proposition-field select, .proposition-field input[type="text"], .proposition-field input[type="number"] { width:100%; box-sizing:border-box; padding:6px; border:1px solid var(--border); border-radius:4px; background:var(--surface2); color:var(--text); }
+  .proposition-field.wide { grid-column:1/-1; }
+  .proposition-inline-confirm { padding:7px; border-left:3px solid var(--orange); background:var(--conf-mid-bg); color:var(--text); font-size:11px; }
+  .proposition-citations { margin:8px 0; font-size:11px; color:var(--text-dim); }
+  .proposition-export.warning { border-color:var(--orange); color:var(--orange); }
+  @media (max-width:700px) { .proposition-fields { grid-template-columns:1fr; } .proposition-field.wide { grid-column:auto; } }
+
   /* Export tab: include dismissed checkbox */
   .export-option-row {
     display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
@@ -3726,6 +3751,7 @@
       <div class="tab" data-tab="metadata" onclick="switchTab(this, 'metadata')">Metadata</div>
       <div class="tab" data-tab="individuals" onclick="switchTab(this, 'individuals')">Individuals</div>
       <div class="tab" data-tab="properties" onclick="switchTab(this, 'properties')">Properties</div>
+      <div class="tab" data-tab="propositions" onclick="switchTab(this, 'propositions')">Propositions</div>
       <div class="tab" data-tab="export" onclick="switchTab(this, 'export')">Export</div>
       <div class="tab" data-tab="insights" onclick="switchTab(this, 'insights'); loadInsights()">Insights</div>
     </div>
@@ -3766,6 +3792,21 @@
       <div class="tab-content" id="tab-properties">
         <div id="propertiesSummary" style="font-size:12px;color:var(--text-dim);margin-bottom:10px"></div>
         <div id="propertiesList"></div>
+      </div>
+      <div class="tab-content" id="tab-propositions">
+        <div class="proposition-toolbar">
+          <label><input type="checkbox" id="propositionModeToggle" onchange="togglePropositionMode(this.checked)"> Annotation mode</label>
+          <span class="proposition-status" id="propositionModeStatus">Off</span>
+          <button class="secondary small" id="startPropositionSessionBtn" onclick="ensurePropositionSession(true)" style="display:none">Start annotation session</button>
+          <button class="secondary small" id="addPropositionSpanBtn" onclick="togglePropositionAddMode()" disabled>+ Add span</button>
+          <button class="secondary small proposition-export" id="exportGoldBtn" onclick="exportGoldRecord()" disabled>Export gold record</button>
+          <span class="chip" id="propositionRemainingChip">0 unreviewed remaining</span>
+        </div>
+        <div class="proposition-add-banner" id="propositionAddBanner" style="display:none">Select text to create a proposition span; Esc to cancel.</div>
+        <div class="proposition-status" style="margin-top:7px">Candidate shortcuts: A accept, E edit, D discard. Shortcuts pause while typing.</div>
+        <div class="proposition-document" id="propositionDocument" onmouseup="handlePropositionSelection()"></div>
+        <div class="proposition-candidates" id="propositionCandidates"></div>
+        <div class="proposition-status" id="propositionExportResult"></div>
       </div>
       <div class="tab-content" id="tab-export">
         <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px">Download annotations in any of the 12 supported formats:</p>
@@ -4065,6 +4106,7 @@ let eventSource = null;
 let accumulatedAnnotations = [];
 let accumulatedIndividuals = [];
 let accumulatedProperties = [];
+let accumulatedPropositions = [];
 let accumulatedTriples = [];
 let accumulatedPOS = null;
 let normalizedText = null;      // canonical full_text from backend, used for progressive rendering
@@ -4084,6 +4126,11 @@ let _llmBannerSymbolicOnce = false; // true if user chose "continue without AI" 
 // persist the user's key in THIS browser's localStorage (never sent to /settings)
 // and pass it per-request instead.
 let _requireUserKey = false;
+let propositionAnnotationMode = false;
+let propositionSession = null;
+let propositionAddArmed = false;
+let propositionDraft = null;
+let propositionSettings = null;
 
 // ── Ontology switcher state ──
 // activeOntology is seeded from the <html data-ontology> attribute that the
@@ -4151,6 +4198,7 @@ function cacheState() {
       annotations: accumulatedAnnotations,
       individuals: accumulatedIndividuals,
       properties: accumulatedProperties,
+      propositions: accumulatedPropositions,
       normalizedText: normalizedText,
       activity: activityEntries,
       docInput: document.getElementById('docInput')?.value || '',
@@ -4184,6 +4232,7 @@ function restoreState() {
     accumulatedAnnotations = cache.annotations || [];
     accumulatedIndividuals = cache.individuals || [];
     accumulatedProperties = cache.properties || [];
+    accumulatedPropositions = cache.propositions || cache.job.result?.propositions || [];
     normalizedText = cache.normalizedText || null;
     activityEntries = cache.activity || [];
     uploadedFilename = cache.filename || null;
@@ -4860,6 +4909,7 @@ function hydrateFromDemo(cache, slug) {
   accumulatedAnnotations = cache.annotations || _res.annotations || [];
   accumulatedIndividuals = cache.individuals || _res.individuals || [];
   accumulatedProperties = cache.properties || _res.properties || [];
+  accumulatedPropositions = cache.propositions || _res.propositions || [];
   accumulatedTriples = cache.triples || _res.triples || [];
   normalizedText = cache.normalizedText || null;
   activityEntries = cache.activity || [];
@@ -4907,6 +4957,7 @@ function clearResultsOnly() {
   accumulatedAnnotations = [];
   accumulatedIndividuals = [];
   accumulatedProperties = [];
+  accumulatedPropositions = [];
   accumulatedTriples = [];
   accumulatedPOS = null;
   activityEntries = [];
@@ -6442,6 +6493,8 @@ async function submitEnrichment() {
 
     const data = await r.json();
     currentJobId = data.job_id;
+    propositionSession = null;
+    propositionDraft = null;
     setStatus(`Job ${currentJobId.slice(0,8)}... submitted`, 'running');
     startSSE();
   } catch (e) {
@@ -6486,6 +6539,7 @@ function pollJob() {
       if (job.status === 'completed') {
         stopPolling();
         try { renderResults(job); } catch (re) { console.error('Render error:', re); }
+        if (propositionAnnotationMode) await ensurePropositionSession(false);
         cacheState();
         resetButton();
         const annCount = (job.result?.annotations || []).length;
@@ -6530,6 +6584,7 @@ function startSSE() {
   accumulatedAnnotations = [];
   accumulatedIndividuals = [];
   accumulatedProperties = [];
+  accumulatedPropositions = [];
   accumulatedTriples = [];
   accumulatedPOS = null;
   normalizedText = null;
@@ -6602,6 +6657,14 @@ function startSSE() {
     renderPropertiesTab(accumulatedProperties);
   });
 
+  eventSource.addEventListener('proposition_added', (e) => {
+    const data = JSON.parse(e.data);
+    const existingIdx = accumulatedPropositions.findIndex(p => p.id === data.id);
+    if (existingIdx >= 0) accumulatedPropositions[existingIdx] = data;
+    else accumulatedPropositions.push(data);
+    if (document.querySelector('.tab[data-tab="propositions"]')?.classList.contains('active')) renderPropositionsTab();
+  });
+
   eventSource.addEventListener('triple_added', (e) => {
     const data = JSON.parse(e.data);
     const existingIdx = accumulatedTriples.findIndex(t => t.id === data.id);
@@ -6640,6 +6703,7 @@ function startSSE() {
     setStatus(`Completed: ${data.total_annotations} annotations${indSuffix}${propSuffix}${triSuffix}`, 'completed');
     // Fetch final job for full render (concepts list, metadata, triples, exports)
     fetchFinalJob();
+    if (propositionAnnotationMode) setTimeout(() => ensurePropositionSession(false), 0);
     // Re-fetch after delay to pick up post-pipeline assessments (e.g., areas of law).
     // Store the handle so an ontology switch / clearAll can cancel a stale repaint.
     if (_finalJobTimer) clearTimeout(_finalJobTimer);
@@ -6794,7 +6858,9 @@ async function fetchFinalJob() {
     currentJob = job;
     accumulatedIndividuals = job.result?.individuals || [];
     accumulatedProperties = job.result?.properties || [];
+    accumulatedPropositions = job.result?.propositions || [];
     renderResults(job);
+    if (propositionAnnotationMode && job.status === 'completed') await ensurePropositionSession(false);
     // Seed feedback caches from inline annotation feedback
     _seedFeedbackCaches(job.result?.annotations || []);
     cacheState();
@@ -7139,6 +7205,7 @@ function renderResults(job) {
   const annotations = job.result?.annotations || [];
   const individuals = job.result?.individuals || [];
   const properties = job.result?.properties || [];
+  accumulatedPropositions = job.result?.propositions || accumulatedPropositions;
   const metadata = job.result?.metadata || {};
 
   _seedDismissedCache(annotations);
@@ -7154,6 +7221,7 @@ function renderResults(job) {
   renderMetadata(metadata, job);
   renderIndividualsTab(individuals);
   renderPropertiesTab(properties);
+  renderPropositionsTab();
   renderExportButtons();
 
   // Show toolbar + header controls if there are any annotations/individuals/properties
@@ -11721,6 +11789,269 @@ function renderPropertiesTab(properties) {
   });
 }
 
+const PROPOSITION_TYPES = ['party proposition of law', 'party proposition of fact', 'judicial proposition of law', 'judicial proposition of fact', 'stipulation', 'arguendo assumption', 'judicial notice'];
+const PROPOSITION_ROLES = ['party', 'plaintiff', 'defendant', 'appellant', 'appellee', 'petitioner', 'respondent', 'both_parties', 'court', 'secondary_source', 'system'];
+
+function propositionApiError(error) {
+  _showInfoToast(error.message || String(error));
+}
+
+async function propositionFetch(path, options = {}) {
+  const response = await fetch(`${API}${path}`, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error(typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail));
+  }
+  return response.json();
+}
+
+async function togglePropositionMode(enabled) {
+  try {
+    propositionSettings = await propositionFetch('/settings', { method: 'GET' });
+    await propositionFetch('/settings', { method: 'PUT', body: JSON.stringify({ proposition_extraction_enabled: enabled }) });
+    propositionAnnotationMode = enabled;
+    propositionAddArmed = false;
+    if (!enabled) propositionDraft = null;
+    if (enabled && currentJob?.status === 'completed') await ensurePropositionSession(false);
+    renderPropositionsTab();
+  } catch (error) {
+    propositionAnnotationMode = !enabled;
+    const toggle = document.getElementById('propositionModeToggle');
+    if (toggle) toggle.checked = propositionAnnotationMode;
+    propositionApiError(error);
+  }
+}
+
+async function ensurePropositionSession(force) {
+  if (!propositionAnnotationMode || !currentJobId || currentJob?.status !== 'completed') {
+    renderPropositionsTab();
+    return;
+  }
+  try {
+    if (!force) {
+      const sessions = await propositionFetch(`/gold/sessions?job_id=${encodeURIComponent(currentJobId)}`, { method: 'GET' });
+      const existing = (Array.isArray(sessions) ? sessions : sessions.sessions || [])[0];
+      if (existing) {
+        propositionSession = existing.session_id ? existing : await propositionFetch(`/gold/sessions/${existing.session_id}`, { method: 'GET' });
+        renderPropositionsTab();
+        return;
+      }
+    }
+    propositionSettings = propositionSettings || await propositionFetch('/settings', { method: 'GET' });
+    const llm = propositionSettings.task_llm_overrides?.proposition || {};
+    const hasLlm = Boolean(llm.provider && llm.model);
+    propositionSession = await propositionFetch('/gold/sessions', {
+      method: 'POST',
+      body: JSON.stringify({
+        job_id: currentJobId,
+        document_id: currentJob?.input?.filename || currentJobId,
+        annotator: 'damien',
+        pre_selector: { source: hasLlm ? 'lexicon+llm' : 'lexicon-only', llm_provider: llm.provider || null, llm_model: llm.model || null },
+      }),
+    });
+    renderPropositionsTab();
+  } catch (error) { propositionApiError(error); }
+}
+
+function propositionRecords() {
+  if (!propositionSession) return accumulatedPropositions.map(p => ({ proposition: p, outcome: 'unreviewed', explicit_unresolved: false }));
+  const selected = propositionSession.candidates || [];
+  const added = (propositionSession.hand_added || []).map(item => ({ ...item, outcome: 'hand-added' }));
+  return [...selected, ...added];
+}
+
+function renderPropositionsTab() {
+  const doc = document.getElementById('propositionDocument');
+  if (!doc) return;
+  const toggle = document.getElementById('propositionModeToggle');
+  toggle.checked = propositionAnnotationMode;
+  const llm = propositionSettings?.task_llm_overrides?.proposition;
+  document.getElementById('propositionModeStatus').textContent = propositionAnnotationMode
+    ? `On · ${llm?.provider && llm?.model ? `lexicon + ${llm.provider}/${llm.model}` : 'lexicon only'}` : 'Off';
+  const complete = currentJob?.status === 'completed';
+  document.getElementById('startPropositionSessionBtn').style.display = propositionAnnotationMode && complete && !propositionSession ? '' : 'none';
+  document.getElementById('addPropositionSpanBtn').disabled = !propositionAnnotationMode || !propositionSession;
+  document.getElementById('exportGoldBtn').disabled = !propositionAnnotationMode || !propositionSession;
+  document.getElementById('propositionAddBanner').style.display = propositionAddArmed ? '' : 'none';
+  doc.classList.toggle('add-armed', propositionAddArmed);
+
+  const text = currentJob?.result?.canonical_text?.full_text || normalizedText || '';
+  const records = propositionRecords();
+  const spans = records.filter(r => r.outcome !== 'deleted' && Number.isInteger(r.proposition?.start_char) && Number.isInteger(r.proposition?.end_char))
+    .sort((a, b) => a.proposition.start_char - b.proposition.start_char || a.proposition.end_char - b.proposition.end_char);
+  let position = 0;
+  let html = '';
+  for (const record of spans) {
+    const p = record.proposition;
+    if (p.start_char < position || p.end_char > text.length) continue;
+    html += escapeHtml(text.slice(position, p.start_char));
+    html += `<mark class="proposition-span" tabindex="0" data-proposition-id="${escapeAttr(p.id)}" onclick="focusPropositionCard(event, '${escapeAttr(p.id)}')">${escapeHtml(text.slice(p.start_char, p.end_char))}</mark>`;
+    position = p.end_char;
+  }
+  html += escapeHtml(text.slice(position));
+  doc.innerHTML = html || '<span class="proposition-status">Complete an enrichment to annotate its canonical text.</span>';
+
+  const list = document.getElementById('propositionCandidates');
+  const cards = records.map((record) => renderPropositionCard(record));
+  if (propositionDraft) cards.unshift(renderPropositionCard({ proposition: propositionDraft, outcome: 'hand-added', explicit_unresolved: true }, true));
+  list.innerHTML = cards.join('') || '<div class="proposition-status">No proposition candidates yet.</div>';
+  const remaining = (propositionSession?.candidates || []).filter(c => c.outcome === 'unreviewed').length;
+  document.getElementById('propositionRemainingChip').textContent = `${remaining} unreviewed remaining`;
+  document.getElementById('exportGoldBtn').classList.toggle('warning', remaining > 0);
+}
+
+function propositionOptions(values, current, includeNone = false) {
+  return `${includeNone ? '<option value="">— none —</option>' : ''}${values.map(value => `<option value="${escapeAttr(value)}" ${value === current ? 'selected' : ''}>${escapeHtml(value.replaceAll('_', ' '))}</option>`).join('')}`;
+}
+
+function renderPropositionCard(record, isDraft = false) {
+  const p = record.proposition || {};
+  const id = p.id || '';
+  const customType = p.is_new_type || !PROPOSITION_TYPES.includes(p.proposition_type);
+  const citations = p.citation_edges || [];
+  return `<div class="proposition-card ${record.outcome === 'deleted' ? 'deleted' : ''}" tabindex="0" data-candidate-id="${escapeAttr(id)}" data-draft="${isDraft}">
+    <div class="proposition-card-head"><span class="proposition-quote">“${escapeHtml(p.text || '')}”</span><span class="proposition-outcome">${escapeHtml(record.outcome || 'unreviewed')}</span></div>
+    <div class="proposition-fields">
+      <label class="proposition-field wide">Proposition type<select data-field="proposition_type" onchange="handlePropositionType(this)">${propositionOptions(PROPOSITION_TYPES, customType ? '' : p.proposition_type)}<option value="__new__" ${customType ? 'selected' : ''}>+ new type…</option></select></label>
+      <label class="proposition-field wide proposition-new-type" style="display:${customType ? '' : 'none'}">New type<input type="text" data-field="new_type" value="${escapeAttr(customType ? p.proposition_type : '')}"></label>
+      <label class="proposition-field">Start character<input type="number" min="0" data-field="start_char" value="${p.start_char ?? ''}"></label>
+      <label class="proposition-field">End character<input type="number" min="0" data-field="end_char" value="${p.end_char ?? ''}"></label>
+      <label class="proposition-field">Asserter role<select data-field="asserter_role">${propositionOptions(PROPOSITION_ROLES, p.asserter?.role, true)}</select></label>
+      <label class="proposition-field"><span>Asserter assumed</span><input type="checkbox" data-field="asserter_assumed" ${p.asserter?.assumed ? 'checked' : ''}></label>
+      <label class="proposition-field">Validator role<select data-field="validator_role">${propositionOptions(PROPOSITION_ROLES, p.validator?.role, true)}</select></label>
+      <label class="proposition-field">Validator mode<select data-field="validator_mode">${propositionOptions(['ruled', 'pro_forma', 'declined'], p.validator?.mode || 'ruled')}</select></label>
+      <label class="proposition-field wide">Disposition<select data-field="disposition" onchange="handlePropositionDisposition(this)">${propositionOptions(['accepted', 'rejected', 'revised', 'unresolved', 'assumed-arguendo'], p.disposition)}</select></label>
+      <label class="proposition-inline-confirm wide" style="display:${p.disposition === 'unresolved' ? '' : 'none'}"><input type="checkbox" data-field="explicit_unresolved" ${record.explicit_unresolved ? 'checked' : ''}> Mark unresolved deliberately</label>
+    </div>
+    <div class="proposition-citations"><strong>Citation edges:</strong> ${citations.length ? citations.map(edge => escapeHtml(`${edge.edge_type}: ${edge.authority_text || edge.authority_individual_id}`)).join(' · ') : 'None'}</div>
+    <div class="proposition-actions">
+      ${isDraft ? '<button class="primary small" onclick="saveHandAdded(this)">Save hand-added</button><button class="secondary small" onclick="cancelHandAdded()">Cancel</button>' : record.outcome === 'deleted' || record.outcome === 'hand-added' ? '' : '<button class="primary small" onclick="savePropositionOutcome(this, \'accepted\')">Accept</button><button class="secondary small" onclick="savePropositionOutcome(this, \'edited\')">Save edit</button><button class="secondary small" onclick="savePropositionOutcome(this, \'deleted\')">Discard</button>'}
+      ${customType && !isDraft ? '<button class="secondary small" onclick="recordNewTypeLearning(this)">Record as new-type learning</button>' : ''}
+    </div>
+  </div>`;
+}
+
+function handlePropositionType(select) {
+  select.closest('.proposition-card').querySelector('.proposition-new-type').style.display = select.value === '__new__' ? '' : 'none';
+}
+
+function handlePropositionDisposition(select) {
+  const confirm = select.closest('.proposition-card').querySelector('.proposition-inline-confirm');
+  confirm.style.display = select.value === 'unresolved' ? '' : 'none';
+  if (select.value !== 'unresolved') confirm.querySelector('input').checked = false;
+}
+
+function propositionFromCard(card) {
+  const original = propositionRecords().find(r => r.proposition?.id === card.dataset.candidateId)?.proposition || propositionDraft || {};
+  const value = name => card.querySelector(`[data-field="${name}"]`);
+  const start = Number(value('start_char').value);
+  const end = Number(value('end_char').value);
+  const fullText = currentJob?.result?.canonical_text?.full_text || '';
+  const asserterRole = value('asserter_role').value;
+  const validatorRole = value('validator_role').value;
+  const typeSelect = value('proposition_type').value;
+  const propositionType = typeSelect === '__new__' ? value('new_type').value.trim() : typeSelect;
+  if (!propositionType) throw new Error('New proposition type is required');
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end <= start || end > fullText.length) throw new Error('Span boundaries are invalid');
+  return {
+    ...original, id: card.dataset.candidateId, start_char: start, end_char: end,
+    text: fullText.slice(start, end), proposition_type: propositionType, is_new_type: typeSelect === '__new__',
+    asserter: asserterRole ? { role: asserterRole, assumed: value('asserter_assumed').checked } : null,
+    validator: validatorRole ? { role: validatorRole, mode: value('validator_mode').value } : null,
+    disposition: value('disposition').value, citation_edges: original.citation_edges || [], triple_ids: original.triple_ids || [],
+  };
+}
+
+async function savePropositionOutcome(button, outcome) {
+  const card = button.closest('.proposition-card');
+  try {
+    const explicit = card.querySelector('[data-field="explicit_unresolved"]').checked;
+    const body = { outcome, explicit_unresolved: explicit };
+    if (outcome !== 'deleted') body.proposition = propositionFromCard(card);
+    propositionSession = await propositionFetch(`/gold/sessions/${propositionSession.session_id}/candidates/${encodeURIComponent(card.dataset.candidateId)}`, { method: 'PATCH', body: JSON.stringify(body) });
+    renderPropositionsTab();
+    _showInfoToast(outcome === 'deleted' ? 'Candidate discarded' : `Candidate ${outcome}`);
+  } catch (error) { propositionApiError(error); }
+}
+
+async function saveHandAdded(button) {
+  const card = button.closest('.proposition-card');
+  try {
+    const proposition = propositionFromCard(card);
+    const explicit_unresolved = card.querySelector('[data-field="explicit_unresolved"]').checked;
+    propositionSession = await propositionFetch(`/gold/sessions/${propositionSession.session_id}/annotations`, { method: 'POST', body: JSON.stringify({ proposition, explicit_unresolved }) });
+    propositionDraft = null;
+    renderPropositionsTab();
+    _showInfoToast('Hand-added proposition saved');
+  } catch (error) { propositionApiError(error); }
+}
+
+function cancelHandAdded() { propositionDraft = null; renderPropositionsTab(); }
+
+async function recordNewTypeLearning(button) {
+  const card = button.closest('.proposition-card');
+  try {
+    const p = propositionFromCard(card);
+    propositionSession = await propositionFetch(`/gold/sessions/${propositionSession.session_id}/learnings`, { method: 'POST', body: JSON.stringify({ kind: 'new-type', tag: p.proposition_type, annotation_id: p.id, start_char: p.start_char, end_char: p.end_char }) });
+    _showInfoToast('New-type learning recorded');
+  } catch (error) { propositionApiError(error); }
+}
+
+function focusPropositionCard(event, id) {
+  if (propositionAddArmed) { event.preventDefault(); return; }
+  const card = document.querySelector(`.proposition-card[data-candidate-id="${CSS.escape(id)}"]`);
+  card?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  card?.focus({ preventScroll: true });
+}
+
+function togglePropositionAddMode() {
+  propositionAddArmed = !propositionAddArmed;
+  propositionDraft = null;
+  renderPropositionsTab();
+}
+
+function handlePropositionSelection() {
+  if (!propositionAddArmed) return;
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed || !selection.rangeCount) return;
+  const doc = document.getElementById('propositionDocument');
+  const range = selection.getRangeAt(0);
+  if (!doc.contains(range.commonAncestorContainer)) return;
+  const before = range.cloneRange();
+  before.selectNodeContents(doc);
+  before.setEnd(range.startContainer, range.startOffset);
+  const start = before.toString().length;
+  const text = range.toString();
+  propositionDraft = { id: `hand-${crypto.randomUUID()}`, start_char: start, end_char: start + text.length, text, proposition_type: 'party proposition of law', is_new_type: false, asserter: null, validator: null, disposition: 'unresolved', citation_edges: [], triple_ids: [] };
+  propositionAddArmed = false;
+  selection.removeAllRanges();
+  renderPropositionsTab();
+  document.querySelector('.proposition-card[data-draft="true"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+async function exportGoldRecord() {
+  try {
+    const result = await propositionFetch(`/gold/sessions/${propositionSession.session_id}/export`, { method: 'POST', body: '{}' });
+    document.getElementById('propositionExportResult').textContent = `Exported JSONL: ${result.jsonl}; BRAT: ${result.ann}; manifest: ${result.manifest}. Precision ${result.precision.toFixed(3)}, recall proxy ${result.recall_proxy.toFixed(3)}.`;
+    _showInfoToast('Gold record exported');
+  } catch (error) { propositionApiError(error); }
+}
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && propositionAddArmed) { propositionAddArmed = false; renderPropositionsTab(); return; }
+  if (!document.getElementById('tab-propositions')?.classList.contains('active')) return;
+  if (/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(event.target.tagName) || event.target.isContentEditable) return;
+  const card = document.activeElement?.closest?.('.proposition-card');
+  if (!card || card.dataset.draft === 'true') return;
+  const key = event.key.toLowerCase();
+  if (key === 'a') card.querySelector('button[onclick*="accepted"]')?.click();
+  else if (key === 'e') card.querySelector('[data-field="proposition_type"]')?.focus();
+  else if (key === 'd') card.querySelector('button[onclick*="deleted"]')?.click();
+});
+
 function renderExportButtons() {
   const container = document.getElementById('exportButtons');
   if (!currentJobId) {
@@ -11874,6 +12205,7 @@ function switchTab(tabEl, name) {
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
   tabEl.classList.add('active');
   document.getElementById(`tab-${name}`).classList.add('active');
+  if (name === 'propositions') renderPropositionsTab();
 }
 
 function toggleUncertain() {
@@ -11955,9 +12287,12 @@ function clearAll() {
   accumulatedAnnotations = [];
   accumulatedIndividuals = [];
   accumulatedProperties = [];
+  accumulatedPropositions = [];
   accumulatedTriples = [];
   accumulatedPOS = null;
   activityEntries = [];
+  propositionSession = null;
+  propositionDraft = null;
   // Clear feedback, dismiss, and data caches
   Object.keys(_feedbackCache).forEach(k => delete _feedbackCache[k]);
   Object.keys(_noteCache).forEach(k => delete _noteCache[k]);
