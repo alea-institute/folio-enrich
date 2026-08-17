@@ -4929,6 +4929,7 @@ function hydrateFromDemo(cache, slug) {
   currentDemoSlug = slug;
   originalDemoCache = JSON.parse(JSON.stringify(cache));  // deep clone
 
+  resetPropositionSessionState();
   currentJobId = cache.jobId;
   currentJob = cache.job;
   // Demo files don't duplicate these at the top level — derive from job.result.
@@ -4979,6 +4980,7 @@ function clearResultsOnly() {
   document.getElementById('metadataDisplay').innerHTML = '';
   document.getElementById('exportButtons').innerHTML = '';
   document.getElementById('tooltip')?.classList.remove('visible');
+  resetPropositionSessionState();
   currentJobId = null;
   currentJob = null;
   closeSSE();
@@ -11858,40 +11860,59 @@ async function ensurePropositionSession(force) {
     renderPropositionsTab();
     return;
   }
+  const activeJobId = currentJobId;
   try {
     if (!force) {
-      const sessions = await propositionFetch(`/gold/sessions?job_id=${encodeURIComponent(currentJobId)}`, { method: 'GET' });
+      const sessions = await propositionFetch(`/gold/sessions?job_id=${encodeURIComponent(activeJobId)}`, { method: 'GET' });
+      if (currentJobId !== activeJobId) return;
       const existing = (Array.isArray(sessions) ? sessions : sessions.sessions || [])[0];
       if (existing) {
-        propositionSession = existing.session_id ? existing : await propositionFetch(`/gold/sessions/${existing.session_id}`, { method: 'GET' });
-        await refreshPropositionCompleteness();
+        const session = existing.session_id ? existing : await propositionFetch(`/gold/sessions/${existing.session_id}`, { method: 'GET' });
+        if (currentJobId !== activeJobId) return;
+        propositionSession = session;
+        if (!await refreshPropositionCompleteness(activeJobId, session.session_id)) return;
         renderPropositionsTab();
         return;
       }
     }
-    propositionSettings = propositionSettings || await propositionFetch('/settings', { method: 'GET' });
-    const llm = propositionSettings.task_llm_overrides?.proposition || {};
+    if (!propositionSettings) {
+      const settings = await propositionFetch('/settings', { method: 'GET' });
+      if (currentJobId !== activeJobId) return;
+      propositionSettings = settings;
+    }
+    const overrideLlm = propositionSettings.task_llm_overrides?.proposition || {};
+    const globalLlm = { provider: propositionSettings.llm_provider, model: propositionSettings.llm_model };
+    const llm = overrideLlm.provider && overrideLlm.model ? overrideLlm : globalLlm;
     const hasLlm = Boolean(llm.provider && llm.model);
     const baseline = Boolean(document.getElementById('propositionBaselineToggle')?.checked);
-    propositionSession = await propositionFetch('/gold/sessions', {
+    const session = await propositionFetch('/gold/sessions', {
       method: 'POST',
       body: JSON.stringify({
-        job_id: currentJobId,
-        document_id: currentJob?.input?.filename || currentJobId,
+        job_id: activeJobId,
+        document_id: currentJob?.input?.filename || activeJobId,
         annotator: 'damien',
         baseline,
+        // A per-request BYOK key is never stored server-side, so request-scoped
+        // LLM assist can still be under-reported here; server capture is Phase B.
         pre_selector: { source: baseline || !hasLlm ? 'lexicon-only' : 'lexicon+llm', llm_provider: baseline ? null : llm.provider || null, llm_model: baseline ? null : llm.model || null },
       }),
     });
-    await refreshPropositionCompleteness();
+    if (currentJobId !== activeJobId) return;
+    propositionSession = session;
+    if (!await refreshPropositionCompleteness(activeJobId, session.session_id)) return;
     renderPropositionsTab();
-  } catch (error) { propositionApiError(error); }
+  } catch (error) { if (currentJobId === activeJobId) propositionApiError(error); }
 }
 
-async function refreshPropositionCompleteness() {
-  propositionCompleteness = propositionSession
-    ? await propositionFetch(`/gold/sessions/${propositionSession.session_id}/completeness`, { method: 'GET' })
-    : null;
+async function refreshPropositionCompleteness(activeJobId = currentJobId, activeSessionId = propositionSession?.session_id) {
+  if (!activeSessionId) {
+    if (currentJobId === activeJobId) propositionCompleteness = null;
+    return currentJobId === activeJobId;
+  }
+  const completeness = await propositionFetch(`/gold/sessions/${activeSessionId}/completeness`, { method: 'GET' });
+  if (currentJobId !== activeJobId || propositionSession?.session_id !== activeSessionId) return false;
+  propositionCompleteness = completeness;
+  return true;
 }
 
 function propositionRecords() {
@@ -11969,7 +11990,7 @@ function renderPropositionsTab() {
 
   const list = document.getElementById('propositionCandidates');
   const cards = records.map((record) => renderPropositionCard(record));
-  if (propositionDraft) cards.unshift(renderPropositionCard({ proposition: propositionDraft, outcome: 'hand-added', explicit_unresolved: true }, true));
+  if (propositionDraft) cards.unshift(renderPropositionCard({ proposition: propositionDraft, outcome: 'hand-added', explicit_unresolved: false }, true));
   list.innerHTML = cards.join('') || '<div class="proposition-status">No proposition candidates yet.</div>';
   const remaining = (propositionSession?.candidates || []).filter(c => c.outcome === 'unreviewed').length + (propositionSession?.blind_pending || 0);
   document.getElementById('propositionRemainingChip').textContent = `${remaining} unreviewed remaining`;
@@ -12040,38 +12061,50 @@ function propositionFromCard(card) {
 
 async function savePropositionOutcome(button, outcome) {
   const card = button.closest('.proposition-card');
+  const activeJobId = currentJobId;
+  const activeSessionId = propositionSession?.session_id;
   try {
     const explicit = card.querySelector('[data-field="explicit_unresolved"]').checked;
     const body = { outcome, explicit_unresolved: explicit };
     if (outcome !== 'deleted') body.proposition = propositionFromCard(card);
-    propositionSession = await propositionFetch(`/gold/sessions/${propositionSession.session_id}/candidates/${encodeURIComponent(card.dataset.candidateId)}`, { method: 'PATCH', body: JSON.stringify(body) });
-    await refreshPropositionCompleteness();
+    const session = await propositionFetch(`/gold/sessions/${activeSessionId}/candidates/${encodeURIComponent(card.dataset.candidateId)}`, { method: 'PATCH', body: JSON.stringify(body) });
+    if (currentJobId !== activeJobId || propositionSession?.session_id !== activeSessionId) return;
+    propositionSession = session;
+    if (!await refreshPropositionCompleteness(activeJobId, activeSessionId)) return;
     renderPropositionsTab();
     _showInfoToast(outcome === 'deleted' ? 'Candidate discarded' : `Candidate ${outcome}`);
-  } catch (error) { propositionApiError(error); }
+  } catch (error) { if (currentJobId === activeJobId && propositionSession?.session_id === activeSessionId) propositionApiError(error); }
 }
 
 async function saveHandAdded(button) {
   const card = button.closest('.proposition-card');
+  const activeJobId = currentJobId;
+  const activeSessionId = propositionSession?.session_id;
   try {
     const proposition = propositionFromCard(card);
     const explicit_unresolved = card.querySelector('[data-field="explicit_unresolved"]').checked;
-    propositionSession = await propositionFetch(`/gold/sessions/${propositionSession.session_id}/annotations`, { method: 'POST', body: JSON.stringify({ proposition, explicit_unresolved }) });
+    const session = await propositionFetch(`/gold/sessions/${activeSessionId}/annotations`, { method: 'POST', body: JSON.stringify({ proposition, explicit_unresolved }) });
+    if (currentJobId !== activeJobId || propositionSession?.session_id !== activeSessionId) return;
+    propositionSession = session;
     propositionDraft = null;
     renderPropositionsTab();
     _showInfoToast('Hand-added proposition saved');
-  } catch (error) { propositionApiError(error); }
+  } catch (error) { if (currentJobId === activeJobId && propositionSession?.session_id === activeSessionId) propositionApiError(error); }
 }
 
 function cancelHandAdded() { propositionDraft = null; renderPropositionsTab(); }
 
 async function recordNewTypeLearning(button) {
   const card = button.closest('.proposition-card');
+  const activeJobId = currentJobId;
+  const activeSessionId = propositionSession?.session_id;
   try {
     const p = propositionFromCard(card);
-    propositionSession = await propositionFetch(`/gold/sessions/${propositionSession.session_id}/learnings`, { method: 'POST', body: JSON.stringify({ kind: 'new-type', tag: p.proposition_type, annotation_id: p.id, start_char: p.start_char, end_char: p.end_char }) });
+    const session = await propositionFetch(`/gold/sessions/${activeSessionId}/learnings`, { method: 'POST', body: JSON.stringify({ kind: 'new-type', tag: p.proposition_type, annotation_id: p.id, start_char: p.start_char, end_char: p.end_char }) });
+    if (currentJobId !== activeJobId || propositionSession?.session_id !== activeSessionId) return;
+    propositionSession = session;
     _showInfoToast('New-type learning recorded');
-  } catch (error) { propositionApiError(error); }
+  } catch (error) { if (currentJobId === activeJobId && propositionSession?.session_id === activeSessionId) propositionApiError(error); }
 }
 
 function focusPropositionCard(event, id) {
@@ -12109,15 +12142,19 @@ async function handlePropositionSelection() {
   const text = range.toString();
   if (propositionBlindArmed) {
     selection.removeAllRanges();
+    const activeJobId = currentJobId;
+    const activeSessionId = propositionSession?.session_id;
     try {
-      propositionSession = await propositionFetch(`/gold/sessions/${propositionSession.session_id}/blind-segment`, {
+      const session = await propositionFetch(`/gold/sessions/${activeSessionId}/blind-segment`, {
         method: 'POST', body: JSON.stringify({ start_char: start, end_char: start + text.length }),
       });
+      if (currentJobId !== activeJobId || propositionSession?.session_id !== activeSessionId) return;
+      propositionSession = session;
       propositionBlindArmed = false;
-      await refreshPropositionCompleteness();
+      if (!await refreshPropositionCompleteness(activeJobId, activeSessionId)) return;
       renderPropositionsTab();
       _showInfoToast(`${propositionSession.blind_pending} candidate(s) hidden for unassisted annotation`);
-    } catch (error) { propositionApiError(error); }
+    } catch (error) { if (currentJobId === activeJobId && propositionSession?.session_id === activeSessionId) propositionApiError(error); }
     return;
   }
   propositionDraft = { id: `hand-${crypto.randomUUID()}`, start_char: start, end_char: start + text.length, text, proposition_type: 'party proposition of law', is_new_type: false, asserter: null, validator: null, disposition: 'unresolved', citation_edges: [], triple_ids: [] };
@@ -12128,29 +12165,40 @@ async function handlePropositionSelection() {
 }
 
 async function revealBlindSegment() {
+  const activeJobId = currentJobId;
+  const activeSessionId = propositionSession?.session_id;
   try {
-    propositionSession = await propositionFetch(`/gold/sessions/${propositionSession.session_id}/blind-segment/reveal`, { method: 'POST' });
-    await refreshPropositionCompleteness();
+    const session = await propositionFetch(`/gold/sessions/${activeSessionId}/blind-segment/reveal`, { method: 'POST' });
+    if (currentJobId !== activeJobId || propositionSession?.session_id !== activeSessionId) return;
+    propositionSession = session;
+    if (!await refreshPropositionCompleteness(activeJobId, activeSessionId)) return;
     renderPropositionsTab();
     _showInfoToast('Blind segment revealed and anchoring diff recorded');
-  } catch (error) { propositionApiError(error); }
+  } catch (error) { if (currentJobId === activeJobId && propositionSession?.session_id === activeSessionId) propositionApiError(error); }
 }
 
 async function recordCoveragePass() {
+  const activeJobId = currentJobId;
+  const activeSessionId = propositionSession?.session_id;
   try {
-    propositionSession = await propositionFetch(`/gold/sessions/${propositionSession.session_id}/coverage-pass`, { method: 'POST' });
-    await refreshPropositionCompleteness();
+    const session = await propositionFetch(`/gold/sessions/${activeSessionId}/coverage-pass`, { method: 'POST' });
+    if (currentJobId !== activeJobId || propositionSession?.session_id !== activeSessionId) return;
+    propositionSession = session;
+    if (!await refreshPropositionCompleteness(activeJobId, activeSessionId)) return;
     renderPropositionsTab();
     _showInfoToast('Full-text coverage pass recorded');
-  } catch (error) { propositionApiError(error); }
+  } catch (error) { if (currentJobId === activeJobId && propositionSession?.session_id === activeSessionId) propositionApiError(error); }
 }
 
 async function exportGoldRecord() {
+  const activeJobId = currentJobId;
+  const activeSessionId = propositionSession?.session_id;
   try {
-    const result = await propositionFetch(`/gold/sessions/${propositionSession.session_id}/export`, { method: 'POST', body: '{}' });
+    const result = await propositionFetch(`/gold/sessions/${activeSessionId}/export`, { method: 'POST', body: '{}' });
+    if (currentJobId !== activeJobId || propositionSession?.session_id !== activeSessionId) return;
     document.getElementById('propositionExportResult').textContent = `Exported JSONL: ${result.jsonl}; BRAT: ${result.ann}; manifest: ${result.manifest}. Precision ${result.precision.toFixed(3)}, recall proxy ${result.recall_proxy.toFixed(3)}.`;
     _showInfoToast('Gold record exported');
-  } catch (error) { propositionApiError(error); }
+  } catch (error) { if (currentJobId === activeJobId && propositionSession?.session_id === activeSessionId) propositionApiError(error); }
 }
 
 document.addEventListener('keydown', event => {

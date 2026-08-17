@@ -25,7 +25,7 @@ import pytest
 from app.config import settings
 from app.models.document import DocumentInput
 from app.models.job import Job, JobStatus
-from app.pipeline.orchestrator import PipelineOrchestrator
+from app.pipeline.orchestrator import PipelineOrchestrator, TaskLLMs
 from app.pipeline.stages.ingestion_stage import IngestionStage
 from app.pipeline.stages.normalization_stage import NormalizationStage
 from app.services.export.registry import get_exporter, list_formats
@@ -182,6 +182,42 @@ async def test_pipeline_is_byte_neutral_when_propositions_are_disabled() -> None
     if "propositions" not in expected.get("result", {}):
         assert actual["result"].pop("propositions", []) == []
     assert actual == expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.timeout(180)
+@pytest.mark.parametrize("enabled", [False, True])
+async def test_production_parallel_path_honors_proposition_flag(
+    monkeypatch, tmp_path, enabled
+) -> None:
+    monkeypatch.setattr(settings, "proposition_extraction_enabled", enabled)
+    store = JobStore(base_dir=tmp_path / "jobs")
+    pipeline = PipelineOrchestrator(store, llm=None, task_llms=TaskLLMs())
+    # Construct the same production config and exercise _run_parallel, while
+    # removing unrelated enrichment work so this focused wiring test stays fast.
+    config = pipeline._config
+    assert config is not None
+    config.entity_ruler = None
+    config.early_individual = None
+    config.early_property = None
+    config.early_triple = None
+    config.document_type = None
+    config.post_parallel = []
+    job = Job(input=DocumentInput(
+        content="Plaintiff contends the statute requires notice."
+    ))
+
+    job = await pipeline.run(job)
+
+    assert job.status == JobStatus.COMPLETED, job.error
+    assert bool(job.result.propositions) is enabled
+    events = [
+        event async for event in job_event_stream(job.id, store, poll_interval=0)
+    ]
+    proposition_events = [
+        event for event in events if event["event"] == "proposition_added"
+    ]
+    assert bool(proposition_events) is enabled
 
 
 if __name__ == "__main__":

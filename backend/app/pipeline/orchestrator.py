@@ -515,6 +515,13 @@ class PipelineOrchestrator:
                     logger.warning("Stage %s failed for job %s: %s — continuing",
                                    config.early_proposition.name, j.id, e)
 
+            async def run_individual_then_proposition(j: Job) -> None:
+                # Proposition citation edges depend on early individuals. Each
+                # stage isolates its own failures, so proposition extraction
+                # still runs if individual extraction fails.
+                await run_early_individual(j)
+                await run_early_proposition(j)
+
             async def run_document_type(j: Job) -> None:
                 if config.document_type is None:
                     return
@@ -530,9 +537,8 @@ class PipelineOrchestrator:
             await asyncio.gather(
                 run_entity_ruler(job),
                 run_llm_concept(job),
-                run_early_individual(job),
+                run_individual_then_proposition(job),
                 run_early_property(job),
-                run_early_proposition(job),
                 run_early_triple(job),
                 run_document_type(job),
             )

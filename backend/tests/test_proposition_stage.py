@@ -34,6 +34,12 @@ class FakeLLM:
         return self.response
 
 
+class RaisingLLM(FakeLLM):
+    async def structured(self, prompt: str, schema: dict, **kwargs) -> dict:
+        self.prompts.append(prompt)
+        raise RuntimeError("provider unavailable")
+
+
 @pytest.mark.asyncio
 async def test_flag_off_returns_job_unchanged(monkeypatch) -> None:
     from app.pipeline.stages.proposition_stage import EarlyPropositionStage
@@ -145,6 +151,78 @@ async def test_llm_assist_is_routed_through_proposition_task(monkeypatch) -> Non
         await _job("The statute requires notice.")
     )
     assert len(fake.prompts) == 1
+
+
+@pytest.mark.asyncio
+async def test_llm_assist_builds_and_merges_same_span_different_type(
+    monkeypatch,
+) -> None:
+    from app.pipeline.stages.proposition_stage import EarlyPropositionStage
+
+    text = "Plaintiff contends the statute requires notice."
+    content = "the statute requires notice"
+    start = text.index(content)
+    fake = FakeLLM(response={"propositions": [{
+        "start_char": start,
+        "end_char": start + len(content),
+        "proposition_type": "party proposition of fact",
+        "asserter_role": "plaintiff",
+        "validator_mode": None,
+        "disposition": "unresolved",
+    }]})
+    monkeypatch.setattr(settings, "proposition_extraction_enabled", True)
+
+    result = await EarlyPropositionStage(llm=fake).execute(await _job(text))
+
+    assert len(result.result.propositions) == 2
+    assert {item.proposition_type for item in result.result.propositions} == {
+        "party proposition of fact",
+        "party proposition of law",
+    }
+    assert len({item.id for item in result.result.propositions}) == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "item",
+    [
+        {
+            "start_char": 0,
+            "end_char": 10_000,
+            "proposition_type": "party proposition of law",
+        },
+        {"start_char": 0, "end_char": 4},
+        {
+            "start_char": {"not": "an integer"},
+            "end_char": 4,
+            "proposition_type": "party proposition of law",
+        },
+    ],
+)
+async def test_llm_assist_skips_invalid_items(monkeypatch, item) -> None:
+    from app.pipeline.stages.proposition_stage import EarlyPropositionStage
+
+    monkeypatch.setattr(settings, "proposition_extraction_enabled", True)
+    result = await EarlyPropositionStage(
+        llm=FakeLLM(response={"propositions": [item]})
+    ).execute(await _job("The statute requires notice."))
+
+    assert result.result.propositions == []
+
+
+@pytest.mark.asyncio
+async def test_llm_assist_provider_failure_preserves_lexicon_candidates(
+    monkeypatch,
+) -> None:
+    from app.pipeline.stages.proposition_stage import EarlyPropositionStage
+
+    monkeypatch.setattr(settings, "proposition_extraction_enabled", True)
+    result = await EarlyPropositionStage(llm=RaisingLLM()).execute(
+        await _job("Plaintiff contends the statute requires notice.")
+    )
+
+    assert len(result.result.propositions) == 1
+    assert result.result.propositions[0].proposition_type == "party proposition of law"
 
 
 @pytest.mark.asyncio

@@ -83,7 +83,9 @@ class EarlyPropositionStage(PipelineStage):
                 role = item.get("asserter_role", "party")
                 validator_mode = item.get("validator_mode")
                 candidates.append(Proposition(
-                    id=proposition_id(job.id, start, end),
+                    id=proposition_id(
+                        job.id, start, end, item["proposition_type"]
+                    ),
                     start_char=start,
                     end_char=end,
                     text=text[start:end],

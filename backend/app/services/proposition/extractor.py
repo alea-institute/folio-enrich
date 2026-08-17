@@ -113,7 +113,7 @@ class PropositionExtractor:
         self, job: Job, sentence, start: int, end: int, content: str,
         frame: PropositionFrame, role: str,
     ) -> Proposition:
-        identity = proposition_id(job.id, start, end)
+        identity = proposition_id(job.id, start, end, frame.proposition_type)
         validator = (
             AdjudicatorRef(role="court", mode=frame.validator_mode)
             if frame.validator_mode else None
