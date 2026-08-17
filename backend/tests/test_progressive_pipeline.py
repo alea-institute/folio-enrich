@@ -457,6 +457,7 @@ class TestPipelineConfig:
         assert len(config.pre_parallel) == 2
         assert config.entity_ruler is not None
         assert config.llm_concept is None
+        assert config.early_proposition is not None
         assert len(config.post_parallel) >= 3  # reconciliation, resolution, string_match, dependency
 
     def test_build_pipeline_config_with_llm(self):

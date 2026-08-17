@@ -19,6 +19,7 @@ from app.pipeline.stages.metadata_stage import MetadataStage
 from app.pipeline.stages.dependency_stage import TripleEnrichmentStage
 from app.pipeline.stages.individual_stage import EarlyIndividualStage, LLMIndividualStage
 from app.pipeline.stages.property_stage import EarlyPropertyStage, LLMPropertyStage
+from app.pipeline.stages.proposition_stage import EarlyPropositionStage
 from app.pipeline.stages.triple_stage import EarlyTripleStage
 from app.pipeline.stages.document_type_stage import DocumentTypeStage
 from app.pipeline.stages.rerank_stage import ContextualRerankStage
@@ -28,7 +29,7 @@ from app.storage.job_store import JobStore
 logger = logging.getLogger(__name__)
 
 # Task names for per-task LLM configuration
-LLM_TASKS = ("classifier", "extractor", "concept", "branch_judge", "area_of_law", "synthetic", "individual", "property", "document_type")
+LLM_TASKS = ("classifier", "extractor", "concept", "branch_judge", "area_of_law", "synthetic", "individual", "property", "proposition", "document_type")
 
 # Map task names to TaskLLMs field names (needed when task name is a Python builtin)
 _TASK_FIELD_MAP: dict[str, str] = {"property": "property_llm"}
@@ -51,6 +52,7 @@ class TaskLLMs:
     synthetic: LLMProvider | None = None
     individual: LLMProvider | None = None
     property_llm: LLMProvider | None = None
+    proposition: LLMProvider | None = None
     document_type: LLMProvider | None = None
 
     # --- convenience helpers ------------------------------------------------
@@ -87,9 +89,38 @@ class PipelineConfig:
     llm_concept: PipelineStage | None = None
     early_individual: PipelineStage | None = None
     early_property: PipelineStage | None = None
+    early_proposition: PipelineStage | None = None
     early_triple: PipelineStage | None = None
     document_type: PipelineStage | None = None
     post_parallel: list[PipelineStage] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class _ResolvedTaskLLMs:
+    concept: LLMProvider | None
+    branch_judge: LLMProvider | None
+    classifier: LLMProvider | None
+    extractor: LLMProvider | None
+    individual: LLMProvider | None
+    property_llm: LLMProvider | None
+    proposition: LLMProvider | None
+    document_type: LLMProvider | None
+
+
+def _resolve_task_llms(
+    llm: LLMProvider | None,
+    task_llms: TaskLLMs | None,
+) -> _ResolvedTaskLLMs:
+    return _ResolvedTaskLLMs(
+        concept=(task_llms.concept if task_llms else llm) or llm,
+        branch_judge=(task_llms.branch_judge if task_llms else llm) or llm,
+        classifier=(task_llms.classifier if task_llms else llm) or llm,
+        extractor=(task_llms.extractor if task_llms else llm) or llm,
+        individual=(task_llms.individual if task_llms else llm) or llm,
+        property_llm=(task_llms.property_llm if task_llms else llm) or llm,
+        proposition=(task_llms.proposition if task_llms else llm) or llm,
+        document_type=(task_llms.document_type if task_llms else llm) or llm,
+    )
 
 
 def build_pipeline_config(
@@ -102,13 +133,7 @@ def build_pipeline_config(
     When *task_llms* is provided, each stage uses its task-specific LLM.
     Otherwise the single *llm* is used for all stages (backward-compatible).
     """
-    concept_llm = (task_llms.concept if task_llms else llm) or llm
-    branch_judge_llm = (task_llms.branch_judge if task_llms else llm) or llm
-    classifier_llm = (task_llms.classifier if task_llms else llm) or llm
-    extractor_llm = (task_llms.extractor if task_llms else llm) or llm
-    individual_llm = (task_llms.individual if task_llms else llm) or llm
-    property_llm = (task_llms.property_llm if task_llms else llm) or llm
-    document_type_llm = (task_llms.document_type if task_llms else llm) or llm
+    task_llms_resolved = _resolve_task_llms(llm, task_llms)
 
     config = PipelineConfig(
         pre_parallel=[
@@ -118,8 +143,8 @@ def build_pipeline_config(
         entity_ruler=EntityRulerStage(registry_embeddings=True, job_store=job_store),
     )
 
-    if concept_llm is not None:
-        config.llm_concept = LLMConceptStage(concept_llm)
+    if task_llms_resolved.concept is not None:
+        config.llm_concept = LLMConceptStage(task_llms_resolved.concept)
 
     # Early individual extraction (citations + regex/spaCy) runs in parallel
     config.early_individual = EarlyIndividualStage()
@@ -127,41 +152,44 @@ def build_pipeline_config(
     # Early property extraction (Aho-Corasick) runs in parallel
     config.early_property = EarlyPropertyStage()
 
+    # Proposition lexicon/dependency extraction plus optional LLM assist
+    config.early_proposition = EarlyPropositionStage(task_llms_resolved.proposition)
+
     # Early triple extraction (dependency parsing) runs in parallel
     config.early_triple = EarlyTripleStage()
 
     # Early document type classification runs in parallel
-    if document_type_llm is not None:
-        config.document_type = DocumentTypeStage(document_type_llm)
+    if task_llms_resolved.document_type is not None:
+        config.document_type = DocumentTypeStage(task_llms_resolved.document_type)
 
     config.post_parallel = [
         ReconciliationStage(registry_embeddings=True),
         ResolutionStage(registry_embeddings=True),
     ]
 
-    if concept_llm is not None:
-        config.post_parallel.append(ContextualRerankStage(concept_llm))
+    if task_llms_resolved.concept is not None:
+        config.post_parallel.append(ContextualRerankStage(task_llms_resolved.concept))
 
-    if branch_judge_llm is not None:
-        config.post_parallel.append(BranchJudgeStage(branch_judge_llm))
+    if task_llms_resolved.branch_judge is not None:
+        config.post_parallel.append(BranchJudgeStage(task_llms_resolved.branch_judge))
 
     config.post_parallel.append(StringMatchStage())
 
     # LLM individual linking (after StringMatch, needs resolved classes)
-    config.post_parallel.append(LLMIndividualStage(llm=individual_llm))
+    config.post_parallel.append(LLMIndividualStage(llm=task_llms_resolved.individual))
 
     # LLM property linking (after LLMIndividual, needs resolved classes)
-    config.post_parallel.append(LLMPropertyStage(llm=property_llm))
+    config.post_parallel.append(LLMPropertyStage(llm=task_llms_resolved.property_llm))
 
     config.post_parallel.append(TripleEnrichmentStage())
 
     # MetadataStage runs absolute last — it uses all pipeline outputs as context
-    if classifier_llm is not None or extractor_llm is not None:
+    if task_llms_resolved.classifier is not None or task_llms_resolved.extractor is not None:
         config.post_parallel.append(
             MetadataStage(
-                classifier_llm or extractor_llm,
-                classifier_llm=classifier_llm,
-                extractor_llm=extractor_llm,
+                task_llms_resolved.classifier or task_llms_resolved.extractor,
+                classifier_llm=task_llms_resolved.classifier,
+                extractor_llm=task_llms_resolved.extractor,
             )
         )
 
@@ -179,13 +207,7 @@ def build_stages(
     LLM-dependent stages are included only when an LLM provider is available;
     otherwise they are skipped gracefully.
     """
-    concept_llm = (task_llms.concept if task_llms else llm) or llm
-    branch_judge_llm = (task_llms.branch_judge if task_llms else llm) or llm
-    classifier_llm = (task_llms.classifier if task_llms else llm) or llm
-    extractor_llm = (task_llms.extractor if task_llms else llm) or llm
-    individual_llm = (task_llms.individual if task_llms else llm) or llm
-    property_llm = (task_llms.property_llm if task_llms else llm) or llm
-    document_type_llm = (task_llms.document_type if task_llms else llm) or llm
+    task_llms_resolved = _resolve_task_llms(llm, task_llms)
 
     stages: list[PipelineStage] = [
         IngestionStage(),
@@ -199,42 +221,45 @@ def build_stages(
     # Early property extraction (Aho-Corasick) — fast, no LLM
     stages.append(EarlyPropertyStage())
 
+    # Early proposition pre-selection — lexicon-first, optional LLM assist
+    stages.append(EarlyPropositionStage(task_llms_resolved.proposition))
+
     # Early triple extraction (dependency parsing) — fast, no LLM
     stages.append(EarlyTripleStage())
 
     # Early document type classification — LLM-based
-    if document_type_llm is not None:
-        stages.append(DocumentTypeStage(document_type_llm))
+    if task_llms_resolved.document_type is not None:
+        stages.append(DocumentTypeStage(task_llms_resolved.document_type))
 
-    if concept_llm is not None:
-        stages.append(LLMConceptStage(concept_llm))
+    if task_llms_resolved.concept is not None:
+        stages.append(LLMConceptStage(task_llms_resolved.concept))
 
     stages.append(ReconciliationStage(registry_embeddings=True))
     stages.append(ResolutionStage(registry_embeddings=True))
 
-    if concept_llm is not None:
-        stages.append(ContextualRerankStage(concept_llm))
+    if task_llms_resolved.concept is not None:
+        stages.append(ContextualRerankStage(task_llms_resolved.concept))
 
-    if branch_judge_llm is not None:
-        stages.append(BranchJudgeStage(branch_judge_llm))
+    if task_llms_resolved.branch_judge is not None:
+        stages.append(BranchJudgeStage(task_llms_resolved.branch_judge))
 
     stages.append(StringMatchStage())
 
     # LLM individual linking (after StringMatch, needs resolved classes)
-    stages.append(LLMIndividualStage(llm=individual_llm))
+    stages.append(LLMIndividualStage(llm=task_llms_resolved.individual))
 
     # LLM property linking (after LLMIndividual, needs resolved classes)
-    stages.append(LLMPropertyStage(llm=property_llm))
+    stages.append(LLMPropertyStage(llm=task_llms_resolved.property_llm))
 
     stages.append(TripleEnrichmentStage())
 
     # MetadataStage runs absolute last — it uses all pipeline outputs as context
-    if classifier_llm is not None or extractor_llm is not None:
+    if task_llms_resolved.classifier is not None or task_llms_resolved.extractor is not None:
         stages.append(
             MetadataStage(
-                classifier_llm or extractor_llm,
-                classifier_llm=classifier_llm,
-                extractor_llm=extractor_llm,
+                task_llms_resolved.classifier or task_llms_resolved.extractor,
+                classifier_llm=task_llms_resolved.classifier,
+                extractor_llm=task_llms_resolved.extractor,
             )
         )
 
@@ -475,6 +500,28 @@ class PipelineOrchestrator:
                     logger.warning("Stage %s failed for job %s: %s — continuing",
                                    config.early_triple.name, j.id, e)
 
+            async def run_early_proposition(j: Job) -> None:
+                if config.early_proposition is None:
+                    return
+                from app.config import settings
+                if not settings.proposition_extraction_enabled:
+                    return
+                logger.info("Running stage %s for job %s (parallel)", config.early_proposition.name, j.id)
+                try:
+                    await config.early_proposition.execute(j)
+                    j.updated_at = datetime.now(timezone.utc)
+                    await self.job_store.save(j)
+                except Exception as e:
+                    logger.warning("Stage %s failed for job %s: %s — continuing",
+                                   config.early_proposition.name, j.id, e)
+
+            async def run_individual_then_proposition(j: Job) -> None:
+                # Proposition citation edges depend on early individuals. Each
+                # stage isolates its own failures, so proposition extraction
+                # still runs if individual extraction fails.
+                await run_early_individual(j)
+                await run_early_proposition(j)
+
             async def run_document_type(j: Job) -> None:
                 if config.document_type is None:
                     return
@@ -490,7 +537,7 @@ class PipelineOrchestrator:
             await asyncio.gather(
                 run_entity_ruler(job),
                 run_llm_concept(job),
-                run_early_individual(job),
+                run_individual_then_proposition(job),
                 run_early_property(job),
                 run_early_triple(job),
                 run_document_type(job),

@@ -126,10 +126,20 @@ class JobStore:
             retention_days = settings.job_retention_days
         cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
         deleted = 0
+        unexported_job_ids: set[str] = set()
+
+        for session_path in (self.base_dir / "gold_sessions").glob("*.json"):
+            try:
+                data = json.loads(session_path.read_text())
+                job_id = data.get("job_id")
+                if isinstance(job_id, str) and not data.get("exported_at"):
+                    unexported_job_ids.add(job_id)
+            except Exception:
+                continue
 
         for path in list(self.base_dir.glob("*.json")):
-            if path.stem in PROTECTED_JOB_IDS:
-                continue  # never delete seeded demo jobs
+            if path.stem in PROTECTED_JOB_IDS or path.stem in unexported_job_ids:
+                continue
             try:
                 data = json.loads(path.read_text())
                 updated = data.get("updated_at") or data.get("created_at")

@@ -60,14 +60,15 @@ class TestOllamaStatus:
 
 class TestOllamaTierConfig:
     @pytest.mark.asyncio
-    async def test_tier_config_returns_all_9_tasks(self, client):
+    async def test_tier_config_returns_all_10_tasks(self, client):
         r = await client.get('/ollama/tier-config')
         assert r.status_code == 200
         data = r.json()
         tasks = data['tasks']
-        assert len(tasks) == 9
+        assert len(tasks) == 10
         expected = {"document_type", "area_of_law", "concept", "branch_judge",
-                    "synthetic", "classifier", "extractor", "individual", "property"}
+                    "synthetic", "classifier", "extractor", "individual", "property",
+                    "proposition"}
         assert set(tasks.keys()) == expected
         # Check structure
         for task_info in tasks.values():

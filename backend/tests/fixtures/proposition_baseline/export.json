@@ -1,0 +1,37 @@
+{
+  "job_id": "d3e79092-f12a-5d3b-91e3-e171c7263277",
+  "status": "completed",
+  "document": {
+    "format": "plain_text",
+    "filename": null
+  },
+  "metadata": {
+    "activity_log": [
+      {
+        "ts": "2025-01-02T03:04:05Z",
+        "stage": "ingestion",
+        "msg": "Ingested 50 characters from DocumentFormat.PLAIN_TEXT"
+      },
+      {
+        "ts": "2025-01-02T03:04:05Z",
+        "stage": "normalization",
+        "msg": "Normalized into 1 chunks, 1 sentences"
+      }
+    ]
+  },
+  "annotations": [],
+  "individuals": [],
+  "properties": [],
+  "triples": [],
+  "statistics": {
+    "total_annotations": 0,
+    "unique_concepts": 0,
+    "total_individuals": 0,
+    "legal_citations": 0,
+    "named_entities": 0,
+    "total_properties": 0,
+    "unique_properties": 0,
+    "total_triples": 0,
+    "folio_linked_triples": 0
+  }
+}

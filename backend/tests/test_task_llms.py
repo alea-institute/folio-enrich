@@ -23,6 +23,7 @@ class TestTaskLLMs:
         assert t.branch_judge is None
         assert t.area_of_law is None
         assert t.synthetic is None
+        assert t.proposition is None
         assert not t.has_any
 
     def test_has_any(self):
@@ -50,7 +51,7 @@ class TestTaskLLMs:
         fallback = FakeLLM("global")
         # Save originals and ensure all per-task settings are empty
         originals = {}
-        for task in ("classifier", "extractor", "concept", "branch_judge", "area_of_law", "synthetic"):
+        for task in ("classifier", "extractor", "concept", "branch_judge", "area_of_law", "synthetic", "individual", "property", "proposition", "document_type"):
             for suffix in ("provider", "model"):
                 attr = f"llm_{task}_{suffix}"
                 originals[attr] = getattr(settings, attr)
@@ -68,6 +69,7 @@ class TestTaskLLMs:
             assert t.branch_judge is fallback
             assert t.area_of_law is fallback
             assert t.synthetic is fallback
+            assert t.proposition is fallback
         finally:
             for attr, val in originals.items():
                 setattr(settings, attr, val)
@@ -85,7 +87,7 @@ class TestTaskLLMs:
             return None
 
         originals = {}
-        for task in ("classifier", "extractor", "concept", "branch_judge", "area_of_law", "synthetic"):
+        for task in ("classifier", "extractor", "concept", "branch_judge", "area_of_law", "synthetic", "individual", "property", "proposition", "document_type"):
             for suffix in ("provider", "model"):
                 attr = f"llm_{task}_{suffix}"
                 originals[attr] = getattr(settings, attr)
@@ -203,6 +205,9 @@ class TestConfigPerTaskSettings:
         assert s.llm_classifier_model == ""
         assert s.llm_synthetic_provider == ""
         assert s.llm_synthetic_model == ""
+        assert s.llm_proposition_provider == ""
+        assert s.llm_proposition_model == ""
+        assert s.proposition_extraction_enabled is False
 
     def test_env_override(self, monkeypatch):
         monkeypatch.setenv("FOLIO_ENRICH_LLM_CONCEPT_PROVIDER", "openai")
