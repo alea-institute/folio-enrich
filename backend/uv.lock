@@ -527,6 +527,7 @@ dependencies = [
     { name = "eyecite" },
     { name = "faiss-cpu" },
     { name = "fastapi" },
+    { name = "folio-propositions" },
     { name = "folio-python", extra = ["search"] },
     { name = "folio-resolve" },
     { name = "httpx" },
@@ -566,6 +567,7 @@ requires-dist = [
     { name = "eyecite", specifier = ">=2.7" },
     { name = "faiss-cpu", specifier = ">=1.8" },
     { name = "fastapi", specifier = ">=0.115.0" },
+    { name = "folio-propositions", git = "https://github.com/alea-institute/folio-propositions?rev=v0.3.0" },
     { name = "folio-python", extras = ["search"], specifier = ">=0.1.5" },
     { name = "folio-resolve", specifier = "==0.4.0" },
     { name = "httpx", specifier = ">=0.28.0" },
@@ -592,6 +594,14 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34.0" },
 ]
 provides-extras = ["embeddings", "dev"]
+
+[[package]]
+name = "folio-propositions"
+version = "0.3.0"
+source = { git = "https://github.com/alea-institute/folio-propositions?rev=v0.3.0#cb1e6a7f0e868534790b446043e9f630c380c356" }
+dependencies = [
+    { name = "pydantic" },
+]
 
 [[package]]
 name = "folio-python"
