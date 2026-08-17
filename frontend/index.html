@@ -4955,6 +4955,74 @@ async function tryLoadDemo() {
   return true;
 }
 
+async function tryLoadJob() {
+  const params = new URLSearchParams(window.location.search);
+  const jobId = params.get('job');
+  if (!jobId) return false;
+
+  try {
+    const resp = await fetch(`${API}/enrich/${encodeURIComponent(jobId)}`);
+    if (!resp.ok) {
+      if (resp.status === 404) showDemoToast('Job not found — opening the enrichment workspace instead.');
+      else showDemoToast('Job unavailable — opening the enrichment workspace instead.');
+      return false;
+    }
+
+    const job = await resp.json();
+    if (!job?.result || job.status !== 'completed') {
+      showDemoToast('Job is not complete — opening the enrichment workspace instead.');
+      return false;
+    }
+
+    const result = job.result;
+    const jobOntology = result.ontology_id || job.input?.ontology;
+    if (ONTOLOGY_ALLOW.has(jobOntology) && jobOntology !== activeOntology) {
+      applyOntology(jobOntology, { push: false, persist: true });
+    }
+
+    resetPropositionSessionState();
+    currentJobId = job.id || jobId;
+    currentJob = job;
+    accumulatedAnnotations = result.annotations || [];
+    accumulatedIndividuals = result.individuals || [];
+    accumulatedProperties = result.properties || [];
+    accumulatedPropositions = result.propositions || [];
+    accumulatedTriples = result.triples || result.metadata?.spo_triples || [];
+    normalizedText = result.canonical_text?.full_text || null;
+    activityEntries = result.metadata?.activity_log || [];
+    uploadedFilename = job.input?.filename || null;
+
+    _seedFeedbackCaches(accumulatedAnnotations);
+    if (job.input?.content) document.getElementById('docInput').value = job.input.content;
+
+    renderResults(job);
+    renderProgressStages('completed');
+    renderActivityLog();
+    setStatus(`Completed: ${accumulatedAnnotations.length} annotations`, 'completed');
+    cacheState();
+
+    // Deep-linked reviews may inspect an existing gold session without turning on
+    // Annotation mode. Lookup-only must never create a session on a miss.
+    await ensurePropositionSession(false, { lookupOnly: true });
+
+    const requestedTab = params.get('tab');
+    if (requestedTab) {
+      const tab = document.querySelector(`.tab[data-tab="${CSS.escape(requestedTab)}"]`);
+      if (tab && document.getElementById(`tab-${requestedTab}`)) switchTab(tab, requestedTab);
+    }
+
+    params.delete('job');
+    params.delete('tab');
+    const qs = params.toString();
+    history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : ''));
+    return true;
+  } catch (error) {
+    console.warn('Failed to load job:', error);
+    showDemoToast('Job unavailable — opening the enrichment workspace instead.');
+    return false;
+  }
+}
+
 function hydrateFromDemo(cache, slug) {
   isDemoMode = true;
   currentDemoSlug = slug;
@@ -5094,8 +5162,9 @@ async function init() {
     });
   });
 
-  const demoLoaded = await tryLoadDemo();
-  if (!demoLoaded && !restoreState()) {
+  const jobLoaded = await tryLoadJob();
+  const demoLoaded = !jobLoaded && await tryLoadDemo();
+  if (!jobLoaded && !demoLoaded && !restoreState()) {
     renderProgressStages('pending');
   }
 
@@ -11895,8 +11964,8 @@ async function togglePropositionMode(enabled) {
   }
 }
 
-async function ensurePropositionSession(force) {
-  if (!propositionAnnotationMode || !currentJobId || currentJob?.status !== 'completed') {
+async function ensurePropositionSession(force, { lookupOnly = false } = {}) {
+  if ((!propositionAnnotationMode && !lookupOnly) || !currentJobId || currentJob?.status !== 'completed') {
     renderPropositionsTab();
     return;
   }
@@ -11914,6 +11983,10 @@ async function ensurePropositionSession(force) {
         renderPropositionsTab();
         return;
       }
+    }
+    if (lookupOnly) {
+      renderPropositionsTab();
+      return;
     }
     if (!propositionSettings) {
       const settings = await propositionFetch('/settings', { method: 'GET' });
@@ -11984,12 +12057,12 @@ function renderPropositionsTab() {
   if (propositionSession) baselineToggle.checked = Boolean(propositionSession.baseline);
 
   const blindPending = Boolean(propositionSession?.blind_segment && !propositionSession?.blind_revealed_at);
-  document.getElementById('revealBlindBtn').style.display = blindPending ? '' : 'none';
+  document.getElementById('revealBlindBtn').style.display = blindPending && propositionAnnotationMode ? '' : 'none';
   const blindChip = document.getElementById('blindPendingChip');
   blindChip.style.display = blindPending ? '' : 'none';
   blindChip.textContent = `blind segment: ${propositionSession?.blind_pending || 0} hidden`;
   const coverageButton = document.getElementById('coveragePassBtn');
-  coverageButton.disabled = !propositionSession || Boolean(propositionSession.coverage_pass_completed_at);
+  coverageButton.disabled = !propositionAnnotationMode || !propositionSession || Boolean(propositionSession.coverage_pass_completed_at);
   coverageButton.textContent = propositionSession?.coverage_pass_completed_at ? 'Coverage pass recorded' : 'Record full-text coverage pass';
   const completenessStatus = document.getElementById('propositionCompletenessStatus');
   completenessStatus.textContent = propositionCompleteness?.complete
@@ -12032,6 +12105,10 @@ function renderPropositionsTab() {
   const cards = records.map((record) => renderPropositionCard(record));
   if (propositionDraft) cards.unshift(renderPropositionCard({ proposition: propositionDraft, outcome: 'hand-added', explicit_unresolved: false }, true));
   list.innerHTML = cards.join('') || '<div class="proposition-status">No proposition candidates yet.</div>';
+  if (!propositionAnnotationMode) {
+    list.querySelectorAll('input, select, button').forEach(control => { control.disabled = true; });
+    list.querySelectorAll('.proposition-actions').forEach(actions => { actions.style.display = 'none'; });
+  }
   const remaining = (propositionSession?.candidates || []).filter(c => c.outcome === 'unreviewed').length + (propositionSession?.blind_pending || 0);
   document.getElementById('propositionRemainingChip').textContent = `${remaining} unreviewed remaining`;
   document.getElementById('exportGoldBtn').classList.toggle('warning', remaining > 0);
