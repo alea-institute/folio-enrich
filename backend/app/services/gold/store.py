@@ -80,6 +80,11 @@ class HandAddedRecord(BaseModel):
     explicit_unresolved: bool = False
 
 
+class BlindSegment(BaseModel):
+    start_char: int
+    end_char: int
+
+
 class CycleLearning(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid4()))
     kind: Literal["new-type", "unclassifiable", "forced-fit", "structural-misfit"]
@@ -103,6 +108,12 @@ class AnnotationSession(BaseModel):
     candidates: list[CandidateRecord] = Field(default_factory=list)
     hand_added: list[HandAddedRecord] = Field(default_factory=list)
     cycle_learnings: list[CycleLearning] = Field(default_factory=list)
+    baseline: bool = False
+    blind_segment: BlindSegment | None = None
+    blind_revealed_at: datetime | None = None
+    blind_diff_report: dict[str, Any] | None = None
+    blind_pending: int = 0
+    coverage_pass_completed_at: datetime | None = None
     exported_at: datetime | None = None
     export_slug: str | None = None
 
@@ -178,23 +189,35 @@ class GoldStore:
         document_id: str | None = None,
         pre_selector: PreSelector | dict[str, Any] | None = None,
         annotator: str = "damien",
+        baseline: bool = False,
     ) -> AnnotationSession:
         parsed = UUID(str(job_id))
         job = await self.job_store.load(parsed)
         if job is None:
             raise LookupError("job not found")
         selector = PreSelector.model_validate(pre_selector or {"source": "lexicon-only"})
+        candidates = job.result.propositions
+        if baseline:
+            from app.services.proposition.extractor import PropositionExtractor
+
+            selector = PreSelector(
+                source="lexicon-only",
+                lexicon_version=selector.lexicon_version,
+                lexicon_config=selector.lexicon_config,
+            )
+            candidates = PropositionExtractor().extract(job)
         session = AnnotationSession(
             job_id=str(job.id),
             document_id=document_id or str(job.id),
             annotator=annotator,
             pre_selector=selector,
-            candidates=[CandidateRecord(proposition=p, original=p.model_copy(deep=True)) for p in job.result.propositions],
+            baseline=baseline,
+            candidates=[CandidateRecord(proposition=p, original=p.model_copy(deep=True)) for p in candidates],
         )
         await self._save(session)
         return session
 
-    async def get(self, session_id: str) -> AnnotationSession:
+    async def _load(self, session_id: str) -> AnnotationSession:
         path = self._path(session_id)
         if not path.exists():
             raise LookupError("session not found")
@@ -205,6 +228,28 @@ class GoldStore:
         for annotation in raw.get("hand_added", []):
             annotation["proposition"] = migrate_proposition_payload(annotation["proposition"])
         return AnnotationSession.model_validate(raw)
+
+    @staticmethod
+    def _intersects(start: int | None, end: int | None, segment: BlindSegment) -> bool:
+        return start is not None and end is not None and start < segment.end_char and end > segment.start_char
+
+    def _public_session(self, session: AnnotationSession) -> AnnotationSession:
+        public = session.model_copy(deep=True)
+        if public.blind_segment is not None and public.blind_revealed_at is None:
+            hidden = [
+                candidate for candidate in public.candidates
+                if self._intersects(
+                    candidate.original.start_char, candidate.original.end_char, public.blind_segment
+                )
+            ]
+            public.candidates = [candidate for candidate in public.candidates if candidate not in hidden]
+            public.blind_pending = len(hidden)
+        else:
+            public.blind_pending = 0
+        return public
+
+    async def get(self, session_id: str) -> AnnotationSession:
+        return self._public_session(await self._load(session_id))
 
     async def list(self, job_id: str | None = None) -> list[AnnotationSession]:
         sessions = []
@@ -230,7 +275,7 @@ class GoldStore:
         proposition: Proposition | dict[str, Any] | None = None,
         explicit_unresolved: bool = False,
     ) -> AnnotationSession:
-        session = await self.get(session_id)
+        session = await self._load(session_id)
         candidate = next((c for c in session.candidates if c.proposition.id == candidate_id), None)
         if candidate is None:
             raise LookupError("candidate not found")
@@ -250,7 +295,8 @@ class GoldStore:
         candidate.proposition = current
         candidate.outcome = outcome
         candidate.explicit_unresolved = explicit_unresolved
-        return await self.update(session)
+        await self.update(session)
+        return self._public_session(session)
 
     async def add_hand_added(
         self,
@@ -259,16 +305,121 @@ class GoldStore:
         *,
         explicit_unresolved: bool = False,
     ) -> AnnotationSession:
-        session = await self.get(session_id)
+        session = await self._load(session_id)
         model = Proposition.model_validate(proposition)
         _validate_unresolved(model, explicit_unresolved)
         session.hand_added.append(HandAddedRecord(proposition=model, explicit_unresolved=explicit_unresolved))
-        return await self.update(session)
+        await self.update(session)
+        return self._public_session(session)
 
     async def add_learning(self, session_id: str, **data: Any) -> AnnotationSession:
-        session = await self.get(session_id)
+        session = await self._load(session_id)
         session.cycle_learnings.append(CycleLearning.model_validate(data))
-        return await self.update(session)
+        await self.update(session)
+        return self._public_session(session)
+
+    async def set_blind_segment(self, session_id: str, start: int, end: int) -> AnnotationSession:
+        session = await self._load(session_id)
+        job = await self.job_store.load(UUID(session.job_id))
+        text = job.result.canonical_text.full_text if job and job.result.canonical_text else ""
+        if start < 0 or end <= start or end > len(text):
+            raise ValueError("blind segment boundaries are invalid")
+        if session.blind_segment is not None:
+            raise ValueError("blind segment is already designated")
+        segment = BlindSegment(start_char=start, end_char=end)
+        reviewed = [
+            candidate for candidate in session.candidates
+            if candidate.outcome != "unreviewed"
+            and self._intersects(candidate.original.start_char, candidate.original.end_char, segment)
+        ]
+        if reviewed:
+            raise ValueError("blind segment must be annotated unassisted; it contains a reviewed candidate")
+        session.blind_segment = segment
+        await self.update(session)
+        return self._public_session(session)
+
+    async def reveal_blind_segment(self, session_id: str) -> AnnotationSession:
+        session = await self._load(session_id)
+        if session.blind_segment is None:
+            raise ValueError("no blind segment is designated")
+        if session.blind_revealed_at is not None:
+            return self._public_session(session)
+        segment = session.blind_segment
+        tools = [
+            candidate.original for candidate in session.candidates
+            if self._intersects(candidate.original.start_char, candidate.original.end_char, segment)
+        ]
+        annotations = [
+            item.proposition for item in session.hand_added
+            if self._intersects(item.proposition.start_char, item.proposition.end_char, segment)
+        ]
+        unmatched_annotations = list(range(len(annotations)))
+        matched_pairs: list[dict[str, Any]] = []
+        tool_only: list[dict[str, Any]] = []
+        for tool in tools:
+            match = next(
+                (
+                    index for index in unmatched_annotations
+                    if annotations[index].start_char < tool.end_char
+                    and annotations[index].end_char > tool.start_char
+                ),
+                None,
+            )
+            if match is None:
+                tool_only.append(tool.model_dump(mode="json"))
+                continue
+            annotator = annotations[match]
+            unmatched_annotations.remove(match)
+            matched_pairs.append({
+                "tool": tool.model_dump(mode="json"),
+                "annotator": annotator.model_dump(mode="json"),
+            })
+        annotator_only = [annotations[index].model_dump(mode="json") for index in unmatched_annotations]
+        matched_count = len(matched_pairs)
+        tool_count = len(tools)
+        annotator_count = len(annotations)
+        session.blind_diff_report = {
+            "segment": segment.model_dump(),
+            "matched_pairs": matched_pairs,
+            "tool_only": tool_only,
+            "annotator_only": annotator_only,
+            "anchoring_loss": {
+                "tool_count": tool_count,
+                "annotator_count": annotator_count,
+                "matched_count": matched_count,
+                "tool_only_count": len(tool_only),
+                "annotator_only_count": len(annotator_only),
+                "match_fraction": matched_count / tool_count if tool_count else 1.0,
+                "tool_miss_fraction": len(tool_only) / tool_count if tool_count else 0.0,
+                "annotator_novel_fraction": len(annotator_only) / annotator_count if annotator_count else 0.0,
+                "anchoring_loss_fraction": len(tool_only) / tool_count if tool_count else 0.0,
+            },
+        }
+        session.blind_revealed_at = datetime.now(timezone.utc)
+        await self.update(session)
+        return self._public_session(session)
+
+    async def record_coverage_pass(self, session_id: str) -> AnnotationSession:
+        session = await self._load(session_id)
+        if session.coverage_pass_completed_at is None:
+            session.coverage_pass_completed_at = datetime.now(timezone.utc)
+            await self.update(session)
+        return self._public_session(session)
+
+    @staticmethod
+    def _completeness(session: AnnotationSession) -> dict[str, Any]:
+        reasons: list[str] = []
+        unreviewed = sum(candidate.outcome == "unreviewed" for candidate in session.candidates)
+        if unreviewed:
+            reasons.append(f"{unreviewed} candidate(s) remain unreviewed")
+        if session.coverage_pass_completed_at is None:
+            reasons.append("full-text coverage pass has not been recorded")
+        if session.blind_segment is not None and session.blind_revealed_at is None:
+            reasons.append("blind segment has not been revealed")
+        return {"complete": not reasons, "reasons": reasons}
+
+    async def completeness(self, session_id: str) -> dict[str, Any]:
+        return self._completeness(await self._load(session_id))
 
     def _records(self, session: AnnotationSession) -> list[dict[str, Any]]:
         records: list[dict[str, Any]] = []
@@ -300,6 +451,14 @@ class GoldStore:
             })
         for learning in session.cycle_learnings:
             records.append({"record_type": "cycle-learning", "document_id": session.document_id, **learning.model_dump(mode="json")})
+        if session.blind_segment is not None:
+            records.append({
+                "record_type": "blind-segment",
+                "document_id": session.document_id,
+                "blind_segment": session.blind_segment.model_dump(),
+                "blind_revealed_at": session.blind_revealed_at.isoformat() if session.blind_revealed_at else None,
+                "diff_report": session.blind_diff_report,
+            })
         return records
 
     @staticmethod
@@ -329,7 +488,7 @@ class GoldStore:
     async def export(self, session_id: str, slug: str | None = None) -> ExportResult:
         from app.services.export.brat_exporter import BratExporter
 
-        session = await self.get(session_id)
+        session = await self._load(session_id)
         unreviewed = sum(c.outcome == "unreviewed" for c in session.candidates)
         if unreviewed:
             raise ValueError(f"export refused: {unreviewed} unreviewed candidate(s)")
@@ -359,6 +518,9 @@ class GoldStore:
             "document_id": session.document_id, "annotator": session.annotator,
             "wrapper_schema_version": session.wrapper_schema_version, "schema_version": session.schema_version,
             "pre_selector": session.pre_selector.model_dump(mode="json"),
+            "baseline": session.baseline,
+            "blind_segment": session.blind_segment is not None,
+            "completeness": self._completeness(session),
             "counts": {name: sum(c.outcome == name for c in session.candidates) for name in ("accepted", "edited", "deleted", "unreviewed")},
             "hand_added_count": len(session.hand_added), "density": density,
             "precision": precision_from_record(records), "recall_proxy": recall_proxy_from_record(records),

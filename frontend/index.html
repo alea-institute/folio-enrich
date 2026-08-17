@@ -2207,6 +2207,8 @@
   .proposition-status { font-size:11px; color:var(--text-dim); }
   .proposition-document { margin-top:10px; max-height:34vh; overflow:auto; padding:14px; border:1px solid var(--border); border-radius:7px; background:var(--surface2); white-space:pre-wrap; line-height:1.65; font-size:13px; }
   .proposition-document.add-armed { cursor:text; outline:2px solid var(--orange); outline-offset:1px; }
+  .proposition-document.blind-armed { cursor:text; outline:2px solid var(--text-dim); outline-offset:1px; }
+  .proposition-blind-segment { background:repeating-linear-gradient(135deg, color-mix(in srgb, var(--text-dim) 10%, transparent) 0 4px, transparent 4px 8px); border-radius:2px; }
   .proposition-span { background:color-mix(in srgb, var(--orange) 18%, transparent); border-bottom:2px solid var(--orange); cursor:pointer; border-radius:2px; }
   .proposition-span:focus { outline:2px solid var(--accent); outline-offset:2px; }
   .proposition-add-banner { margin:8px 0; padding:6px 9px; border-radius:5px; background:var(--conf-mid-bg); color:var(--conf-mid); font-size:12px; }
@@ -2224,6 +2226,9 @@
   .proposition-inline-confirm { padding:7px; border-left:3px solid var(--orange); background:var(--conf-mid-bg); color:var(--text); font-size:11px; }
   .proposition-citations { margin:8px 0; font-size:11px; color:var(--text-dim); }
   .proposition-export.warning { border-color:var(--orange); color:var(--orange); }
+  .proposition-validity { margin-top:10px; padding:10px; border:1px solid var(--border); border-radius:7px; background:var(--surface2); display:grid; gap:7px; }
+  .proposition-validity-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .proposition-diff { font-size:11px; color:var(--text-dim); }
   @media (max-width:700px) { .proposition-fields { grid-template-columns:1fr; } .proposition-field.wide { grid-column:auto; } }
 
   /* Export tab: include dismissed checkbox */
@@ -3798,13 +3803,26 @@
           <label><input type="checkbox" id="propositionModeToggle" onchange="togglePropositionMode(this.checked)"> Annotation mode</label>
           <span class="proposition-status" id="propositionModeStatus">Off</span>
           <button class="secondary small" id="startPropositionSessionBtn" onclick="ensurePropositionSession(true)" style="display:none">Start annotation session</button>
+          <label class="proposition-status"><input type="checkbox" id="propositionBaselineToggle"> Lexicon-only baseline session</label>
           <button class="secondary small" id="addPropositionSpanBtn" onclick="togglePropositionAddMode()" disabled>+ Add span</button>
+          <button class="secondary small" id="blindSegmentBtn" onclick="toggleBlindSegmentMode()" disabled>Designate blind segment</button>
+          <button class="secondary small" id="revealBlindBtn" onclick="revealBlindSegment()" style="display:none">Reveal &amp; diff</button>
           <button class="secondary small proposition-export" id="exportGoldBtn" onclick="exportGoldRecord()" disabled>Export gold record</button>
           <span class="chip" id="propositionRemainingChip">0 unreviewed remaining</span>
+          <span class="chip" id="blindPendingChip" style="display:none">blind segment: 0 hidden</span>
         </div>
         <div class="proposition-add-banner" id="propositionAddBanner" style="display:none">Select text to create a proposition span; Esc to cancel.</div>
+        <div class="proposition-add-banner" id="propositionBlindBanner" style="display:none">Select a neutral full-text segment to annotate without tool suggestions; Esc to cancel.</div>
         <div class="proposition-status" style="margin-top:7px">Candidate shortcuts: A accept, E edit, D discard. Shortcuts pause while typing.</div>
         <div class="proposition-document" id="propositionDocument" onmouseup="handlePropositionSelection()"></div>
+        <div class="proposition-validity">
+          <div class="proposition-validity-row">
+            <button class="secondary small" id="coveragePassBtn" onclick="recordCoveragePass()" disabled>Record full-text coverage pass</button>
+            <span class="proposition-status">Attest that every sentence was read against the candidate list.</span>
+          </div>
+          <div class="proposition-status" id="propositionCompletenessStatus">Completeness unavailable until a session starts.</div>
+          <div class="proposition-diff" id="propositionBlindDiff" style="display:none"></div>
+        </div>
         <div class="proposition-candidates" id="propositionCandidates"></div>
         <div class="proposition-status" id="propositionExportResult"></div>
       </div>
@@ -4129,8 +4147,10 @@ let _requireUserKey = false;
 let propositionAnnotationMode = false;
 let propositionSession = null;
 let propositionAddArmed = false;
+let propositionBlindArmed = false;
 let propositionDraft = null;
 let propositionSettings = null;
+let propositionCompleteness = null;
 
 // ── Ontology switcher state ──
 // activeOntology is seeded from the <html data-ontology> attribute that the
@@ -6495,6 +6515,9 @@ async function submitEnrichment() {
     currentJobId = data.job_id;
     propositionSession = null;
     propositionDraft = null;
+    propositionCompleteness = null;
+    propositionAddArmed = false;
+    propositionBlindArmed = false;
     setStatus(`Job ${currentJobId.slice(0,8)}... submitted`, 'running');
     startSSE();
   } catch (e) {
@@ -11814,6 +11837,7 @@ async function togglePropositionMode(enabled) {
     await propositionFetch('/settings', { method: 'PUT', body: JSON.stringify({ proposition_extraction_enabled: enabled }) });
     propositionAnnotationMode = enabled;
     propositionAddArmed = false;
+    propositionBlindArmed = false;
     if (!enabled) propositionDraft = null;
     if (enabled && currentJob?.status === 'completed') await ensurePropositionSession(false);
     renderPropositionsTab();
@@ -11836,6 +11860,7 @@ async function ensurePropositionSession(force) {
       const existing = (Array.isArray(sessions) ? sessions : sessions.sessions || [])[0];
       if (existing) {
         propositionSession = existing.session_id ? existing : await propositionFetch(`/gold/sessions/${existing.session_id}`, { method: 'GET' });
+        await refreshPropositionCompleteness();
         renderPropositionsTab();
         return;
       }
@@ -11843,17 +11868,26 @@ async function ensurePropositionSession(force) {
     propositionSettings = propositionSettings || await propositionFetch('/settings', { method: 'GET' });
     const llm = propositionSettings.task_llm_overrides?.proposition || {};
     const hasLlm = Boolean(llm.provider && llm.model);
+    const baseline = Boolean(document.getElementById('propositionBaselineToggle')?.checked);
     propositionSession = await propositionFetch('/gold/sessions', {
       method: 'POST',
       body: JSON.stringify({
         job_id: currentJobId,
         document_id: currentJob?.input?.filename || currentJobId,
         annotator: 'damien',
-        pre_selector: { source: hasLlm ? 'lexicon+llm' : 'lexicon-only', llm_provider: llm.provider || null, llm_model: llm.model || null },
+        baseline,
+        pre_selector: { source: baseline || !hasLlm ? 'lexicon-only' : 'lexicon+llm', llm_provider: baseline ? null : llm.provider || null, llm_model: baseline ? null : llm.model || null },
       }),
     });
+    await refreshPropositionCompleteness();
     renderPropositionsTab();
   } catch (error) { propositionApiError(error); }
+}
+
+async function refreshPropositionCompleteness() {
+  propositionCompleteness = propositionSession
+    ? await propositionFetch(`/gold/sessions/${propositionSession.session_id}/completeness`, { method: 'GET' })
+    : null;
 }
 
 function propositionRecords() {
@@ -11870,35 +11904,70 @@ function renderPropositionsTab() {
   toggle.checked = propositionAnnotationMode;
   const llm = propositionSettings?.task_llm_overrides?.proposition;
   document.getElementById('propositionModeStatus').textContent = propositionAnnotationMode
-    ? `On · ${llm?.provider && llm?.model ? `lexicon + ${llm.provider}/${llm.model}` : 'lexicon only'}` : 'Off';
+    ? `On · ${propositionSession?.baseline ? 'lexicon-only baseline' : llm?.provider && llm?.model ? `lexicon + ${llm.provider}/${llm.model}` : 'lexicon only'}` : 'Off';
   const complete = currentJob?.status === 'completed';
   document.getElementById('startPropositionSessionBtn').style.display = propositionAnnotationMode && complete && !propositionSession ? '' : 'none';
   document.getElementById('addPropositionSpanBtn').disabled = !propositionAnnotationMode || !propositionSession;
+  document.getElementById('blindSegmentBtn').disabled = !propositionAnnotationMode || !propositionSession || Boolean(propositionSession?.blind_segment);
   document.getElementById('exportGoldBtn').disabled = !propositionAnnotationMode || !propositionSession;
   document.getElementById('propositionAddBanner').style.display = propositionAddArmed ? '' : 'none';
+  document.getElementById('propositionBlindBanner').style.display = propositionBlindArmed ? '' : 'none';
   doc.classList.toggle('add-armed', propositionAddArmed);
+  doc.classList.toggle('blind-armed', propositionBlindArmed);
+  const baselineToggle = document.getElementById('propositionBaselineToggle');
+  baselineToggle.disabled = Boolean(propositionSession);
+  if (propositionSession) baselineToggle.checked = Boolean(propositionSession.baseline);
+
+  const blindPending = Boolean(propositionSession?.blind_segment && !propositionSession?.blind_revealed_at);
+  document.getElementById('revealBlindBtn').style.display = blindPending ? '' : 'none';
+  const blindChip = document.getElementById('blindPendingChip');
+  blindChip.style.display = blindPending ? '' : 'none';
+  blindChip.textContent = `blind segment: ${propositionSession?.blind_pending || 0} hidden`;
+  const coverageButton = document.getElementById('coveragePassBtn');
+  coverageButton.disabled = !propositionSession || Boolean(propositionSession.coverage_pass_completed_at);
+  coverageButton.textContent = propositionSession?.coverage_pass_completed_at ? 'Coverage pass recorded' : 'Record full-text coverage pass';
+  const completenessStatus = document.getElementById('propositionCompletenessStatus');
+  completenessStatus.textContent = propositionCompleteness?.complete
+    ? 'Complete: all candidates reviewed, coverage attested, and blind segment revealed.'
+    : propositionCompleteness ? `Incomplete: ${propositionCompleteness.reasons.join('; ')}.` : 'Completeness unavailable until a session starts.';
+  const diff = propositionSession?.blind_diff_report?.anchoring_loss;
+  const diffBlock = document.getElementById('propositionBlindDiff');
+  diffBlock.style.display = diff ? '' : 'none';
+  diffBlock.textContent = diff ? `Anchoring diff — matched: ${diff.matched_count}; tool-only: ${diff.tool_only_count}; annotator-only: ${diff.annotator_only_count}; anchoring loss: ${(diff.anchoring_loss_fraction * 100).toFixed(1)}%.` : '';
 
   const text = currentJob?.result?.canonical_text?.full_text || normalizedText || '';
   const records = propositionRecords();
-  const spans = records.filter(r => r.outcome !== 'deleted' && Number.isInteger(r.proposition?.start_char) && Number.isInteger(r.proposition?.end_char))
+  const blind = blindPending ? propositionSession.blind_segment : null;
+  const intersectsBlind = p => blind && p.start_char < blind.end_char && p.end_char > blind.start_char;
+  const spans = records.filter(r => r.outcome !== 'deleted' && Number.isInteger(r.proposition?.start_char) && Number.isInteger(r.proposition?.end_char) && !intersectsBlind(r.proposition))
     .sort((a, b) => a.proposition.start_char - b.proposition.start_char || a.proposition.end_char - b.proposition.end_char);
   let position = 0;
   let html = '';
+  const appendPlainText = (start, end) => {
+    if (!blind || end <= blind.start_char || start >= blind.end_char) return escapeHtml(text.slice(start, end));
+    let output = '';
+    if (start < blind.start_char) output += escapeHtml(text.slice(start, blind.start_char));
+    const blindStart = Math.max(start, blind.start_char);
+    const blindEnd = Math.min(end, blind.end_char);
+    output += `<span class="proposition-blind-segment">${escapeHtml(text.slice(blindStart, blindEnd))}</span>`;
+    if (end > blind.end_char) output += escapeHtml(text.slice(blind.end_char, end));
+    return output;
+  };
   for (const record of spans) {
     const p = record.proposition;
     if (p.start_char < position || p.end_char > text.length) continue;
-    html += escapeHtml(text.slice(position, p.start_char));
+    html += appendPlainText(position, p.start_char);
     html += `<mark class="proposition-span" tabindex="0" data-proposition-id="${escapeAttr(p.id)}" onclick="focusPropositionCard(event, '${escapeAttr(p.id)}')">${escapeHtml(text.slice(p.start_char, p.end_char))}</mark>`;
     position = p.end_char;
   }
-  html += escapeHtml(text.slice(position));
+  html += appendPlainText(position, text.length);
   doc.innerHTML = html || '<span class="proposition-status">Complete an enrichment to annotate its canonical text.</span>';
 
   const list = document.getElementById('propositionCandidates');
   const cards = records.map((record) => renderPropositionCard(record));
   if (propositionDraft) cards.unshift(renderPropositionCard({ proposition: propositionDraft, outcome: 'hand-added', explicit_unresolved: true }, true));
   list.innerHTML = cards.join('') || '<div class="proposition-status">No proposition candidates yet.</div>';
-  const remaining = (propositionSession?.candidates || []).filter(c => c.outcome === 'unreviewed').length;
+  const remaining = (propositionSession?.candidates || []).filter(c => c.outcome === 'unreviewed').length + (propositionSession?.blind_pending || 0);
   document.getElementById('propositionRemainingChip').textContent = `${remaining} unreviewed remaining`;
   document.getElementById('exportGoldBtn').classList.toggle('warning', remaining > 0);
 }
@@ -11972,6 +12041,7 @@ async function savePropositionOutcome(button, outcome) {
     const body = { outcome, explicit_unresolved: explicit };
     if (outcome !== 'deleted') body.proposition = propositionFromCard(card);
     propositionSession = await propositionFetch(`/gold/sessions/${propositionSession.session_id}/candidates/${encodeURIComponent(card.dataset.candidateId)}`, { method: 'PATCH', body: JSON.stringify(body) });
+    await refreshPropositionCompleteness();
     renderPropositionsTab();
     _showInfoToast(outcome === 'deleted' ? 'Candidate discarded' : `Candidate ${outcome}`);
   } catch (error) { propositionApiError(error); }
@@ -12001,7 +12071,7 @@ async function recordNewTypeLearning(button) {
 }
 
 function focusPropositionCard(event, id) {
-  if (propositionAddArmed) { event.preventDefault(); return; }
+  if (propositionAddArmed || propositionBlindArmed) { event.preventDefault(); return; }
   const card = document.querySelector(`.proposition-card[data-candidate-id="${CSS.escape(id)}"]`);
   card?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   card?.focus({ preventScroll: true });
@@ -12009,12 +12079,20 @@ function focusPropositionCard(event, id) {
 
 function togglePropositionAddMode() {
   propositionAddArmed = !propositionAddArmed;
+  propositionBlindArmed = false;
   propositionDraft = null;
   renderPropositionsTab();
 }
 
-function handlePropositionSelection() {
-  if (!propositionAddArmed) return;
+function toggleBlindSegmentMode() {
+  propositionBlindArmed = !propositionBlindArmed;
+  propositionAddArmed = false;
+  propositionDraft = null;
+  renderPropositionsTab();
+}
+
+async function handlePropositionSelection() {
+  if (!propositionAddArmed && !propositionBlindArmed) return;
   const selection = window.getSelection();
   if (!selection || selection.isCollapsed || !selection.rangeCount) return;
   const doc = document.getElementById('propositionDocument');
@@ -12025,11 +12103,42 @@ function handlePropositionSelection() {
   before.setEnd(range.startContainer, range.startOffset);
   const start = before.toString().length;
   const text = range.toString();
+  if (propositionBlindArmed) {
+    selection.removeAllRanges();
+    try {
+      propositionSession = await propositionFetch(`/gold/sessions/${propositionSession.session_id}/blind-segment`, {
+        method: 'POST', body: JSON.stringify({ start_char: start, end_char: start + text.length }),
+      });
+      propositionBlindArmed = false;
+      await refreshPropositionCompleteness();
+      renderPropositionsTab();
+      _showInfoToast(`${propositionSession.blind_pending} candidate(s) hidden for unassisted annotation`);
+    } catch (error) { propositionApiError(error); }
+    return;
+  }
   propositionDraft = { id: `hand-${crypto.randomUUID()}`, start_char: start, end_char: start + text.length, text, proposition_type: 'party proposition of law', is_new_type: false, asserter: null, validator: null, disposition: 'unresolved', citation_edges: [], triple_ids: [] };
   propositionAddArmed = false;
   selection.removeAllRanges();
   renderPropositionsTab();
   document.querySelector('.proposition-card[data-draft="true"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+async function revealBlindSegment() {
+  try {
+    propositionSession = await propositionFetch(`/gold/sessions/${propositionSession.session_id}/blind-segment/reveal`, { method: 'POST' });
+    await refreshPropositionCompleteness();
+    renderPropositionsTab();
+    _showInfoToast('Blind segment revealed and anchoring diff recorded');
+  } catch (error) { propositionApiError(error); }
+}
+
+async function recordCoveragePass() {
+  try {
+    propositionSession = await propositionFetch(`/gold/sessions/${propositionSession.session_id}/coverage-pass`, { method: 'POST' });
+    await refreshPropositionCompleteness();
+    renderPropositionsTab();
+    _showInfoToast('Full-text coverage pass recorded');
+  } catch (error) { propositionApiError(error); }
 }
 
 async function exportGoldRecord() {
@@ -12041,7 +12150,7 @@ async function exportGoldRecord() {
 }
 
 document.addEventListener('keydown', event => {
-  if (event.key === 'Escape' && propositionAddArmed) { propositionAddArmed = false; renderPropositionsTab(); return; }
+  if (event.key === 'Escape' && (propositionAddArmed || propositionBlindArmed)) { propositionAddArmed = false; propositionBlindArmed = false; renderPropositionsTab(); return; }
   if (!document.getElementById('tab-propositions')?.classList.contains('active')) return;
   if (/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(event.target.tagName) || event.target.isContentEditable) return;
   const card = document.activeElement?.closest?.('.proposition-card');
@@ -12293,6 +12402,9 @@ function clearAll() {
   activityEntries = [];
   propositionSession = null;
   propositionDraft = null;
+  propositionCompleteness = null;
+  propositionAddArmed = false;
+  propositionBlindArmed = false;
   // Clear feedback, dismiss, and data caches
   Object.keys(_feedbackCache).forEach(k => delete _feedbackCache[k]);
   Object.keys(_noteCache).forEach(k => delete _noteCache[k]);

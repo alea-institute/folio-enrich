@@ -19,6 +19,7 @@ class CreateSessionRequest(BaseModel):
     document_id: str | None = None
     annotator: str = "damien"
     pre_selector: PreSelector
+    baseline: bool = False
 
 
 class CandidateOutcomeRequest(BaseModel):
@@ -45,6 +46,11 @@ class ExportRequest(BaseModel):
     slug: str | None = None
 
 
+class BlindSegmentRequest(BaseModel):
+    start_char: int
+    end_char: int
+
+
 def _http_error(exc: Exception) -> HTTPException:
     if isinstance(exc, LookupError):
         return HTTPException(status_code=404, detail=str(exc))
@@ -55,7 +61,8 @@ def _http_error(exc: Exception) -> HTTPException:
 async def create_session(request: CreateSessionRequest):
     try:
         return await _gold_store.create_session(
-            request.job_id, request.document_id, request.pre_selector, request.annotator
+            request.job_id, request.document_id, request.pre_selector, request.annotator,
+            baseline=request.baseline,
         )
     except (ValueError, LookupError) as exc:
         raise _http_error(exc) from exc
@@ -99,6 +106,40 @@ async def add_annotation(session_id: str, request: AnnotationRequest):
 async def add_learning(session_id: str, request: LearningRequest):
     try:
         return await _gold_store.add_learning(session_id, **request.model_dump())
+    except (ValueError, LookupError) as exc:
+        raise _http_error(exc) from exc
+
+
+@router.post("/sessions/{session_id}/blind-segment")
+async def set_blind_segment(session_id: str, request: BlindSegmentRequest):
+    try:
+        return await _gold_store.set_blind_segment(
+            session_id, request.start_char, request.end_char
+        )
+    except (ValueError, LookupError) as exc:
+        raise _http_error(exc) from exc
+
+
+@router.post("/sessions/{session_id}/blind-segment/reveal")
+async def reveal_blind_segment(session_id: str):
+    try:
+        return await _gold_store.reveal_blind_segment(session_id)
+    except (ValueError, LookupError) as exc:
+        raise _http_error(exc) from exc
+
+
+@router.post("/sessions/{session_id}/coverage-pass")
+async def record_coverage_pass(session_id: str):
+    try:
+        return await _gold_store.record_coverage_pass(session_id)
+    except (ValueError, LookupError) as exc:
+        raise _http_error(exc) from exc
+
+
+@router.get("/sessions/{session_id}/completeness")
+async def session_completeness(session_id: str):
+    try:
+        return await _gold_store.completeness(session_id)
     except (ValueError, LookupError) as exc:
         raise _http_error(exc) from exc
 
