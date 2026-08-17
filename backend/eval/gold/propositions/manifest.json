@@ -30,6 +30,45 @@
       "session_id": "d8a6c27c-01d7-4ad7-82cb-432d8e78893a",
       "slug": "demo-smoke",
       "wrapper_schema_version": 1
+    },
+    {
+      "annotator": "claude-fable-5 (AI cycle 1, delegated by Damien Riehl 2026-08-17)",
+      "baseline": false,
+      "blind_segment": true,
+      "completeness": {
+        "complete": true,
+        "reasons": []
+      },
+      "counts": {
+        "accepted": 2,
+        "deleted": 5,
+        "edited": 6,
+        "unreviewed": 0
+      },
+      "density": {
+        "opinion": 17.86327722432154,
+        "word_count": 5822
+      },
+      "document_id": "palsgraf-248-ny-339",
+      "exported_at": "2026-08-17T14:21:55.013838+00:00",
+      "hand_added_count": 96,
+      "job_id": "6ae5e29d-728c-475d-875c-a4ece3d5d9ec",
+      "pre_selector": {
+        "lexicon_config": {
+          "llm": null,
+          "note": "keyless local run"
+        },
+        "lexicon_version": "phase-a-v1",
+        "llm_model": null,
+        "llm_provider": null,
+        "source": "lexicon-only"
+      },
+      "precision": 0.6153846153846154,
+      "recall_proxy": 0.07692307692307687,
+      "schema_version": 1,
+      "session_id": "b22aa5a2-5feb-4d0a-8133-91f66171ae66",
+      "slug": "palsgraf-248-ny-339",
+      "wrapper_schema_version": 1
     }
   ]
 }
