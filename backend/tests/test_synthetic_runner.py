@@ -4,11 +4,12 @@ import json
 from pathlib import Path
 
 import pytest
-
+from app.config import settings
 from app.models.annotation import Annotation, ConceptMatch, Span
 from app.models.job import Job, JobStatus
-from tests.helpers import FakeLLMProvider
+
 from eval import synthetic_runner
+from tests.helpers import FakeLLMProvider
 
 
 class _FakePipeline:
@@ -65,6 +66,54 @@ async def test_contract_shape_and_determinism(tmp_path: Path, monkeypatch: pytes
         "iris": ["https://example.test/court"],
         "stages": {name: ["https://example.test/court"] for name in synthetic_runner.STAGE_NAMES},
     }
+
+
+@pytest.mark.asyncio
+async def test_deterministic_lane_pins_records_and_restores_behavioral_settings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    items = tmp_path / "items.jsonl"
+    output = tmp_path / "out.jsonl"
+    _write_items(items)
+    monkeypatch.setattr(synthetic_runner, "_make_pipeline", lambda _: _FakePipeline())
+    overrides = {
+        "proposition_extraction_enabled": True,
+        "max_candidates": 99,
+        "skip_backups_for_exact_matches": False,
+        "semantic_similarity_threshold": 0.1,
+        "pos_concept_mismatch_penalty": 0.7,
+        "pos_property_mismatch_penalty": 0.9,
+    }
+    for name, value in overrides.items():
+        monkeypatch.setattr(settings, name, value)
+
+    await synthetic_runner.run(items, output, lane="deterministic")
+
+    header = json.loads(output.read_text().splitlines()[0])
+    assert header["config"] == {
+        "embedding_disabled": True,
+        "contextual_rerank_enabled": False,
+        "individual_extraction_enabled": True,
+        "individual_regex_only": True,
+        "property_extraction_enabled": True,
+        "property_regex_only": True,
+        "triple_extraction_enabled": True,
+        "pos_tagging_enabled": True,
+        "pos_confidence_enabled": True,
+        "ner_cross_validation_enabled": False,
+        "translation_matching_enabled": False,
+        "folio_auto_update": False,
+        "backup_semantic_filter_enabled": False,
+        "proposition_extraction_enabled": False,
+        "max_candidates": 5,
+        "skip_backups_for_exact_matches": True,
+        "semantic_similarity_threshold": 0.8,
+        "pos_concept_mismatch_penalty": 0.15,
+        "pos_property_mismatch_penalty": 0.12,
+        "llm_provider": None,
+        "registry_embeddings": False,
+    }
+    assert {name: getattr(settings, name) for name in overrides} == overrides
 
 
 @pytest.mark.asyncio
