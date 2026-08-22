@@ -61,8 +61,7 @@ PROVIDER_ENV_KEYS = (
 )
 
 # Pin every feature flag that can alter the no-LLM concept pipeline or cause
-# environment-dependent work.  Numeric scoring knobs remain package defaults
-# and are recorded below as well.
+# environment-dependent work.
 PINNED_FLAGS: dict[str, Any] = {
     "embedding_disabled": True,
     "contextual_rerank_enabled": False,
@@ -77,6 +76,17 @@ PINNED_FLAGS: dict[str, Any] = {
     "translation_matching_enabled": False,
     "folio_auto_update": False,
     "backup_semantic_filter_enabled": False,
+    "proposition_extraction_enabled": False,
+}
+
+# These settings are environment-overridable and directly affect deterministic
+# candidate selection, ranking, or commitment. Record and actively pin them.
+PINNED_SCORING: dict[str, Any] = {
+    "max_candidates": 5,
+    "skip_backups_for_exact_matches": True,
+    "semantic_similarity_threshold": 0.8,
+    "pos_concept_mismatch_penalty": 0.15,
+    "pos_property_mismatch_penalty": 0.12,
 }
 
 
@@ -210,9 +220,10 @@ def _make_llm_pipeline(jobs_dir: Path, llm: Any) -> PipelineOrchestrator:
 
 @contextmanager
 def _pinned_settings() -> Iterator[None]:
-    previous = {name: getattr(settings, name) for name in PINNED_FLAGS}
+    pinned = {**PINNED_FLAGS, **PINNED_SCORING}
+    previous = {name: getattr(settings, name) for name in pinned}
     try:
-        for name, value in PINNED_FLAGS.items():
+        for name, value in pinned.items():
             setattr(settings, name, value)
         yield
     finally:
@@ -255,6 +266,7 @@ def _header(
         "skip_backups_for_exact_matches": settings.skip_backups_for_exact_matches,
         "semantic_similarity_threshold": settings.semantic_similarity_threshold,
         "pos_concept_mismatch_penalty": settings.pos_concept_mismatch_penalty,
+        "pos_property_mismatch_penalty": settings.pos_property_mismatch_penalty,
     }
     if lane == "deterministic":
         config = {**PINNED_FLAGS, **scoring, "llm_provider": None, "registry_embeddings": False}
