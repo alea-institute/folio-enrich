@@ -1,0 +1,430 @@
+{
+  "candidate_split_assignment": "start_char",
+  "confidence_level": 0.95,
+  "documents": [
+    {
+      "ranges": {
+        "development": [
+          0,
+          13488
+        ],
+        "held-out": [
+          13488,
+          31920
+        ]
+      },
+      "slug": "palsgraf-248-ny-339",
+      "splits": {
+        "development": {
+          "audit_false_positives": 0,
+          "candidates": 5,
+          "exact": 4,
+          "f1": 0.19607843137254902,
+          "gold": 46,
+          "matched": 5,
+          "per_pattern": {
+            "arguendo": {
+              "candidates": 1,
+              "exact": 1,
+              "matched": 1
+            },
+            "reporting-verb": {
+              "candidates": 4,
+              "exact": 3,
+              "matched": 4
+            }
+          },
+          "per_type": {
+            "Judicial Finding of Fact": {
+              "gold": 4,
+              "matched": 0,
+              "recall": 0.0
+            },
+            "Judicial Legal Conclusion": {
+              "gold": 28,
+              "matched": 3,
+              "recall": 0.10714285714285714
+            },
+            "Legal Proposition": {
+              "gold": 1,
+              "matched": 0,
+              "recall": 0.0
+            },
+            "arguendo assumption": {
+              "gold": 1,
+              "matched": 1,
+              "recall": 1.0
+            },
+            "cited-authority proposition": {
+              "gold": 5,
+              "matched": 0,
+              "recall": 0.0
+            },
+            "hypothetical illustration": {
+              "gold": 4,
+              "matched": 1,
+              "recall": 0.25
+            },
+            "policy proposition": {
+              "gold": 2,
+              "matched": 0,
+              "recall": 0.0
+            },
+            "stipulation": {
+              "gold": 1,
+              "matched": 0,
+              "recall": 0.0
+            }
+          },
+          "precision": 1.0,
+          "precision_ci": [
+            0.5655175352168254,
+            1.0
+          ],
+          "recall": 0.10869565217391304,
+          "recall_ci": [
+            0.047331458580989444,
+            0.2303782864425082
+          ],
+          "type_agreement": {
+            "agreed": 2,
+            "matched": 5,
+            "rate": 0.4
+          }
+        },
+        "held-out": {
+          "audit_false_positives": 5,
+          "candidates": 8,
+          "exact": 3,
+          "f1": 0.09090909090909091,
+          "gold": 58,
+          "matched": 3,
+          "per_pattern": {
+            "arguendo": {
+              "candidates": 2,
+              "exact": 1,
+              "matched": 1
+            },
+            "reporting-verb": {
+              "candidates": 6,
+              "exact": 2,
+              "matched": 2
+            }
+          },
+          "per_type": {
+            "Factual Statement": {
+              "gold": 1,
+              "matched": 1,
+              "recall": 1.0
+            },
+            "Judicial Finding of Fact": {
+              "gold": 8,
+              "matched": 0,
+              "recall": 0.0
+            },
+            "Judicial Legal Conclusion": {
+              "gold": 33,
+              "matched": 1,
+              "recall": 0.030303030303030304
+            },
+            "arguendo assumption": {
+              "gold": 1,
+              "matched": 1,
+              "recall": 1.0
+            },
+            "cited-authority proposition": {
+              "gold": 5,
+              "matched": 0,
+              "recall": 0.0
+            },
+            "definitional proposition": {
+              "gold": 2,
+              "matched": 0,
+              "recall": 0.0
+            },
+            "hypothetical illustration": {
+              "gold": 3,
+              "matched": 0,
+              "recall": 0.0
+            },
+            "policy proposition": {
+              "gold": 5,
+              "matched": 0,
+              "recall": 0.0
+            }
+          },
+          "precision": 0.375,
+          "precision_ci": [
+            0.13684428582359742,
+            0.6942576053973726
+          ],
+          "recall": 0.05172413793103448,
+          "recall_ci": [
+            0.017746134659410488,
+            0.14139401190842657
+          ],
+          "type_agreement": {
+            "agreed": 2,
+            "matched": 3,
+            "rate": 0.6666666666666666
+          }
+        }
+      },
+      "text_file": "palsgraf-248-ny-339.txt"
+    }
+  ],
+  "lexicon_version": "phase-a-v1",
+  "matching": {
+    "candidate_audit_veto": true,
+    "method": "greedy Dice",
+    "threshold": 0.5
+  },
+  "overall": {
+    "audit_false_positives": 5,
+    "candidates": 13,
+    "exact": 7,
+    "f1": 0.13675213675213677,
+    "gold": 104,
+    "matched": 8,
+    "per_pattern": {
+      "arguendo": {
+        "candidates": 3,
+        "exact": 2,
+        "matched": 2
+      },
+      "reporting-verb": {
+        "candidates": 10,
+        "exact": 5,
+        "matched": 6
+      }
+    },
+    "per_type": {
+      "Factual Statement": {
+        "gold": 1,
+        "matched": 1,
+        "recall": 1.0
+      },
+      "Judicial Finding of Fact": {
+        "gold": 12,
+        "matched": 0,
+        "recall": 0.0
+      },
+      "Judicial Legal Conclusion": {
+        "gold": 61,
+        "matched": 4,
+        "recall": 0.06557377049180328
+      },
+      "Legal Proposition": {
+        "gold": 1,
+        "matched": 0,
+        "recall": 0.0
+      },
+      "arguendo assumption": {
+        "gold": 2,
+        "matched": 2,
+        "recall": 1.0
+      },
+      "cited-authority proposition": {
+        "gold": 10,
+        "matched": 0,
+        "recall": 0.0
+      },
+      "definitional proposition": {
+        "gold": 2,
+        "matched": 0,
+        "recall": 0.0
+      },
+      "hypothetical illustration": {
+        "gold": 7,
+        "matched": 1,
+        "recall": 0.14285714285714285
+      },
+      "policy proposition": {
+        "gold": 7,
+        "matched": 0,
+        "recall": 0.0
+      },
+      "stipulation": {
+        "gold": 1,
+        "matched": 0,
+        "recall": 0.0
+      }
+    },
+    "precision": 0.6153846153846154,
+    "precision_ci": [
+      0.355228915126657,
+      0.8229029220223743
+    ],
+    "recall": 0.07692307692307693,
+    "recall_ci": [
+      0.039491753691054884,
+      0.14449554616255827
+    ],
+    "type_agreement": {
+      "agreed": 4,
+      "matched": 8,
+      "rate": 0.5
+    }
+  },
+  "overfit": {
+    "flag": false,
+    "indicative": true,
+    "recall_gap_threshold": 0.15
+  },
+  "splits": {
+    "development": {
+      "audit_false_positives": 0,
+      "candidates": 5,
+      "exact": 4,
+      "f1": 0.19607843137254902,
+      "gold": 46,
+      "matched": 5,
+      "per_pattern": {
+        "arguendo": {
+          "candidates": 1,
+          "exact": 1,
+          "matched": 1
+        },
+        "reporting-verb": {
+          "candidates": 4,
+          "exact": 3,
+          "matched": 4
+        }
+      },
+      "per_type": {
+        "Judicial Finding of Fact": {
+          "gold": 4,
+          "matched": 0,
+          "recall": 0.0
+        },
+        "Judicial Legal Conclusion": {
+          "gold": 28,
+          "matched": 3,
+          "recall": 0.10714285714285714
+        },
+        "Legal Proposition": {
+          "gold": 1,
+          "matched": 0,
+          "recall": 0.0
+        },
+        "arguendo assumption": {
+          "gold": 1,
+          "matched": 1,
+          "recall": 1.0
+        },
+        "cited-authority proposition": {
+          "gold": 5,
+          "matched": 0,
+          "recall": 0.0
+        },
+        "hypothetical illustration": {
+          "gold": 4,
+          "matched": 1,
+          "recall": 0.25
+        },
+        "policy proposition": {
+          "gold": 2,
+          "matched": 0,
+          "recall": 0.0
+        },
+        "stipulation": {
+          "gold": 1,
+          "matched": 0,
+          "recall": 0.0
+        }
+      },
+      "precision": 1.0,
+      "precision_ci": [
+        0.5655175352168254,
+        1.0
+      ],
+      "recall": 0.10869565217391304,
+      "recall_ci": [
+        0.047331458580989444,
+        0.2303782864425082
+      ],
+      "type_agreement": {
+        "agreed": 2,
+        "matched": 5,
+        "rate": 0.4
+      }
+    },
+    "held-out": {
+      "audit_false_positives": 5,
+      "candidates": 8,
+      "exact": 3,
+      "f1": 0.09090909090909091,
+      "gold": 58,
+      "matched": 3,
+      "per_pattern": {
+        "arguendo": {
+          "candidates": 2,
+          "exact": 1,
+          "matched": 1
+        },
+        "reporting-verb": {
+          "candidates": 6,
+          "exact": 2,
+          "matched": 2
+        }
+      },
+      "per_type": {
+        "Factual Statement": {
+          "gold": 1,
+          "matched": 1,
+          "recall": 1.0
+        },
+        "Judicial Finding of Fact": {
+          "gold": 8,
+          "matched": 0,
+          "recall": 0.0
+        },
+        "Judicial Legal Conclusion": {
+          "gold": 33,
+          "matched": 1,
+          "recall": 0.030303030303030304
+        },
+        "arguendo assumption": {
+          "gold": 1,
+          "matched": 1,
+          "recall": 1.0
+        },
+        "cited-authority proposition": {
+          "gold": 5,
+          "matched": 0,
+          "recall": 0.0
+        },
+        "definitional proposition": {
+          "gold": 2,
+          "matched": 0,
+          "recall": 0.0
+        },
+        "hypothetical illustration": {
+          "gold": 3,
+          "matched": 0,
+          "recall": 0.0
+        },
+        "policy proposition": {
+          "gold": 5,
+          "matched": 0,
+          "recall": 0.0
+        }
+      },
+      "precision": 0.375,
+      "precision_ci": [
+        0.13684428582359742,
+        0.6942576053973726
+      ],
+      "recall": 0.05172413793103448,
+      "recall_ci": [
+        0.017746134659410488,
+        0.14139401190842657
+      ],
+      "type_agreement": {
+        "agreed": 2,
+        "matched": 3,
+        "rate": 0.6666666666666666
+      }
+    }
+  }
+}

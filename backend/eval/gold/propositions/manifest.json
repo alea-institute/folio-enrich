@@ -3,6 +3,7 @@
   "opinions": [
     {
       "annotator": "damien",
+      "benchmark": false,
       "counts": {
         "accepted": 1,
         "deleted": 1,
@@ -68,6 +69,17 @@
       "schema_version": 3,
       "session_id": "b22aa5a2-5feb-4d0a-8133-91f66171ae66",
       "slug": "palsgraf-248-ny-339",
+      "splits": {
+        "development": [
+          0,
+          13488
+        ],
+        "held-out": [
+          13488,
+          31920
+        ]
+      },
+      "text_file": "palsgraf-248-ny-339.txt",
       "wrapper_schema_version": 1
     }
   ]

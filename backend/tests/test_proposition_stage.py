@@ -57,11 +57,26 @@ async def test_flag_off_returns_job_unchanged(monkeypatch) -> None:
 
     monkeypatch.setattr(settings, "proposition_extraction_enabled", False)
     job = await _job("Plaintiff contends the statute requires notice.")
+    job.result.metadata["proposition_lexicon_version"] = "older-version"
+    job.result.metadata["unrelated"] = "preserved"
     before = job.model_dump(mode="json")
     result = await EarlyPropositionStage().execute(job)
     assert result is job
     assert result.model_dump(mode="json") == before
     assert result.result.propositions == []
+
+
+@pytest.mark.asyncio
+async def test_flag_on_records_extraction_lexicon_version(monkeypatch) -> None:
+    from app.pipeline.stages.proposition_stage import EarlyPropositionStage
+    from app.services.proposition.lexicon import LEXICON_VERSION
+
+    monkeypatch.setattr(settings, "proposition_extraction_enabled", True)
+    job = await _job("We hold that the contract is void.")
+    job.result.metadata["unrelated"] = "preserved"
+    result = await EarlyPropositionStage().execute(job)
+    assert result.result.metadata["proposition_lexicon_version"] == LEXICON_VERSION
+    assert result.result.metadata["unrelated"] == "preserved"
 
 
 @pytest.mark.asyncio

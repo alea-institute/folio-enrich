@@ -56,6 +56,51 @@ async def make_store(tmp_path: Path, propositions: list[Proposition]):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("recorded", "baseline", "supplied", "expected"),
+    [
+        ("older-version", False, None, "older-version"),
+        (None, False, None, None),
+        ("older-version", True, None, "phase-a-v1"),
+        (None, True, None, "phase-a-v1"),
+        ("older-version", False, "client-version", "client-version"),
+        ("older-version", True, "client-version", "client-version"),
+    ],
+)
+async def test_session_lexicon_version_provenance(
+    tmp_path: Path, recorded, baseline, supplied, expected,
+) -> None:
+    from app.services.gold.store import PreSelector
+
+    store, jobs, job, _ = await make_store(tmp_path, [proposition("p1")])
+    if recorded is not None:
+        job.result.metadata["proposition_lexicon_version"] = recorded
+        await jobs.save(job)
+    selector = PreSelector(source="lexicon-only", lexicon_version=supplied)
+    session = await store.create_session(job.id, pre_selector=selector, baseline=baseline)
+    assert session.pre_selector.lexicon_version == expected
+    assert (await store.get(session.session_id)).pre_selector.lexicon_version == expected
+    assert selector.lexicon_version == supplied
+    persisted_job = await jobs.load(job.id)
+    assert persisted_job.result.metadata.get("proposition_lexicon_version") == recorded
+    if baseline:
+        assert session.candidates[0].proposition.text == "the rule applies"
+    else:
+        assert session.candidates[0].proposition.id == "p1"
+
+
+@pytest.mark.asyncio
+async def test_session_omitted_version_copies_recorded_job_version(tmp_path: Path) -> None:
+    store, jobs, job, _ = await make_store(tmp_path, [proposition("p1")])
+    job.result.metadata["proposition_lexicon_version"] = "older-version"
+    await jobs.save(job)
+    session = await store.create_session(
+        job.id, pre_selector={"source": "lexicon-only"},
+    )
+    assert session.pre_selector.lexicon_version == "older-version"
+
+
+@pytest.mark.asyncio
 async def test_deleted_trail_metrics_and_hand_added_recall(tmp_path: Path) -> None:
     from app.services.gold.store import precision_from_record, recall_proxy_from_record
 

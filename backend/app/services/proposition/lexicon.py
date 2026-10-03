@@ -9,6 +9,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
+LEXICON_VERSION = "phase-a-v1"
+
+
 @dataclass(frozen=True)
 class PropositionFrame:
     proposition_type: str
