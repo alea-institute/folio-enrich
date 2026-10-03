@@ -210,17 +210,25 @@ class GoldStore:
         job = await self.job_store.load(parsed)
         if job is None:
             raise LookupError("job not found")
-        selector = PreSelector.model_validate(pre_selector or {"source": "lexicon-only"})
+        selector = PreSelector.model_validate(
+            pre_selector or {"source": "lexicon-only"}
+        ).model_copy(deep=True)
         candidates = job.result.propositions
         if baseline:
             from app.services.proposition.extractor import PropositionExtractor
+            from app.services.proposition.lexicon import LEXICON_VERSION
 
             selector = PreSelector(
                 source="lexicon-only",
-                lexicon_version=selector.lexicon_version,
+                lexicon_version=(
+                    selector.lexicon_version
+                    if selector.lexicon_version is not None else LEXICON_VERSION
+                ),
                 lexicon_config=selector.lexicon_config,
             )
             candidates = PropositionExtractor().extract(job)
+        elif selector.lexicon_version is None:
+            selector.lexicon_version = job.result.metadata.get("proposition_lexicon_version")
         session = AnnotationSession(
             job_id=str(job.id),
             document_id=document_id or str(job.id),

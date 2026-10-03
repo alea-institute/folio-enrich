@@ -11,6 +11,7 @@ from app.pipeline.stages.base import PipelineStage
 from app.services.llm.base import LLMProvider
 from app.services.proposition.extractor import PropositionExtractor
 from app.services.proposition.identity import proposition_id
+from app.services.proposition.lexicon import LEXICON_VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,7 @@ class EarlyPropositionStage(PipelineStage):
             return job
 
         candidates = self._extractor.extract(job)
+        job.result.metadata["proposition_lexicon_version"] = LEXICON_VERSION
         if self.llm is not None and job.result.canonical_text is not None:
             try:
                 candidates.extend(await self._assist(job))
