@@ -2,7 +2,7 @@
 title: Proposition System Phase B — zero-LLM extraction recall, benchmarked
 type: feat
 date: 2026-10-03
-status: requirements
+status: planned
 artifact_contract: ce-unified-plan/v1
 product_contract_source: ce-brainstorm
 execution: code
@@ -16,6 +16,10 @@ execution: code
 - **Means:** extend the zero-LLM `EarlyPropositionStage` extractor beyond reporting-verb frames to assertion-level patterns, scored by an offline benchmark against the committed Palsgraf gold set.
 - **Product authority:** Damien Riehl (annotator-taxonomist). This plan covers Phase B's extraction engine and its benchmark only. The public Propositions tab, LLM refinement (Phase C) and the gold-ladder annotation cycles are not active scope.
 - **Open blockers:** none.
+- **Stop conditions:** stop and report if a pattern change can only raise recall by changing the v0.3.0 schema or taxonomy (R10), or if held-out recall stalls below the Success Criteria after U5–U6. Report the numbers; do not tune against held-out text to close the gap.
+- **Execution profile:** one branch (`feat/proposition-cycle-2`), units in order U1→U7. The agent implements, verifies and opens the PR. Merging follows the repo's standing authorization. No production deploy.
+
+**Product Contract preservation:** Product Contract unchanged. The three Outstanding Questions deferred to planning are resolved in the Planning Contract (KTD2, KTD3, KTD5).
 
 ## Product Contract
 
@@ -98,6 +102,121 @@ This plan covers the extraction engine and benchmark slice of Phase B. The break
 
 ### Outstanding Questions
 
-- Deferred to Planning: the overlap threshold and matching rule for R5.
-- Deferred to Planning: how the development/held-out boundary is encoded, by character offset or by section marker.
-- Deferred to Planning: the dev/held-out gap tolerance named in Success Criteria.
+- Resolved in planning: the R5 matching rule (KTD2), the split encoding (KTD3) and the gap tolerance (KTD5).
+
+## Planning Contract
+
+### Key Technical Decisions
+
+- KTD1. **Commit the canonical text as a plain `.txt` beside the gold, plus manifest pointers.** The text comes from job `6ae5e29d-728c-475d-875c-a4ece3d5d9ec` (31,920 characters). All 104 gold spans were verified on 2026-10-03 to reproduce their recorded text from it. The job store's 30-day sweep makes the job file an unsafe source of truth. Governs R2.
+- KTD2. **Match by overlap coefficient ≥ 0.5, one-to-one.** A candidate matches a gold span when their character overlap is at least half the shorter span's length. Pairs are assigned greedily by largest overlap, so one candidate never credits two gold spans. Exact matches are counted separately. The threshold follows the repo's NER harness, which already uses overlap rather than equality (`backend/eval/metrics.py`), tightened to one-to-one because proposition spans are long and nest. Governs R5.
+- KTD3. **Encode splits as character ranges in the manifest.** Palsgraf: development `[0, 13488)` (the majority), held-out `[13488, 31920)`, starting at "ANDREWS, J. (dissenting):". This gives 46 development and 58 held-out gold propositions. A manifest entry without `splits` is wholly held-out, which is how R4 is satisfied with no further code. Governs R3, R4.
+- KTD4. **Precision counts every unmatched candidate as a false positive.** Cycle 1 recorded a complete full-text coverage pass, so the gold is exhaustive within each opinion. Candidates overlapping the blind segment (offsets 19912–20935) are scored the same way. Governs R1.
+- KTD5. **Gap tolerance: held-out recall within 0.15 of development recall.** A wider gap is reported as a tuning-overfit warning in the report, not a failure. Governs Success Criteria.
+- KTD6. **The server stamps the lexicon version.** A `LEXICON_VERSION` constant lives with the lexicon. Session creation fills `pre_selector.lexicon_version` when the client omits it, which today it always does (`frontend/index.html` sends none). This work bumps the version from `phase-a-v1` to `phase-b-v1`. Governs R13.
+- KTD7. **Negation: widen to the governing clause, else drop.** When a complement or assertion sits under a negation (a `neg` dependent, or a negative determiner such as "no" or "never" on the frame), the span widens to the clause that carries the negation. Where widening would cross the sentence, the candidate is dropped. Governs R8.
+- KTD8. **Assertion patterns are dependency-parse rules, not regexes.** They run on the stage's single spaCy parse (`app/services/nlp/spacy_singleton.py`) and live as named frames beside the reporting-verb table in `app/services/proposition/lexicon.py`. Each frame records which pattern fired, so the benchmark can attribute hits and misses per pattern. Governs R7, R9, R12.
+
+### High-Level Technical Design
+
+Directional only:
+
+```text
+gold/*.jsonl + gold/*.txt + manifest(splits)
+        │
+        ▼
+eval/proposition_benchmark.py ── runs PropositionExtractor on each .txt (no pipeline, no LLM)
+        │                       ── scores per split: recall, precision, F1, exact, per-type, per-pattern
+        ▼
+eval/reports/propositions/<lexicon_version>.json (+ printed table)
+```
+
+The benchmark builds a minimal in-memory `Job` carrying the canonical text and an empty individuals list, so it exercises the extractor exactly as the stage does, minus citation linking.
+
+### Sequencing
+
+U1 → U2 → U3 establish the measuring stick and the baseline before any extractor change. U4 → U5 → U6 change the extractor, each rerunning the benchmark on development. U7 records the final held-out result.
+
+## Implementation Units
+
+### U1. Commit gold canonical text with an integrity check
+
+- **Goal:** make the Palsgraf gold re-scorable without the job store.
+- **Requirements:** R2.
+- **Files:** `backend/eval/gold/propositions/palsgraf-248-ny-339.txt` (new), `backend/eval/gold/propositions/manifest.json`, `backend/tests/test_proposition_gold_text.py` (new).
+- **Approach:** export `result.canonical_text.full_text` byte-exact. Add `text_file` and `splits` (KTD3) to the Palsgraf manifest entry. `demo-smoke` gets its text too if its job is available; otherwise it is skipped by the benchmark with a printed note.
+- **Test scenarios:** every exported annotation's offsets reproduce its `proposition.text` from the `.txt`; a deliberately shifted copy fails and names the span (AE4); split ranges cover the whole text without overlap; the counts per split are 46 and 58.
+- **Verification:** `pytest tests/test_proposition_gold_text.py`.
+
+### U2. Offline proposition benchmark
+
+- **Goal:** one command that scores the extractor per split.
+- **Requirements:** R1, R3, R4, R5, R6.
+- **Dependencies:** U1.
+- **Files:** `backend/eval/proposition_benchmark.py` (new), `backend/tests/test_proposition_benchmark.py` (new).
+- **Approach:** pure scoring functions (matching per KTD2, precision per KTD4, gap warning per KTD5) separated from the CLI entry point (`python -m eval.proposition_benchmark [--write]`). Report fields: per split, the counts (gold, candidates, matched, exact), recall, precision, F1, per-type recall, per-pattern hits, and type agreement on matches. Follow the existing `eval/` module layout.
+- **Test scenarios:** synthetic gold plus candidates covering: partial overlap at exactly 0.5 matches and at 0.49 does not; one candidate overlapping two gold spans credits one; an entry without `splits` is all held-out (R4); the overfit warning fires at a gap of 0.16 and not at 0.15; empty candidates yield recall 0 with no division error.
+- **Verification:** `pytest tests/test_proposition_benchmark.py`, then a CLI run printing the Palsgraf table.
+
+### U3. Baseline report and lexicon version stamping
+
+- **Goal:** record where Phase A stands, and make future gold attributable.
+- **Requirements:** R6, R13.
+- **Dependencies:** U2.
+- **Files:** `backend/eval/reports/propositions/phase-a-v1.json` (new), `backend/app/services/proposition/lexicon.py`, `backend/app/services/gold/store.py`, `backend/tests/test_gold_store.py`.
+- **Approach:** run the benchmark on the unchanged extractor and commit the report as the baseline. Add `LEXICON_VERSION` and stamp it per KTD6.
+- **Test scenarios:** a session created without `lexicon_version` records the current constant; a client-supplied value is preserved.
+- **Verification:** the baseline report exists; `pytest tests/test_gold_store.py`.
+
+### U4. Negation-safe candidates
+
+- **Goal:** no candidate inverts its source's polarity.
+- **Requirements:** R8, R11.
+- **Dependencies:** U3.
+- **Files:** `backend/app/services/proposition/extractor.py`, `backend/tests/test_proposition_stage.py`.
+- **Approach:** per KTD7, applied to the existing reporting-verb path first; U5's patterns reuse the same guard.
+- **Test scenarios:** AE2 ("The plaintiff has no claim that the guard was negligent"); "No human foresight would suggest that X" yields no bare "X"; a non-negated "The plaintiff contends that X" still yields "X"; the Palsgraf offsets 16109 and 29213 named in the cycle learnings no longer produce inverted text.
+- **Verification:** unit tests pass, and development precision does not fall below the U3 baseline (R11).
+
+### U5. Assertion-level court patterns
+
+- **Goal:** raise recall on direct judicial assertions.
+- **Requirements:** R7, R10, R12.
+- **Dependencies:** U4.
+- **Files:** `backend/app/services/proposition/lexicon.py`, `backend/app/services/proposition/extractor.py`, `backend/tests/test_proposition_stage.py`.
+- **Approach:** named dependency frames per KTD8: copular characterization or definition (subject + "be" + attribute or complement), modal and deontic (must, shall, may not, cannot, is bound to, is liable, owes a duty), existential obligation ("There must be…"), and generic rules ("One who…", "If/where X, Y" with a general subject). Spans are clause-level, trimmed by the existing `_trim_span`. Default types are `Judicial Legal Conclusion` with a court asserter, `ruled` validator mode and `accepted` disposition. Inside the dissent, the existing dissent modeling applies (asserter name carries the dissenting judge; the type is unchanged). Tuning uses the development split only.
+- **Test scenarios:** AE1; a pronoun-only copular clause ("It is so.") is not emitted; a modal inside a quotation is left to U6; each new frame has one positive and one negative fixture sentence.
+- **Verification:** unit tests pass; the development benchmark rerun shows recall rising and precision holding.
+
+### U6. Cited-authority propositions
+
+- **Goal:** propose quoted treatise and precedent assertions.
+- **Requirements:** R9, R10.
+- **Dependencies:** U5.
+- **Files:** `backend/app/services/proposition/extractor.py`, `backend/app/services/proposition/lexicon.py`, `backend/tests/test_proposition_stage.py`.
+- **Approach:** quoted spans that make an assertion (they contain a finite verb) and sit next to a citation or attribution (a reporter citation pattern, "said", "J., in", or a treatise name) become `cited-authority proposition` with asserter `secondary_source`. Without such an anchor they fall back to `court`.
+- **Test scenarios:** the Willes, J. negligence quotation in Palsgraf; a quoted single word or title is not emitted; an unattributed quotation does not become cited-authority.
+- **Verification:** unit tests pass; development benchmark rerun.
+
+### U7. Held-out result and documentation
+
+- **Goal:** state the result honestly.
+- **Requirements:** R3, R6, R14, Success Criteria.
+- **Dependencies:** U6.
+- **Files:** `backend/eval/reports/propositions/phase-b-v1.json` (new), `backend/eval/gold/propositions/README.md`.
+- **Approach:** run the benchmark once more and commit the report. Document the benchmark command and the split rule in the gold README, and correct its blanket "human-reviewed" wording for the AI-annotated Palsgraf cycle, per the 2026-09-30 reconciliation.
+- **Verification:** the report shows development and held-out results, with any overfit warning; the byte-neutral harness passes.
+
+## Verification Contract
+
+- Full suite: `cd backend && .venv/bin/python -m pytest tests/ -q` (the repo's default markers exclude slow/eval runs).
+- Byte neutrality: `pytest tests/test_proposition_byte_neutral.py` passes unchanged (R14).
+- Benchmark: `cd backend && .venv/bin/python -m eval.proposition_benchmark` prints both splits. `--write` produces the committed report.
+- Success Criteria are judged from the held-out row of `phase-b-v1.json` against `phase-a-v1.json`.
+
+## Definition of Done
+
+- U1–U7 are complete with their tests passing, and the full suite and byte-neutral harness are green.
+- Baseline and Phase B reports are committed, and the PR description quotes the held-out numbers, including any overfit warning.
+- `proposition_extraction_enabled` still defaults to off. No production deploy happens.
+- Abandoned patterns and experiment scaffolding are removed from the diff.
