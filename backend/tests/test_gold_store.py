@@ -61,8 +61,8 @@ async def make_store(tmp_path: Path, propositions: list[Proposition]):
     [
         ("older-version", False, None, "older-version"),
         (None, False, None, None),
-        ("older-version", True, None, "phase-a-v1"),
-        (None, True, None, "phase-a-v1"),
+        ("older-version", True, None, "phase-b-v1"),
+        (None, True, None, "phase-b-v1"),
         ("older-version", False, "client-version", "client-version"),
         ("older-version", True, "client-version", "client-version"),
     ],

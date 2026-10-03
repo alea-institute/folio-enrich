@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-LEXICON_VERSION = "phase-a-v1"
+LEXICON_VERSION = "phase-b-v1"
 
 
 @dataclass(frozen=True)
@@ -18,6 +18,7 @@ class PropositionFrame:
     asserter_role: str
     disposition: str
     validator_mode: str | None = None
+    pattern_name: str | None = None
 
 
 PARTY_LAW = PropositionFrame("Legal Proposition", "party", "unresolved")
@@ -63,4 +64,19 @@ ARGUENDO_MARKERS: tuple[str, ...] = (
 
 ARGUENDO_FRAME = PropositionFrame(
     "arguendo assumption", "court", "assumed-arguendo", "declined"
+)
+
+
+# Names describe dependency rules; they are extraction-only diagnostics.
+ASSERTION_FRAMES = {
+    name: PropositionFrame("Judicial Legal Conclusion", "court", "accepted", "ruled", name)
+    for name in ("copular-definition", "modal-deontic", "existential-obligation", "generic-rule")
+}
+MODAL_LEMMAS = {"must", "shall", "should", "may", "can"}
+
+QUOTED_AUTHORITY_FRAME = PropositionFrame(
+    "cited-authority proposition", "secondary_source", "unresolved", pattern_name="quoted-authority"
+)
+QUOTED_COURT_FRAME = PropositionFrame(
+    "Judicial Legal Conclusion", "court", "accepted", "ruled", "quoted-court"
 )

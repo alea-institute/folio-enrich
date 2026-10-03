@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -149,9 +150,14 @@ def combine_scores(scores: list[dict]) -> dict:
     })
 
 
-def load_records(path: Path, text: str) -> tuple[list[Span], list[Span]]:
+def load_records(path: Path, text: str, ranges: Sequence[tuple[int, int]] | None = None) -> tuple[list[Span], list[Span]]:
     gold, audits = [], []
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in path.open(encoding="utf-8"):
+        # Filter offsets before decoding excluded gold rows.
+        if ranges is not None:
+            offset = re.search(r'"start_char"\s*:\s*(\d+)', line)
+            if offset is None or not any(start <= int(offset[1]) < end for start, end in ranges):
+                continue
         row = json.loads(line)
         kind = row.get("record_type")
         if kind not in {"annotation", "candidate-audit"}:
@@ -178,7 +184,7 @@ def split_ranges(entry: dict, text_length: int) -> dict[str, tuple[int, int]]:
     return ranges
 
 
-def run_benchmark(manifest_path: Path = DEFAULT_MANIFEST) -> dict:
+def run_benchmark(manifest_path: Path = DEFAULT_MANIFEST, *, split: str | None = None) -> dict:
     from app.models.document import CanonicalText
     from app.models.job import Job, JobResult
     from app.services.proposition.extractor import PropositionExtractor
@@ -191,9 +197,24 @@ def run_benchmark(manifest_path: Path = DEFAULT_MANIFEST) -> dict:
         if entry.get("benchmark") is False:
             continue
         slug = entry["slug"]
-        text = (manifest_path.parent / entry["text_file"]).read_bytes().decode("utf-8")
-        gold, audits = load_records(manifest_path.parent / f"{slug}.jsonl", text)
-        ranges = split_ranges(entry, len(text))
+        if split is not None:
+            bounds = entry.get("splits", {}).get(split)
+            if bounds is None:
+                continue
+            start, end = bounds
+            # Do not load the held-out suffix into the single spaCy parse.
+            if start != 0:
+                raise ValueError("selected split must be a canonical-text prefix")
+            with (manifest_path.parent / entry["text_file"]).open(encoding="utf-8", newline="") as source:
+                text = source.read(end)
+            if len(text) != end:
+                raise ValueError(f"{slug}: selected split exceeds canonical text")
+            ranges = {split: (start, end)}
+        else:
+            text = (manifest_path.parent / entry["text_file"]).read_bytes().decode("utf-8")
+            ranges = split_ranges(entry, len(text))
+        gold, audits = load_records(manifest_path.parent / f"{slug}.jsonl", text,
+                                   list(ranges.values()) if split else None)
         job = Job(
             id=UUID(entry["job_id"]) if entry.get("job_id") else uuid5(NAMESPACE_URL, slug),
             result=JobResult(canonical_text=CanonicalText(full_text=text)),
@@ -235,6 +256,9 @@ def print_report(report: dict) -> None:
             return f"{score[metric]:.3f} [{low:.3f}, {high:.3f}]"
 
         print(f"{name:<12} {score['gold']:>4} {score['candidates']:>10} {score['matched']:>7} {score['exact']:>5} {interval('recall'):<21} {interval('precision'):<21} {score['f1']:.3f}")
+        print("  Pattern                      Candidates Hits Exact")
+        for pattern, values in score["per_pattern"].items():
+            print(f"  {pattern:<28} {values['candidates']:>10} {values['matched']:>4} {values['exact']:>5}")
     if report["overfit"]["flag"]:
         print("Indicative overfit flag: held-out recall is more than 0.15 below development recall.")
 
@@ -242,8 +266,11 @@ def print_report(report: dict) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--write", action="store_true", help="write eval/reports/propositions/<lexicon_version>.json")
+    parser.add_argument("--split", choices=["development"], help="load, extract and score only development text and gold")
     args = parser.parse_args()
-    report = run_benchmark()
+    if args.split and args.write:
+        parser.error("--write requires the complete benchmark; split-only runs are for iteration")
+    report = run_benchmark(split=args.split)
     print_report(report)
     if args.write:
         REPORT_DIR.mkdir(parents=True, exist_ok=True)

@@ -174,3 +174,37 @@ def test_crossing_candidate_is_counted_once_in_start_split(tmp_path, monkeypatch
     assert report["splits"]["development"]["candidates"] == 1
     assert report["splits"]["held-out"]["candidates"] == 0
     assert report["overall"]["candidates"] == 1
+
+
+def test_development_only_never_parses_or_validates_excluded_text(tmp_path, monkeypatch):
+    from app.services.proposition.extractor import PropositionExtractor
+
+    development = 'The duty is clear.'
+    (tmp_path / 'opinion.txt').write_text(development + 'EXCLUDED SENTINEL')
+    (tmp_path / 'opinion.jsonl').write_text('\n'.join([
+        json.dumps({'record_type': 'annotation', 'proposition': {
+            'start_char': 0, 'end_char': len(development), 'text': development,
+            'proposition_type': 'Judicial Legal Conclusion',
+        }}),
+        json.dumps({'record_type': 'annotation', 'proposition': {
+            'start_char': len(development), 'end_char': 9999, 'text': 'invalid excluded row',
+            'proposition_type': 'Judicial Legal Conclusion',
+        }}),
+    ]))
+    manifest = tmp_path / 'manifest.json'
+    manifest.write_text(json.dumps({'opinions': [
+        {'slug': 'future-held-out-with-no-files', 'text_file': 'missing.txt'},
+        {'slug': 'opinion', 'text_file': 'opinion.txt', 'splits': {
+            'development': [0, len(development)], 'held-out': [len(development), 9999],
+        }},
+    ]}))
+
+    def extract(self, job):
+        assert job.result.canonical_text.full_text == development
+        return []
+
+    monkeypatch.setattr(PropositionExtractor, 'extract', extract)
+    report = run_benchmark(manifest, split='development')
+    assert set(report['splits']) == {'development'}
+    assert report['overall']['gold'] == 1
+    assert report['overfit']['flag'] is None
