@@ -2281,38 +2281,101 @@
   }
   .prop-card .prop-conf { font-size: 11px; color: var(--text-dim); min-width: 28px; text-align: right; }
 
-  /* Proposition annotation tab (minimal cycle-one tool) */
+  /* Proposition review workspace — document context + one-item adjudication lens */
   .proposition-toolbar, .proposition-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .proposition-toolbar { padding-bottom:10px; border-bottom:1px solid var(--border); }
+  .proposition-mode-control { display:flex; align-items:center; gap:7px; font-weight:650; }
   .proposition-status { font-size:11px; color:var(--text-dim); }
-  .proposition-admin-token { display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
-  .proposition-admin-token input { width:150px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; background:var(--surface2); color:var(--text); font-size:11px; }
+  .proposition-session-tools { margin-left:auto; position:relative; }
+  .proposition-session-tools > summary { cursor:pointer; list-style:none; padding:5px 9px; border:1px solid var(--border); border-radius:6px; color:var(--text-dim); font-size:11px; font-weight:650; }
+  .proposition-session-tools > summary::-webkit-details-marker { display:none; }
+  .proposition-session-tools > summary::after { content:'  ···'; letter-spacing:1px; }
+  .proposition-session-tools[open] > summary { color:var(--text); background:var(--surface2); }
+  .proposition-session-tools-panel { position:absolute; z-index:20; top:calc(100% + 6px); right:0; width:min(520px,80vw); padding:12px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; border:1px solid var(--border); border-radius:9px; background:var(--surface); box-shadow:0 18px 44px rgba(15,17,23,.2); }
+  .proposition-admin-token { display:flex; align-items:center; gap:5px; flex-wrap:wrap; flex-basis:100%; }
+  .proposition-admin-token input { width:150px; padding:5px 7px; border:1px solid var(--border); border-radius:5px; background:var(--surface2); color:var(--text); font-size:11px; }
   .proposition-admin-token-hint { flex-basis:100%; font-size:10px; color:var(--text-dim); }
-  .proposition-document { margin-top:10px; max-height:34vh; overflow:auto; padding:14px; border:1px solid var(--border); border-radius:7px; background:var(--surface2); white-space:pre-wrap; line-height:1.65; font-size:13px; }
-  .proposition-document.add-armed { cursor:text; outline:2px solid var(--orange); outline-offset:1px; }
-  .proposition-document.blind-armed { cursor:text; outline:2px solid var(--text-dim); outline-offset:1px; }
+  .proposition-review-shell { margin-top:12px; min-height:560px; height:min(70vh,760px); display:grid; grid-template-columns:minmax(0,1.45fr) minmax(330px,.8fr); gap:12px; }
+  .proposition-context-pane, .proposition-review-panel { min-width:0; border:1px solid var(--border); border-radius:10px; background:var(--surface); overflow:hidden; }
+  .proposition-context-pane { display:flex; flex-direction:column; }
+  .proposition-review-header { min-height:48px; padding:9px 12px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--border); background:color-mix(in srgb,var(--surface2) 66%,var(--surface)); }
+  .proposition-review-eyebrow { display:block; margin-bottom:2px; font-size:9px; font-weight:750; letter-spacing:.11em; text-transform:uppercase; color:var(--text-dim); }
+  .proposition-review-heading { font-size:12px; font-weight:700; color:var(--text); }
+  .proposition-review-position { font:700 11px ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--text-dim); white-space:nowrap; }
+  .proposition-document { flex:1; overflow:auto; padding:clamp(18px,3vw,34px); background:color-mix(in srgb,var(--surface2) 42%,var(--surface)); white-space:pre-wrap; color:var(--text); font-family:Iowan Old Style,Palatino Linotype,Book Antiqua,Georgia,serif; font-size:clamp(14px,1.2vw,16px); line-height:1.82; scroll-padding-block:38%; }
+  .proposition-document.add-armed { cursor:text; outline:2px solid var(--orange); outline-offset:-3px; }
+  .proposition-document.blind-armed { cursor:text; outline:2px solid var(--text-dim); outline-offset:-3px; }
   .proposition-blind-segment { background:repeating-linear-gradient(135deg, color-mix(in srgb, var(--text-dim) 10%, transparent) 0 4px, transparent 4px 8px); border-radius:2px; }
-  .proposition-span { background:color-mix(in srgb, var(--orange) 18%, transparent); border-bottom:2px solid var(--orange); cursor:pointer; border-radius:2px; }
-  .proposition-span:focus { outline:2px solid var(--accent); outline-offset:2px; }
+  .proposition-span { padding:2px 1px; background:color-mix(in srgb,var(--orange) 11%,transparent); border-bottom:2px solid color-mix(in srgb,var(--orange) 58%,transparent); cursor:pointer; border-radius:2px; transition:background .16s ease,box-shadow .16s ease,border-color .16s ease; }
+  .proposition-span:hover { background:color-mix(in srgb,var(--orange) 22%,transparent); }
+  .proposition-span.active { background:color-mix(in srgb,var(--orange) 30%,transparent); border-bottom-color:var(--orange); box-shadow:0 0 0 3px color-mix(in srgb,var(--orange) 16%,transparent),5px 0 0 color-mix(in srgb,var(--orange) 72%,transparent); }
+  .proposition-span.outcome-deleted { text-decoration:line-through; opacity:.55; }
+  .proposition-span:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
   .proposition-add-banner { margin:8px 0; padding:6px 9px; border-radius:5px; background:var(--conf-mid-bg); color:var(--conf-mid); font-size:12px; }
-  .proposition-candidates { margin-top:12px; display:grid; gap:10px; }
-  .proposition-card { padding:12px; border:1px solid var(--border); border-radius:8px; background:var(--surface); }
-  .proposition-card:focus { outline:2px solid var(--accent); outline-offset:2px; }
-  .proposition-card.deleted { opacity:.65; }
-  .proposition-card-head { display:flex; gap:8px; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
-  .proposition-quote { font-weight:600; font-size:13px; overflow-wrap:anywhere; }
-  .proposition-outcome { font-size:9px; font-weight:700; text-transform:uppercase; padding:3px 7px; border-radius:10px; background:var(--surface3); white-space:nowrap; }
-  .proposition-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
-  .proposition-field { display:flex; flex-direction:column; gap:3px; font-size:10px; color:var(--text-dim); }
-  .proposition-field select, .proposition-field input[type="text"], .proposition-field input[type="number"] { width:100%; box-sizing:border-box; padding:6px; border:1px solid var(--border); border-radius:4px; background:var(--surface2); color:var(--text); }
+  .proposition-review-panel { display:flex; flex-direction:column; box-shadow:-10px 0 36px color-mix(in srgb,var(--bg) 8%,transparent); }
+  .proposition-review-controls { padding:10px 12px; display:grid; grid-template-columns:auto minmax(0,1fr); gap:8px; align-items:center; border-bottom:1px solid var(--border); background:var(--surface2); }
+  .proposition-review-nav { display:flex; gap:5px; }
+  .proposition-review-nav button { min-width:32px; min-height:30px; padding:4px 8px; }
+  .proposition-review-filter { width:100%; min-height:30px; padding:4px 7px; border:1px solid var(--border); border-radius:5px; background:var(--surface); color:var(--text); font-size:11px; }
+  .proposition-review-summary { padding:9px 12px; display:flex; flex-wrap:wrap; gap:5px; border-bottom:1px solid var(--border); }
+  .proposition-review-stat { padding:3px 7px; border-radius:999px; background:var(--surface2); color:var(--text-dim); font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; }
+  .proposition-candidates { flex:1; min-height:0; overflow:auto; padding:12px; }
+  .proposition-card { min-height:100%; display:flex; flex-direction:column; padding:0; border:0; background:transparent; }
+  .proposition-card:focus { outline:none; }
+  .proposition-card.deleted { opacity:.72; }
+  .proposition-card-head { display:flex; gap:10px; justify-content:space-between; align-items:flex-start; margin-bottom:13px; }
+  .proposition-quote { font-family:Iowan Old Style,Palatino Linotype,Book Antiqua,Georgia,serif; font-weight:650; font-size:15px; line-height:1.45; overflow-wrap:anywhere; }
+  .proposition-outcome { font-size:9px; font-weight:750; text-transform:uppercase; padding:4px 7px; border-radius:999px; background:var(--surface3); white-space:nowrap; }
+  .proposition-outcome.unreviewed { background:var(--conf-mid-bg); color:var(--conf-mid); }
+  .proposition-outcome.accepted, .proposition-outcome.edited, .proposition-outcome.hand-added { background:var(--conf-high-bg); color:var(--conf-high); }
+  .proposition-outcome.deleted { background:var(--conf-low-bg); color:var(--conf-low); }
+  .proposition-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+  .proposition-field { display:flex; flex-direction:column; gap:4px; font-size:10px; font-weight:650; color:var(--text-dim); }
+  .proposition-field select, .proposition-field input[type="text"], .proposition-field input[type="number"] { width:100%; box-sizing:border-box; min-height:34px; padding:6px 8px; border:1px solid var(--border); border-radius:5px; background:var(--surface2); color:var(--text); }
   .proposition-field.wide { grid-column:1/-1; }
-  .proposition-inline-confirm { padding:7px; border-left:3px solid var(--orange); background:var(--conf-mid-bg); color:var(--text); font-size:11px; }
-  .proposition-citations { margin:8px 0; font-size:11px; color:var(--text-dim); }
+  .proposition-inline-confirm { padding:8px; border-left:3px solid var(--orange); background:var(--conf-mid-bg); color:var(--text); font-size:11px; }
+  .proposition-advanced { grid-column:1/-1; margin-top:1px; border-top:1px solid var(--border); }
+  .proposition-advanced > summary { padding:8px 0; cursor:pointer; color:var(--text-dim); font-size:10px; font-weight:700; }
+  .proposition-advanced-grid { padding-top:2px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+  .proposition-citations { grid-column:1/-1; margin:0; padding:7px; border-radius:5px; background:var(--surface2); font-size:10px; line-height:1.45; color:var(--text-dim); }
+  .proposition-actions { position:sticky; bottom:-12px; margin:14px -12px -12px; padding:10px 12px 12px; margin-top:auto; border-top:1px solid var(--border); background:linear-gradient(to bottom,color-mix(in srgb,var(--surface) 90%,transparent),var(--surface) 24%); }
+  .proposition-actions button { min-height:34px; }
+  .proposition-actions kbd { margin-left:4px; padding:1px 4px; border:1px solid currentColor; border-radius:3px; font:700 9px ui-monospace,SFMono-Regular,Menlo,monospace; opacity:.65; }
+  .proposition-review-save-state { flex-basis:100%; min-height:14px; color:var(--text-dim); font-size:10px; }
+  .proposition-review-save-state.dirty { color:var(--conf-mid); }
+  .proposition-review-empty { height:100%; display:grid; place-content:center; gap:7px; text-align:center; color:var(--text-dim); }
+  .proposition-review-empty strong { color:var(--text); }
+  .proposition-shortcuts { padding:7px 12px; border-top:1px solid var(--border); color:var(--text-dim); font-size:9px; line-height:1.5; }
+  .proposition-shortcuts kbd { padding:1px 4px; border:1px solid var(--border); border-radius:3px; background:var(--surface2); font:700 9px ui-monospace,SFMono-Regular,Menlo,monospace; }
   .proposition-export.warning { border-color:var(--orange); color:var(--orange); }
   .proposition-validity { margin-top:10px; padding:10px; border:1px solid var(--border); border-radius:7px; background:var(--surface2); display:grid; gap:7px; }
   .proposition-validity-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .proposition-diff { font-size:11px; color:var(--text-dim); }
-  @media (max-width:700px) { .proposition-fields { grid-template-columns:1fr; } .proposition-field.wide { grid-column:auto; } }
+  @media (max-width:1000px) {
+    .proposition-review-shell { height:auto; min-height:0; grid-template-columns:1fr; }
+    .proposition-context-pane { min-height:46vh; max-height:58vh; }
+    .proposition-review-panel { position:sticky; z-index:12; bottom:8px; max-height:52vh; box-shadow:0 -16px 40px rgba(15,17,23,.24); }
+  }
+  @media (max-width:700px) {
+    body:has(#tab-propositions.active) { overflow-x:hidden; }
+    body:has(#tab-propositions.active) > header { overflow-x:auto; overscroll-behavior-inline:contain; }
+    body:has(#tab-propositions.active) #mainLayout { display:block; width:100vw; height:calc(100vh - 48px); }
+    body:has(#tab-propositions.active) .panel-left,
+    body:has(#tab-propositions.active) .panel-detail { display:none; }
+    body:has(#tab-propositions.active) .panel-right { width:100%; height:100%; }
+    body:has(#tab-propositions.active) .panel-right > .tabs { width:100%; }
+    body:has(#tab-propositions.active) #resultBody { padding:10px; }
+    .proposition-toolbar { align-items:flex-start; }
+    .proposition-session-tools { margin-left:0; }
+    .proposition-session-tools-panel { position:fixed; inset:auto 8px 8px; width:auto; max-height:70vh; overflow:auto; }
+    .proposition-review-shell { margin-inline:-4px; }
+    .proposition-context-pane { min-height:42vh; }
+    .proposition-review-panel { max-height:56vh; }
+    .proposition-fields, .proposition-advanced-grid { grid-template-columns:1fr; }
+    .proposition-field.wide, .proposition-advanced, .proposition-citations { grid-column:auto; }
+    .proposition-actions button { flex:1 1 44%; }
+  }
+  @media (prefers-reduced-motion:reduce) { .proposition-span { transition:none; } }
 
   /* Export tab: include dismissed checkbox */
   .export-option-row {
@@ -3883,27 +3946,58 @@
       </div>
       <div class="tab-content" id="tab-propositions">
         <div class="proposition-toolbar">
-          <label><input type="checkbox" id="propositionModeToggle" onchange="togglePropositionMode(this.checked)"> Annotation mode</label>
+          <label class="proposition-mode-control"><input type="checkbox" id="propositionModeToggle" onchange="togglePropositionMode(this.checked)"> Annotation mode</label>
           <span class="proposition-status" id="propositionModeStatus">Off</span>
-          <div class="proposition-admin-token">
-            <label for="propositionAnnotationTokenInput">Annotation access</label>
-            <input type="password" id="propositionAnnotationTokenInput" autocomplete="off" aria-describedby="propositionAnnotationTokenHint" onkeydown="if (event.key === 'Enter') savePropositionAnnotationToken()">
-            <button type="button" class="secondary small" onclick="savePropositionAnnotationToken()">Save</button>
-            <span class="proposition-admin-token-hint" id="propositionAnnotationTokenHint">Use a scoped annotation link or access code; leave empty locally.</span>
-          </div>
-          <button class="secondary small" id="startPropositionSessionBtn" onclick="ensurePropositionSession(true)" style="display:none">Start annotation session</button>
-          <label class="proposition-status"><input type="checkbox" id="propositionBaselineToggle"> Lexicon-only baseline session</label>
-          <button class="secondary small" id="addPropositionSpanBtn" onclick="togglePropositionAddMode()" disabled>+ Add span</button>
-          <button class="secondary small" id="blindSegmentBtn" onclick="toggleBlindSegmentMode()" disabled>Designate blind segment</button>
-          <button class="secondary small" id="revealBlindBtn" onclick="revealBlindSegment()" style="display:none">Reveal &amp; diff</button>
-          <button class="secondary small proposition-export" id="exportGoldBtn" onclick="exportGoldRecord()" disabled>Export gold record</button>
           <span class="chip" id="propositionRemainingChip">0 unreviewed remaining</span>
           <span class="chip" id="blindPendingChip" style="display:none">blind segment: 0 hidden</span>
+          <details class="proposition-session-tools">
+            <summary>Session tools</summary>
+            <div class="proposition-session-tools-panel">
+              <div class="proposition-admin-token">
+                <label for="propositionAnnotationTokenInput">Annotation access</label>
+                <input type="password" id="propositionAnnotationTokenInput" autocomplete="off" aria-describedby="propositionAnnotationTokenHint" onkeydown="if (event.key === 'Enter') savePropositionAnnotationToken()">
+                <button type="button" class="secondary small" onclick="savePropositionAnnotationToken()">Save access</button>
+                <span class="proposition-admin-token-hint" id="propositionAnnotationTokenHint">Use a scoped annotation link or access code; leave empty locally.</span>
+              </div>
+              <button class="secondary small" id="startPropositionSessionBtn" onclick="ensurePropositionSession(true)" style="display:none">Start annotation session</button>
+              <label class="proposition-status"><input type="checkbox" id="propositionBaselineToggle"> Lexicon-only baseline session</label>
+              <button class="secondary small" id="addPropositionSpanBtn" onclick="togglePropositionAddMode()" disabled>+ Add span</button>
+              <button class="secondary small" id="blindSegmentBtn" onclick="toggleBlindSegmentMode()" disabled>Designate blind segment</button>
+              <button class="secondary small" id="revealBlindBtn" onclick="revealBlindSegment()" style="display:none">Reveal &amp; diff</button>
+              <button class="secondary small proposition-export" id="exportGoldBtn" onclick="exportGoldRecord()" disabled>Export gold record</button>
+            </div>
+          </details>
         </div>
         <div class="proposition-add-banner" id="propositionAddBanner" style="display:none">Select text to create a proposition span; Esc to cancel.</div>
         <div class="proposition-add-banner" id="propositionBlindBanner" style="display:none">Select a neutral full-text segment to annotate without tool suggestions; Esc to cancel.</div>
-        <div class="proposition-status" style="margin-top:7px">Candidate shortcuts: A accept, E edit, D discard. Shortcuts pause while typing.</div>
-        <div class="proposition-document" id="propositionDocument" onmouseup="handlePropositionSelection()"></div>
+        <div class="proposition-review-shell" id="propositionReviewShell">
+          <section class="proposition-context-pane" aria-labelledby="propositionContextHeading">
+            <header class="proposition-review-header">
+              <div>
+                <span class="proposition-review-eyebrow">Source context</span>
+                <span class="proposition-review-heading" id="propositionContextHeading">Read the proposition in place</span>
+              </div>
+              <span class="proposition-review-position" id="propositionReviewPosition" aria-live="polite">— / —</span>
+            </header>
+            <div class="proposition-document" id="propositionDocument" role="document" aria-label="Document text with proposition highlights" onmouseup="handlePropositionSelection()"></div>
+          </section>
+          <aside class="proposition-review-panel" aria-labelledby="propositionReviewHeading">
+            <div class="proposition-review-controls">
+              <div class="proposition-review-nav" aria-label="Review navigation">
+                <button type="button" class="secondary small" id="previousPropositionBtn" onclick="navigatePropositionReview(-1)" aria-label="Previous proposition">←</button>
+                <button type="button" class="secondary small" id="nextPropositionBtn" onclick="navigatePropositionReview(1)" aria-label="Next proposition">→</button>
+              </div>
+              <select class="proposition-review-filter" id="propositionReviewFilter" aria-label="Items to review" onchange="setPropositionReviewFilter(this.value)">
+                <option value="needs-review">Needs review first</option>
+                <option value="reviewed">Reviewed items</option>
+                <option value="all">All propositions</option>
+              </select>
+            </div>
+            <div class="proposition-review-summary" id="propositionReviewSummary" aria-label="Review status"></div>
+            <div class="proposition-candidates" id="propositionCandidates" aria-labelledby="propositionReviewHeading"></div>
+            <div class="proposition-shortcuts"><strong id="propositionReviewHeading">Review shortcuts</strong> · <kbd>←</kbd>/<kbd>→</kbd> move · <kbd>A</kbd> approve · <kbd>E</kbd> edit · <kbd>D</kbd> discard</div>
+          </aside>
+        </div>
         <div class="proposition-validity">
           <div class="proposition-validity-row">
             <button class="secondary small" id="coveragePassBtn" onclick="recordCoveragePass()" disabled>Record full-text coverage pass</button>
@@ -3912,7 +4006,6 @@
           <div class="proposition-status" id="propositionCompletenessStatus">Completeness unavailable until a session starts.</div>
           <div class="proposition-diff" id="propositionBlindDiff" style="display:none"></div>
         </div>
-        <div class="proposition-candidates" id="propositionCandidates"></div>
         <div class="proposition-status" id="propositionExportResult"></div>
       </div>
       <div class="tab-content" id="tab-export">
@@ -4240,7 +4333,22 @@ let propositionBlindArmed = false;
 let propositionDraft = null;
 let propositionSettings = null;
 let propositionCompleteness = null;
+let propositionReviewId = null;
+let propositionReviewScrollPending = false;
+let propositionReviewSaving = false;
+const PROPOSITION_REVIEW_FILTERS = ['needs-review', 'reviewed', 'all'];
+const PROPOSITION_REVIEW_FILTER_KEY = 'folioPropositionReviewFilter';
+let propositionReviewFilter = (() => {
+  try {
+    const saved = localStorage.getItem(PROPOSITION_REVIEW_FILTER_KEY);
+    return PROPOSITION_REVIEW_FILTERS.includes(saved) ? saved : 'needs-review';
+  } catch { return 'needs-review'; }
+})();
 const PROPOSITION_ACCESS_DEFAULT_HINT = 'Use a scoped annotation link or access code; leave empty locally.';
+
+function persistPropositionReviewFilter(value) {
+  try { localStorage.setItem(PROPOSITION_REVIEW_FILTER_KEY, value); } catch { /* non-critical preference */ }
+}
 
 function setPropositionAccessState(message = PROPOSITION_ACCESS_DEFAULT_HINT, isError = false) {
   const input = document.getElementById('propositionAnnotationTokenInput');
@@ -4272,6 +4380,9 @@ function resetPropositionSessionState() {
   propositionSession = null;
   propositionDraft = null;
   propositionCompleteness = null;
+  propositionReviewId = null;
+  propositionReviewScrollPending = false;
+  propositionReviewSaving = false;
   propositionAddArmed = false;
   propositionBlindArmed = false;
 }
@@ -12137,6 +12248,112 @@ function propositionRecords() {
   return [...selected, ...added];
 }
 
+function orderedPropositionRecords(records = propositionRecords()) {
+  return [...records].sort((a, b) => {
+    const startA = Number.isInteger(a.proposition?.start_char) ? a.proposition.start_char : Number.MAX_SAFE_INTEGER;
+    const startB = Number.isInteger(b.proposition?.start_char) ? b.proposition.start_char : Number.MAX_SAFE_INTEGER;
+    return startA - startB || (a.proposition?.end_char || 0) - (b.proposition?.end_char || 0);
+  });
+}
+
+function filteredPropositionReviewRecords(records) {
+  if (propositionReviewFilter === 'needs-review') return records.filter(record => record.outcome === 'unreviewed');
+  if (propositionReviewFilter === 'reviewed') return records.filter(record => record.outcome !== 'unreviewed');
+  return records;
+}
+
+function propositionReviewState(records = orderedPropositionRecords()) {
+  let queue = filteredPropositionReviewRecords(records);
+  const queueComplete = propositionReviewFilter === 'needs-review' && queue.length === 0 && records.length > 0;
+  if (queueComplete) queue = records;
+  let index = queue.findIndex(record => record.proposition?.id === propositionReviewId);
+  if (index < 0 && queue.length) {
+    index = 0;
+    propositionReviewId = queue[0].proposition?.id || null;
+    propositionReviewScrollPending = true;
+  }
+  return { records, queue, queueComplete, index, active: index >= 0 ? queue[index] : null };
+}
+
+function activePropositionCardIsDirty() {
+  return document.querySelector('#propositionCandidates .proposition-card[data-dirty="true"]');
+}
+
+function guardUnsavedPropositionEdits() {
+  if (propositionReviewSaving) {
+    _showInfoToast('Finish saving this classification before moving on.');
+    return true;
+  }
+  const dirtyCard = activePropositionCardIsDirty();
+  if (!dirtyCard) return false;
+  const saveState = dirtyCard.querySelector('.proposition-review-save-state');
+  if (saveState) {
+    saveState.textContent = 'Save or approve these edits before moving on.';
+    saveState.classList.add('dirty');
+  }
+  dirtyCard.querySelector('[data-field="proposition_type"]')?.focus();
+  return true;
+}
+
+function setActivePropositionReview(id) {
+  if (!id || id === propositionReviewId) return;
+  if (guardUnsavedPropositionEdits()) return;
+  const ordered = orderedPropositionRecords();
+  const isVisible = filteredPropositionReviewRecords(ordered).some(record => record.proposition?.id === id);
+  if (!isVisible) {
+    propositionReviewFilter = 'all';
+    persistPropositionReviewFilter(propositionReviewFilter);
+  }
+  propositionReviewId = id;
+  propositionReviewScrollPending = false;
+  renderPropositionsTab();
+}
+
+function navigatePropositionReview(direction) {
+  if (guardUnsavedPropositionEdits()) return;
+  const state = propositionReviewState();
+  const nextIndex = Math.max(0, Math.min(state.queue.length - 1, state.index + direction));
+  const nextId = state.queue[nextIndex]?.proposition?.id;
+  if (!nextId || nextId === propositionReviewId) return;
+  propositionReviewId = nextId;
+  propositionReviewScrollPending = true;
+  renderPropositionsTab();
+}
+
+function setPropositionReviewFilter(value) {
+  if (!PROPOSITION_REVIEW_FILTERS.includes(value)) return;
+  if (guardUnsavedPropositionEdits()) {
+    document.getElementById('propositionReviewFilter').value = propositionReviewFilter;
+    return;
+  }
+  propositionReviewFilter = value;
+  propositionReviewId = null;
+  propositionReviewScrollPending = true;
+  persistPropositionReviewFilter(value);
+  renderPropositionsTab();
+}
+
+function markPropositionCardDirty(control) {
+  const card = control.closest('.proposition-card');
+  if (!card) return;
+  card.dataset.dirty = 'true';
+  const saveState = card.querySelector('.proposition-review-save-state');
+  if (saveState) {
+    saveState.textContent = 'Unsaved classification edits';
+    saveState.classList.add('dirty');
+  }
+}
+
+function wireActivePropositionCard(card) {
+  if (!card) return;
+  card.querySelectorAll('[data-field]').forEach(control => {
+    control.addEventListener('change', () => markPropositionCardDirty(control));
+    if (control.matches('input[type="text"], input[type="number"]')) {
+      control.addEventListener('input', () => markPropositionCardDirty(control));
+    }
+  });
+}
+
 function renderPropositionsTab() {
   const doc = document.getElementById('propositionDocument');
   if (!doc) return;
@@ -12176,11 +12393,26 @@ function renderPropositionsTab() {
   diffBlock.textContent = diff ? `Anchoring diff — matched: ${diff.matched_count}; tool-only: ${diff.tool_only_count}; annotator-only: ${diff.annotator_only_count}; anchoring loss: ${(diff.anchoring_loss_fraction * 100).toFixed(1)}%.` : '';
 
   const text = currentJob?.result?.canonical_text?.full_text || normalizedText || '';
-  const records = propositionRecords();
+  const sessionRecords = orderedPropositionRecords();
+  const records = propositionDraft
+    ? orderedPropositionRecords([{ proposition: propositionDraft, outcome: 'hand-added', explicit_unresolved: false, draft: true }, ...sessionRecords])
+    : sessionRecords;
+  const review = propositionReviewState(records);
+  const activeRecord = review.active;
+  const activeProposition = activeRecord?.proposition;
+  const filter = document.getElementById('propositionReviewFilter');
+  filter.value = propositionReviewFilter;
+  document.getElementById('propositionReviewPosition').textContent = review.queue.length
+    ? `${review.index + 1} / ${review.queue.length}` : '— / —';
+  document.getElementById('propositionContextHeading').textContent = activeProposition?.proposition_type
+    ? activeProposition.proposition_type : 'Read the proposition in place';
+  document.getElementById('previousPropositionBtn').disabled = review.index <= 0;
+  document.getElementById('nextPropositionBtn').disabled = review.index < 0 || review.index >= review.queue.length - 1;
   const blind = blindPending ? propositionSession.blind_segment : null;
   const intersectsBlind = p => blind && p.start_char < blind.end_char && p.end_char > blind.start_char;
-  const spans = records.filter(r => r.outcome !== 'deleted' && Number.isInteger(r.proposition?.start_char) && Number.isInteger(r.proposition?.end_char) && !intersectsBlind(r.proposition))
-    .sort((a, b) => a.proposition.start_char - b.proposition.start_char || a.proposition.end_char - b.proposition.end_char);
+  const overlapsActive = p => activeProposition && p.id !== activeProposition.id
+    && p.start_char < activeProposition.end_char && p.end_char > activeProposition.start_char;
+  const spans = records.filter(r => r.outcome !== 'deleted' && Number.isInteger(r.proposition?.start_char) && Number.isInteger(r.proposition?.end_char) && !intersectsBlind(r.proposition) && !overlapsActive(r.proposition));
   let position = 0;
   let html = '';
   const appendPlainText = (start, end) => {
@@ -12197,21 +12429,65 @@ function renderPropositionsTab() {
     const p = record.proposition;
     if (p.start_char < position || p.end_char > text.length) continue;
     html += appendPlainText(position, p.start_char);
-    html += `<mark class="proposition-span" tabindex="0" data-proposition-id="${escapeAttr(p.id)}" onclick="focusPropositionCard(event, '${escapeAttr(p.id)}')">${escapeHtml(text.slice(p.start_char, p.end_char))}</mark>`;
+    const activeClass = p.id === propositionReviewId ? ' active' : '';
+    const outcomeClass = ` outcome-${escapeAttr(record.outcome || 'unreviewed')}`;
+    html += `<mark class="proposition-span${activeClass}${outcomeClass}" tabindex="0" data-proposition-id="${escapeAttr(p.id)}" aria-label="${escapeAttr(`${p.proposition_type || 'Proposition'} · ${record.outcome || 'unreviewed'}`)}">${escapeHtml(text.slice(p.start_char, p.end_char))}</mark>`;
     position = p.end_char;
   }
   html += appendPlainText(position, text.length);
   doc.innerHTML = html || '<span class="proposition-status">Complete an enrichment to annotate its canonical text.</span>';
+  if (!doc.dataset.reviewWired) {
+    const activate = event => {
+      const mark = event.target.closest('.proposition-span');
+      if (mark) focusPropositionCard(event, mark.dataset.propositionId);
+    };
+    doc.addEventListener('click', activate);
+    doc.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      if (!event.target.closest('.proposition-span')) return;
+      event.preventDefault();
+      activate(event);
+    });
+    doc.dataset.reviewWired = 'true';
+  }
 
   const list = document.getElementById('propositionCandidates');
-  const cards = records.map((record) => renderPropositionCard(record));
-  if (propositionDraft) cards.unshift(renderPropositionCard({ proposition: propositionDraft, outcome: 'hand-added', explicit_unresolved: false }, true));
-  list.innerHTML = cards.join('') || '<div class="proposition-status">No proposition candidates yet.</div>';
+  list.innerHTML = activeRecord
+    ? renderPropositionCard(activeRecord)
+    : '<div class="proposition-review-empty"><strong>No propositions in this view</strong><span>Choose another review filter or start an annotation session.</span></div>';
+  const activeCard = list.querySelector('.proposition-card');
+  if (activeCard && activeRecord?.outcome === 'hand-added' && !activeRecord.draft) {
+    activeCard.querySelectorAll('input, select, button').forEach(control => { control.disabled = true; });
+    const state = activeCard.querySelector('.proposition-review-save-state');
+    if (state) state.textContent = 'Hand-added gold item · read only in this review pass';
+  } else {
+    wireActivePropositionCard(activeCard);
+  }
   if (!propositionAnnotationMode) {
     list.querySelectorAll('input, select, button').forEach(control => { control.disabled = true; });
     list.querySelectorAll('.proposition-actions').forEach(actions => { actions.style.display = 'none'; });
   }
-  const remaining = (propositionSession?.candidates || []).filter(c => c.outcome === 'unreviewed').length + (propositionSession?.blind_pending || 0);
+  const counts = sessionRecords.reduce((totals, record) => {
+    const outcome = record.outcome || 'unreviewed';
+    totals[outcome] = (totals[outcome] || 0) + 1;
+    return totals;
+  }, {});
+  const reviewed = sessionRecords.length - (counts.unreviewed || 0);
+  document.getElementById('propositionReviewSummary').innerHTML = [
+    review.queueComplete ? '<span class="proposition-review-stat">Queue complete · browsing all</span>' : '',
+    `<span class="proposition-review-stat">${counts.unreviewed || 0} needs review</span>`,
+    `<span class="proposition-review-stat">${reviewed} reviewed</span>`,
+    counts.deleted ? `<span class="proposition-review-stat">${counts.deleted} discarded</span>` : '',
+  ].filter(Boolean).join('');
+  const propositionTabVisible = document.getElementById('tab-propositions')?.classList.contains('active');
+  if (propositionReviewScrollPending && activeProposition?.id && propositionTabVisible) {
+    propositionReviewScrollPending = false;
+    requestAnimationFrame(() => {
+      const mark = doc.querySelector(`.proposition-span[data-proposition-id="${CSS.escape(activeProposition.id)}"]`);
+      mark?.scrollIntoView({ behavior: PipelineJourney.reduced() ? 'auto' : 'smooth', block: 'center' });
+    });
+  }
+  const remaining = (counts.unreviewed || 0) + (propositionSession?.blind_pending || 0);
   document.getElementById('propositionRemainingChip').textContent = `${remaining} unreviewed remaining`;
   document.getElementById('exportGoldBtn').classList.toggle('warning', remaining > 0);
 }
@@ -12220,29 +12496,45 @@ function propositionOptions(values, current, includeNone = false) {
   return `${includeNone ? '<option value="">— none —</option>' : ''}${values.map(value => `<option value="${escapeAttr(value)}" ${value === current ? 'selected' : ''}>${escapeHtml(value.replaceAll('_', ' '))}</option>`).join('')}`;
 }
 
-function renderPropositionCard(record, isDraft = false) {
+function renderPropositionCard(record) {
   const p = record.proposition || {};
+  const isDraft = Boolean(record.draft);
   const id = p.id || '';
   const customType = p.is_new_type || !PROPOSITION_TYPES.includes(p.proposition_type);
   const citations = p.citation_edges || [];
-  return `<div class="proposition-card ${record.outcome === 'deleted' ? 'deleted' : ''}" tabindex="0" data-candidate-id="${escapeAttr(id)}" data-draft="${isDraft}">
-    <div class="proposition-card-head"><span class="proposition-quote">“${escapeHtml(p.text || '')}”</span><span class="proposition-outcome">${escapeHtml(record.outcome || 'unreviewed')}</span></div>
+  const outcome = record.outcome || 'unreviewed';
+  let actions = '';
+  if (isDraft) {
+    actions = '<button class="primary small" onclick="saveHandAdded(this)">Save hand-added</button><button class="secondary small" onclick="cancelHandAdded()">Cancel</button>';
+  } else if (outcome === 'deleted') {
+    actions = '<button class="secondary small" data-advance="true" onclick="savePropositionOutcome(this, \'unreviewed\')">Restore to review</button>';
+  } else if (outcome !== 'hand-added') {
+    actions = '<button class="primary small" data-advance="true" onclick="savePropositionOutcome(this, \'accepted\')">Approve &amp; next <kbd>A</kbd></button><button class="secondary small" data-advance="true" onclick="savePropositionOutcome(this, \'edited\')">Save edits &amp; next</button><button class="secondary small" data-advance="true" onclick="savePropositionOutcome(this, \'deleted\')">Discard <kbd>D</kbd></button>';
+  }
+  return `<div class="proposition-card ${outcome === 'deleted' ? 'deleted' : ''}" tabindex="-1" data-candidate-id="${escapeAttr(id)}" data-draft="${isDraft}" data-dirty="false">
+    <div class="proposition-card-head"><div><span class="proposition-review-eyebrow">Classification</span><span class="proposition-quote">“${escapeHtml(p.text || '')}”</span></div><span class="proposition-outcome ${escapeAttr(outcome)}">${escapeHtml(outcome)}</span></div>
     <div class="proposition-fields">
       <label class="proposition-field wide">Proposition type<select data-field="proposition_type" onchange="handlePropositionType(this)">${propositionOptions(PROPOSITION_TYPES, customType ? '' : p.proposition_type)}<option value="__new__" ${customType ? 'selected' : ''}>+ new type…</option></select></label>
       <label class="proposition-field wide proposition-new-type" style="display:${customType ? '' : 'none'}">New type<input type="text" data-field="new_type" value="${escapeAttr(customType ? p.proposition_type : '')}"></label>
-      <label class="proposition-field">Start character<input type="number" min="0" data-field="start_char" value="${p.start_char ?? ''}"></label>
-      <label class="proposition-field">End character<input type="number" min="0" data-field="end_char" value="${p.end_char ?? ''}"></label>
       <label class="proposition-field">Asserter role<select data-field="asserter_role">${propositionOptions(PROPOSITION_ROLES, p.asserter?.role, true)}</select></label>
       <label class="proposition-field"><span>Asserter assumed</span><input type="checkbox" data-field="asserter_assumed" ${p.asserter?.assumed ? 'checked' : ''}></label>
       <label class="proposition-field">Validator role<select data-field="validator_role">${propositionOptions(PROPOSITION_ROLES, p.validator?.role, true)}</select></label>
       <label class="proposition-field">Validator mode<select data-field="validator_mode">${propositionOptions(['ruled', 'pro_forma', 'declined'], p.validator?.mode || 'ruled')}</select></label>
       <label class="proposition-field wide">Disposition<select data-field="disposition" onchange="handlePropositionDisposition(this)">${propositionOptions(['accepted', 'rejected', 'revised', 'unresolved', 'assumed-arguendo'], p.disposition)}</select></label>
       <label class="proposition-inline-confirm wide" style="display:${p.disposition === 'unresolved' ? '' : 'none'}"><input type="checkbox" data-field="explicit_unresolved" ${record.explicit_unresolved ? 'checked' : ''}> Mark unresolved deliberately</label>
+      <details class="proposition-advanced">
+        <summary>Span &amp; provenance</summary>
+        <div class="proposition-advanced-grid">
+          <label class="proposition-field">Start character<input type="number" min="0" data-field="start_char" value="${p.start_char ?? ''}"></label>
+          <label class="proposition-field">End character<input type="number" min="0" data-field="end_char" value="${p.end_char ?? ''}"></label>
+          <div class="proposition-citations"><strong>Citation edges:</strong> ${citations.length ? citations.map(edge => escapeHtml(`${edge.edge_type}: ${edge.authority_text || edge.authority_individual_id}`)).join(' · ') : 'None'}</div>
+        </div>
+      </details>
     </div>
-    <div class="proposition-citations"><strong>Citation edges:</strong> ${citations.length ? citations.map(edge => escapeHtml(`${edge.edge_type}: ${edge.authority_text || edge.authority_individual_id}`)).join(' · ') : 'None'}</div>
     <div class="proposition-actions">
-      ${isDraft ? '<button class="primary small" onclick="saveHandAdded(this)">Save hand-added</button><button class="secondary small" onclick="cancelHandAdded()">Cancel</button>' : record.outcome === 'deleted' || record.outcome === 'hand-added' ? '' : '<button class="primary small" onclick="savePropositionOutcome(this, \'accepted\')">Accept</button><button class="secondary small" onclick="savePropositionOutcome(this, \'edited\')">Save edit</button><button class="secondary small" onclick="savePropositionOutcome(this, \'deleted\')">Discard</button>'}
+      ${actions}
       ${customType && !isDraft ? '<button class="secondary small" onclick="recordNewTypeLearning(this)">Record as new-type learning</button>' : ''}
+      <span class="proposition-review-save-state" role="status">Changes are saved when you choose an action.</span>
     </div>
   </div>`;
 }
@@ -12280,20 +12572,45 @@ function propositionFromCard(card) {
 
 async function savePropositionOutcome(button, outcome) {
   const card = button.closest('.proposition-card');
+  const effectiveOutcome = outcome === 'accepted' && card.dataset.dirty === 'true' ? 'edited' : outcome;
   const activeJobId = currentJobId;
   const activeSessionId = propositionSession?.session_id;
   if (!activeSessionId) { _showInfoToast('Annotation session not ready yet — try again in a moment'); return; }
+  const currentId = card.dataset.candidateId;
+  const shouldAdvance = button.dataset.advance === 'true';
+  const review = propositionReviewState();
+  const currentIndex = review.queue.findIndex(record => record.proposition?.id === currentId);
+  const nextId = shouldAdvance ? review.queue[currentIndex + 1]?.proposition?.id || null : currentId;
+  const actionButtons = card.querySelectorAll('.proposition-actions button');
+  propositionReviewSaving = true;
+  actionButtons.forEach(control => { control.disabled = true; });
+  const saveState = card.querySelector('.proposition-review-save-state');
+  if (saveState) { saveState.textContent = 'Saving…'; saveState.classList.remove('dirty'); }
   try {
     const explicit = card.querySelector('[data-field="explicit_unresolved"]').checked;
-    const body = { outcome, explicit_unresolved: explicit };
-    if (outcome !== 'deleted') body.proposition = propositionFromCard(card);
+    const body = { outcome: effectiveOutcome, explicit_unresolved: explicit };
+    if (effectiveOutcome !== 'deleted') body.proposition = propositionFromCard(card);
     const session = await propositionFetch(`/gold/sessions/${activeSessionId}/candidates/${encodeURIComponent(card.dataset.candidateId)}`, { method: 'PATCH', body: JSON.stringify(body) });
     if (currentJobId !== activeJobId || propositionSession?.session_id !== activeSessionId) return;
     propositionSession = session;
     if (!await refreshPropositionCompleteness(activeJobId, activeSessionId)) return;
+    propositionReviewId = nextId || currentId;
+    propositionReviewScrollPending = shouldAdvance;
     renderPropositionsTab();
-    _showInfoToast(outcome === 'deleted' ? 'Candidate discarded' : `Candidate ${outcome}`);
-  } catch (error) { if (currentJobId === activeJobId && propositionSession?.session_id === activeSessionId) propositionApiError(error); }
+    const message = effectiveOutcome === 'deleted' ? 'Candidate discarded' : effectiveOutcome === 'unreviewed' ? 'Candidate restored to review' : `Candidate ${effectiveOutcome}`;
+    _showInfoToast(message);
+  } catch (error) {
+    actionButtons.forEach(control => { control.disabled = false; });
+    if (saveState) { saveState.textContent = 'Save failed · your edits remain here'; saveState.classList.add('dirty'); }
+    if (/explicit_unresolved/.test(String(error?.message || ''))) {
+      const confirm = card.querySelector('[data-field="explicit_unresolved"]');
+      confirm?.scrollIntoView({ block: 'center' });
+      confirm?.focus({ preventScroll: true });
+    }
+    if (currentJobId === activeJobId && propositionSession?.session_id === activeSessionId) propositionApiError(error);
+  } finally {
+    propositionReviewSaving = false;
+  }
 }
 
 async function saveHandAdded(button) {
@@ -12308,12 +12625,16 @@ async function saveHandAdded(button) {
     if (currentJobId !== activeJobId || propositionSession?.session_id !== activeSessionId) return;
     propositionSession = session;
     propositionDraft = null;
+    propositionReviewFilter = 'all';
+    propositionReviewId = proposition.id;
+    propositionReviewScrollPending = true;
+    persistPropositionReviewFilter(propositionReviewFilter);
     renderPropositionsTab();
     _showInfoToast('Hand-added proposition saved');
   } catch (error) { if (currentJobId === activeJobId && propositionSession?.session_id === activeSessionId) propositionApiError(error); }
 }
 
-function cancelHandAdded() { propositionDraft = null; renderPropositionsTab(); }
+function cancelHandAdded() { propositionDraft = null; propositionReviewId = null; renderPropositionsTab(); }
 
 async function recordNewTypeLearning(button) {
   const card = button.closest('.proposition-card');
@@ -12331,9 +12652,8 @@ async function recordNewTypeLearning(button) {
 
 function focusPropositionCard(event, id) {
   if (propositionAddArmed || propositionBlindArmed) { event.preventDefault(); return; }
-  const card = document.querySelector(`.proposition-card[data-candidate-id="${CSS.escape(id)}"]`);
-  card?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  card?.focus({ preventScroll: true });
+  setActivePropositionReview(id);
+  requestAnimationFrame(() => document.querySelector('.proposition-card')?.focus({ preventScroll: true }));
 }
 
 function togglePropositionAddMode() {
@@ -12381,10 +12701,13 @@ async function handlePropositionSelection() {
     return;
   }
   propositionDraft = { id: `hand-${crypto.randomUUID()}`, start_char: start, end_char: start + text.length, text, proposition_type: 'Legal Proposition', is_new_type: false, asserter: null, validator: null, disposition: 'unresolved', citation_edges: [], triple_ids: [] };
+  propositionReviewFilter = 'all';
+  propositionReviewId = propositionDraft.id;
+  propositionReviewScrollPending = true;
   propositionAddArmed = false;
   selection.removeAllRanges();
   renderPropositionsTab();
-  document.querySelector('.proposition-card[data-draft="true"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  document.querySelector('.proposition-card[data-draft="true"]')?.focus({ preventScroll: true });
 }
 
 async function revealBlindSegment() {
@@ -12431,12 +12754,15 @@ document.addEventListener('keydown', event => {
   if (event.key === 'Escape' && (propositionAddArmed || propositionBlindArmed)) { propositionAddArmed = false; propositionBlindArmed = false; renderPropositionsTab(); return; }
   if (!document.getElementById('tab-propositions')?.classList.contains('active')) return;
   if (/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(event.target.tagName) || event.target.isContentEditable) return;
-  const card = document.activeElement?.closest?.('.proposition-card');
+  if (event.ctrlKey || event.metaKey || event.altKey) return;
+  const card = document.querySelector('#propositionCandidates .proposition-card');
   if (!card || card.dataset.draft === 'true') return;
   const key = event.key.toLowerCase();
-  if (key === 'a') card.querySelector('button[onclick*="accepted"]')?.click();
-  else if (key === 'e') card.querySelector('[data-field="proposition_type"]')?.focus();
-  else if (key === 'd') card.querySelector('button[onclick*="deleted"]')?.click();
+  if (event.key === 'ArrowLeft') { event.preventDefault(); navigatePropositionReview(-1); }
+  else if (event.key === 'ArrowRight') { event.preventDefault(); navigatePropositionReview(1); }
+  else if (key === 'a') { event.preventDefault(); card.querySelector('button[onclick*="accepted"]')?.click(); }
+  else if (key === 'e') { event.preventDefault(); card.querySelector('[data-field="proposition_type"]')?.focus(); }
+  else if (key === 'd') { event.preventDefault(); card.querySelector('button[onclick*="deleted"]')?.click(); }
 });
 
 function renderExportButtons() {
