@@ -8,7 +8,6 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import re
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -153,16 +152,21 @@ def combine_scores(scores: list[dict]) -> dict:
 def load_records(path: Path, text: str, ranges: Sequence[tuple[int, int]] | None = None) -> tuple[list[Span], list[Span]]:
     gold, audits = [], []
     for line in path.open(encoding="utf-8"):
-        # Filter offsets before decoding excluded gold rows.
-        if ranges is not None:
-            offset = re.search(r'"start_char"\s*:\s*(\d+)', line)
-            if offset is None or not any(start <= int(offset[1]) < end for start, end in ranges):
-                continue
         row = json.loads(line)
         kind = row.get("record_type")
         if kind not in {"annotation", "candidate-audit"}:
             continue
         p = row.get("proposition") or row["original"]
+        if ranges is not None:
+            # Gold belongs to its start split; audits can veto candidates in
+            # either split they overlap. Filter before validating row contents.
+            if kind == "annotation":
+                selected = any(start <= p["start_char"] < end for start, end in ranges)
+            else:
+                selected = any(p["start_char"] < end and p["end_char"] > start
+                               for start, end in ranges)
+            if not selected:
+                continue
         span = Span(p["start_char"], p["end_char"], p["proposition_type"])
         if kind == "annotation" and text[span.start:span.end] != p["text"]:
             raise ValueError(f"{path.name}: {row.get('annotation_id', p.get('id'))} [{span.start}, {span.end}) does not reproduce gold text")
@@ -197,22 +201,14 @@ def run_benchmark(manifest_path: Path = DEFAULT_MANIFEST, *, split: str | None =
         if entry.get("benchmark") is False:
             continue
         slug = entry["slug"]
+        if split is not None and split not in entry.get("splits", {}):
+            continue
+        # Parse the identical canonical document for both full and split-only
+        # runs: truncation changes sentence segmentation at the split boundary.
+        text = (manifest_path.parent / entry["text_file"]).read_bytes().decode("utf-8")
+        ranges = split_ranges(entry, len(text))
         if split is not None:
-            bounds = entry.get("splits", {}).get(split)
-            if bounds is None:
-                continue
-            start, end = bounds
-            # Do not load the held-out suffix into the single spaCy parse.
-            if start != 0:
-                raise ValueError("selected split must be a canonical-text prefix")
-            with (manifest_path.parent / entry["text_file"]).open(encoding="utf-8", newline="") as source:
-                text = source.read(end)
-            if len(text) != end:
-                raise ValueError(f"{slug}: selected split exceeds canonical text")
-            ranges = {split: (start, end)}
-        else:
-            text = (manifest_path.parent / entry["text_file"]).read_bytes().decode("utf-8")
-            ranges = split_ranges(entry, len(text))
+            ranges = {split: ranges[split]}
         gold, audits = load_records(manifest_path.parent / f"{slug}.jsonl", text,
                                    list(ranges.values()) if split else None)
         job = Job(
@@ -227,7 +223,8 @@ def run_benchmark(manifest_path: Path = DEFAULT_MANIFEST, *, split: str | None =
                 raise ValueError(f"{slug}: gold span crosses {name} split boundary")
             # Candidates crossing a split boundary belong to their start split.
             split_candidates = [c for c in candidates if start <= c.start < end]
-            score = score_split(split_gold, split_candidates, audits)
+            split_audits = [a for a in audits if a.start < end and a.end > start]
+            score = score_split(split_gold, split_candidates, split_audits)
             split_scores[name] = score
             by_split[name].append(score)
         documents.append({"slug": slug, "text_file": entry["text_file"], "ranges": ranges, "splits": split_scores})
@@ -266,7 +263,7 @@ def print_report(report: dict) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--write", action="store_true", help="write eval/reports/propositions/<lexicon_version>.json")
-    parser.add_argument("--split", choices=["development"], help="load, extract and score only development text and gold")
+    parser.add_argument("--split", choices=["development"], help="extract full canonical text, then score and report only development")
     args = parser.parse_args()
     if args.split and args.write:
         parser.error("--write requires the complete benchmark; split-only runs are for iteration")

@@ -176,7 +176,7 @@ def test_crossing_candidate_is_counted_once_in_start_split(tmp_path, monkeypatch
     assert report["overall"]["candidates"] == 1
 
 
-def test_development_only_never_parses_or_validates_excluded_text(tmp_path, monkeypatch):
+def test_development_only_parses_full_text_without_validating_excluded_gold(tmp_path, monkeypatch):
     from app.services.proposition.extractor import PropositionExtractor
 
     development = 'The duty is clear.'
@@ -195,12 +195,12 @@ def test_development_only_never_parses_or_validates_excluded_text(tmp_path, monk
     manifest.write_text(json.dumps({'opinions': [
         {'slug': 'future-held-out-with-no-files', 'text_file': 'missing.txt'},
         {'slug': 'opinion', 'text_file': 'opinion.txt', 'splits': {
-            'development': [0, len(development)], 'held-out': [len(development), 9999],
+            'development': [0, len(development)], 'held-out': [len(development), len(development + 'EXCLUDED SENTINEL')],
         }},
     ]}))
 
     def extract(self, job):
-        assert job.result.canonical_text.full_text == development
+        assert job.result.canonical_text.full_text == development + 'EXCLUDED SENTINEL'
         return []
 
     monkeypatch.setattr(PropositionExtractor, 'extract', extract)
@@ -208,3 +208,80 @@ def test_development_only_never_parses_or_validates_excluded_text(tmp_path, monk
     assert set(report['splits']) == {'development'}
     assert report['overall']['gold'] == 1
     assert report['overfit']['flag'] is None
+
+
+@pytest.mark.parametrize("kind", ["annotation", "candidate-audit"])
+def test_split_filter_uses_scoring_offsets_instead_of_first_raw_offset(tmp_path, kind):
+    def proposition(start):
+        return {"start_char": start, "end_char": start + 5,
+                "text": "abcde", "proposition_type": "Legal Proposition"}
+
+    path = tmp_path / "gold.jsonl"
+    path.write_text("\n".join(json.dumps({
+        "record_type": kind, "original": proposition(original),
+        "proposition": proposition(corrected),
+    }) for original, corrected in [(10, 0), (0, 10)]))
+    gold, audits = load_records(path, "abcde" * 4, [(0, 10)])
+    assert (gold if kind == "annotation" else audits) == [span(0, 5, "Legal Proposition")]
+
+
+def test_split_only_equals_full_row_with_sentence_crossing_boundary(tmp_path, capsys):
+    from eval.proposition_benchmark import print_report
+
+    text = "A carrier must exercise care. A claimant may recover."
+    boundary = text.index(" care")
+    (tmp_path / "opinion.txt").write_text(text)
+    (tmp_path / "opinion.jsonl").write_text(json.dumps({
+        "record_type": "annotation", "proposition": {
+            "start_char": 0, "end_char": boundary, "text": text[:boundary],
+            "proposition_type": "Judicial Legal Conclusion",
+        },
+    }))
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({"opinions": [{
+        "slug": "opinion", "text_file": "opinion.txt", "splits": {
+            "development": [0, boundary], "held-out": [boundary, len(text)],
+        },
+    }]}))
+    full = run_benchmark(manifest)
+    selected = run_benchmark(manifest, split="development")
+    assert selected["splits"] == {"development": full["splits"]["development"]}
+    assert selected["documents"][0]["splits"] == {
+        "development": full["documents"][0]["splits"]["development"]}
+    print_report(selected)
+    output = capsys.readouterr().out
+    assert "held-out" not in output
+    assert text[boundary:] not in output
+
+
+def test_benchmark_passes_only_overlapping_audits_to_each_split(tmp_path, monkeypatch):
+    import eval.proposition_benchmark as benchmark
+    from app.services.proposition.extractor import PropositionExtractor
+
+    (tmp_path / "opinion.txt").write_text("a" * 20)
+    audits = [span(0, 5), span(9, 12), span(10, 20)]
+    (tmp_path / "opinion.jsonl").write_text("\n".join(json.dumps({
+        "record_type": "candidate-audit", "original": {
+            "start_char": a.start, "end_char": a.end,
+            "proposition_type": a.proposition_type,
+        },
+    }) for a in audits))
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({"opinions": [{
+        "slug": "opinion", "text_file": "opinion.txt",
+        "splits": {"development": [0, 10], "held-out": [10, 20]},
+    }]}))
+    monkeypatch.setattr(PropositionExtractor, "extract", lambda self, job: [])
+    calls = []
+    original_score = benchmark.score_split
+
+    def score(gold, candidates, selected_audits):
+        calls.append(selected_audits)
+        return original_score(gold, candidates, selected_audits)
+
+    monkeypatch.setattr(benchmark, "score_split", score)
+    run_benchmark(manifest)
+    assert calls == [audits[:2], audits[1:]]
+    calls.clear()
+    run_benchmark(manifest, split="development")
+    assert calls == [audits[:2]]

@@ -444,3 +444,42 @@ def test_every_new_frame_uses_existing_taxonomy_and_serializes_without_diagnosti
     job = Job(result=JobResult(propositions=[p]))
     assert 'pattern_name' not in job.model_dump_json()
     assert 'frame' not in p.model_dump()
+
+
+def test_inch_mark_does_not_swallow_modal_or_quoted_argue_complement():
+    text = ('The board was 6" wide. A carrier must exercise care. '
+            'The plaintiff argues that "the rule is clear." We hold that a duty exists.')
+    propositions = _extract(text)
+    assert any(p.text == 'A carrier must exercise care' and p.pattern_name == 'modal-deontic'
+               for p in propositions)
+    assert any('the rule is clear' in p.text and p.proposition_type == 'Legal Proposition'
+               and p.asserter.role.value == 'plaintiff' for p in propositions)
+    inch = text.index('"')
+    assert not any(getattr(p, 'pattern_name', None) == 'quoted-court'
+                   and p.start_char <= inch + 1 < p.end_char for p in propositions)
+
+
+@pytest.mark.parametrize('text', [
+    'An unclosed "fragment.\n\nA carrier must exercise care. "',
+    'An unclosed "fragment. It ended. Another passed. A carrier must exercise care. "',
+])
+def test_straight_quotes_cannot_cross_paragraph_or_sentence_cap(text):
+    propositions = _extract(text)
+    assert any(getattr(p, 'pattern_name', None) == 'modal-deontic' for p in propositions)
+    assert not any(getattr(p, 'pattern_name', None) == 'quoted-court' for p in propositions)
+
+
+def test_straight_quote_can_span_three_sentences():
+    text = '"A carrier must exercise care. The duty is clear. A claimant may recover."'
+    propositions = _extract(text)
+    assert len(propositions) == 1
+    assert propositions[0].pattern_name == 'quoted-court'
+
+
+def test_rejected_unclosed_quote_does_not_consume_next_valid_quote():
+    text = ('An unclosed "fragment. It ended. Another passed. A carrier must exercise care. '
+            'The text says "A claimant may recover."')
+    propositions = _extract(text)
+    assert any(getattr(p, 'pattern_name', None) == 'modal-deontic' for p in propositions)
+    assert any(p.text == 'A claimant may recover' and p.pattern_name == 'quoted-authority'
+               for p in propositions)

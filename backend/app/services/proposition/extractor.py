@@ -40,7 +40,8 @@ class PropositionExtractor:
         doc = get_spacy_nlp()(text)
         results: list[Proposition] = []
 
-        quote_ranges = self._quote_ranges(text)
+        quote_ranges = self._quote_ranges(text, doc)
+        attributed_quotes = set()
         for sentence in doc.sents:
             sentence_lower = sentence.text.lower()
             arguendo = next((m for m in ARGUENDO_MARKERS if m in sentence_lower), None)
@@ -59,7 +60,11 @@ class PropositionExtractor:
                 )
                 if complement is None:
                     continue
-                if any(start <= complement.idx < end for start, end in quote_ranges):
+                # Source-attributed quotes keep their quoted-authority frame;
+                # party/court reporting complements retain explicit attribution.
+                if frame.asserter_role == "secondary_source" and any(
+                    start <= complement.idx < end for start, end in quote_ranges
+                ):
                     continue
                 active_frame = ARGUENDO_FRAME if arguendo and lemma == "assume" else frame
                 if active_frame is ARGUENDO_FRAME:
@@ -75,6 +80,9 @@ class PropositionExtractor:
                     self._build(job, sentence, start, end, content, active_frame, role)
                 )
                 emitted_reporting = True
+                attributed_quotes.update(
+                    (qs, qe) for qs, qe in quote_ranges if qs <= complement.idx < qe
+                )
 
             # "Even if" often has no reporting verb; treat its subordinate clause
             # as the assumed content while staying conservative to that exact marker.
@@ -102,6 +110,8 @@ class PropositionExtractor:
                             results.append(self._build(job, sentence, *span, frame, "court"))
 
         for start, end in quote_ranges:
+            if (start, end) in attributed_quotes:
+                continue
             quoted_tokens = [t for t in doc.char_span(start, end, alignment_mode="expand")
                              if start <= t.idx < end]
             finite = [t for t in quoted_tokens if t.pos_ in {"VERB", "AUX"}
@@ -125,9 +135,26 @@ class PropositionExtractor:
         return sorted(unique.values(), key=lambda p: (p.start_char or 0, p.end_char or 0))
 
     @staticmethod
-    def _quote_ranges(text):
-        # Pair typographic and straight double quotes without reparsing text.
-        return [(m.start() + 1, m.end() - 1) for m in re.finditer(r'"[^"]+"|“[^”]+”', text)]
+    def _quote_ranges(text, doc):
+        # Straight quotes are ambiguous (inches, unclosed quotation). Permit
+        # the opening/closing sentences and at most one intervening sentence;
+        # never join paragraphs. Reuse the existing parse for this bound.
+        sentence_starts = [sentence.start_char for sentence in doc.sents]
+        ranges = [(m.start() + 1, m.end() - 1) for m in re.finditer(r'“[^”]+”', text)]
+        consumed_until = -1
+        # Lookahead lets a rejected pair's closing mark open a later valid pair.
+        for match in re.finditer(r'(?=(?<!\d)"([^"]+)")', text):
+            start, end = match.span(1)
+            if start <= consumed_until:
+                continue
+            content = text[start:end]
+            if not content or re.search(r"\n[ \t\r]*\n", content):
+                continue
+            if sum(start < boundary < end for boundary in sentence_starts) > 2:
+                continue
+            ranges.append((start, end))
+            consumed_until = end + 1
+        return sorted(ranges)
 
     @staticmethod
     def _authority_anchor(doc, start, end, text):
