@@ -22,14 +22,16 @@ RUN pip install --no-cache-dir https://github.com/explosion/spacy-models/release
 
 # Copy backend application code
 COPY backend/app/ app/
+COPY backend/eval/gold/propositions/ eval/gold/propositions/
 
 # Copy frontend (served by FastAPI at / and /static)
 COPY frontend/ /app/frontend/
 
 # Create non-root user with writable job storage
-RUN useradd -m -r appuser && \
+RUN useradd -m -r -u 999 appuser && \
     mkdir -p /home/appuser/.folio-enrich/jobs && \
-    chown -R appuser:appuser /home/appuser
+    mkdir -p /app/backend/eval/gold/propositions && \
+    chown -R appuser:appuser /home/appuser /app/backend/eval/gold/propositions
 USER appuser
 
 ENV FOLIO_ENRICH_JOBS_DIR=/home/appuser/.folio-enrich/jobs

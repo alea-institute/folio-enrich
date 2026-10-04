@@ -7,7 +7,7 @@ from folio_propositions import Proposition
 from pydantic import BaseModel
 
 from app.api.auth import require_annotation
-from app.services.gold.store import GoldStore, PreSelector
+from app.services.gold.store import GoldDataError, GoldStore, PreSelector
 from app.storage.job_store import JobStore
 
 router = APIRouter(prefix="/gold", tags=["gold"])
@@ -21,6 +21,10 @@ class CreateSessionRequest(BaseModel):
     annotator: str = "damien"
     pre_selector: PreSelector
     baseline: bool = False
+
+
+class CreateValidationSessionRequest(BaseModel):
+    slug: str
 
 
 class CandidateOutcomeRequest(BaseModel):
@@ -57,6 +61,8 @@ class AnnotationAccessRequest(BaseModel):
 
 
 def _http_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, GoldDataError):
+        return HTTPException(status_code=409, detail=str(exc))
     if isinstance(exc, LookupError):
         return HTTPException(status_code=404, detail=str(exc))
     return HTTPException(status_code=422, detail=str(exc))
@@ -119,6 +125,32 @@ async def create_session(request: CreateSessionRequest):
 @router.get("/sessions")
 async def list_sessions(job_id: str | None = Query(None)):
     return await _gold_store.list(job_id)
+
+
+@router.get("/records")
+async def list_records():
+    try:
+        return _gold_store.records()
+    except ValueError as exc:
+        raise _http_error(exc) from exc
+
+
+@router.post("/validation-sessions", status_code=201, dependencies=[Depends(_require_annotation)])
+async def create_validation_session(request: CreateValidationSessionRequest):
+    try:
+        return await _gold_store.create_validation_session(request.slug)
+    except (ValueError, LookupError) as exc:
+        raise _http_error(exc) from exc
+
+
+@router.get("/sessions/{session_id}/bundle")
+async def get_bundle(session_id: str):
+    try:
+        return await _gold_store.bundle(session_id)
+    except LookupError as exc:
+        raise _http_error(exc) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.get("/sessions/{session_id}")

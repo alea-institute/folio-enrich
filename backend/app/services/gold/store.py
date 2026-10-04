@@ -16,7 +16,8 @@ from folio_propositions import SCHEMA_VERSION, Disposition, Proposition, migrate
 from pydantic import BaseModel, Field
 
 from app.config import settings
-from app.models.document import CanonicalText
+from app.models.document import CanonicalText, DocumentInput
+from app.models.job import Job, JobResult, JobStatus
 from app.storage.job_store import JobStore
 
 WRAPPER_SCHEMA_VERSION = 1
@@ -75,7 +76,7 @@ def migrate_embedded_propositions(value: Any) -> Any:
 
 
 class PreSelector(BaseModel):
-    source: Literal["lexicon-only", "lexicon+llm"]
+    source: Literal["lexicon-only", "lexicon+llm", "gold-validation"]
     lexicon_version: str | None = None
     lexicon_config: dict[str, Any] = Field(default_factory=dict)
     llm_provider: str | None = None
@@ -132,6 +133,8 @@ class AnnotationSession(BaseModel):
     coverage_pass_completed_at: datetime | None = None
     exported_at: datetime | None = None
     export_slug: str | None = None
+    validation_of: str | None = None
+    validated_annotator: str | None = None
 
 
 class ExportResult(BaseModel):
@@ -181,11 +184,16 @@ def _validate_unresolved(proposition: Proposition, explicit: bool) -> None:
         raise ValueError("unresolved disposition requires explicit_unresolved=True")
 
 
+class GoldDataError(ValueError):
+    """Gold data on this host is incomplete or unavailable."""
+
+
 class GoldStore:
     def __init__(self, job_store: JobStore | None = None, export_dir: Path | None = None) -> None:
         self.job_store = job_store or JobStore()
         self.session_dir = self.job_store.base_dir / "gold_sessions"
         self.export_dir = export_dir or Path(__file__).resolve().parents[3] / "eval/gold/propositions"
+        self.gold_dir = Path(__file__).resolve().parents[3] / "eval/gold/propositions"
         # The supported deployment is a single asyncio worker, so per-session
         # in-process locks serialize each persisted read-modify-write cycle.
         self._locks: defaultdict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
@@ -197,6 +205,82 @@ class GoldStore:
         session.updated_at = datetime.now(timezone.utc)
         self.session_dir.mkdir(parents=True, exist_ok=True)
         _atomic_write(self._path(session.session_id), session.model_dump_json(indent=2))
+
+    def records(self) -> list[dict[str, Any]]:
+        try:
+            manifest = json.loads((self.gold_dir / "manifest.json").read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return []
+        except (OSError, ValueError) as exc:
+            raise GoldDataError(f"cannot read gold manifest: {exc}") from exc
+        try:
+            return [
+                entry for entry in manifest["opinions"]
+                if entry.get("text_file") and "validation_of" not in entry
+            ]
+        except KeyError as exc:
+            raise GoldDataError(f"gold manifest missing field: {exc}") from exc
+
+    async def create_validation_session(self, slug: str) -> AnnotationSession:
+        async with self._locks[f"validation:{slug}"]:
+            entry = next((entry for entry in self.records() if entry.get("slug") == slug), None)
+            if entry is None:
+                raise LookupError("gold record not found")
+            try:
+                job_id = UUID(entry["job_id"])
+                document_id = entry["document_id"]
+                validated_annotator = entry["annotator"]
+                text = (self.gold_dir / entry["text_file"]).read_bytes().decode("utf-8")
+                rows = [
+                    json.loads(line)
+                    for line in (self.gold_dir / f"{slug}.jsonl").read_text(encoding="utf-8").splitlines()
+                    if line.strip()
+                ]
+            except (OSError, KeyError, ValueError) as exc:
+                raise GoldDataError(f"cannot load gold record {slug}: {exc}") from exc
+            if await self.job_store.load(job_id) is None:
+                await self.job_store.save(Job(
+                    id=job_id, status=JobStatus.COMPLETED,
+                    input=DocumentInput(content=text, filename=entry["text_file"]),
+                    result=JobResult(canonical_text=CanonicalText(full_text=text)),
+                ))
+            for session in await self.list():
+                if session.validation_of == slug and session.exported_at is None:
+                    return session
+            candidates = []
+            for row in rows:
+                if row.get("record_type") != "annotation" or row.get("deleted"):
+                    continue
+                proposition = Proposition.model_validate(migrate_proposition_payload(row["proposition"]))
+                candidates.append(CandidateRecord(
+                    proposition=proposition, original=proposition.model_copy(deep=True),
+                    explicit_unresolved=row.get("explicit_unresolved", False),
+                ))
+            session = AnnotationSession(
+                job_id=str(job_id), document_id=document_id,
+                pre_selector=PreSelector(source="gold-validation"), candidates=candidates,
+                validation_of=slug, validated_annotator=validated_annotator,
+            )
+            await self._save(session)
+            return session
+
+    async def bundle(self, session_id: str) -> dict[str, Any]:
+        session = await self._load(session_id)
+        if session.exported_at is None:
+            raise ValueError("session has not been exported")
+        path = self.session_dir / "bundles" / f"{session.session_id}.json"
+        if path.exists():
+            return json.loads(path.read_text(encoding="utf-8"))
+        manifest = json.loads((self.export_dir / "manifest.json").read_text(encoding="utf-8"))
+        entry = next((item for item in manifest["opinions"] if item["session_id"] == session_id), None)
+        if entry is None:
+            raise LookupError("exported record not found")
+        return {
+            "session_id": session_id,
+            "jsonl": (self.export_dir / f"{session.export_slug}.jsonl").read_text(encoding="utf-8"),
+            "ann": (self.export_dir / f"{session.export_slug}.ann").read_text(encoding="utf-8"),
+            "manifest_entry": entry,
+        }
 
     async def create_session(
         self,
@@ -318,6 +402,9 @@ class GoldStore:
             ):
                 raise ValueError("candidate is hidden by an unrevealed blind segment")
             current = Proposition.model_validate(proposition) if proposition is not None else candidate.proposition
+            if session.validation_of and outcome == "accepted":
+                if current != candidate.original:
+                    raise ValueError("changed validation classification requires edited outcome")
             if outcome in ("accepted", "edited"):
                 _validate_unresolved(current, explicit_unresolved)
             if outcome == "edited":
@@ -542,7 +629,18 @@ class GoldStore:
             job = await self.job_store.load(UUID(session.job_id))
             if job is None:
                 raise LookupError("job not found")
-            export_slug = _safe_slug(slug if slug is not None else f"{session.document_id}-{session.session_id[:8]}")
+            if session.validation_of:
+                expected_slug = f"{session.validation_of}-validated"
+                if slug is not None and slug != expected_slug:
+                    raise ValueError(f"validation export slug must be {expected_slug}")
+                original_entry = next(
+                    (item for item in self.records() if item.get("slug") == session.validation_of), None
+                )
+                if original_entry is None:
+                    raise GoldDataError(f"original gold record {session.validation_of} not found")
+                export_slug = expected_slug
+            else:
+                export_slug = _safe_slug(slug if slug is not None else f"{session.document_id}-{session.session_id[:8]}")
             records = self._records(session)
             jsonl = self.export_dir / f"{export_slug}.jsonl"
             ann = self.export_dir / f"{export_slug}.ann"
@@ -573,12 +671,32 @@ class GoldStore:
             "precision": precision_from_record(records), "recall_proxy": recall_proxy_from_record(records),
             "exported_at": now.isoformat(),
             }
+            if session.validation_of:
+                entry.update({
+                    "validation_of": session.validation_of,
+                    "validated_annotator": session.validated_annotator,
+                    "validation_counts": {
+                        "approved": entry["counts"]["accepted"],
+                        "edited": entry["counts"]["edited"],
+                        "discarded": entry["counts"]["deleted"],
+                        "hand_added": len(session.hand_added),
+                    },
+                    "text_file": original_entry["text_file"],
+                    "splits": original_entry.get("splits", {}),
+                })
             manifest_data["opinions"] = [
                 item for item in manifest_data.get("opinions", [])
                 if item.get("session_id") != session.session_id and item.get("slug") != export_slug
             ] + [entry]
             _atomic_write(manifest, json.dumps(manifest_data, indent=2, sort_keys=True) + "\n")
-            _atomic_write(readme, README)
+            if not readme.exists():
+                _atomic_write(readme, README)
+            _atomic_write(self.session_dir / "bundles" / f"{session.session_id}.json", json.dumps({
+                "session_id": session.session_id,
+                "jsonl": jsonl.read_text(encoding="utf-8"),
+                "ann": ann.read_text(encoding="utf-8"),
+                "manifest_entry": entry,
+            }, indent=2) + "\n")
             session.exported_at, session.export_slug = now, export_slug
             await self._save(session)
             return ExportResult(jsonl=jsonl, ann=ann, manifest=manifest, readme=readme,
