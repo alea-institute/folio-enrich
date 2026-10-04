@@ -139,6 +139,11 @@ class Settings(BaseSettings):
     # instances should set a distinct, independently rotatable value.
     annotation_token: str = ""
 
+    # Cloudflare Access annotation login; enabled only when all three are set.
+    cf_access_team_domain: str = ""
+    cf_access_aud: str = ""
+    cf_access_allowed_emails: str = ""  # comma-separated, case-insensitive
+
     # Translation matching — index FOLIO translations for text matching
     translation_matching_enabled: bool = False
 
