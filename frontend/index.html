@@ -3950,6 +3950,7 @@
           <span class="proposition-status" id="propositionModeStatus">Off</span>
           <span class="chip" id="propositionRemainingChip">0 unreviewed remaining</span>
           <span class="chip" id="blindPendingChip" style="display:none">blind segment: 0 hidden</span>
+          <span class="proposition-status" id="propositionAccessStatus" role="status" aria-live="polite" style="display:none"></span>
           <details class="proposition-session-tools">
             <summary>Session tools</summary>
             <div class="proposition-session-tools-panel">
@@ -4352,6 +4353,28 @@ let propositionReviewFilter = (() => {
   } catch { return 'needs-review'; }
 })();
 const PROPOSITION_ACCESS_DEFAULT_HINT = 'Use a scoped annotation link or access code; leave empty locally.';
+let propositionAccessRequestId = 0;
+
+async function refreshPropositionAccessStatus() {
+  const requestId = ++propositionAccessRequestId;
+  const status = document.getElementById('propositionAccessStatus');
+  if (!status) return;
+  try {
+    await window.__annotationAccessBootstrap;
+    const response = await fetch(`${API}/gold/access`, { cache: 'no-store' });
+    if (!response.ok) throw new Error('Unable to check annotation sign-in.');
+    const access = await response.json();
+    if (requestId !== propositionAccessRequestId) return;
+    const signedIn = access.authenticated === true && access.via === 'cloudflare-access'
+      && typeof access.email === 'string' && access.email.length > 0;
+    status.textContent = signedIn ? `Signed in as ${access.email} (Cloudflare Access)` : '';
+    status.style.display = signedIn ? '' : 'none';
+  } catch {
+    if (requestId !== propositionAccessRequestId) return;
+    status.textContent = 'Unable to check annotation sign-in. Reopen Propositions to retry.';
+    status.style.display = '';
+  }
+}
 
 function persistPropositionReviewFilter(value) {
   try { localStorage.setItem(PROPOSITION_REVIEW_FILTER_KEY, value); } catch { /* non-critical preference */ }
@@ -4374,6 +4397,7 @@ async function savePropositionAnnotationToken() {
   input.value = '';
   const result = await window.__setAnnotationAccessToken(token);
   if (!result.current) return;
+  refreshPropositionAccessStatus();
   if (!result.ok) {
     setPropositionAccessState('Annotation access was rejected. Check the link or access code.', true);
     input.focus();
@@ -5369,6 +5393,7 @@ async function init() {
   window.addEventListener('annotation-access-updated', event => {
     if (event.detail?.ok) setPropositionAccessState('Annotation access is ready in this browser.');
     else setPropositionAccessState('Annotation access was rejected. Request a fresh scoped link.', true);
+    refreshPropositionAccessStatus();
   });
 
   // Restore detail panel visibility from localStorage
@@ -12981,7 +13006,10 @@ function switchTab(tabEl, name) {
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
   tabEl.classList.add('active');
   document.getElementById(`tab-${name}`).classList.add('active');
-  if (name === 'propositions') renderPropositionsTab();
+  if (name === 'propositions') {
+    renderPropositionsTab();
+    refreshPropositionAccessStatus();
+  }
 }
 
 function toggleUncertain() {

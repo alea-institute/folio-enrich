@@ -21,6 +21,7 @@ dependencies = [
     "striprtf>=0.0.26",
     "olefile>=0.47",
     "httpx>=0.28.0",
+    "pyjwt[crypto]>=2.10,<3",
     "faiss-cpu>=1.8",
     "openpyxl>=3.1.0",
     "eyecite>=2.7",

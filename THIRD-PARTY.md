@@ -23,6 +23,8 @@ Alliance**; consumed via `folio-python`. Licensed **CC-BY 4.0**.
 | fastapi, folio-python[search], spacy, markdown-it-py, nupunkt, citeurl, faiss-cpu, openpyxl | MIT | permissive |
 | pyahocorasick, rdflib, sse-starlette, psutil, eyecite | BSD | permissive |
 | **pypdf** | BSD | **PDF text extraction** (replaced PyMuPDF — see below) |
+| PyJWT (`pyjwt[crypto]`) | MIT | Cloudflare Access RS256 JWT verification |
+| cryptography | Apache-2.0 / BSD | RSA verification for the PyJWT crypto extra |
 | pyarrow | Apache-2.0 | permissive |
 | striprtf, beautifulsoup4, python-docx | MIT/BSD | permissive |
 | **olefile** | BSD | **Outlook `.msg` parsing** (replaced extract-msg — see below) |

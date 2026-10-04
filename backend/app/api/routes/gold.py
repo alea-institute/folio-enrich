@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from dataclasses import asdict
 from typing import Any, Literal
 
 from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Query, Request, Response
 from folio_propositions import Proposition
 from pydantic import BaseModel
 
-from app.api.auth import require_annotation
+from app.api.auth import annotation_access, require_annotation
 from app.services.gold.store import GoldDataError, GoldStore, PreSelector
 from app.storage.job_store import JobStore
 
@@ -73,6 +74,7 @@ async def _require_annotation(
     x_annotation_token: str | None = Header(default=None),
     x_admin_token: str | None = Header(default=None),
     annotation_cookie: str | None = Cookie(default=None, alias="folio_annotation_access"),
+    cf_access_jwt_assertion: str | None = Header(default=None),
 ) -> None:
     """Preserve the scoped auth gate without dispatching it to a worker thread."""
     require_annotation(
@@ -81,7 +83,24 @@ async def _require_annotation(
         annotation_cookie,
         request.headers.get("origin"),
         request.headers.get("host"),
+        cf_access_jwt_assertion,
     )
+
+
+@router.get("/access")
+async def get_annotation_access(
+    response: Response,
+    x_annotation_token: str | None = Header(default=None),
+    x_admin_token: str | None = Header(default=None),
+    annotation_cookie: str | None = Cookie(default=None, alias="folio_annotation_access"),
+    cf_access_jwt_assertion: str | None = Header(default=None),
+):
+    """Report verified annotation identity without returning any credentials."""
+    response.headers["Cache-Control"] = "no-store"
+    access = annotation_access(
+        x_annotation_token, x_admin_token, annotation_cookie, cf_access_jwt_assertion
+    )
+    return asdict(access)
 
 
 @router.post("/access")
