@@ -119,6 +119,36 @@ async def test_deleted_trail_metrics_and_hand_added_recall(tmp_path: Path) -> No
 
 
 @pytest.mark.asyncio
+async def test_export_preserves_existing_readme_bytes(tmp_path: Path) -> None:
+    store, _, _, session = await make_store(tmp_path, [proposition("p1")])
+    await store.record_candidate_outcome(session.session_id, "p1", outcome="accepted")
+    store.export_dir.mkdir()
+    readme = store.export_dir / "README.md"
+    content = "# Benchmark\r\n\r\nAI-annotation caveat: human review required. — Maintained\r\n".encode("utf-8")
+    readme.write_bytes(content)
+
+    result = await store.export(session.session_id)
+
+    assert result.readme == readme
+    assert readme.read_bytes() == content
+
+
+@pytest.mark.asyncio
+async def test_export_bootstraps_readme_in_empty_export_dir(tmp_path: Path) -> None:
+    from app.services.gold.store import README
+
+    store, _, _, session = await make_store(tmp_path, [proposition("p1")])
+    await store.record_candidate_outcome(session.session_id, "p1", outcome="accepted")
+    store.export_dir.mkdir()
+    assert not list(store.export_dir.iterdir())
+
+    result = await store.export(session.session_id)
+
+    assert result.readme == store.export_dir / "README.md"
+    assert result.readme.read_bytes() == README.encode("utf-8")
+
+
+@pytest.mark.asyncio
 async def test_export_gate_and_manifest_density(tmp_path: Path) -> None:
     store, _, _, session = await make_store(
         tmp_path, [proposition("p1"), proposition("p2", "the claim fails", 40)]

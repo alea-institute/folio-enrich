@@ -3960,6 +3960,12 @@
                 <span class="proposition-admin-token-hint" id="propositionAnnotationTokenHint">Use a scoped annotation link or access code; leave empty locally.</span>
               </div>
               <button class="secondary small" id="startPropositionSessionBtn" onclick="ensurePropositionSession(true)" style="display:none">Start annotation session</button>
+              <button class="secondary small" onclick="listValidationRecords()">Validate committed gold…</button>
+              <div id="propositionValidationRecords" style="display:none;width:100%">
+                <label for="propositionValidationSlug">Committed record</label>
+                <select id="propositionValidationSlug" class="proposition-review-filter"></select>
+                <button class="primary small" onclick="startGoldValidation()">Start validation</button>
+              </div>
               <label class="proposition-status"><input type="checkbox" id="propositionBaselineToggle"> Lexicon-only baseline session</label>
               <button class="secondary small" id="addPropositionSpanBtn" onclick="togglePropositionAddMode()" disabled>+ Add span</button>
               <button class="secondary small" id="blindSegmentBtn" onclick="toggleBlindSegmentMode()" disabled>Designate blind segment</button>
@@ -3968,6 +3974,7 @@
             </div>
           </details>
         </div>
+        <div class="proposition-add-banner" id="propositionValidationBanner" style="display:none" role="status"></div>
         <div class="proposition-add-banner" id="propositionAddBanner" style="display:none">Select text to create a proposition span; Esc to cancel.</div>
         <div class="proposition-add-banner" id="propositionBlindBanner" style="display:none">Select a neutral full-text segment to annotate without tool suggestions; Esc to cancel.</div>
         <div class="proposition-review-shell" id="propositionReviewShell">
@@ -5197,9 +5204,19 @@ async function tryLoadJob() {
     setStatus(`Completed: ${accumulatedAnnotations.length} annotations`, 'completed');
     cacheState();
 
-    // Deep-linked reviews may inspect an existing gold session without turning on
-    // Annotation mode. Lookup-only must never create a session on a miss.
-    await ensurePropositionSession(false, { lookupOnly: true });
+    // A pinned validation session enables review without enabling extraction.
+    // Lookup-only must never create a session on a miss.
+    const requestedSessionId = params.get('gold_session');
+    if (requestedSessionId) {
+      const session = await propositionFetch(`/gold/sessions/${encodeURIComponent(requestedSessionId)}`);
+      if (session.job_id !== currentJobId) throw new Error('Annotation session belongs to another job');
+      propositionSession = session;
+      propositionAnnotationMode = Boolean(session.validation_of);
+      await refreshPropositionCompleteness(currentJobId, session.session_id);
+      renderPropositionsTab();
+    } else {
+      await ensurePropositionSession(false, { lookupOnly: true });
+    }
 
     const requestedTab = params.get('tab');
     if (requestedTab) {
@@ -5207,8 +5224,11 @@ async function tryLoadJob() {
       if (tab && document.getElementById(`tab-${requestedTab}`)) switchTab(tab, requestedTab);
     }
 
-    params.delete('job');
-    params.delete('tab');
+    if (!propositionSession?.validation_of) {
+      params.delete('job');
+      params.delete('tab');
+      params.delete('gold_session');
+    }
     const qs = params.toString();
     history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : ''));
     return true;
@@ -12160,6 +12180,11 @@ async function propositionFetch(path, options = {}) {
 }
 
 async function togglePropositionMode(enabled) {
+  if (propositionSession?.validation_of) {
+    propositionAnnotationMode = enabled;
+    renderPropositionsTab();
+    return;
+  }
   try {
     applyPropositionSettings(await propositionFetch('/settings', { method: 'GET' }));
     await propositionFetch('/settings', { method: 'PUT', body: JSON.stringify({ proposition_extraction_enabled: enabled }) });
@@ -12177,6 +12202,32 @@ async function togglePropositionMode(enabled) {
   }
 }
 
+async function listValidationRecords() {
+  try {
+    const records = await propositionFetch('/gold/records');
+    document.getElementById('propositionValidationSlug').innerHTML = records.map(record =>
+      `<option value="${escapeAttr(record.slug)}">${escapeHtml(record.slug)} · ${escapeHtml(record.annotator)}</option>`
+    ).join('');
+    document.getElementById('propositionValidationRecords').style.display = '';
+    if (!records.length) _showInfoToast('No committed gold records available');
+  } catch (error) { propositionApiError(error); }
+}
+
+async function startGoldValidation() {
+  const slug = document.getElementById('propositionValidationSlug').value;
+  if (!slug) return;
+  if (guardUnsavedPropositionEdits()) return;
+  try {
+    const session = await propositionFetch('/gold/validation-sessions', { method: 'POST', body: JSON.stringify({ slug }) });
+    const url = new URL(window.location.href);
+    url.searchParams.delete('demo');
+    url.searchParams.set('job', session.job_id);
+    url.searchParams.set('gold_session', session.session_id);
+    url.searchParams.set('tab', 'propositions');
+    window.location.assign(url.toString());
+  } catch (error) { propositionApiError(error); }
+}
+
 async function ensurePropositionSession(force, { lookupOnly = false } = {}) {
   if ((!propositionAnnotationMode && !lookupOnly) || !currentJobId || currentJob?.status !== 'completed') {
     renderPropositionsTab();
@@ -12187,7 +12238,9 @@ async function ensurePropositionSession(force, { lookupOnly = false } = {}) {
     if (!force) {
       const sessions = await propositionFetch(`/gold/sessions?job_id=${encodeURIComponent(activeJobId)}`, { method: 'GET' });
       if (currentJobId !== activeJobId) return;
-      const existing = (Array.isArray(sessions) ? sessions : sessions.sessions || [])[0];
+      const available = Array.isArray(sessions) ? sessions : sessions.sessions || [];
+      const existing = available.find(session => session.session_id === propositionSession?.session_id)
+        || available.find(session => session.validation_of && !session.exported_at) || available[0];
       if (existing) {
         const session = existing.session_id ? existing : await propositionFetch(`/gold/sessions/${existing.session_id}`, { method: 'GET' });
         if (currentJobId !== activeJobId) return;
@@ -12359,9 +12412,13 @@ function renderPropositionsTab() {
   if (!doc) return;
   const toggle = document.getElementById('propositionModeToggle');
   toggle.checked = propositionAnnotationMode;
+  const validationBanner = document.getElementById('propositionValidationBanner');
+  validationBanner.style.display = propositionSession?.validation_of ? '' : 'none';
+  validationBanner.textContent = propositionSession?.validation_of
+    ? `Validating ${propositionSession.validation_of} · original annotator: ${propositionSession.validated_annotator} · human validator: ${propositionSession.annotator}` : '';
   const llm = propositionSettings?.task_llm_overrides?.proposition;
   document.getElementById('propositionModeStatus').textContent = propositionAnnotationMode
-    ? `On · ${propositionSession?.baseline ? 'lexicon-only baseline' : llm?.provider && llm?.model ? `lexicon + ${llm.provider}/${llm.model}` : 'lexicon only'}` : 'Off';
+    ? `On · ${propositionSession?.validation_of ? 'gold validation' : propositionSession?.baseline ? 'lexicon-only baseline' : llm?.provider && llm?.model ? `lexicon + ${llm.provider}/${llm.model}` : 'lexicon only'}` : 'Off';
   const complete = currentJob?.status === 'completed';
   document.getElementById('startPropositionSessionBtn').style.display = propositionAnnotationMode && complete && !propositionSession ? '' : 'none';
   document.getElementById('addPropositionSpanBtn').disabled = !propositionAnnotationMode || !propositionSession;
@@ -12564,8 +12621,8 @@ function propositionFromCard(card) {
   return {
     ...original, id: card.dataset.candidateId, start_char: start, end_char: end,
     text: fullText.slice(start, end), proposition_type: propositionType, is_new_type: typeSelect === '__new__',
-    asserter: asserterRole ? { role: asserterRole, assumed: value('asserter_assumed').checked } : null,
-    validator: validatorRole ? { role: validatorRole, mode: value('validator_mode').value } : null,
+    asserter: asserterRole ? { ...original.asserter, role: asserterRole, assumed: value('asserter_assumed').checked } : null,
+    validator: validatorRole ? { ...original.validator, role: validatorRole, mode: value('validator_mode').value } : null,
     disposition: value('disposition').value, citation_edges: original.citation_edges || [], triple_ids: original.triple_ids || [],
   };
 }
@@ -12589,7 +12646,7 @@ async function savePropositionOutcome(button, outcome) {
   try {
     const explicit = card.querySelector('[data-field="explicit_unresolved"]').checked;
     const body = { outcome: effectiveOutcome, explicit_unresolved: explicit };
-    if (effectiveOutcome !== 'deleted') body.proposition = propositionFromCard(card);
+    if (effectiveOutcome === 'edited') body.proposition = propositionFromCard(card);
     const session = await propositionFetch(`/gold/sessions/${activeSessionId}/candidates/${encodeURIComponent(card.dataset.candidateId)}`, { method: 'PATCH', body: JSON.stringify(body) });
     if (currentJobId !== activeJobId || propositionSession?.session_id !== activeSessionId) return;
     propositionSession = session;
@@ -12746,6 +12803,12 @@ async function exportGoldRecord() {
     const result = await propositionFetch(`/gold/sessions/${activeSessionId}/export`, { method: 'POST', body: '{}' });
     if (currentJobId !== activeJobId || propositionSession?.session_id !== activeSessionId) return;
     document.getElementById('propositionExportResult').textContent = `Exported JSONL: ${result.jsonl}; BRAT: ${result.ann}; manifest: ${result.manifest}. Precision ${result.precision.toFixed(3)}, recall proxy ${result.recall_proxy.toFixed(3)}.`;
+    const bundleLink = document.createElement('a');
+    bundleLink.href = `${API}/gold/sessions/${encodeURIComponent(activeSessionId)}/bundle`;
+    bundleLink.textContent = ' Retrieve exported bundle';
+    bundleLink.target = '_blank';
+    bundleLink.rel = 'noopener';
+    document.getElementById('propositionExportResult').appendChild(bundleLink);
     _showInfoToast('Gold record exported');
   } catch (error) { if (currentJobId === activeJobId && propositionSession?.session_id === activeSessionId) propositionApiError(error); }
 }

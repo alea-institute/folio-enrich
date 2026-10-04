@@ -23,6 +23,10 @@ class CreateSessionRequest(BaseModel):
     baseline: bool = False
 
 
+class CreateValidationSessionRequest(BaseModel):
+    slug: str
+
+
 class CandidateOutcomeRequest(BaseModel):
     outcome: Literal["accepted", "edited", "deleted", "unreviewed"]
     proposition: dict[str, Any] | None = None
@@ -119,6 +123,29 @@ async def create_session(request: CreateSessionRequest):
 @router.get("/sessions")
 async def list_sessions(job_id: str | None = Query(None)):
     return await _gold_store.list(job_id)
+
+
+@router.get("/records")
+async def list_records():
+    return _gold_store.records()
+
+
+@router.post("/validation-sessions", status_code=201, dependencies=[Depends(_require_annotation)])
+async def create_validation_session(request: CreateValidationSessionRequest):
+    try:
+        return await _gold_store.create_validation_session(request.slug)
+    except (ValueError, LookupError) as exc:
+        raise _http_error(exc) from exc
+
+
+@router.get("/sessions/{session_id}/bundle")
+async def get_bundle(session_id: str):
+    try:
+        return await _gold_store.bundle(session_id)
+    except LookupError as exc:
+        raise _http_error(exc) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.get("/sessions/{session_id}")
