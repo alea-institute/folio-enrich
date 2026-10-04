@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import shutil
 from pathlib import Path
 from uuid import UUID
 
@@ -16,7 +17,10 @@ SLUG = "palsgraf-248-ny-339"
 
 
 def make_store(tmp_path):
-    return GoldStore(JobStore(tmp_path / "jobs"), export_dir=tmp_path / "exports")
+    store = GoldStore(JobStore(tmp_path / "jobs"), export_dir=tmp_path / "exports")
+    store.gold_dir = tmp_path / "gold"
+    shutil.copytree(GOLD_DIR, store.gold_dir)
+    return store
 
 
 async def approve(store, session, candidates=None):
@@ -176,3 +180,87 @@ def test_import_bundle_is_idempotent_and_checks_canonical_spans(tmp_path):
     with pytest.raises(ValueError, match="span"):
         module.import_bundle(bundle, gold_dir, session_id="session")
     assert snapshot == {path.name: path.read_bytes() for path in gold_dir.iterdir()}
+
+
+@pytest.fixture
+def validation_route_store(tmp_path, monkeypatch):
+    from app.api.routes import gold
+    from app.config import settings
+
+    store = make_store(tmp_path)
+    monkeypatch.setattr(gold, "_gold_store", store)
+    monkeypatch.setattr(settings, "annotation_token", "")
+    monkeypatch.setattr(settings, "admin_token", "")
+    return store
+
+
+@pytest.mark.asyncio
+async def test_validated_exports_are_not_validatable(validation_route_store, client):
+    store = validation_route_store
+    store.export_dir = store.gold_dir
+    session = await store.create_validation_session(SLUG)
+    await approve(store, session)
+    await store.export(session.session_id)
+
+    response = await client.get("/gold/records")
+    assert response.status_code == 200
+    assert [entry["slug"] for entry in response.json()] == [SLUG]
+    response = await client.post("/gold/validation-sessions", json={"slug": f"{SLUG}-validated"})
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_missing_manifest_lists_no_records(validation_route_store, client):
+    (validation_route_store.gold_dir / "manifest.json").unlink()
+    response = await client.get("/gold/records")
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+@pytest.mark.parametrize("existing_job", [False, True])
+@pytest.mark.parametrize("missing", ["text_file", "jsonl", "annotator", "job_id"])
+@pytest.mark.asyncio
+async def test_partial_gold_returns_conflict(validation_route_store, client, missing, existing_job):
+    store = validation_route_store
+    if existing_job:
+        session = await store.create_validation_session(SLUG)
+        await approve(store, session)
+        await store.export(session.session_id)
+    manifest_path = store.gold_dir / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    entry = next(item for item in manifest["opinions"] if item["slug"] == SLUG)
+    if missing == "text_file":
+        (store.gold_dir / entry["text_file"]).unlink()
+    elif missing == "jsonl":
+        (store.gold_dir / f"{SLUG}.jsonl").unlink()
+    else:
+        del entry[missing]
+        manifest_path.write_text(json.dumps(manifest))
+
+    response = await client.post("/gold/validation-sessions", json={"slug": SLUG})
+    assert response.status_code == 409, response.text
+    detail = response.json()["detail"]
+    assert "gold" in detail
+    expected = f"{SLUG}.txt" if missing == "text_file" else f"{SLUG}.jsonl" if missing == "jsonl" else missing
+    assert expected in detail
+    sessions = await store.list()
+    assert len(sessions) == (1 if existing_job else 0)
+
+
+@pytest.mark.asyncio
+async def test_missing_original_export_returns_conflict_without_writes(validation_route_store, client):
+    store = validation_route_store
+    session = await store.create_validation_session(SLUG)
+    await approve(store, session)
+    manifest_path = store.gold_dir / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["opinions"] = []
+    manifest_path.write_text(json.dumps(manifest))
+    before = {path: path.read_bytes() for path in store.job_store.base_dir.rglob("*") if path.is_file()}
+
+    response = await client.post(f"/gold/sessions/{session.session_id}/export", json={})
+    assert response.status_code == 409, response.text
+    assert "original gold record" in response.json()["detail"]
+    assert not store.export_dir.exists()
+    assert before == {path: path.read_bytes() for path in store.job_store.base_dir.rglob("*") if path.is_file()}
+    assert (await store.get(session.session_id)).exported_at is None

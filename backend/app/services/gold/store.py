@@ -184,6 +184,10 @@ def _validate_unresolved(proposition: Proposition, explicit: bool) -> None:
         raise ValueError("unresolved disposition requires explicit_unresolved=True")
 
 
+class GoldDataError(ValueError):
+    """Gold data on this host is incomplete or unavailable."""
+
+
 class GoldStore:
     def __init__(self, job_store: JobStore | None = None, export_dir: Path | None = None) -> None:
         self.job_store = job_store or JobStore()
@@ -203,17 +207,38 @@ class GoldStore:
         _atomic_write(self._path(session.session_id), session.model_dump_json(indent=2))
 
     def records(self) -> list[dict[str, Any]]:
-        manifest = json.loads((self.gold_dir / "manifest.json").read_text(encoding="utf-8"))
-        return [entry for entry in manifest["opinions"] if entry.get("text_file")]
+        try:
+            manifest = json.loads((self.gold_dir / "manifest.json").read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return []
+        except (OSError, ValueError) as exc:
+            raise GoldDataError(f"cannot read gold manifest: {exc}") from exc
+        try:
+            return [
+                entry for entry in manifest["opinions"]
+                if entry.get("text_file") and "validation_of" not in entry
+            ]
+        except KeyError as exc:
+            raise GoldDataError(f"gold manifest missing field: {exc}") from exc
 
     async def create_validation_session(self, slug: str) -> AnnotationSession:
         async with self._locks[f"validation:{slug}"]:
-            entry = next((entry for entry in self.records() if entry["slug"] == slug), None)
+            entry = next((entry for entry in self.records() if entry.get("slug") == slug), None)
             if entry is None:
                 raise LookupError("gold record not found")
-            job_id = UUID(entry["job_id"])
-            if await self.job_store.load(job_id) is None:
+            try:
+                job_id = UUID(entry["job_id"])
+                document_id = entry["document_id"]
+                validated_annotator = entry["annotator"]
                 text = (self.gold_dir / entry["text_file"]).read_bytes().decode("utf-8")
+                rows = [
+                    json.loads(line)
+                    for line in (self.gold_dir / f"{slug}.jsonl").read_text(encoding="utf-8").splitlines()
+                    if line.strip()
+                ]
+            except (OSError, KeyError, ValueError) as exc:
+                raise GoldDataError(f"cannot load gold record {slug}: {exc}") from exc
+            if await self.job_store.load(job_id) is None:
                 await self.job_store.save(Job(
                     id=job_id, status=JobStatus.COMPLETED,
                     input=DocumentInput(content=text, filename=entry["text_file"]),
@@ -222,11 +247,6 @@ class GoldStore:
             for session in await self.list():
                 if session.validation_of == slug and session.exported_at is None:
                     return session
-            rows = [
-                json.loads(line)
-                for line in (self.gold_dir / f"{slug}.jsonl").read_text(encoding="utf-8").splitlines()
-                if line.strip()
-            ]
             candidates = []
             for row in rows:
                 if row.get("record_type") != "annotation" or row.get("deleted"):
@@ -237,9 +257,9 @@ class GoldStore:
                     explicit_unresolved=row.get("explicit_unresolved", False),
                 ))
             session = AnnotationSession(
-                job_id=str(job_id), document_id=entry["document_id"],
+                job_id=str(job_id), document_id=document_id,
                 pre_selector=PreSelector(source="gold-validation"), candidates=candidates,
-                validation_of=slug, validated_annotator=entry["annotator"],
+                validation_of=slug, validated_annotator=validated_annotator,
             )
             await self._save(session)
             return session
@@ -613,6 +633,11 @@ class GoldStore:
                 expected_slug = f"{session.validation_of}-validated"
                 if slug is not None and slug != expected_slug:
                     raise ValueError(f"validation export slug must be {expected_slug}")
+                original_entry = next(
+                    (item for item in self.records() if item.get("slug") == session.validation_of), None
+                )
+                if original_entry is None:
+                    raise GoldDataError(f"original gold record {session.validation_of} not found")
                 export_slug = expected_slug
             else:
                 export_slug = _safe_slug(slug if slug is not None else f"{session.document_id}-{session.session_id[:8]}")
@@ -647,7 +672,6 @@ class GoldStore:
             "exported_at": now.isoformat(),
             }
             if session.validation_of:
-                original_entry = next(item for item in self.records() if item["slug"] == session.validation_of)
                 entry.update({
                     "validation_of": session.validation_of,
                     "validated_annotator": session.validated_annotator,
