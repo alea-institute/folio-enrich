@@ -108,6 +108,15 @@ class Settings(BaseSettings):
     llm_proposition_provider: str = ""
     llm_proposition_model: str = ""
 
+    # folio-insights corpus bridge (read-only status lookups for propositions).
+    # Empty URL = not connected; the Propositions tab then shows a muted banner
+    # and the review workflow is unaffected. The token is sent as a bearer
+    # header when set and is never logged or returned to the browser.
+    insights_api_url: str = ""
+    insights_corpus: str = ""  # empty → null corpus = the insights default
+    insights_api_token: str = ""
+    insights_timeout_seconds: float = 3.0
+
     # FOLIO OWL auto-update
     folio_auto_update: bool = True
     folio_update_check_interval_hours: int = 24

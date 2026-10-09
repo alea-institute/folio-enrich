@@ -2351,6 +2351,35 @@
   .proposition-validity { margin-top:10px; padding:10px; border:1px solid var(--border); border-radius:7px; background:var(--surface2); display:grid; gap:7px; }
   .proposition-validity-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .proposition-diff { font-size:11px; color:var(--text-dim); }
+  /* folio-insights corpus status (read-only bridge) */
+  .proposition-corpus-banner { margin:8px 0 0; padding:6px 9px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; min-height:30px; box-sizing:border-box; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text-dim); font-size:11px; }
+  .proposition-corpus-banner.warn { border-color:color-mix(in srgb,var(--orange) 45%,var(--border)); }
+  .proposition-corpus-banner strong { color:var(--text); font-weight:650; }
+  .proposition-corpus-banner-text { flex:1 1 220px; min-width:0; }
+  .proposition-corpus-banner .proposition-corpus-dot { display:inline-block; width:7px; height:7px; margin-right:6px; border-radius:50%; background:var(--text-dim); vertical-align:1px; }
+  .proposition-corpus-banner.connected .proposition-corpus-dot { background:var(--conf-high); }
+  .proposition-corpus-banner.warn .proposition-corpus-dot { background:var(--orange); }
+  .proposition-corpus { margin:-4px 0 13px; padding:8px 9px; display:grid; gap:6px; border:1px solid var(--border); border-left:3px solid color-mix(in srgb,var(--accent) 60%,var(--border)); border-radius:6px; background:color-mix(in srgb,var(--surface2) 70%,var(--surface)); font-size:11px; color:var(--text-dim); }
+  .proposition-corpus.absent { border-left-color:var(--border); }
+  .proposition-corpus > * { min-width:0; }
+  .proposition-corpus-head { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .proposition-corpus-head .proposition-review-eyebrow { display:inline; margin:0 4px 0 0; }
+  .corpus-badge { font-size:9px; font-weight:750; letter-spacing:.03em; text-transform:uppercase; padding:3px 7px; border-radius:999px; background:color-mix(in srgb,var(--accent) 16%,transparent); color:var(--text); white-space:nowrap; }
+  .corpus-badge.contested { background:var(--conf-mid-bg); color:var(--conf-mid); }
+  .corpus-badge.superseded { background:var(--conf-low-bg); color:var(--conf-low); }
+  .corpus-badge.muted { background:var(--surface3); color:var(--text-dim); }
+  .proposition-corpus-iri { display:flex; align-items:center; gap:6px; min-width:0; }
+  .proposition-corpus-iri code, .proposition-corpus-links code { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:600 10px ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--text); }
+  .proposition-corpus-iri code { flex:1; }
+  .proposition-corpus-iri .corpus-copy { flex:none; min-height:24px; }
+  .proposition-corpus details > summary { cursor:pointer; color:var(--text-dim); font-size:10px; font-weight:700; padding:2px 0; }
+  .proposition-corpus details > summary:focus-visible, .corpus-copy:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:3px; }
+  .proposition-corpus-links ul { margin:4px 0 0; padding:0; list-style:none; display:grid; gap:4px; }
+  .proposition-corpus-links li { display:flex; align-items:baseline; gap:6px; min-width:0; }
+  .proposition-corpus-relation { flex:none; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; color:var(--text-dim); min-width:96px; }
+  .proposition-corpus-links .corpus-empty { color:var(--text-dim); font-style:italic; }
+  .proposition-corpus-group + .proposition-corpus-group { margin-top:6px; }
+  .proposition-corpus-group > span { font-size:9px; font-weight:750; letter-spacing:.08em; text-transform:uppercase; }
   @media (max-width:1000px) {
     .proposition-review-shell { height:auto; min-height:0; grid-template-columns:1fr; }
     .proposition-context-pane { min-height:46vh; max-height:58vh; }
@@ -3978,6 +4007,10 @@
         <div class="proposition-add-banner" id="propositionValidationBanner" style="display:none" role="status"></div>
         <div class="proposition-add-banner" id="propositionAddBanner" style="display:none">Select text to create a proposition span; Esc to cancel.</div>
         <div class="proposition-add-banner" id="propositionBlindBanner" style="display:none">Select a neutral full-text segment to annotate without tool suggestions; Esc to cancel.</div>
+        <div class="proposition-corpus-banner" id="propositionCorpusBanner" style="display:none">
+          <span class="proposition-corpus-banner-text" id="propositionCorpusBannerText" role="status" aria-live="polite"></span>
+          <button type="button" class="secondary small" id="refreshCorpusStatusBtn" onclick="refreshInsightsStatus()">Refresh corpus status</button>
+        </div>
         <div class="proposition-review-shell" id="propositionReviewShell">
           <section class="proposition-context-pane" aria-labelledby="propositionContextHeading">
             <header class="proposition-review-header">
@@ -4341,6 +4374,9 @@ let propositionBlindArmed = false;
 let propositionDraft = null;
 let propositionSettings = null;
 let propositionCompleteness = null;
+// folio-insights corpus status, cached per job id: { loading, data, error }.
+const insightsStatusCache = new Map();
+const insightsDisclosureOpen = new Set();
 let propositionReviewId = null;
 let propositionReviewScrollPending = false;
 let propositionReviewSaving = false;
@@ -12432,9 +12468,169 @@ function wireActivePropositionCard(card) {
   });
 }
 
+// ── folio-insights corpus status (read-only) ──────────────────────────
+function insightsStatusEntry(jobId = currentJobId) {
+  return jobId ? insightsStatusCache.get(jobId) || null : null;
+}
+
+async function ensureInsightsStatus(force = false) {
+  const jobId = currentJobId;
+  if (!jobId || currentJob?.status !== 'completed') return;
+  const existing = insightsStatusCache.get(jobId);
+  if (existing && (existing.loading || !force)) return;
+  insightsStatusCache.set(jobId, { loading: true, data: existing?.data || null, error: null });
+  let entry;
+  try {
+    const response = await fetch(`${API}/enrich/${encodeURIComponent(jobId)}/insights-status`, { headers: { Accept: 'application/json' } });
+    if (!response.ok) {
+      entry = { loading: false, data: null, error: response.status === 404 ? 'This job is not stored on the server, so corpus status is unavailable.' : `Corpus status request failed (${response.status}).` };
+    } else {
+      entry = { loading: false, data: await response.json(), error: null };
+    }
+  } catch (error) {
+    entry = { loading: false, data: null, error: 'Corpus status request failed — check your connection.' };
+  }
+  insightsStatusCache.set(jobId, entry);
+  if (currentJobId === jobId) renderPropositionsTab();
+}
+
+function refreshInsightsStatus() {
+  ensureInsightsStatus(true);
+  renderInsightsBanner();
+}
+
+function propositionContentIri(p) {
+  if (!p) return null;
+  if (p.content_iri) return p.content_iri;
+  const mapped = insightsStatusEntry()?.data?.propositions;
+  return (mapped && p.id && mapped[p.id]) || null;
+}
+
+function renderInsightsBanner() {
+  const banner = document.getElementById('propositionCorpusBanner');
+  const text = document.getElementById('propositionCorpusBannerText');
+  const button = document.getElementById('refreshCorpusStatusBtn');
+  if (!banner || !text) return;
+  const entry = insightsStatusEntry();
+  if (!entry || currentJob?.status !== 'completed') { banner.style.display = 'none'; return; }
+  banner.style.display = '';
+  banner.classList.remove('connected', 'warn');
+  button.disabled = entry.loading;
+  button.textContent = entry.loading ? 'Checking…' : 'Refresh corpus status';
+  const dot = '<span class="proposition-corpus-dot" aria-hidden="true"></span>';
+  const data = entry.data;
+  if (entry.loading && !data) {
+    text.innerHTML = `${dot}Checking folio-insights corpus status…`;
+    return;
+  }
+  if (entry.error) {
+    banner.classList.add('warn');
+    text.innerHTML = `${dot}${escapeHtml(entry.error)}`;
+    return;
+  }
+  if (data?.state === 'connected') {
+    banner.classList.add('connected');
+    const results = Object.values(data.results || {});
+    const present = results.filter(result => result.present).length;
+    const corpus = data.corpus ? ` · corpus <strong>${escapeHtml(data.corpus)}</strong>` : '';
+    text.innerHTML = `${dot}folio-insights connected${corpus} · <strong>${present}</strong> of ${results.length} proposition${results.length === 1 ? '' : 's'} in corpus`;
+    return;
+  }
+  if (data?.state === 'not_configured' || !data) {
+    text.innerHTML = `${dot}folio-insights not connected — corpus status unavailable`;
+    return;
+  }
+  banner.classList.add('warn');
+  const label = data.state === 'unreachable' ? 'folio-insights unreachable' : 'folio-insights error';
+  text.innerHTML = `${dot}${label} — corpus status unavailable${data.state === 'error' && data.message ? ` · ${escapeHtml(data.message)}` : ''}`;
+}
+
+const CORPUS_RELATION_LABELS = {
+  elaborates: 'elaborates', elaborated_by: 'elaborated by', depends_on: 'depends on', depended_on_by: 'depended on by',
+  glosses: 'glosses', glossed_by: 'glossed by', contests: 'contests', conflicting_authority: 'conflicting authority',
+  superseded_by: 'superseded by', objection: 'objection',
+};
+
+function corpusIriWithCopy(iri) {
+  return `<div class="proposition-corpus-iri"><code title="${escapeAttr(iri)}">${escapeHtml(iri)}</code><button type="button" class="secondary small corpus-copy" data-iri="${escapeAttr(iri)}" onclick="copyCorpusIri(this)" aria-label="Copy content IRI ${escapeAttr(iri)}">Copy</button></div>`;
+}
+
+function corpusEdgeList(edges) {
+  if (!edges.length) return '<li class="corpus-empty">None</li>';
+  return edges.map(edge => `<li><span class="proposition-corpus-relation">${escapeHtml(CORPUS_RELATION_LABELS[edge.relation] || edge.relation || 'related')}</span><code title="${escapeAttr(edge.iri)}">${escapeHtml(edge.iri)}</code></li>`).join('');
+}
+
+function renderPropositionCorpusRow(p) {
+  const data = insightsStatusEntry()?.data;
+  if (!data || data.state !== 'connected') return '';
+  const iri = propositionContentIri(p);
+  if (!iri) return '';
+  const result = data.results?.[iri];
+  if (!result) return '';
+  const open = insightsDisclosureOpen.has(iri) ? ' open' : '';
+  if (!result.present) {
+    return `<div class="proposition-corpus absent" role="group" aria-label="Corpus status">
+      <details data-corpus-iri="${escapeAttr(iri)}" ontoggle="rememberCorpusDisclosure(this)"${open}>
+        <summary title="${escapeAttr(iri)}"><span class="proposition-review-eyebrow" style="display:inline;margin-right:6px">Corpus</span>Not in corpus</summary>
+        ${corpusIriWithCopy(iri)}
+      </details>
+    </div>`;
+  }
+  const related = result.related || [];
+  const contesting = result.contesting || [];
+  const badges = [
+    `<span class="corpus-badge" title="Epistemic status in folio-insights">${escapeHtml((result.epistemic_status || result.shard_type || 'in corpus').replaceAll('_', ' '))}</span>`,
+    result.contested ? '<span class="corpus-badge contested">contested</span>' : '',
+    result.superseded_by ? '<span class="corpus-badge superseded">superseded</span>' : '',
+  ].join('');
+  const supersession = result.superseded_by
+    ? `<div class="proposition-corpus-group"><span>Superseded by</span><ul><li><code title="${escapeAttr(result.superseded_by)}">${escapeHtml(result.superseded_by)}</code></li></ul></div>` : '';
+  return `<div class="proposition-corpus" role="group" aria-label="Corpus status">
+    <div class="proposition-corpus-head"><span class="proposition-review-eyebrow">Corpus</span>${badges}</div>
+    ${corpusIriWithCopy(iri)}
+    <details class="proposition-corpus-links" data-corpus-iri="${escapeAttr(iri)}" ontoggle="rememberCorpusDisclosure(this)"${open}>
+      <summary>Related (${related.length}) · Contesting (${contesting.length})</summary>
+      <div class="proposition-corpus-group"><span>Related</span><ul>${corpusEdgeList(related)}</ul></div>
+      <div class="proposition-corpus-group"><span>Contesting</span><ul>${corpusEdgeList(contesting)}</ul></div>
+      ${supersession}
+    </details>
+  </div>`;
+}
+
+function rememberCorpusDisclosure(details) {
+  const iri = details.dataset.corpusIri;
+  if (!iri) return;
+  if (details.open) insightsDisclosureOpen.add(iri); else insightsDisclosureOpen.delete(iri);
+}
+
+function copyCorpusIri(button) {
+  const iri = button.dataset.iri || '';
+  const done = ok => {
+    button.textContent = ok ? 'Copied' : 'Copy failed';
+    setTimeout(() => { button.textContent = 'Copy'; }, 1500);
+  };
+  const fallback = () => {
+    const area = document.createElement('textarea');
+    area.value = iri;
+    area.setAttribute('readonly', '');
+    area.style.position = 'fixed';
+    area.style.opacity = '0';
+    document.body.appendChild(area);
+    area.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (_) { ok = false; }
+    area.remove();
+    done(ok);
+  };
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(iri).then(() => done(true), fallback);
+  else fallback();
+}
+
 function renderPropositionsTab() {
   const doc = document.getElementById('propositionDocument');
   if (!doc) return;
+  if (document.getElementById('tab-propositions')?.classList.contains('active')) ensureInsightsStatus(false);
+  renderInsightsBanner();
   const toggle = document.getElementById('propositionModeToggle');
   toggle.checked = propositionAnnotationMode;
   const validationBanner = document.getElementById('propositionValidationBanner');
@@ -12549,6 +12745,8 @@ function renderPropositionsTab() {
     list.querySelectorAll('input, select, button').forEach(control => { control.disabled = true; });
     list.querySelectorAll('.proposition-actions').forEach(actions => { actions.style.display = 'none'; });
   }
+  // Copying a corpus IRI is read-only, so it stays available in every review state.
+  list.querySelectorAll('.corpus-copy').forEach(control => { control.disabled = false; });
   const counts = sessionRecords.reduce((totals, record) => {
     const outcome = record.outcome || 'unreviewed';
     totals[outcome] = (totals[outcome] || 0) + 1;
@@ -12595,6 +12793,7 @@ function renderPropositionCard(record) {
   }
   return `<div class="proposition-card ${outcome === 'deleted' ? 'deleted' : ''}" tabindex="-1" data-candidate-id="${escapeAttr(id)}" data-draft="${isDraft}" data-dirty="false">
     <div class="proposition-card-head"><div><span class="proposition-review-eyebrow">Classification</span><span class="proposition-quote">“${escapeHtml(p.text || '')}”</span></div><span class="proposition-outcome ${escapeAttr(outcome)}">${escapeHtml(outcome)}</span></div>
+    ${isDraft ? '' : renderPropositionCorpusRow(p)}
     <div class="proposition-fields">
       <label class="proposition-field wide">Proposition type<select data-field="proposition_type" onchange="handlePropositionType(this)">${propositionOptions(PROPOSITION_TYPES, customType ? '' : p.proposition_type)}<option value="__new__" ${customType ? 'selected' : ''}>+ new type…</option></select></label>
       <label class="proposition-field wide proposition-new-type" style="display:${customType ? '' : 'none'}">New type<input type="text" data-field="new_type" value="${escapeAttr(customType ? p.proposition_type : '')}"></label>
