@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import socket
 
 import pytest
-
 from app.services.ontology.ingestion import (
     OWLIngestionError,
     _assert_safe_url,
@@ -48,8 +48,15 @@ class TestUrlGate:
         with pytest.raises(OWLIngestionError, match="credential"):
             _assert_safe_url("https://user:pw@raw.githubusercontent.com/x.owl")
 
-    def test_accepts_allowlisted_github(self):
-        # resolves + passes (network DNS only, no download)
+    def test_accepts_allowlisted_github(self, monkeypatch):
+        # Exercise the public-IP gate without depending on live GitHub DNS.
+        monkeypatch.setattr(
+            "app.services.ontology.ingestion.socket.getaddrinfo",
+            lambda host, port, **kwargs: [
+                (socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "",
+                 ("185.199.108.133", port)),
+            ],
+        )
         _assert_safe_url(CANON_URL)
 
 

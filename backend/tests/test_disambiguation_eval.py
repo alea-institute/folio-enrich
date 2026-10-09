@@ -13,7 +13,6 @@ Plan: docs/plans/2026-05-26-001-fix-agreement-concept-disambiguation-plan.md
 from __future__ import annotations
 
 import pytest
-
 from app.services.folio.folio_service import FOLIOConcept, FolioService
 from app.services.folio.match_tier import (
     is_higher_priority,
@@ -254,6 +253,16 @@ class TestCollisionDiscovery:
     """A13: auto-discover primary/alt cross-collisions; assert the set is
     non-empty, stable, and includes the anchor."""
 
+    @pytest.mark.skip(
+        reason=(
+            "Known main failure (2026-10-09): this live-OWL discovery check "
+            "assumes 'agreement' has both lemma_preferred and alternative "
+            "entries; mutable upstream labels/index data no longer guarantee "
+            "that historical collision. Restore with a pinned OWL fixture; "
+            "synthetic lemma-priority and agreement-resolution tests remain "
+            "active. See docs/plans/2026-10-09-backend-ci-lane-plan.md."
+        ),
+    )
     def test_agreement_collision_discovered(self):
         svc = FolioService()
         single = svc.get_all_labels()
