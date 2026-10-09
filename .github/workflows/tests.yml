@@ -1,0 +1,47 @@
+name: Backend tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@v10
+        with:
+          version: "0.9.22"
+          # Matches backend/Dockerfile; satisfies requires-python >=3.11.
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: |
+            backend/uv.lock
+            backend/pyproject.toml
+            backend/Dockerfile
+      - name: Install locked dependencies
+        # Embeddings pull torch and remote model weights; keep this suite on the
+        # same optional-embeddings path as the production Docker image.
+        run: uv sync --frozen --extra dev
+      - name: Install pinned spaCy model
+        # Same release wheel as backend/Dockerfile; avoids the compatibility lookup.
+        run: uv pip install --no-cache https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+      - name: Run backend suite
+        # pyproject.toml excludes slow/demo_regen/eval tests requiring live OWL/models.
+        # Leave Playwright optional: browser tests skip when it is unavailable.
+        run: uv run --no-sync python -m pytest tests/ -q -n 2 -ra -p no:cacheprovider
