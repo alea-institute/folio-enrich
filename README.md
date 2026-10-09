@@ -2,7 +2,7 @@
 
 **Tag every legal document with precise, machine-readable legal concepts, individuals, and relationships — automatically.**
 
-Legal documents contain thousands of concepts buried in dense prose: causes of action, contract terms, regulatory frameworks, named entities, and inter-concept relationships. FOLIO Enrich reads your documents, identifies those concepts, maps each one to the [FOLIO ontology](https://github.com/FOLIO-Ontology/FOLIO) (18,000+ standardized legal concepts), extracts named individuals (citations, parties, dates, amounts) and OWL object properties (legal verbs and relationships), scores confidence, and exports structured results in 13 formats — all through a single API call.
+Legal documents contain thousands of concepts buried in dense prose: causes of action, contract terms, regulatory frameworks, named entities, and inter-concept relationships. FOLIO Enrich reads your documents, identifies those concepts, maps each one to the [FOLIO ontology](https://github.com/FOLIO-Ontology/FOLIO) (18,000+ standardized legal concepts), extracts named individuals (citations, parties, dates, amounts) and OWL object properties (legal verbs and relationships), scores confidence, and exports structured results in 15 formats — all through a single API call.
 
 Upload complaints, contracts, or regulatory filings.
 
@@ -47,7 +47,7 @@ Seconds later, receive a structured annotation layer that machines can search, f
 - **Document type detection** — early parallel LLM classification with post-pipeline quality cross-check
 - **Calibrated confidence scoring** — graduated initial scores, contextual LLM reranking, branch judge blending, and embedding triage across 5 stages
 - **Containment-aware dedup** — nested spans (A inside B) survive across all stages; partial overlaps resolve to longer match
-- **13 export formats** — JSON, JSON-LD, XML, CSV, JSONL, Parquet, Elasticsearch bulk, Neo4j CSV, RAG chunks, RDF/Turtle, brat standoff, HTML, Excel
+- **15 export formats** — JSON, JSON-LD, XML, CSV, JSONL, Parquet, Elasticsearch bulk, Neo4j CSV, RAG chunks, RDF/Turtle, brat standoff, HTML, Excel, and shared-schema propositions (JSON and NDJSON)
 - **Real-time streaming** — Server-Sent Events (SSE) for live pipeline progress including individuals, properties, and document type
 - **Annotation lifecycle** — promote, reject, restore, cascade-promote, and bulk-reject operations with full lineage tracking
 - **Per-task LLM routing** — assign different LLM providers to 9 pipeline tasks (classifier, extractor, concept, branch judge, area of law, synthetic, individual, property, document type)
@@ -266,6 +266,19 @@ Tasks: `CLASSIFIER`, `EXTRACTOR`, `CONCEPT`, `BRANCH_JUDGE`, `AREA_OF_LAW`, `SYN
 | `FOLIO_ENRICH_RATE_LIMIT_REQUESTS` | `60` | Max requests per window |
 | `FOLIO_ENRICH_RATE_LIMIT_WINDOW` | `60` | Window size in seconds |
 
+### Connecting folio-insights
+
+The Propositions tab can show each proposition's status in a [folio-insights](https://github.com/alea-institute/folio-insights) corpus (present or not, epistemic status, contested/superseded, related and contesting shards). Every proposition carries a `content_iri` (`urn:folio:shard/<32 hex>`) equal to the insights shard IRI for the same source and span, so lookups need no mapping table. The bridge is read-only; when it is not configured or unreachable, the tab shows a muted banner and the review workflow is unaffected.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `FOLIO_ENRICH_INSIGHTS_API_URL` | `""` | Base URL of the folio-insights server (http/https). Empty = not connected |
+| `FOLIO_ENRICH_INSIGHTS_CORPUS` | `""` | Corpus name to query. Empty = the insights default corpus |
+| `FOLIO_ENRICH_INSIGHTS_API_TOKEN` | `""` | Sent as `Authorization: Bearer <token>` when set; never logged or returned to the browser |
+| `FOLIO_ENRICH_INSIGHTS_TIMEOUT_SECONDS` | `3.0` | Per-request timeout for insights calls |
+
+Endpoints: `GET /enrich/{job_id}/insights-status` (corpus status for the job's propositions; lookups are chunked at 500 IRIs) and `GET /insights/health` (proxied insights health, or the not-configured state). Both return a typed `state` of `connected`, `not_configured`, `unreachable` or `error`.
+
 ---
 
 ## API Reference
@@ -277,6 +290,7 @@ Tasks: `CLASSIFIER`, `EXTRACTOR`, `CONCEPT`, `BRANCH_JUDGE`, `AREA_OF_LAW`, `SYN
 | `POST` | `/enrich` | Submit a document for enrichment (returns `202` with `job_id`) |
 | `GET` | `/enrich/{job_id}` | Get job status and results (includes annotations, individuals, properties) |
 | `GET` | `/enrich/{job_id}/stream` | SSE stream of pipeline progress |
+| `GET` | `/enrich/{job_id}/propositions/{ref}` | Look up propositions by legacy id or URL-encoded content IRI (always a list) |
 | `GET` | `/enrich/branches` | List all FOLIO branches with display colors |
 
 ### Annotation Management
@@ -294,11 +308,11 @@ Tasks: `CLASSIFIER`, `EXTRACTOR`, `CONCEPT`, `BRANCH_JUDGE`, `AREA_OF_LAW`, `SYN
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/enrich/{job_id}/export?format=json` | Export results in any of the 13 supported formats |
+| `GET` | `/enrich/{job_id}/export?format=json` | Export results in any of the 15 supported formats |
 
 Query parameters: `format` (required), `include_dismissed` (default `false`)
 
-All export formats include annotations, individuals, and properties sections.
+All export formats except `propositions` and `propositions-ndjson` include annotations, individuals, and properties sections.
 
 ### Concepts
 
@@ -337,6 +351,8 @@ All export formats include annotations, individuals, and properties sections.
 |--------|----------|-------------|
 | `GET` | `/health` | Simple health check |
 | `GET` | `/health/detail` | Detailed subsystem health (FOLIO, embedding, LLM, spaCy) |
+| `GET` | `/insights/health` | folio-insights bridge health (see [Connecting folio-insights](#connecting-folio-insights)) |
+| `GET` | `/enrich/{job_id}/insights-status` | Corpus status for a job's propositions |
 
 ---
 
@@ -364,6 +380,19 @@ All export formats include annotations, individuals, and properties sections.
 | `brat` | `text/plain` | brat standoff annotation format |
 | `html` | `text/html` | Interactive HTML with styled tooltips and confidence bars |
 | `excel` | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` | Spreadsheet with color-coded confidence |
+| `propositions` | `application/json` | Shared-schema `PropositionDocumentRecord` (folio-propositions schema v4) for folio-insights |
+| `propositions-ndjson` | `application/x-ndjson` | The same record streamed: a `header` line, then one `proposition` line each |
+
+### Proposition identity and folio-insights export
+
+Each proposition carries two identities:
+
+- **`id`** is the job-scoped legacy uuid5 over `(job id, start, end, type)`. Gold annotation sessions key on it, so the same text in two jobs gets two ids.
+- **`content_iri`** (`urn:folio:shard/<32 hex>`) is the cross-document identity shared with folio-insights. It hashes the normalized `(source URI, span text)` with the frozen `folio_propositions.content_iri` recipe, so it equals the folio-insights shard IRI for the same span.
+
+The source URI is the `source_uri` field of `POST /enrich` when the caller supplies one (absolute URI, at most 2048 characters). Otherwise it is `urn:sha256:<digest>` of the canonical text. The stage records it in `metadata.proposition_source_uri`. Jobs saved before content IRIs existed are stamped when read, for export and lookup; the stored job file is not rewritten.
+
+`format=propositions` emits one validated record with `document_id` (the gold `document_id` when the job belongs to a gold record, else the job id), `source_uri`, `generator`, and `document_metadata`. To build the folio-insights end-to-end fixture without an LLM, run `backend/scripts/export_insights_fixture.py`; its docstring has the command.
 
 ---
 
@@ -683,7 +712,7 @@ folio-enrich/
 │   │   ├── config.py                        # Pydantic settings (env vars)
 │   │   ├── api/routes/
 │   │   │   ├── enrich.py                    # Document enrichment endpoints
-│   │   │   ├── export.py                    # Export endpoints (13 formats)
+│   │   │   ├── export.py                    # Export endpoints (15 formats)
 │   │   │   ├── concepts.py                  # FOLIO concept lookup + graph
 │   │   │   ├── synthetic.py                 # Synthetic document generation
 │   │   │   ├── feedback.py                  # User feedback + insights

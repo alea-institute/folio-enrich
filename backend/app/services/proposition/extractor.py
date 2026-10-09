@@ -19,6 +19,7 @@ from app.services.proposition.lexicon import (
     PropositionFrame,
 )
 from app.services.proposition.identity import proposition_id
+from app.services.proposition.source import job_source_uri, proposition_content_iri
 
 
 _PARTY_ROLES = (
@@ -346,9 +347,10 @@ class PropositionExtractor:
             validator=validator,
             disposition=frame.disposition,
             citation_edges=edges,
+            content_iri=proposition_content_iri(job_source_uri(job), content),
         )
         # Pydantic serializes declared fields only. This diagnostic attribute
-        # is visible to the benchmark without changing the v0.3.0 schema or JSON.
+        # is visible to the benchmark without changing the shared schema or JSON.
         if frame.pattern_name:
             object.__setattr__(proposition, "pattern_name", frame.pattern_name)
         return proposition

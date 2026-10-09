@@ -7,7 +7,7 @@ from pathlib import Path
 from uuid import UUID
 
 import pytest
-from folio_propositions import Disposition
+from folio_propositions import Disposition, Proposition, migrate_record
 
 from app.services.gold.store import GoldStore
 from app.storage.job_store import JobStore
@@ -48,7 +48,8 @@ async def test_validation_approves_final_annotations_and_preserves_originals(tmp
     assert len(session.candidates) == len(annotations) == 104
     assert not session.hand_added and not session.cycle_learnings and not session.blind_segment
     for candidate, row in zip(session.candidates, annotations):
-        assert candidate.proposition.model_dump(mode="json") == row["proposition"]
+        # Committed gold rows are schema v3; they validate via migration to v4.
+        assert candidate.proposition == Proposition.model_validate(migrate_record(row["proposition"]))
         assert candidate.original == candidate.proposition
     await approve(store, session)
     result = await store.export(session.session_id)

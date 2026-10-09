@@ -14,6 +14,10 @@ from app.services.export.parquet_exporter import ParquetExporter
 from app.services.export.rag_exporter import RAGExporter
 from app.services.export.rdf_exporter import RDFExporter
 from app.services.export.excel_exporter import ExcelExporter
+from app.services.export.propositions_exporter import (
+    PropositionsExporter,
+    PropositionsNDJSONExporter,
+)
 
 _EXPORTERS: dict[str, type[ExporterBase]] = {}
 
@@ -51,3 +55,5 @@ register_exporter(RDFExporter)
 register_exporter(BratExporter)
 register_exporter(HTMLExporter)
 register_exporter(ExcelExporter)
+register_exporter(PropositionsExporter)
+register_exporter(PropositionsNDJSONExporter)

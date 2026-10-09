@@ -12,6 +12,11 @@ from app.models.document import DocumentInput
 from app.models.job import Job, JobStatus
 from app.pipeline.orchestrator import PipelineOrchestrator, TaskLLMs
 from app.services.ingestion.registry import detect_format, ingest
+from app.services.proposition.source import (
+    job_source_uri,
+    stamped_propositions,
+    validate_source_uri,
+)
 from app.services.streaming.sse import job_event_stream
 from app.storage.job_store import JobStore
 
@@ -34,6 +39,15 @@ class EnrichRequest(BaseModel):
     llm_provider: str | None = None
     llm_model: str | None = None
     api_key: str | None = None
+    # Optional canonical URI of the source document. When present it seeds the
+    # proposition content IRIs shared with folio-insights; otherwise a
+    # deterministic urn:sha256: URI of the canonical text is used.
+    source_uri: str | None = None
+
+    @field_validator("source_uri")
+    @classmethod
+    def _validate_source_uri(cls, v: str | None) -> str | None:
+        return validate_source_uri(v)
 
     @field_validator("ontology")
     @classmethod
@@ -96,7 +110,10 @@ async def create_enrichment(req: EnrichRequest) -> dict:
         )
 
     fmt = req.format or detect_format(req.filename, req.content).value
-    doc = DocumentInput(content=req.content, format=fmt, filename=req.filename, ontology=req.ontology)
+    doc = DocumentInput(
+        content=req.content, format=fmt, filename=req.filename,
+        ontology=req.ontology, source_uri=req.source_uri,
+    )
     job = Job(input=doc)
     await _job_store.save(job)
 
@@ -149,6 +166,30 @@ async def get_enrichment(job_id: UUID) -> Job:
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
+
+
+@router.get("/{job_id}/propositions/{proposition_ref:path}")
+async def get_proposition(job_id: UUID, proposition_ref: str) -> dict:
+    """Look up propositions by legacy uuid5 id or by shared content IRI.
+
+    A content IRI identifies a (source, span) pair, so several propositions of
+    different types can share it; the response is always a list.
+    """
+    job = await _job_store.load(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    source_uri = job_source_uri(job)
+    matches = [
+        proposition
+        for proposition in stamped_propositions(job, source_uri)
+        if proposition_ref in (proposition.id, proposition.content_iri)
+    ]
+    if not matches:
+        raise HTTPException(status_code=404, detail="Proposition not found")
+    return {
+        "source_uri": source_uri,
+        "propositions": [p.model_dump(mode="json") for p in matches],
+    }
 
 
 @router.get("/{job_id}/annotations/{annotation_id}/lineage")
