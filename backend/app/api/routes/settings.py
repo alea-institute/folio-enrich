@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Header
 from folio_propositions import WORKING_TAXONOMY
 from pydantic import BaseModel
 
+from app.api.auth import require_admin
 from app.config import settings
 from app.models.llm_models import (
     ConnectionTestRequest,
@@ -104,6 +105,9 @@ class SettingsUpdate(BaseModel):
     translation_matching_enabled: bool | None = None
     # Proposition annotation pre-selection
     proposition_extraction_enabled: bool | None = None
+    # Post-job flow server defaults (used when an API caller sends nothing)
+    post_job_review_default: bool | None = None
+    post_job_push_default: bool | None = None
 
 
 _TASK_LLM_FIELDS = (
@@ -156,11 +160,25 @@ async def get_settings() -> dict:
     result["translation_matching_enabled"] = settings.translation_matching_enabled
     result["proposition_extraction_enabled"] = settings.proposition_extraction_enabled
     result["proposition_taxonomy"] = dict(WORKING_TAXONOMY)
+    # Post-job flow: server defaults plus whether a push target exists. Only a
+    # boolean is reported — never the insights URL or token.
+    result["post_job_review_default"] = settings.post_job_review_default
+    result["post_job_push_default"] = settings.post_job_push_default
+    from app.services.insights_client import is_configured as insights_configured
+    result["insights_configured"] = insights_configured()
     return result
 
 
 @router.put("")
-async def update_settings(update: SettingsUpdate) -> dict:
+async def update_settings(
+    update: SettingsUpdate,
+    x_admin_token: str | None = Header(default=None),
+) -> dict:
+    # The post-job defaults decide whether jobs push into the shared insights
+    # corpus with the operator token, so changing them needs the admin token
+    # when one is configured. Checked first so a refused request changes nothing.
+    if update.post_job_review_default is not None or update.post_job_push_default is not None:
+        require_admin(x_admin_token)
     if update.llm_provider is not None:
         settings.llm_provider = update.llm_provider
     if update.llm_model is not None:
@@ -205,6 +223,10 @@ async def update_settings(update: SettingsUpdate) -> dict:
             svc._labels_multi_cache = None
     if update.proposition_extraction_enabled is not None:
         settings.proposition_extraction_enabled = update.proposition_extraction_enabled
+    if update.post_job_review_default is not None:
+        settings.post_job_review_default = update.post_job_review_default
+    if update.post_job_push_default is not None:
+        settings.post_job_push_default = update.post_job_push_default
     return {"status": "ok", "message": "Settings updated"}
 
 

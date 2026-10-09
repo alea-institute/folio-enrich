@@ -40,8 +40,10 @@ dependencies = [
     # Shared Proposition ledger schema (Phase A U1; plan KTD4). EXACT tag pin, per the
     # folio-resolve precedent: annotations must be stored in a reviewable released schema,
     # never a drifting working tree. Switch to the PyPI pin (folio-propositions==0.1.0)
-    # once the package is published there.
-    "folio-propositions @ git+https://github.com/alea-institute/folio-propositions@v0.3.0",
+    # once the package is published there. v0.4.0 (schema v4) adds the content IRI
+    # shared with folio-insights (Proposition.content_iri, record source_uri) and the
+    # signed axiom history; v3 records migrate via migrate_record.
+    "folio-propositions @ git+https://github.com/alea-institute/folio-propositions@v0.4.0",
 ]
 
 [project.optional-dependencies]

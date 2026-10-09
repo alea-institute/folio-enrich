@@ -2,7 +2,7 @@
 
 **Tag every legal document with precise, machine-readable legal concepts, individuals, and relationships — automatically.**
 
-Legal documents contain thousands of concepts buried in dense prose: causes of action, contract terms, regulatory frameworks, named entities, and inter-concept relationships. FOLIO Enrich reads your documents, identifies those concepts, maps each one to the [FOLIO ontology](https://github.com/FOLIO-Ontology/FOLIO) (18,000+ standardized legal concepts), extracts named individuals (citations, parties, dates, amounts) and OWL object properties (legal verbs and relationships), scores confidence, and exports structured results in 13 formats — all through a single API call.
+Legal documents contain thousands of concepts buried in dense prose: causes of action, contract terms, regulatory frameworks, named entities, and inter-concept relationships. FOLIO Enrich reads your documents, identifies those concepts, maps each one to the [FOLIO ontology](https://github.com/FOLIO-Ontology/FOLIO) (18,000+ standardized legal concepts), extracts named individuals (citations, parties, dates, amounts) and OWL object properties (legal verbs and relationships), scores confidence, and exports structured results in 15 formats — all through a single API call.
 
 Upload complaints, contracts, or regulatory filings.
 
@@ -47,7 +47,7 @@ Seconds later, receive a structured annotation layer that machines can search, f
 - **Document type detection** — early parallel LLM classification with post-pipeline quality cross-check
 - **Calibrated confidence scoring** — graduated initial scores, contextual LLM reranking, branch judge blending, and embedding triage across 5 stages
 - **Containment-aware dedup** — nested spans (A inside B) survive across all stages; partial overlaps resolve to longer match
-- **13 export formats** — JSON, JSON-LD, XML, CSV, JSONL, Parquet, Elasticsearch bulk, Neo4j CSV, RAG chunks, RDF/Turtle, brat standoff, HTML, Excel
+- **15 export formats** — JSON, JSON-LD, XML, CSV, JSONL, Parquet, Elasticsearch bulk, Neo4j CSV, RAG chunks, RDF/Turtle, brat standoff, HTML, Excel, and shared-schema propositions (JSON and NDJSON)
 - **Real-time streaming** — Server-Sent Events (SSE) for live pipeline progress including individuals, properties, and document type
 - **Annotation lifecycle** — promote, reject, restore, cascade-promote, and bulk-reject operations with full lineage tracking
 - **Per-task LLM routing** — assign different LLM providers to 9 pipeline tasks (classifier, extractor, concept, branch judge, area of law, synthetic, individual, property, document type)
@@ -266,6 +266,59 @@ Tasks: `CLASSIFIER`, `EXTRACTOR`, `CONCEPT`, `BRANCH_JUDGE`, `AREA_OF_LAW`, `SYN
 | `FOLIO_ENRICH_RATE_LIMIT_REQUESTS` | `60` | Max requests per window |
 | `FOLIO_ENRICH_RATE_LIMIT_WINDOW` | `60` | Window size in seconds |
 
+### Connecting folio-insights
+
+The Propositions tab can show each proposition's status in a [folio-insights](https://github.com/alea-institute/folio-insights) corpus (present or not, epistemic status, contested/superseded, related and contesting shards). Every proposition carries a `content_iri` (`urn:folio:shard/<32 hex>`) equal to the insights shard IRI for the same source and span, so lookups need no mapping table. Status lookups are read-only; when the bridge is not configured or unreachable, the tab shows a muted banner and the review workflow is unaffected.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `FOLIO_ENRICH_INSIGHTS_API_URL` | `""` | Base URL of the folio-insights server (http/https). Empty = not connected |
+| `FOLIO_ENRICH_INSIGHTS_CORPUS` | `""` | Corpus name to query. Empty = the insights default corpus |
+| `FOLIO_ENRICH_INSIGHTS_API_TOKEN` | `""` | Sent as `Authorization: Bearer <token>` when set; never logged or returned to the browser |
+| `FOLIO_ENRICH_INSIGHTS_TIMEOUT_SECONDS` | `3.0` | Per-request timeout for insights calls |
+
+Endpoints: `GET /enrich/{job_id}/insights-status` (corpus status for the job's propositions; lookups are chunked at 500 IRIs) and `GET /insights/health` (proxied insights health, or the not-configured state). Both return a typed `state` of `connected`, `not_configured`, `unreachable` or `error`.
+
+### After a job: review, then push to folio-insights
+
+Each job carries two independent choices that apply once the pipeline finishes:
+
+- **Review before continuing** (or skip review). With review on, the job waits in `awaiting_review` until someone completes or skips the review.
+- **Push to folio-insights** (or don't). A push sends the job's `?format=propositions` record (the same shared-schema JSON the pull export serves, all propositions) to `POST {INSIGHTS_API_URL}/api/bridge/v1/ingest?corpus=<corpus>&framework_id=<id>`. With review on, the push waits until the review is completed.
+
+Re-pushing is safe: shard IRIs are content-addressed, so insights reports already-ingested propositions as `existing` instead of duplicating them. The pull path (`GET /enrich/{job_id}/export?format=propositions`) is unchanged.
+
+**Where the choices come from.**
+
+- **In the browser**, the left panel's "Next job" card shows both toggles, prefilled from this browser's preferences (localStorage `postJobReview` / `postJobPush`, edited in Settings → After each job). Changing a toggle there affects only the next job. When the job finishes, the same card ("This job") shows the review and push status and lets you change either choice for that job. "Complete review" appears in the card and in the Propositions tab while a review is pending, and "Retry push" appears after a failed push.
+- **API callers** send `review_before_continuing` and `push_to_insights` (booleans) with `POST /enrich`. A field left out falls back to the server defaults below.
+
+**Who may push.** A push writes into the shared insights corpus with the operator's insights token, so every push trigger needs the same annotation access as gold writes. In local mode (no `FOLIO_ENRICH_ANNOTATION_TOKEN`, `FOLIO_ENRICH_ADMIN_TOKEN` or Cloudflare Access) everything is open. Otherwise the caller needs a Cloudflare Access login, an `X-Annotation-Token` / `X-Admin-Token` header, or the browser's annotation-access cookie (set by `POST /gold/access`, now scoped to `/gold` and `/enrich`, same-origin only):
+
+- `POST /enrich` with `push_to_insights: true` is refused with `403` without access, and the server push default never applies to such callers (their jobs are "not requested").
+- `PATCH .../post-job` turning push on, and `POST .../insights-push`, return `403` without access. Review changes and turning push off need no push access; completing or skipping a review starts a push that was already authorized when it was requested.
+- Changing `post_job_review_default` / `post_job_push_default` through `PUT /settings` needs `X-Admin-Token` when `FOLIO_ENRICH_ADMIN_TOKEN` is set (the rest of `PUT /settings` is unchanged).
+- `GET /enrich/push-access` tells the browser whether it may push (`push_allowed`, `insights_configured`; no secrets). Without access the push toggle is disabled with a short explanation.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `FOLIO_ENRICH_POST_JOB_REVIEW_DEFAULT` | `false` | Server default for `review_before_continuing` (also `GET`/`PUT /settings` `post_job_review_default`) |
+| `FOLIO_ENRICH_POST_JOB_PUSH_DEFAULT` | `false` | Server default for `push_to_insights` (also `post_job_push_default`) |
+| `FOLIO_ENRICH_INSIGHTS_FRAMEWORK_ID` | `""` | Optional `framework_id` sent with each push; empty = omitted |
+| `FOLIO_ENRICH_INSIGHTS_PUSH_TIMEOUT_SECONDS` | `30.0` | Timeout for one push request |
+
+The push reuses `FOLIO_ENRICH_INSIGHTS_API_URL`, `_CORPUS` and `_API_TOKEN` from the table above.
+
+The job's `post_job` object records the state: `review_status` (`pending_job`, `awaiting_review`, `completed`, `not_required`) and `push_status` (`not_requested`, `waiting_for_job`, `waiting_for_review`, `pending`, `pushed`, `failed`, `not_configured`), plus `push_attempts`, `last_push_at`, `last_push_error` (a sanitized message that never contains the URL or token) and `last_push_report` (the insights `created` / `existing` / `skipped` / `refused` counts). A failed push is not retried automatically; use the retry route. A push that was `pending` when the process died (or whose result could not be saved) is reported as `failed` with "Push was interrupted; retry." when the state is read, and a startup sweep does the same and also runs the post-job step for completed jobs that never got it. A pipeline job that **fails** gets no review and no push. Turning push off while a push is in flight records `push: not_requested` but keeps the truthful final `push_status` (shown in the chip). User changes made at any time, even while the pipeline is still saving the job, are never rolled back: the state carries a `revision`, and the job store keeps the newest one. Jobs saved before this feature have no `post_job` and behave as "no review, no push".
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/enrich/{job_id}/post-job` | Current review/push state |
+| `GET` | `/enrich/push-access` | Whether this caller may push (`push_allowed`, `insights_configured`) |
+| `PATCH` | `/enrich/{job_id}/post-job` | Change `review_before_continuing` / `push_to_insights` for this job (allowed before completion too). Turning push on (needs push access) starts it unless a review is pending; turning review off while it is pending skips it |
+| `POST` | `/enrich/{job_id}/review/complete` | Mark the review completed; a waiting push starts |
+| `POST` | `/enrich/{job_id}/insights-push` | Retry only (needs push access): allowed when `push_status` is `failed`, `not_configured` or an interrupted `pending`; otherwise `409` (request a push with `PATCH`) |
+
 ---
 
 ## API Reference
@@ -277,6 +330,7 @@ Tasks: `CLASSIFIER`, `EXTRACTOR`, `CONCEPT`, `BRANCH_JUDGE`, `AREA_OF_LAW`, `SYN
 | `POST` | `/enrich` | Submit a document for enrichment (returns `202` with `job_id`) |
 | `GET` | `/enrich/{job_id}` | Get job status and results (includes annotations, individuals, properties) |
 | `GET` | `/enrich/{job_id}/stream` | SSE stream of pipeline progress |
+| `GET` | `/enrich/{job_id}/propositions/{ref}` | Look up propositions by legacy id or URL-encoded content IRI (always a list) |
 | `GET` | `/enrich/branches` | List all FOLIO branches with display colors |
 
 ### Annotation Management
@@ -294,11 +348,11 @@ Tasks: `CLASSIFIER`, `EXTRACTOR`, `CONCEPT`, `BRANCH_JUDGE`, `AREA_OF_LAW`, `SYN
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/enrich/{job_id}/export?format=json` | Export results in any of the 13 supported formats |
+| `GET` | `/enrich/{job_id}/export?format=json` | Export results in any of the 15 supported formats |
 
 Query parameters: `format` (required), `include_dismissed` (default `false`)
 
-All export formats include annotations, individuals, and properties sections.
+All export formats except `propositions` and `propositions-ndjson` include annotations, individuals, and properties sections.
 
 ### Concepts
 
@@ -337,6 +391,8 @@ All export formats include annotations, individuals, and properties sections.
 |--------|----------|-------------|
 | `GET` | `/health` | Simple health check |
 | `GET` | `/health/detail` | Detailed subsystem health (FOLIO, embedding, LLM, spaCy) |
+| `GET` | `/insights/health` | folio-insights bridge health (see [Connecting folio-insights](#connecting-folio-insights)) |
+| `GET` | `/enrich/{job_id}/insights-status` | Corpus status for a job's propositions |
 
 ---
 
@@ -364,6 +420,19 @@ All export formats include annotations, individuals, and properties sections.
 | `brat` | `text/plain` | brat standoff annotation format |
 | `html` | `text/html` | Interactive HTML with styled tooltips and confidence bars |
 | `excel` | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` | Spreadsheet with color-coded confidence |
+| `propositions` | `application/json` | Shared-schema `PropositionDocumentRecord` (folio-propositions schema v4) for folio-insights |
+| `propositions-ndjson` | `application/x-ndjson` | The same record streamed: a `header` line, then one `proposition` line each |
+
+### Proposition identity and folio-insights export
+
+Each proposition carries two identities:
+
+- **`id`** is the job-scoped legacy uuid5 over `(job id, start, end, type)`. Gold annotation sessions key on it, so the same text in two jobs gets two ids.
+- **`content_iri`** (`urn:folio:shard/<32 hex>`) is the cross-document identity shared with folio-insights. It hashes the normalized `(source URI, span text)` with the frozen `folio_propositions.content_iri` recipe, so it equals the folio-insights shard IRI for the same span.
+
+The source URI is the `source_uri` field of `POST /enrich` when the caller supplies one (absolute URI, at most 2048 characters). Otherwise it is `urn:sha256:<digest>` of the canonical text. The stage records it in `metadata.proposition_source_uri`. Jobs saved before content IRIs existed are stamped when read, for export and lookup; the stored job file is not rewritten.
+
+`format=propositions` emits one validated record with `document_id` (the gold `document_id` when the job belongs to a gold record, else the job id), `source_uri`, `generator`, and `document_metadata`. To build the folio-insights end-to-end fixture without an LLM, run `backend/scripts/export_insights_fixture.py`; its docstring has the command.
 
 ---
 
@@ -683,7 +752,7 @@ folio-enrich/
 │   │   ├── config.py                        # Pydantic settings (env vars)
 │   │   ├── api/routes/
 │   │   │   ├── enrich.py                    # Document enrichment endpoints
-│   │   │   ├── export.py                    # Export endpoints (13 formats)
+│   │   │   ├── export.py                    # Export endpoints (15 formats)
 │   │   │   ├── concepts.py                  # FOLIO concept lookup + graph
 │   │   │   ├── synthetic.py                 # Synthetic document generation
 │   │   │   ├── feedback.py                  # User feedback + insights

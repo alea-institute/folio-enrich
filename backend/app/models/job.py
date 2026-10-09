@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import enum
 from datetime import datetime, timezone
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from folio_propositions import Proposition, migrate_record
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_serializer
 
 from app.models.annotation import Annotation, Individual, PropertyAnnotation, SPOTriple
 from app.models.document import DEFAULT_ONTOLOGY, CanonicalText, DocumentInput
@@ -53,6 +54,44 @@ class JobResult(BaseModel):
         ]
 
 
+ReviewChoice = Literal["required", "skipped"]
+PushChoice = Literal["requested", "not_requested"]
+# pending_job: the pipeline has not finished yet; not_required: review skipped.
+ReviewStatus = Literal["pending_job", "not_required", "awaiting_review", "completed"]
+PushStatus = Literal[
+    "not_requested",
+    "waiting_for_job",
+    "waiting_for_review",
+    "pending",
+    "pushed",
+    "failed",
+    "not_configured",
+]
+
+
+class PostJobState(BaseModel):
+    """What happens after the pipeline finishes: optional review, optional push.
+
+    The defaults describe a legacy job (persisted before this field existed):
+    no review step and no push to folio-insights.
+    """
+
+    review: ReviewChoice = "skipped"
+    push: PushChoice = "not_requested"
+    review_status: ReviewStatus = "not_required"
+    review_completed_at: datetime | None = None
+    push_status: PushStatus = "not_requested"
+    push_attempts: int = 0
+    last_push_at: datetime | None = None
+    # Sanitized human message; never contains the insights URL or token.
+    last_push_error: str | None = None
+    # Counts reported by the insights ingest route (created/existing/skipped/refused).
+    last_push_report: dict[str, Any] | None = None
+    # Bumped on every post-job flow change; JobStore.save never lets a writer
+    # holding an older revision roll the state back.
+    revision: int = 0
+
+
 class Job(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     status: JobStatus = JobStatus.PENDING
@@ -61,6 +100,16 @@ class Job(BaseModel):
     input: DocumentInput | None = None
     result: JobResult = Field(default_factory=JobResult)
     error: str | None = None
+    # None = legacy job (no review, no push); set at submission by /enrich.
+    post_job: PostJobState | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_unset_post_job(self, handler):
+        # Jobs that never chose a post-job flow serialize exactly as before.
+        data = handler(self)
+        if isinstance(data, dict) and data.get("post_job") is None:
+            data.pop("post_job", None)
+        return data
 
     @property
     def ontology(self) -> str:

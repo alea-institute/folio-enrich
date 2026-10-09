@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import concepts, enrich, export, feedback, folio_update, gold, health, ollama, ontologies, settings, synthetic
+from app.api.routes import concepts, enrich, export, feedback, folio_update, gold, health, insights, ollama, ontologies, settings, synthetic
 from app.config import settings as app_settings
 from app.middleware.error_handler import register_error_handlers
 from app.middleware.rate_limit import RateLimitMiddleware
@@ -182,6 +182,16 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.warning("Orphaned-job reconciliation failed", exc_info=True)
 
+    # Post-job flow: pushes left "pending" by the previous process become
+    # retryable failures, and completed jobs whose post-job hook never ran
+    # (or failed jobs still "waiting") are settled.
+    try:
+        from app.api.routes.enrich import get_job_store
+        from app.services.post_job import flow as post_job_flow
+        await post_job_flow.recover_on_startup(get_job_store())
+    except Exception:
+        logger.warning("Post-job startup recovery failed", exc_info=True)
+
     cleanup_task = asyncio.create_task(_periodic_job_cleanup())
     owl_update_task = asyncio.create_task(_periodic_owl_update_check())
     yield
@@ -223,6 +233,7 @@ app.include_router(settings.router)
 app.include_router(ollama.router)
 app.include_router(folio_update.router)
 app.include_router(ontologies.router)
+app.include_router(insights.router)
 
 # Serve frontend
 _frontend_dir = Path(__file__).resolve().parent.parent.parent / "frontend"

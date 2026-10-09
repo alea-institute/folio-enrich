@@ -2351,6 +2351,35 @@
   .proposition-validity { margin-top:10px; padding:10px; border:1px solid var(--border); border-radius:7px; background:var(--surface2); display:grid; gap:7px; }
   .proposition-validity-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .proposition-diff { font-size:11px; color:var(--text-dim); }
+  /* folio-insights corpus status (read-only bridge) */
+  .proposition-corpus-banner { margin:8px 0 0; padding:6px 9px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; min-height:30px; box-sizing:border-box; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text-dim); font-size:11px; }
+  .proposition-corpus-banner.warn { border-color:color-mix(in srgb,var(--orange) 45%,var(--border)); }
+  .proposition-corpus-banner strong { color:var(--text); font-weight:650; }
+  .proposition-corpus-banner-text { flex:1 1 220px; min-width:0; }
+  .proposition-corpus-banner .proposition-corpus-dot { display:inline-block; width:7px; height:7px; margin-right:6px; border-radius:50%; background:var(--text-dim); vertical-align:1px; }
+  .proposition-corpus-banner.connected .proposition-corpus-dot { background:var(--conf-high); }
+  .proposition-corpus-banner.warn .proposition-corpus-dot { background:var(--orange); }
+  .proposition-corpus { margin:-4px 0 13px; padding:8px 9px; display:grid; gap:6px; border:1px solid var(--border); border-left:3px solid color-mix(in srgb,var(--accent) 60%,var(--border)); border-radius:6px; background:color-mix(in srgb,var(--surface2) 70%,var(--surface)); font-size:11px; color:var(--text-dim); }
+  .proposition-corpus.absent { border-left-color:var(--border); }
+  .proposition-corpus > * { min-width:0; }
+  .proposition-corpus-head { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .proposition-corpus-head .proposition-review-eyebrow { display:inline; margin:0 4px 0 0; }
+  .corpus-badge { font-size:9px; font-weight:750; letter-spacing:.03em; text-transform:uppercase; padding:3px 7px; border-radius:999px; background:color-mix(in srgb,var(--accent) 16%,transparent); color:var(--text); white-space:nowrap; }
+  .corpus-badge.contested { background:var(--conf-mid-bg); color:var(--conf-mid); }
+  .corpus-badge.superseded { background:var(--conf-low-bg); color:var(--conf-low); }
+  .corpus-badge.muted { background:var(--surface3); color:var(--text-dim); }
+  .proposition-corpus-iri { display:flex; align-items:center; gap:6px; min-width:0; }
+  .proposition-corpus-iri code, .proposition-corpus-links code { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:600 10px ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--text); }
+  .proposition-corpus-iri code { flex:1; }
+  .proposition-corpus-iri .corpus-copy { flex:none; min-height:24px; }
+  .proposition-corpus details > summary { cursor:pointer; color:var(--text-dim); font-size:10px; font-weight:700; padding:2px 0; }
+  .proposition-corpus details > summary:focus-visible, .corpus-copy:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:3px; }
+  .proposition-corpus-links ul { margin:4px 0 0; padding:0; list-style:none; display:grid; gap:4px; }
+  .proposition-corpus-links li { display:flex; align-items:baseline; gap:6px; min-width:0; }
+  .proposition-corpus-relation { flex:none; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; color:var(--text-dim); min-width:96px; }
+  .proposition-corpus-links .corpus-empty { color:var(--text-dim); font-style:italic; }
+  .proposition-corpus-group + .proposition-corpus-group { margin-top:6px; }
+  .proposition-corpus-group > span { font-size:9px; font-weight:750; letter-spacing:.08em; text-transform:uppercase; }
   @media (max-width:1000px) {
     .proposition-review-shell { height:auto; min-height:0; grid-template-columns:1fr; }
     .proposition-context-pane { min-height:46vh; max-height:58vh; }
@@ -2575,6 +2604,34 @@
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
   }
+
+  /* Post-job flow: review gate + push to folio-insights */
+  .post-job { padding: 7px 16px 8px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .post-job-head { display:flex; align-items:center; gap:8px; min-height:22px; flex-wrap:wrap; }
+  .post-job-eyebrow { font-size:9px; font-weight:750; letter-spacing:.11em; text-transform:uppercase; color:var(--text-dim); }
+  .post-job-chips { display:inline-flex; gap:6px; flex-wrap:wrap; min-height:20px; align-items:center; }
+  .post-job-chip { display:inline-flex; align-items:center; gap:5px; padding:1px 8px; border:1px solid var(--border); border-radius:999px; background:var(--surface2); color:var(--text); font-size:10.5px; line-height:16px; white-space:nowrap; }
+  .post-job-chip::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--text-dim); flex:none; }
+  .post-job-chip b { font-weight:650; color:var(--text-dim); }
+  .post-job-chip.ok::before { background:var(--green); }
+  .post-job-chip.wait::before { background:var(--orange); }
+  .post-job-chip.busy::before { background:var(--accent); animation: post-job-pulse 1.1s ease-in-out infinite; }
+  .post-job-chip.bad { border-color:color-mix(in srgb,var(--red) 50%,var(--border)); }
+  .post-job-chip.bad::before { background:var(--red); }
+  @keyframes post-job-pulse { 50% { opacity:.35; } }
+  @media (prefers-reduced-motion: reduce) { .post-job-chip.busy::before { animation:none; } }
+  .post-job-controls { display:flex; align-items:center; gap:4px 14px; flex-wrap:wrap; min-height:26px; margin-top:3px; }
+  .post-job-option { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--text); cursor:pointer; }
+  .post-job-option input { margin:0; accent-color:var(--accent); }
+  .post-job-option input:disabled + span { color:var(--text-dim); }
+  .post-job-option:has(input:disabled) { cursor:default; }
+  .post-job-option input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .post-job-actions { display:inline-flex; gap:6px; margin-left:auto; }
+  .post-job-note { margin-top:2px; min-height:14px; font-size:10.5px; color:var(--text-dim); }
+  .post-job-note.error { color:var(--red); }
+  .post-job-bar { margin:8px 0 0; padding:5px 9px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; min-height:30px; box-sizing:border-box; border:1px solid var(--border); border-radius:6px; background:var(--surface2); }
+  .post-job-bar .post-job-chip { background:var(--surface); }
+  .post-job-bar .post-job-actions { margin-left:auto; }
 
   /* LLM setup banner */
   .llm-banner {
@@ -3725,6 +3782,23 @@
       </div>
     </div>
 
+    <!-- Post-job flow: per-job review gate + push to folio-insights -->
+    <section class="post-job" id="postJobPanel" aria-labelledby="postJobHeading">
+      <div class="post-job-head">
+        <span class="post-job-eyebrow" id="postJobHeading">Next job</span>
+        <span class="post-job-chips" id="postJobChips" role="status" aria-live="polite"></span>
+      </div>
+      <div class="post-job-controls">
+        <label class="post-job-option"><input type="checkbox" id="postJobReviewToggle" onchange="onPostJobToggle('review', this.checked)"><span>Review before continuing</span></label>
+        <label class="post-job-option"><input type="checkbox" id="postJobPushToggle" onchange="onPostJobToggle('push', this.checked)"><span>Push to folio-insights</span></label>
+        <span class="post-job-actions">
+          <button type="button" class="primary small" id="postJobCompleteReviewBtn" onclick="completePostJobReview()" hidden>Complete review</button>
+          <button type="button" class="secondary small" id="postJobRetryBtn" onclick="retryPostJobPush()" hidden>Retry push</button>
+        </span>
+      </div>
+      <div class="post-job-note" id="postJobNote"></div>
+    </section>
+
     <!-- LLM setup banner (shown once per session when no AI key configured) -->
     <div class="llm-banner" id="llmBanner" style="display:none">
       <div class="llm-banner-title">
@@ -3978,6 +4052,16 @@
         <div class="proposition-add-banner" id="propositionValidationBanner" style="display:none" role="status"></div>
         <div class="proposition-add-banner" id="propositionAddBanner" style="display:none">Select text to create a proposition span; Esc to cancel.</div>
         <div class="proposition-add-banner" id="propositionBlindBanner" style="display:none">Select a neutral full-text segment to annotate without tool suggestions; Esc to cancel.</div>
+        <div class="proposition-corpus-banner" id="propositionCorpusBanner" style="display:none">
+          <span class="proposition-corpus-banner-text" id="propositionCorpusBannerText" role="status" aria-live="polite"></span>
+          <button type="button" class="secondary small" id="refreshCorpusStatusBtn" onclick="refreshInsightsStatus()">Refresh corpus status</button>
+        </div>
+        <div class="post-job-bar" id="propositionPostJobBar" role="group" aria-label="Review and push status for this job" style="display:none">
+          <span class="post-job-chips" id="propositionPostJobChips"></span>
+          <span class="post-job-actions">
+            <button type="button" class="primary small" id="propositionCompleteReviewBtn" onclick="completePostJobReview()" hidden>Complete review</button>
+          </span>
+        </div>
         <div class="proposition-review-shell" id="propositionReviewShell">
           <section class="proposition-context-pane" aria-labelledby="propositionContextHeading">
             <header class="proposition-review-header">
@@ -4140,6 +4224,18 @@
         Translation matching
       </label>
       <div style="font-size:11px;color:var(--text-dim);margin-top:4px;margin-left:22px">Index ~52K FOLIO translations (Spanish, French, etc.) for text matching. Off by default — most documents are English-only.</div>
+    </div>
+    <div class="settings-section-label">After each job</div>
+    <div style="margin-bottom:16px">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="settingsPostJobReview" aria-describedby="settingsPostJobHint">
+        Review before continuing
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;margin-top:6px">
+        <input type="checkbox" id="settingsPostJobPush" aria-describedby="settingsPostJobHint">
+        Push results to folio-insights
+      </label>
+      <div id="settingsPostJobHint" style="font-size:11px;color:var(--text-dim);margin-top:4px;margin-left:22px">These are this browser's defaults. You can change both for any job before you submit it and again when it finishes. With review on, the push waits until you complete the review.</div>
     </div>
     <div class="settings-section-label">Cloud Providers</div>
     <div id="settingsProviderCards"></div>
@@ -4341,6 +4437,9 @@ let propositionBlindArmed = false;
 let propositionDraft = null;
 let propositionSettings = null;
 let propositionCompleteness = null;
+// folio-insights corpus status, cached per job id: { loading, data, error }.
+const insightsStatusCache = new Map();
+const insightsDisclosureOpen = new Set();
 let propositionReviewId = null;
 let propositionReviewScrollPending = false;
 let propositionReviewSaving = false;
@@ -4398,6 +4497,7 @@ async function savePropositionAnnotationToken() {
   const result = await window.__setAnnotationAccessToken(token);
   if (!result.current) return;
   refreshPropositionAccessStatus();
+  loadPostJobPushAccess();
   if (!result.ok) {
     setPropositionAccessState('Annotation access was rejected. Check the link or access code.', true);
     input.focus();
@@ -5381,6 +5481,8 @@ async function init() {
   // Restore UI state immediately (before any async calls)
   if (showThinking) applyShowThinkingStyle(document.getElementById('showThinkingBtn'), true);
   if (debugMode) applyDebugBtnStyle(document.getElementById('debugModeBtn'), true);
+  renderPostJob();
+  loadPostJobServerDefaults();
   const annotationAccess = await window.__annotationAccessBootstrap;
   if (annotationAccess?.attempted && annotationAccess.current) {
     if (annotationAccess.ok) {
@@ -5394,6 +5496,7 @@ async function init() {
     if (event.detail?.ok) setPropositionAccessState('Annotation access is ready in this browser.');
     else setPropositionAccessState('Annotation access was rejected. Request a fresh scoped link.', true);
     refreshPropositionAccessStatus();
+    loadPostJobPushAccess();
   });
 
   // Restore detail panel visibility from localStorage
@@ -5895,6 +5998,7 @@ function _providerKeyField(provider) {
 
 function openSettings() {
   document.getElementById('settingsModal').classList.add('visible');
+  populatePostJobSettings();
   populateOllamaSettings();
   populateSettingsMatchingOptions();
   populateSettingsCards();
@@ -6051,6 +6155,7 @@ async function testSettingsProvider(providerName) {
 }
 
 async function saveSettings() {
+  savePostJobSettings();
   // Read selected provider from radio
   const checkedRadio = document.querySelector('input[name="settingsActiveProvider"]:checked');
   if (!checkedRadio) { closeSettings(); return; }
@@ -6854,6 +6959,10 @@ async function submitEnrichment() {
     if (uploadedFilename) body.filename = uploadedFilename;
     // Capture-at-submit: the job runs under whatever ontology is active right now.
     body.ontology = activeOntology;
+    // Post-job choices for this job (prefilled from this browser's preferences).
+    const postJobChoices = postJobSubmissionChoices();
+    body.review_before_continuing = postJobChoices.review;
+    body.push_to_insights = postJobChoices.push;
     if (_llmBannerSymbolicOnce) {
       // Symbolic AI only — don't send LLM provider/model/key
       // Backend LLM stages will skip gracefully when no provider is configured
@@ -6878,6 +6987,7 @@ async function submitEnrichment() {
     const data = await r.json();
     currentJobId = data.job_id;
     resetPropositionSessionState();
+    onPostJobSubmitted(postJobChoices, data.post_job);
     setStatus(`Job ${currentJobId.slice(0,8)}... submitted`, 'running');
     startSSE();
   } catch (e) {
@@ -7606,6 +7716,7 @@ function renderResults(job) {
   renderPropertiesTab(properties);
   renderPropositionsTab();
   renderExportButtons();
+  onPostJobJobRendered(job);
 
   // Show toolbar + header controls if there are any annotations/individuals/properties
   const hasContent = annotations.length > 0 || (individuals && individuals.length > 0) || (properties && properties.length > 0);
@@ -12432,9 +12543,513 @@ function wireActivePropositionCard(card) {
   });
 }
 
+// ── folio-insights corpus status (read-only) ──────────────────────────
+function insightsStatusEntry(jobId = currentJobId) {
+  return jobId ? insightsStatusCache.get(jobId) || null : null;
+}
+
+async function ensureInsightsStatus(force = false) {
+  const jobId = currentJobId;
+  if (!jobId || currentJob?.status !== 'completed') return;
+  const existing = insightsStatusCache.get(jobId);
+  if (existing && (existing.loading || !force)) return;
+  insightsStatusCache.set(jobId, { loading: true, data: existing?.data || null, error: null });
+  let entry;
+  try {
+    const response = await fetch(`${API}/enrich/${encodeURIComponent(jobId)}/insights-status`, { headers: { Accept: 'application/json' } });
+    if (!response.ok) {
+      entry = { loading: false, data: null, error: response.status === 404 ? 'This job is not stored on the server, so corpus status is unavailable.' : `Corpus status request failed (${response.status}).` };
+    } else {
+      entry = { loading: false, data: await response.json(), error: null };
+    }
+  } catch (error) {
+    entry = { loading: false, data: null, error: 'Corpus status request failed — check your connection.' };
+  }
+  insightsStatusCache.set(jobId, entry);
+  if (currentJobId === jobId) applyInsightsStatusUpdate();
+}
+
+function refreshInsightsStatus() {
+  ensureInsightsStatus(true);
+  renderInsightsBanner();
+}
+
+// A status response can land at any moment (first load or Refresh). Re-rendering
+// the whole tab would wipe unsaved classification edits or a hand-added draft and
+// re-enable buttons mid-save, so while the reviewer is busy only the banner and
+// the active card's corpus row are patched in place.
+function propositionReviewBusy() {
+  return Boolean(propositionReviewSaving || propositionDraft || activePropositionCardIsDirty());
+}
+
+function applyInsightsStatusUpdate() {
+  renderInsightsBanner();
+  if (!propositionReviewBusy()) {
+    renderPropositionsTab();
+    return;
+  }
+  patchActivePropositionCorpusRow();
+}
+
+function patchActivePropositionCorpusRow() {
+  const card = document.querySelector('#propositionCandidates .proposition-card');
+  if (!card || card.dataset.draft === 'true') return;
+  const record = propositionRecords().find(r => r.proposition?.id === card.dataset.candidateId);
+  const html = record ? renderPropositionCorpusRow(record.proposition) : '';
+  const existing = card.querySelector('.proposition-corpus');
+  if (existing) {
+    if (html) existing.outerHTML = html; else existing.remove();
+  } else if (html) {
+    card.querySelector('.proposition-card-head')?.insertAdjacentHTML('afterend', html);
+  }
+}
+
+function propositionContentIri(p) {
+  if (!p) return null;
+  if (p.content_iri) return p.content_iri;
+  const mapped = insightsStatusEntry()?.data?.propositions;
+  return (mapped && p.id && mapped[p.id]) || null;
+}
+
+function renderInsightsBanner() {
+  const banner = document.getElementById('propositionCorpusBanner');
+  const text = document.getElementById('propositionCorpusBannerText');
+  const button = document.getElementById('refreshCorpusStatusBtn');
+  if (!banner || !text) return;
+  const entry = insightsStatusEntry();
+  if (!entry || currentJob?.status !== 'completed') { banner.style.display = 'none'; return; }
+  banner.style.display = '';
+  banner.classList.remove('connected', 'warn');
+  button.disabled = entry.loading;
+  button.textContent = entry.loading ? 'Checking…' : 'Refresh corpus status';
+  const dot = '<span class="proposition-corpus-dot" aria-hidden="true"></span>';
+  const data = entry.data;
+  if (entry.loading && !data) {
+    text.innerHTML = `${dot}Checking folio-insights corpus status…`;
+    return;
+  }
+  if (entry.error) {
+    banner.classList.add('warn');
+    text.innerHTML = `${dot}${escapeHtml(entry.error)}`;
+    return;
+  }
+  if (data?.state === 'connected') {
+    banner.classList.add('connected');
+    // Count propositions, not distinct IRIs: several propositions (e.g. two
+    // types on one span) can share one content IRI.
+    const iris = Object.values(data.propositions || {});
+    const present = iris.filter(iri => data.results?.[iri]?.present).length;
+    const corpus = data.corpus ? ` · corpus <strong>${escapeHtml(data.corpus)}</strong>` : '';
+    text.innerHTML = `${dot}folio-insights connected${corpus} · <strong>${present}</strong> of ${iris.length} proposition${iris.length === 1 ? '' : 's'} in corpus`;
+    return;
+  }
+  if (data?.state === 'not_configured' || !data) {
+    text.innerHTML = `${dot}folio-insights not connected — corpus status unavailable`;
+    return;
+  }
+  banner.classList.add('warn');
+  const label = data.state === 'unreachable' ? 'folio-insights unreachable' : 'folio-insights error';
+  text.innerHTML = `${dot}${label} — corpus status unavailable${data.state === 'error' && data.message ? ` · ${escapeHtml(data.message)}` : ''}`;
+}
+
+const CORPUS_RELATION_LABELS = {
+  elaborates: 'elaborates', elaborated_by: 'elaborated by', depends_on: 'depends on', depended_on_by: 'depended on by',
+  glosses: 'glosses', glossed_by: 'glossed by', contests: 'contests', conflicting_authority: 'conflicting authority',
+  superseded_by: 'superseded by', objection: 'objection',
+};
+
+function corpusIriWithCopy(iri) {
+  return `<div class="proposition-corpus-iri"><code title="${escapeAttr(iri)}">${escapeHtml(iri)}</code><button type="button" class="secondary small corpus-copy" data-iri="${escapeAttr(iri)}" onclick="copyCorpusIri(this)" aria-label="Copy content IRI ${escapeAttr(iri)}">Copy</button></div>`;
+}
+
+function corpusEdgeList(edges) {
+  if (!edges.length) return '<li class="corpus-empty">None</li>';
+  return edges.map(edge => `<li><span class="proposition-corpus-relation">${escapeHtml(CORPUS_RELATION_LABELS[edge.relation] || edge.relation || 'related')}</span><code title="${escapeAttr(edge.iri)}">${escapeHtml(edge.iri)}</code></li>`).join('');
+}
+
+function renderPropositionCorpusRow(p) {
+  const data = insightsStatusEntry()?.data;
+  if (!data || data.state !== 'connected') return '';
+  const iri = propositionContentIri(p);
+  if (!iri) return '';
+  const result = data.results?.[iri];
+  if (!result) return '';
+  const open = insightsDisclosureOpen.has(iri) ? ' open' : '';
+  if (!result.present) {
+    return `<div class="proposition-corpus absent" role="group" aria-label="Corpus status">
+      <details data-corpus-iri="${escapeAttr(iri)}" ontoggle="rememberCorpusDisclosure(this)"${open}>
+        <summary title="${escapeAttr(iri)}"><span class="proposition-review-eyebrow" style="display:inline;margin-right:6px">Corpus</span>Not in corpus</summary>
+        ${corpusIriWithCopy(iri)}
+      </details>
+    </div>`;
+  }
+  const related = result.related || [];
+  const contesting = result.contesting || [];
+  const badges = [
+    `<span class="corpus-badge" title="Epistemic status in folio-insights">${escapeHtml((result.epistemic_status || result.shard_type || 'in corpus').replaceAll('_', ' '))}</span>`,
+    result.contested ? '<span class="corpus-badge contested">contested</span>' : '',
+    result.superseded_by ? '<span class="corpus-badge superseded">superseded</span>' : '',
+  ].join('');
+  const supersession = result.superseded_by
+    ? `<div class="proposition-corpus-group"><span>Superseded by</span><ul><li><code title="${escapeAttr(result.superseded_by)}">${escapeHtml(result.superseded_by)}</code></li></ul></div>` : '';
+  return `<div class="proposition-corpus" role="group" aria-label="Corpus status">
+    <div class="proposition-corpus-head"><span class="proposition-review-eyebrow">Corpus</span>${badges}</div>
+    ${corpusIriWithCopy(iri)}
+    <details class="proposition-corpus-links" data-corpus-iri="${escapeAttr(iri)}" ontoggle="rememberCorpusDisclosure(this)"${open}>
+      <summary>Related (${related.length}) · Contesting (${contesting.length})</summary>
+      <div class="proposition-corpus-group"><span>Related</span><ul>${corpusEdgeList(related)}</ul></div>
+      <div class="proposition-corpus-group"><span>Contesting</span><ul>${corpusEdgeList(contesting)}</ul></div>
+      ${supersession}
+    </details>
+  </div>`;
+}
+
+function rememberCorpusDisclosure(details) {
+  const iri = details.dataset.corpusIri;
+  if (!iri) return;
+  if (details.open) insightsDisclosureOpen.add(iri); else insightsDisclosureOpen.delete(iri);
+}
+
+function copyCorpusIri(button) {
+  const iri = button.dataset.iri || '';
+  const done = ok => {
+    button.textContent = ok ? 'Copied' : 'Copy failed';
+    setTimeout(() => { button.textContent = 'Copy'; }, 1500);
+  };
+  const fallback = () => {
+    const area = document.createElement('textarea');
+    area.value = iri;
+    area.setAttribute('readonly', '');
+    area.style.position = 'fixed';
+    area.style.opacity = '0';
+    document.body.appendChild(area);
+    area.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (_) { ok = false; }
+    area.remove();
+    done(ok);
+  };
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(iri).then(() => done(true), fallback);
+  else fallback();
+}
+
+// ── Post-job flow: optional review, then optional push to folio-insights ──
+// Two independent per-job choices. This browser's defaults live in localStorage
+// (postJobReview / postJobPush, edited in Settings → After each job); when unset,
+// the server defaults from GET /settings apply. The left-panel card offers the
+// choices before submission and again once the job finishes (PATCH post-job).
+const POST_JOB_REVIEW_KEY = 'postJobReview';
+const POST_JOB_PUSH_KEY = 'postJobPush';
+let postJobServer = { review: false, push: false, insightsConfigured: null, pushAllowed: null };
+let postJobSeq = 0;           // request counter: drop responses older than the last applied
+let postJobAppliedSeq = 0;
+const POST_JOB_ACCESS_NOTE = 'Pushing to folio-insights needs annotation access (Propositions → Session tools → Annotation access).';
+let postJobState = null;      // GET /enrich/{id}/post-job payload for currentJobId
+let postJobSubmitted = null;  // { review, push } sent with the in-flight job
+let postJobDraft = null;      // unsaved per-job override before submission
+let postJobBusy = false;
+let postJobOptimistic = null; // { review?, push? } shown while a PATCH is in flight
+let postJobError = '';
+let postJobPollTimer = null;
+let postJobPollCount = 0;
+
+function readPostJobPref(key, fallback) {
+  try {
+    const value = localStorage.getItem(key);
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+  } catch { /* storage unavailable: fall back to server default */ }
+  return fallback;
+}
+
+function writePostJobPref(key, value) {
+  try { localStorage.setItem(key, value ? 'true' : 'false'); } catch { /* non-critical preference */ }
+}
+
+function postJobPrefs() {
+  return {
+    review: readPostJobPref(POST_JOB_REVIEW_KEY, postJobServer.review),
+    push: readPostJobPref(POST_JOB_PUSH_KEY, postJobServer.push),
+  };
+}
+
+function postJobSubmissionChoices() {
+  const choices = postJobDraft ? { ...postJobDraft } : postJobPrefs();
+  // The server refuses a push request without annotation access; don't send one.
+  if (postJobServer.pushAllowed === false) choices.push = false;
+  return choices;
+}
+
+async function loadPostJobServerDefaults() {
+  try {
+    const r = await fetch(`${API}/settings`);
+    if (r.ok) {
+      const data = await r.json();
+      postJobServer = {
+        review: Boolean(data.post_job_review_default),
+        push: Boolean(data.post_job_push_default),
+        insightsConfigured: Boolean(data.insights_configured),
+      };
+    }
+  } catch { /* offline: keep built-in defaults */ }
+  await loadPostJobPushAccess();
+}
+
+async function loadPostJobPushAccess() {
+  try {
+    const r = await fetch(`${API}/enrich/push-access`, { headers: { Accept: 'application/json' } });
+    if (r.ok) {
+      const data = await r.json();
+      postJobServer.pushAllowed = Boolean(data.push_allowed);
+      postJobServer.insightsConfigured = Boolean(data.insights_configured);
+    }
+  } catch { /* unknown: the server still enforces access on every push */ }
+  renderPostJob();
+}
+
+function populatePostJobSettings() {
+  const prefs = postJobPrefs();
+  const review = document.getElementById('settingsPostJobReview');
+  const push = document.getElementById('settingsPostJobPush');
+  if (review) review.checked = prefs.review;
+  if (push) push.checked = prefs.push;
+}
+
+function savePostJobSettings() {
+  const review = document.getElementById('settingsPostJobReview');
+  const push = document.getElementById('settingsPostJobPush');
+  if (review) writePostJobPref(POST_JOB_REVIEW_KEY, review.checked);
+  if (push) writePostJobPref(POST_JOB_PUSH_KEY, push.checked);
+  postJobDraft = null;
+  renderPostJob();
+}
+
+function postJobMode() {
+  if (!currentJobId || isDemoMode) return 'submit';
+  // currentJob may still be the previous job right after a resubmit.
+  const status = currentJob && String(currentJob.id) === String(currentJobId) ? currentJob.status : null;
+  if (status === 'failed') return 'submit';
+  if (status === 'completed') return 'job';
+  return postJobSubmitted ? 'running' : 'submit';
+}
+
+function postJobChip(label, value, tone, title) {
+  const attr = title ? ` title="${escapeAttr(title)}"` : '';
+  return `<span class="post-job-chip ${tone}"${attr}><b>${escapeHtml(label)}</b>${escapeHtml(value)}</span>`;
+}
+
+function postJobChipsHtml(state) {
+  if (!state) return '';
+  const review = {
+    pending_job: ['after the run', ''],
+    awaiting_review: ['awaiting', 'wait'],
+    completed: ['completed', 'ok'],
+    not_required: ['skipped', ''],
+  }[state.review_status] || [state.review_status, ''];
+  let push;
+  const report = state.last_push_report;
+  switch (state.push_status) {
+    case 'pushed':
+      push = [report ? `pushed (${report.created} new, ${report.existing} existing)` : 'pushed', 'ok'];
+      break;
+    case 'pending': push = ['pushing…', 'busy']; break;
+    case 'waiting_for_review': push = ['waiting for review', 'wait']; break;
+    case 'waiting_for_job': push = ['after the run', '']; break;
+    case 'failed': push = ['failed', 'bad']; break;
+    case 'not_configured': push = ['not configured', '']; break;
+    default: push = ['not pushed', ''];
+  }
+  return postJobChip('Review: ', review[0], review[1])
+    + postJobChip('Insights: ', push[0], push[1], state.push_status === 'failed' ? state.last_push_error : '');
+}
+
+function renderPostJob() {
+  const panel = document.getElementById('postJobPanel');
+  if (!panel) return;
+  const mode = postJobMode();
+  const reviewEl = document.getElementById('postJobReviewToggle');
+  const pushEl = document.getElementById('postJobPushToggle');
+  const heading = document.getElementById('postJobHeading');
+  const note = document.getElementById('postJobNote');
+  const chips = document.getElementById('postJobChips');
+  const completeBtn = document.getElementById('postJobCompleteReviewBtn');
+  const retryBtn = document.getElementById('postJobRetryBtn');
+  let state = null;
+  let noteText = '';
+  if (mode === 'submit') {
+    const choices = postJobSubmissionChoices();
+    reviewEl.checked = choices.review;
+    pushEl.checked = choices.push;
+    reviewEl.disabled = false;
+    pushEl.disabled = postJobServer.pushAllowed === false;
+    heading.textContent = 'Next job';
+    noteText = postJobServer.pushAllowed === false ? POST_JOB_ACCESS_NOTE
+      : 'Applies to the next job. Defaults: Settings → After each job (this browser).';
+  } else if (mode === 'running') {
+    state = { review_status: 'pending_job', push_status: postJobSubmitted.push ? 'waiting_for_job' : 'not_requested' };
+    reviewEl.checked = postJobSubmitted.review;
+    pushEl.checked = postJobSubmitted.push;
+    reviewEl.disabled = pushEl.disabled = true;
+    heading.textContent = 'This job';
+    noteText = 'You can change these when the run finishes.';
+  } else {
+    state = postJobState?.job_id === currentJobId ? postJobState.post_job : null;
+    reviewEl.checked = postJobOptimistic?.review ?? (state ? state.review === 'required' : false);
+    pushEl.checked = postJobOptimistic?.push ?? (state ? state.push === 'requested' : false);
+    reviewEl.disabled = postJobBusy || !state;
+    // Without push access the toggle can only turn a requested push off.
+    pushEl.disabled = postJobBusy || !state || (postJobServer.pushAllowed === false && !pushEl.checked);
+    heading.textContent = 'This job';
+    if (!state) noteText = 'Loading review and push status…';
+    else if (postJobServer.pushAllowed === false && !pushEl.checked) noteText = POST_JOB_ACCESS_NOTE;
+    else if (state.review_status === 'awaiting_review') noteText = state.push === 'requested'
+      ? 'Review the results, then complete the review to push them.' : 'Review the results, then complete the review.';
+    else noteText = 'Change these for this job only.';
+  }
+  const configured = postJobState?.insights_configured ?? postJobServer.insightsConfigured;
+  if (configured === false && pushEl.checked) noteText += ' folio-insights is not configured on this server.';
+  if (postJobError) noteText = postJobError;
+  note.textContent = noteText;
+  note.classList.toggle('error', Boolean(postJobError));
+  const chipHtml = postJobChipsHtml(state);
+  if (chips.innerHTML !== chipHtml) chips.innerHTML = chipHtml;
+  const awaiting = mode === 'job' && state?.review_status === 'awaiting_review';
+  completeBtn.hidden = !awaiting;
+  completeBtn.disabled = postJobBusy;
+  retryBtn.hidden = !(mode === 'job' && state?.push_status === 'failed');
+  retryBtn.disabled = postJobBusy;
+
+  const bar = document.getElementById('propositionPostJobBar');
+  if (bar) {
+    bar.style.display = mode === 'job' && state ? '' : 'none';
+    const barChips = document.getElementById('propositionPostJobChips');
+    if (barChips.innerHTML !== chipHtml) barChips.innerHTML = chipHtml;
+    const barBtn = document.getElementById('propositionCompleteReviewBtn');
+    barBtn.hidden = !awaiting;
+    barBtn.disabled = postJobBusy;
+  }
+}
+
+function resetPostJobState() {
+  if (postJobPollTimer) clearTimeout(postJobPollTimer);
+  postJobPollTimer = null;
+  postJobState = null;
+  postJobSubmitted = null;
+  postJobDraft = null;
+  postJobBusy = false;
+  postJobOptimistic = null;
+  postJobError = '';
+  renderPostJob();
+}
+
+function onPostJobSubmitted(choices, serverState) {
+  resetPostJobState();
+  postJobSubmitted = { ...choices };
+  postJobAppliedSeq = postJobSeq; // responses for the previous job are stale
+  renderPostJob();
+}
+
+function onPostJobFailed() {
+  postJobSubmitted = null;
+  renderPostJob();
+}
+
+function onPostJobJobRendered(job) {
+  if (isDemoMode || !job || job.status !== 'completed' || !currentJobId) { renderPostJob(); return; }
+  postJobPollCount = 0;
+  refreshPostJob();
+}
+
+function schedulePostJobPoll(payload) {
+  if (postJobPollTimer) clearTimeout(postJobPollTimer);
+  postJobPollTimer = null;
+  const s = payload?.post_job;
+  const unsettled = s && (s.push_status === 'pending' || s.review_status === 'pending_job' || payload.push_in_flight);
+  if (unsettled && postJobPollCount < 120) {
+    postJobPollCount += 1;
+    postJobPollTimer = setTimeout(refreshPostJob, 1500);
+  }
+}
+
+function applyPostJobPayload(jobId, payload, seq) {
+  if (jobId !== currentJobId) return;
+  if (seq !== undefined) {
+    if (seq < postJobAppliedSeq) return; // an older response arrived late
+    postJobAppliedSeq = seq;
+  }
+  if (typeof payload.push_allowed === 'boolean') postJobServer.pushAllowed = payload.push_allowed;
+  postJobState = payload;
+  postJobSubmitted = null;
+  renderPostJob();
+  schedulePostJobPoll(payload);
+}
+
+async function refreshPostJob() {
+  const jobId = currentJobId;
+  if (!jobId) return;
+  const seq = ++postJobSeq;
+  try {
+    const r = await fetch(`${API}/enrich/${encodeURIComponent(jobId)}/post-job`, { headers: { Accept: 'application/json' } });
+    if (!r.ok) { if (jobId === currentJobId && seq >= postJobAppliedSeq) { postJobState = null; renderPostJob(); } return; }
+    applyPostJobPayload(jobId, await r.json(), seq);
+  } catch { /* transient; next render retries */ }
+}
+
+async function postJobRequest(path, options) {
+  const jobId = currentJobId;
+  const seq = ++postJobSeq;
+  postJobBusy = true;
+  postJobError = '';
+  renderPostJob();
+  try {
+    const r = await fetch(`${API}/enrich/${encodeURIComponent(jobId)}${path}`, {
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      ...options,
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.detail || r.statusText);
+    if (jobId !== currentJobId) return; // the user moved on to another job
+    postJobBusy = false;
+    postJobOptimistic = null;
+    postJobPollCount = 0;
+    applyPostJobPayload(jobId, data, seq);
+  } catch (e) {
+    if (jobId !== currentJobId) return;
+    postJobBusy = false;
+    postJobOptimistic = null;
+    postJobError = `Could not update this job: ${e.message}`;
+    renderPostJob();
+    refreshPostJob();
+  }
+}
+
+function onPostJobToggle(kind, checked) {
+  postJobError = '';
+  const mode = postJobMode();
+  if (mode === 'submit') {
+    postJobDraft = { ...postJobSubmissionChoices(), [kind]: checked };
+    renderPostJob();
+    return;
+  }
+  if (mode !== 'job') { renderPostJob(); return; }
+  const body = kind === 'review' ? { review_before_continuing: checked } : { push_to_insights: checked };
+  postJobOptimistic = { [kind]: checked };
+  postJobRequest('/post-job', { method: 'PATCH', body: JSON.stringify(body) });
+}
+
+function completePostJobReview() {
+  postJobRequest('/review/complete', { method: 'POST' });
+}
+
+function retryPostJobPush() {
+  postJobRequest('/insights-push', { method: 'POST' });
+}
+
 function renderPropositionsTab() {
   const doc = document.getElementById('propositionDocument');
   if (!doc) return;
+  if (document.getElementById('tab-propositions')?.classList.contains('active')) ensureInsightsStatus(false);
+  renderInsightsBanner();
   const toggle = document.getElementById('propositionModeToggle');
   toggle.checked = propositionAnnotationMode;
   const validationBanner = document.getElementById('propositionValidationBanner');
@@ -12549,6 +13164,8 @@ function renderPropositionsTab() {
     list.querySelectorAll('input, select, button').forEach(control => { control.disabled = true; });
     list.querySelectorAll('.proposition-actions').forEach(actions => { actions.style.display = 'none'; });
   }
+  // Copying a corpus IRI is read-only, so it stays available in every review state.
+  list.querySelectorAll('.corpus-copy').forEach(control => { control.disabled = false; });
   const counts = sessionRecords.reduce((totals, record) => {
     const outcome = record.outcome || 'unreviewed';
     totals[outcome] = (totals[outcome] || 0) + 1;
@@ -12595,6 +13212,7 @@ function renderPropositionCard(record) {
   }
   return `<div class="proposition-card ${outcome === 'deleted' ? 'deleted' : ''}" tabindex="-1" data-candidate-id="${escapeAttr(id)}" data-draft="${isDraft}" data-dirty="false">
     <div class="proposition-card-head"><div><span class="proposition-review-eyebrow">Classification</span><span class="proposition-quote">“${escapeHtml(p.text || '')}”</span></div><span class="proposition-outcome ${escapeAttr(outcome)}">${escapeHtml(outcome)}</span></div>
+    ${isDraft ? '' : renderPropositionCorpusRow(p)}
     <div class="proposition-fields">
       <label class="proposition-field wide">Proposition type<select data-field="proposition_type" onchange="handlePropositionType(this)">${propositionOptions(PROPOSITION_TYPES, customType ? '' : p.proposition_type)}<option value="__new__" ${customType ? 'selected' : ''}>+ new type…</option></select></label>
       <label class="proposition-field wide proposition-new-type" style="display:${customType ? '' : 'none'}">New type<input type="text" data-field="new_type" value="${escapeAttr(customType ? p.proposition_type : '')}"></label>
@@ -13096,6 +13714,7 @@ function clearAll() {
   accumulatedPOS = null;
   activityEntries = [];
   resetPropositionSessionState();
+  resetPostJobState();
   // Clear feedback, dismiss, and data caches
   Object.keys(_feedbackCache).forEach(k => delete _feedbackCache[k]);
   Object.keys(_noteCache).forEach(k => delete _noteCache[k]);
@@ -13138,6 +13757,7 @@ function setStatus(text, state) {
   const colorMap = { running: 'var(--accent)', completed: 'var(--conf-high)', failed: 'var(--red)', idle: 'var(--text-dim)' };
   badge.style.color = colorMap[state] || 'var(--text-dim)';
   badge.textContent = state;
+  if (state === 'failed') onPostJobFailed();
 }
 
 // ==============================================

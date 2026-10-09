@@ -5,13 +5,12 @@ from copy import deepcopy
 from uuid import UUID
 
 import pytest
-from folio_propositions import WORKING_TAXONOMY
-
 from app.config import settings
 from app.models.document import DocumentInput
 from app.models.job import Job, JobResult, JobStatus
 from app.pipeline.stages.ingestion_stage import IngestionStage
 from app.pipeline.stages.normalization_stage import NormalizationStage
+from folio_propositions import WORKING_TAXONOMY
 
 
 async def _job(text: str) -> Job:
@@ -217,6 +216,12 @@ async def test_llm_assist_builds_and_merges_same_span_different_type(
         "Legal Proposition",
     }
     assert len({item.id for item in result.result.propositions}) == 2
+    # LLM-assisted and lexicon propositions on the same span share one content IRI.
+    from app.services.proposition.source import job_source_uri
+    from folio_propositions import content_iri
+
+    expected = content_iri(job_source_uri(result), content)
+    assert [item.content_iri for item in result.result.propositions] == [expected, expected]
 
 
 @pytest.mark.asyncio
@@ -264,9 +269,8 @@ async def test_llm_assist_provider_failure_preserves_lexicon_candidates(
 
 @pytest.mark.asyncio
 async def test_sse_emits_each_proposition_id_once() -> None:
-    from folio_propositions import ActorRef, Disposition, Proposition
-
     from app.services.streaming.sse import job_event_stream
+    from folio_propositions import ActorRef, Disposition, Proposition
 
     proposition = Proposition(
         id="prop-1",
@@ -432,8 +436,12 @@ def test_dissenting_court_assertion_keeps_judge_identity():
 
 
 def test_every_new_frame_uses_existing_taxonomy_and_serializes_without_diagnostics():
+    from app.services.proposition.lexicon import (
+        ASSERTION_FRAMES,
+        QUOTED_AUTHORITY_FRAME,
+        QUOTED_COURT_FRAME,
+    )
     from folio_propositions import ActorRef, AdjudicatorRef
-    from app.services.proposition.lexicon import ASSERTION_FRAMES, QUOTED_AUTHORITY_FRAME, QUOTED_COURT_FRAME
 
     for frame in [*ASSERTION_FRAMES.values(), QUOTED_AUTHORITY_FRAME, QUOTED_COURT_FRAME]:
         assert frame.proposition_type in WORKING_TAXONOMY
