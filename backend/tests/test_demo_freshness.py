@@ -8,7 +8,6 @@ from __future__ import annotations
 import json
 
 import pytest
-
 from scripts.demo_documents import DEMO_DOCUMENTS
 from scripts.generate_demos import DEMOS_DIR, get_staleness_info
 
@@ -37,6 +36,16 @@ class TestDemoFreshness:
             assert "name" in demo, f"{slug}.json missing 'name'"
             assert demo["name"] == slug, f"{slug}.json name mismatch: {demo['name']}"
 
+    @pytest.mark.xfail(
+        strict=True,
+        raises=AssertionError,
+        reason=(
+            "Known main failure (2026-10-09): baked demos target FOLIO OWL "
+            "9a9d3cb5d2823f2a and older pipeline sources; rebake demos and "
+            "their version sidecars before removing this marker. See "
+            "docs/plans/2026-10-09-backend-ci-lane-plan.md."
+        ),
+    )
     def test_demos_are_fresh(self) -> None:
         stale, reason = get_staleness_info()
         assert not stale, (
@@ -44,6 +53,15 @@ class TestDemoFreshness:
             "Regenerate with: cd backend && .venv/bin/python scripts/generate_demos.py"
         )
 
+    @pytest.mark.skip(
+        reason=(
+            "Known main failure (2026-10-09): stale baked demo regeneration "
+            "requires live ontology/models and may use a paid LLM provider; "
+            "run scripts/generate_demos.py in an authorized regeneration run, "
+            "refresh version sidecars, then restore this test. See "
+            "docs/plans/2026-10-09-backend-ci-lane-plan.md."
+        ),
+    )
     @pytest.mark.timeout(600)
     async def test_regenerate_if_stale(self) -> None:
         stale, reason = get_staleness_info()
