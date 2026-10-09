@@ -131,13 +131,54 @@ async def test_chunks_above_500(configured):
     assert status.results[iri(1100)]["present"] is True
 
 
-async def test_empty_iri_list_skips_request(configured):
-    def explode(request):  # pragma: no cover
-        raise AssertionError("no request expected")
+async def test_empty_iri_list_uses_health_check(configured):
+    paths: list[str] = []
 
-    status = await fetch_status([], transport=httpx.MockTransport(explode))
+    def handler(request):
+        paths.append(request.url.path)
+        return httpx.Response(200, json={"status": "ok", "corpus": "default", "shards": 0})
+
+    status = await fetch_status([], transport=httpx.MockTransport(handler))
     assert status.state == "connected"
+    assert status.corpus == "default"
     assert status.results == {}
+    assert paths == ["/api/bridge/v1/health"]
+
+
+async def test_empty_iri_list_reports_unreachable(configured):
+    def handler(request):
+        raise httpx.ConnectError("refused", request=request)
+
+    status = await fetch_status([], transport=httpx.MockTransport(handler))
+    assert status.state == "unreachable"
+    assert status.connected is False
+
+
+@pytest.mark.parametrize("exc", [
+    lambda r: httpx.DecodingError("bad gzip", request=r),
+    lambda r: httpx.TooManyRedirects("loop", request=r),
+    lambda r: httpx.InvalidURL("http://insights.test/bad"),
+    lambda r: httpx.StreamConsumed(),
+])
+async def test_other_httpx_errors_are_error_state(configured, exc, caplog):
+    def handler(request):
+        raise exc(request)
+
+    with caplog.at_level(logging.DEBUG):
+        status = await fetch_status([iri(1)], transport=httpx.MockTransport(handler))
+        health = await fetch_health(transport=httpx.MockTransport(handler))
+    assert status.state == "error" and health.state == "error"
+    for message in (status.message, health.message):
+        assert "insights.test" not in message
+    assert "insights.test/bad" not in caplog.text
+
+
+@pytest.mark.parametrize("url", ["http://[::1", "http://host:99999", "https://", "ftp://insights.test"])
+async def test_malformed_base_urls_never_raise(monkeypatch, url):
+    monkeypatch.setattr(settings, "insights_api_url", url)
+    status = await fetch_status([iri(1)])
+    assert status.state == "error"
+    assert url not in status.message
 
 
 async def test_connect_error_is_unreachable(configured, caplog):

@@ -38,6 +38,8 @@ class PropositionExtractor:
         if canonical is None or not canonical.full_text:
             return []
         text = canonical.full_text
+        # Resolved once per extraction; every proposition's content IRI shares it.
+        source_uri = job_source_uri(job)
         doc = get_spacy_nlp()(text)
         results: list[Proposition] = []
 
@@ -78,7 +80,7 @@ class PropositionExtractor:
                     continue
                 role = self._subject_role(token, active_frame.asserter_role)
                 results.append(
-                    self._build(job, sentence, start, end, content, active_frame, role)
+                    self._build(job, sentence, start, end, content, active_frame, role, source_uri)
                 )
                 emitted_reporting = True
                 attributed_quotes.update(
@@ -94,7 +96,7 @@ class PropositionExtractor:
                 start, end, content = self._trim_span(text, start, end)
                 if content:
                     results.append(
-                        self._build(job, sentence, start, end, content, ARGUENDO_FRAME, "court")
+                        self._build(job, sentence, start, end, content, ARGUENDO_FRAME, "court", source_uri)
                     )
 
             # Do not promote attributed complements, questions, or quoted
@@ -108,7 +110,7 @@ class PropositionExtractor:
                         span = self._trim_span(text, sentence.start_char, sentence.end_char)
                         span = self._negation_safe_span(root, span, text)
                         if span and span[2]:
-                            results.append(self._build(job, sentence, *span, frame, "court"))
+                            results.append(self._build(job, sentence, *span, frame, "court", source_uri))
 
         for start, end in quote_ranges:
             if (start, end) in attributed_quotes:
@@ -128,7 +130,7 @@ class PropositionExtractor:
             if span is None or not span[2]:
                 continue
             frame = QUOTED_AUTHORITY_FRAME if self._authority_anchor(doc, start, end, text) else QUOTED_COURT_FRAME
-            results.append(self._build(job, governor.sent, *span, frame, frame.asserter_role))
+            results.append(self._build(job, governor.sent, *span, frame, frame.asserter_role, source_uri))
 
         unique: dict[tuple[int | None, int | None, str], Proposition] = {}
         for proposition in results:
@@ -311,7 +313,7 @@ class PropositionExtractor:
 
     def _build(
         self, job: Job, sentence, start: int, end: int, content: str,
-        frame: PropositionFrame, role: str,
+        frame: PropositionFrame, role: str, source_uri: str,
     ) -> Proposition:
         identity = proposition_id(job.id, start, end, frame.proposition_type)
         validator = (
@@ -347,7 +349,7 @@ class PropositionExtractor:
             validator=validator,
             disposition=frame.disposition,
             citation_edges=edges,
-            content_iri=proposition_content_iri(job_source_uri(job), content),
+            content_iri=proposition_content_iri(source_uri, content),
         )
         # Pydantic serializes declared fields only. This diagnostic attribute
         # is visible to the benchmark without changing the shared schema or JSON.

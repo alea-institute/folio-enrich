@@ -3,7 +3,10 @@
 ``propositions`` emits one ``folio_propositions.PropositionDocumentRecord``
 (the current shared schema version) as JSON. ``propositions-ndjson`` emits the
 same record as a streaming-friendly NDJSON: a ``header`` line carrying the
-record without its propositions, then one ``proposition`` line per proposition.
+record without its propositions, then one flat ``proposition`` line per
+proposition (``{"record_type": "proposition", **proposition}``). folio-insights'
+NDJSON parser pops ``record_type`` and validates the remainder as a
+``folio_propositions.Proposition``, so lines must not nest the proposition.
 
 Every proposition carries ``content_iri`` computed from the record's
 ``source_uri``, so the record passes the library's IRI cross-check. Older jobs
@@ -89,7 +92,7 @@ class PropositionsNDJSONExporter(ExporterBase):
         propositions = payload.pop("propositions")
         lines = [json.dumps({"record_type": "header", **payload}, ensure_ascii=False)]
         lines.extend(
-            json.dumps({"record_type": "proposition", "proposition": p}, ensure_ascii=False)
+            json.dumps({"record_type": "proposition", **p}, ensure_ascii=False)
             for p in propositions
         )
         return "\n".join(lines) + "\n"

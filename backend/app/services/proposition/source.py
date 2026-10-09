@@ -14,7 +14,12 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from folio_propositions import Proposition, content_iri, document_source_uri
+from folio_propositions import (
+    Proposition,
+    content_iri,
+    document_source_uri,
+    normalize_source_uri,
+)
 
 if TYPE_CHECKING:
     from app.models.job import Job
@@ -40,6 +45,13 @@ def validate_source_uri(value: str | None) -> str | None:
         raise ValueError(f"source_uri must be at most {SOURCE_URI_MAX_LENGTH} characters")
     if ":" not in value:
         raise ValueError("source_uri must be an absolute URI with a scheme (e.g. https:, urn:)")
+    # Reject URIs the shared identity recipe cannot normalize (e.g. an
+    # unterminated IPv6 host "http://[::1") here, at the request boundary,
+    # instead of failing later inside content-IRI minting.
+    try:
+        normalize_source_uri(value)
+    except ValueError as exc:
+        raise ValueError(f"source_uri is not a valid URI: {exc}") from None
     return value
 
 

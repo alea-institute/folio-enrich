@@ -12564,12 +12564,42 @@ async function ensureInsightsStatus(force = false) {
     entry = { loading: false, data: null, error: 'Corpus status request failed — check your connection.' };
   }
   insightsStatusCache.set(jobId, entry);
-  if (currentJobId === jobId) renderPropositionsTab();
+  if (currentJobId === jobId) applyInsightsStatusUpdate();
 }
 
 function refreshInsightsStatus() {
   ensureInsightsStatus(true);
   renderInsightsBanner();
+}
+
+// A status response can land at any moment (first load or Refresh). Re-rendering
+// the whole tab would wipe unsaved classification edits or a hand-added draft and
+// re-enable buttons mid-save, so while the reviewer is busy only the banner and
+// the active card's corpus row are patched in place.
+function propositionReviewBusy() {
+  return Boolean(propositionReviewSaving || propositionDraft || activePropositionCardIsDirty());
+}
+
+function applyInsightsStatusUpdate() {
+  renderInsightsBanner();
+  if (!propositionReviewBusy()) {
+    renderPropositionsTab();
+    return;
+  }
+  patchActivePropositionCorpusRow();
+}
+
+function patchActivePropositionCorpusRow() {
+  const card = document.querySelector('#propositionCandidates .proposition-card');
+  if (!card || card.dataset.draft === 'true') return;
+  const record = propositionRecords().find(r => r.proposition?.id === card.dataset.candidateId);
+  const html = record ? renderPropositionCorpusRow(record.proposition) : '';
+  const existing = card.querySelector('.proposition-corpus');
+  if (existing) {
+    if (html) existing.outerHTML = html; else existing.remove();
+  } else if (html) {
+    card.querySelector('.proposition-card-head')?.insertAdjacentHTML('afterend', html);
+  }
 }
 
 function propositionContentIri(p) {
@@ -12603,10 +12633,12 @@ function renderInsightsBanner() {
   }
   if (data?.state === 'connected') {
     banner.classList.add('connected');
-    const results = Object.values(data.results || {});
-    const present = results.filter(result => result.present).length;
+    // Count propositions, not distinct IRIs: several propositions (e.g. two
+    // types on one span) can share one content IRI.
+    const iris = Object.values(data.propositions || {});
+    const present = iris.filter(iri => data.results?.[iri]?.present).length;
     const corpus = data.corpus ? ` · corpus <strong>${escapeHtml(data.corpus)}</strong>` : '';
-    text.innerHTML = `${dot}folio-insights connected${corpus} · <strong>${present}</strong> of ${results.length} proposition${results.length === 1 ? '' : 's'} in corpus`;
+    text.innerHTML = `${dot}folio-insights connected${corpus} · <strong>${present}</strong> of ${iris.length} proposition${iris.length === 1 ? '' : 's'} in corpus`;
     return;
   }
   if (data?.state === 'not_configured' || !data) {

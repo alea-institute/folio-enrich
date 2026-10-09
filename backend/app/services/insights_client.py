@@ -85,6 +85,12 @@ class _ProtocolError(Exception):
     """The insights response did not match the bridge contract."""
 
 
+# Any other httpx failure (DecodingError, TooManyRedirects, InvalidURL,
+# StreamError, ...) becomes state="error". Only the exception class name is
+# ever logged, never its text (which can carry the base URL).
+_OTHER_HTTPX_ERRORS = (httpx.HTTPError, httpx.InvalidURL, httpx.StreamError)
+
+
 def _base_url() -> str | None:
     """Return the configured base URL without a trailing slash, or None."""
     raw = (settings.insights_api_url or "").strip()
@@ -92,8 +98,12 @@ def _base_url() -> str | None:
 
 
 def _valid_base(base: str) -> bool:
-    parsed = urlparse(base)
-    return parsed.scheme in ("http", "https") and bool(parsed.netloc)
+    try:
+        parsed = urlparse(base)
+        parsed.port  # raises ValueError for a malformed or out-of-range port
+    except ValueError:
+        return False
+    return parsed.scheme in ("http", "https") and bool(parsed.hostname)
 
 
 def _headers() -> dict[str, str]:
@@ -202,8 +212,15 @@ async def fetch_status(
     unique = _dedupe(iris)
     corpus = _corpus()
     if not unique:
-        # Nothing to look up; report the configured state without a round trip.
-        return InsightsStatus(state="connected", corpus=corpus)
+        # Nothing to look up: report the real connection state via the health
+        # check rather than claiming "connected" without contacting insights.
+        health = await fetch_health(transport=transport)
+        return InsightsStatus(
+            state=health.state,
+            message=health.message,
+            corpus=health.corpus or corpus,
+            status_code=health.status_code,
+        )
 
     results: dict[str, dict[str, Any]] = {}
     response_corpus: str | None = corpus
@@ -239,6 +256,9 @@ async def fetch_status(
     except (httpx.TimeoutException, httpx.TransportError) as exc:
         logger.info("folio-insights status lookup unreachable: %s", type(exc).__name__)
         return InsightsStatus(state="unreachable", message="folio-insights could not be reached.", corpus=corpus)
+    except _OTHER_HTTPX_ERRORS as exc:
+        logger.warning("folio-insights status lookup failed: %s", type(exc).__name__)
+        return InsightsStatus(state="error", message="folio-insights request failed.", corpus=corpus)
     except (_ProtocolError, ValueError) as exc:
         logger.warning("folio-insights status response did not match the contract: %s", type(exc).__name__)
         return InsightsStatus(state="error", message="folio-insights returned an unexpected response.", corpus=corpus)
@@ -280,6 +300,9 @@ async def fetch_health(*, transport: httpx.AsyncBaseTransport | None = None) -> 
     except (httpx.TimeoutException, httpx.TransportError) as exc:
         logger.info("folio-insights health check unreachable: %s", type(exc).__name__)
         return InsightsHealth(state="unreachable", message="folio-insights could not be reached.", corpus=corpus)
+    except _OTHER_HTTPX_ERRORS as exc:
+        logger.warning("folio-insights health check failed: %s", type(exc).__name__)
+        return InsightsHealth(state="error", message="folio-insights request failed.", corpus=corpus)
     except ValueError:
         return InsightsHealth(state="error", message="folio-insights returned an unexpected response.", corpus=corpus)
     if not isinstance(payload, dict) or payload.get("status") != "ok":
@@ -383,6 +406,9 @@ async def push_record(
     except (httpx.TimeoutException, httpx.TransportError) as exc:
         logger.info("folio-insights push unreachable: %s", type(exc).__name__)
         return PushResult(state="failed", message="folio-insights could not be reached.")
+    except _OTHER_HTTPX_ERRORS as exc:
+        logger.warning("folio-insights push failed: %s", type(exc).__name__)
+        return PushResult(state="failed", message="folio-insights request failed.")
     except (_ProtocolError, ValueError) as exc:
         logger.warning("folio-insights ingest response did not match the contract: %s", type(exc).__name__)
         return PushResult(state="failed", message="folio-insights returned an unexpected response.", status_code=200)

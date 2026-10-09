@@ -86,13 +86,14 @@ async def test_ndjson_line_structure(monkeypatch):
     assert "propositions" not in header
     assert header["source_uri"] == document_source_uri(TEXT)
     assert len(rows) == len(job.result.propositions) > 0
-    assert all(set(row) == {"record_type", "proposition"} for row in rows)
     assert all(row["record_type"] == "proposition" for row in rows)
+    # Flat lines: the proposition fields sit beside record_type, not nested.
+    assert all("proposition" not in row and "proposition_type" in row for row in rows)
 
     # Reassembling the stream yields the same record as the JSON exporter.
     header.pop("record_type")
     rebuilt = PropositionDocumentRecord.model_validate(
-        {**header, "propositions": [row["proposition"] for row in rows]}
+        {**header, "propositions": [{k: v for k, v in row.items() if k != "record_type"} for row in rows]}
     )
     single = PropositionDocumentRecord.model_validate_json(
         get_exporter("propositions").export(job)
@@ -143,3 +144,37 @@ def test_export_route_serves_propositions(tmp_path: Path, monkeypatch):
     assert stream.status_code == 200
     assert stream.headers["content-type"].startswith("application/x-ndjson")
     assert json.loads(stream.text.splitlines()[0])["record_type"] == "header"
+
+
+@pytest.mark.asyncio
+async def test_ndjson_lines_follow_insights_parse_rule(monkeypatch):
+    """Reproduce folio-insights' parse_ndjson_text rule without importing it.
+
+    For every line: pop ``record_type``; a header kind keeps the rest as the
+    record header; a ``proposition`` kind must validate as a
+    ``folio_propositions.Proposition`` on its own (flat, not nested).
+    """
+    from folio_propositions import Proposition
+
+    job = await _extracted_job(monkeypatch)
+    content = get_exporter("propositions-ndjson").export(job)
+    header = None
+    propositions = []
+    for line in content.splitlines():
+        if not line.strip():
+            continue
+        obj = json.loads(line)
+        kind = obj.pop("record_type", None)
+        if kind in {"proposition_document", "document", "record", "header"}:
+            assert header is None
+            header = obj
+        else:
+            assert kind == "proposition"
+            propositions.append(Proposition.model_validate(obj))
+    assert header is not None
+    assert len(propositions) == len(job.result.propositions) > 0
+    assert all(p.content_iri for p in propositions)
+    record = PropositionDocumentRecord.model_validate(
+        {**header, "propositions": [p.model_dump(mode="json") for p in propositions]}
+    )
+    assert record.source_uri == header["source_uri"]

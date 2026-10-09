@@ -173,12 +173,26 @@ async def list_branches() -> dict:
     return {"branches": branches, "total": len(branches)}
 
 
-@router.get("/{job_id}")
-async def get_enrichment(job_id: UUID) -> Job:
-    job = await _job_store.load(job_id)
+def get_job_store() -> JobStore:
+    """The job store shared by the enrich routes and their companions.
+
+    Read at call time (not bound at import) so tests that swap
+    ``_job_store`` affect every route that goes through this accessor.
+    """
+    return _job_store
+
+
+async def load_job_or_404(job_id: UUID) -> Job:
+    """Access check for job-scoped reads: the job id is the capability."""
+    job = await get_job_store().load(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
+
+
+@router.get("/{job_id}")
+async def get_enrichment(job_id: UUID) -> Job:
+    return await load_job_or_404(job_id)
 
 
 @router.get("/{job_id}/propositions/{proposition_ref:path}")
@@ -188,9 +202,7 @@ async def get_proposition(job_id: UUID, proposition_ref: str) -> dict:
     A content IRI identifies a (source, span) pair, so several propositions of
     different types can share it; the response is always a list.
     """
-    job = await _job_store.load(job_id)
-    if job is None:
-        raise HTTPException(status_code=404, detail="Job not found")
+    job = await load_job_or_404(job_id)
     source_uri = job_source_uri(job)
     matches = [
         proposition

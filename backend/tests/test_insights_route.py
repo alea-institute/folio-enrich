@@ -10,12 +10,13 @@ from functools import partial
 import httpx
 import pytest
 from fastapi.testclient import TestClient
-from folio_propositions import ActorRef, Disposition, Proposition
+from folio_propositions import ActorRef, Disposition, Proposition, content_iri
 
 from app.api.routes import enrich as enrich_mod
 from app.config import settings
 from app.main import app
 from app.services import insights_client
+from app.services.proposition.source import job_source_uri
 from app.storage.job_store import JobStore
 from tests.helpers import make_job
 
@@ -58,6 +59,11 @@ def save_job(store, propositions):
     job.result.propositions = propositions
     asyncio.run(store.save(job))
     return job
+
+
+def iri_for(job, text: str) -> str:
+    """The IRI the route derives: same recipe as the export/push stamping."""
+    return content_iri(job_source_uri(job), text)
 
 
 def install_transport(monkeypatch, handler):
@@ -108,71 +114,80 @@ def test_invalid_job_id_is_422(http, store):
 
 def test_not_configured(http, store, monkeypatch):
     monkeypatch.setattr(settings, "insights_api_url", "")
-    job = save_job(store, [proposition("p1", "the rule applies", iri(1))])
+    job = save_job(store, [proposition("p1", "the rule applies", None)])
     body = http.get(f"/enrich/{job.id}/insights-status").json()
     assert body["connected"] is False
     assert body["state"] == "not_configured"
     assert body["results"] == {}
-    assert body["propositions"] == {"p1": iri(1)}
+    assert body["propositions"] == {"p1": iri_for(job, "the rule applies")}
 
 
 def test_connected_present_absent_dedupe(http, store, configured, monkeypatch):
     seen: list = []
-    install_transport(monkeypatch, status_handler({iri(1)}, seen))
     job = save_job(store, [
-        proposition("p1", "the rule applies", iri(1)),
-        proposition("p2", "the court denied the motion", iri(2)),
-        proposition("p3", "the rule applies", iri(1)),
+        proposition("p1", "the rule applies", None),
+        proposition("p2", "the court denied the motion", None),
+        proposition("p3", "the rule applies", None),
     ])
+    a, b = iri_for(job, "the rule applies"), iri_for(job, "the court denied the motion")
+    install_transport(monkeypatch, status_handler({a}, seen))
     response = http.get(f"/enrich/{job.id}/insights-status")
     assert response.status_code == 200
     body = response.json()
     assert body["connected"] is True
     assert body["state"] == "connected"
     assert body["corpus"] == "default"
-    assert set(body["results"]) == {iri(1), iri(2)}
-    assert body["results"][iri(1)]["present"] is True
-    assert body["results"][iri(1)]["contested"] is True
-    assert body["results"][iri(1)]["contesting"] == [{"iri": iri(51), "relation": "contests"}]
-    assert body["results"][iri(2)]["present"] is False
-    assert body["propositions"] == {"p1": iri(1), "p2": iri(2), "p3": iri(1)}
+    assert set(body["results"]) == {a, b}
+    assert body["results"][a]["present"] is True
+    assert body["results"][a]["contested"] is True
+    assert body["results"][a]["contesting"] == [{"iri": iri(51), "relation": "contests"}]
+    assert body["results"][b]["present"] is False
+    # Three propositions, two distinct IRIs: the map counts propositions.
+    assert body["propositions"] == {"p1": a, "p2": b, "p3": a}
     assert len(seen) == 1
-    assert seen[0][1]["iris"] == [iri(1), iri(2)]
+    assert seen[0][1]["iris"] == [a, b]
     # Bearer header goes upstream; neither token nor private URL reaches the browser.
     assert seen[0][0].headers["Authorization"] == f"Bearer {TOKEN}"
     assert TOKEN not in response.text
     assert "insights-private.internal" not in response.text
 
 
-def test_legacy_propositions_without_iri(http, store, configured, monkeypatch):
+def test_iris_are_restamped_from_job_source(http, store, configured, monkeypatch):
+    """Legacy (None) and stale stored IRIs both resolve to the export/push IRI."""
     seen: list = []
     install_transport(monkeypatch, status_handler(set(), seen))
     job = save_job(store, [proposition("p1", "the rule applies", None), proposition("p2", "x", iri(2))])
     body = http.get(f"/enrich/{job.id}/insights-status").json()
     assert body["connected"] is True
-    try:
-        from app.services.proposition.source import job_source_uri  # noqa: F401
-    except ImportError:
-        # Without E1's helper, legacy propositions are skipped.
-        assert body["propositions"] == {"p2": iri(2)}
-        assert seen[0][1]["iris"] == [iri(2)]
-    else:
-        from folio_propositions import content_iri
-
-        expected = content_iri(job_source_uri(job), "the rule applies")
-        assert body["propositions"]["p1"] == expected
-        assert expected in seen[0][1]["iris"]
+    assert body["propositions"] == {"p1": iri_for(job, "the rule applies"), "p2": iri_for(job, "x")}
+    assert seen[0][1]["iris"] == [iri_for(job, "the rule applies"), iri_for(job, "x")]
 
 
-def test_job_without_propositions_makes_no_upstream_call(http, store, configured, monkeypatch):
-    def explode(request):  # pragma: no cover
-        raise AssertionError("no request expected")
+def test_job_without_propositions_reports_health_state(http, store, configured, monkeypatch):
+    paths: list[str] = []
 
-    install_transport(monkeypatch, explode)
+    def handler(request):
+        paths.append(request.url.path)
+        assert request.url.path.endswith("/health"), "no status lookup expected"
+        return httpx.Response(200, json={"status": "ok", "corpus": "default", "shards": 3})
+
+    install_transport(monkeypatch, handler)
     job = save_job(store, [])
     body = http.get(f"/enrich/{job.id}/insights-status").json()
     assert body["state"] == "connected"
     assert body["results"] == {}
+    assert paths == ["/api/bridge/v1/health"]
+
+
+def test_job_without_propositions_unreachable(http, store, configured, monkeypatch):
+    def handler(request):
+        raise httpx.ConnectError("refused", request=request)
+
+    install_transport(monkeypatch, handler)
+    job = save_job(store, [])
+    body = http.get(f"/enrich/{job.id}/insights-status").json()
+    assert body["state"] == "unreachable"
+    assert body["connected"] is False
 
 
 def test_unreachable(http, store, configured, monkeypatch):
@@ -180,7 +195,7 @@ def test_unreachable(http, store, configured, monkeypatch):
         raise httpx.ConnectError("refused", request=request)
 
     install_transport(monkeypatch, handler)
-    job = save_job(store, [proposition("p1", "the rule applies", iri(1))])
+    job = save_job(store, [proposition("p1", "the rule applies", None)])
     response = http.get(f"/enrich/{job.id}/insights-status")
     assert response.status_code == 200
     body = response.json()
@@ -192,7 +207,7 @@ def test_unreachable(http, store, configured, monkeypatch):
 
 def test_server_error(http, store, configured, monkeypatch):
     install_transport(monkeypatch, lambda r: httpx.Response(503))
-    job = save_job(store, [proposition("p1", "the rule applies", iri(1))])
+    job = save_job(store, [proposition("p1", "the rule applies", None)])
     body = http.get(f"/enrich/{job.id}/insights-status").json()
     assert body["state"] == "error"
     assert body["connected"] is False
@@ -204,8 +219,16 @@ def test_health_connected(http, configured, monkeypatch):
     response = http.get("/insights/health")
     assert response.status_code == 200
     body = response.json()
-    assert body == {"connected": True, "state": "connected", "message": None, "corpus": "default", "shards": 3}
+    # Public route: connection state and a generic message only.
+    assert body == {"connected": True, "state": "connected", "message": "folio-insights is connected."}
     assert TOKEN not in response.text
+    assert "default" not in response.text and "shards" not in response.text
+
+
+def test_health_error_is_generic(http, configured, monkeypatch):
+    install_transport(monkeypatch, lambda r: httpx.Response(404))
+    body = http.get("/insights/health").json()
+    assert body == {"connected": False, "state": "error", "message": "folio-insights is unavailable."}
 
 
 def test_health_not_configured(http, monkeypatch):

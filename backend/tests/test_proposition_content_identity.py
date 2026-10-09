@@ -92,7 +92,7 @@ def test_job_source_uri_precedence():
     assert job_source_uri(empty) == f"urn:uuid:{empty.id}"
 
 
-@pytest.mark.parametrize("value", ["", "   ", "no-scheme", "x:" + "a" * 2047])
+@pytest.mark.parametrize("value", ["", "   ", "no-scheme", "x:" + "a" * 2047, "http://[::1", "http://[::1/x"])
 def test_validate_source_uri_rejects(value):
     with pytest.raises(ValueError):
         validate_source_uri(value)
@@ -223,3 +223,28 @@ def test_job_model_migrates_bare_v3_propositions():
     result = JobResult.model_validate({"propositions": [proposition]})
     assert result.propositions[0].schema_version == 4
     assert result.propositions[0].axiom_history == []
+
+
+def test_enrich_route_rejects_malformed_source_uri_with_422(api):
+    client, _ = api
+    response = client.post("/enrich", json={"content": "x", "source_uri": "http://[::1"})
+    assert response.status_code == 422
+
+
+def test_lookup_with_slashed_source_uri(api):
+    client, store = api
+    source = "https://courts.example.gov/opinions/2024/ny/palsgraf-v-lirr"
+    job = _write_v3_job(store)
+    raw = json.loads(store._job_path(job.id).read_text())
+    raw["input"]["source_uri"] = source
+    store._job_path(job.id).write_text(json.dumps(raw))
+    iri = content_iri(source, "the statute requires notice")
+    assert iri != content_iri(document_source_uri(TEXT), "the statute requires notice")
+
+    for ref in (quote(iri, safe=""), iri):
+        response = client.get(f"/enrich/{job.id}/propositions/{ref}")
+        assert response.status_code == 200, ref
+        body = response.json()
+        assert body["source_uri"] == source
+        assert len(body["propositions"]) == 2
+        assert all(p["content_iri"] == iri for p in body["propositions"])

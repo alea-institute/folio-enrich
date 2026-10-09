@@ -217,6 +217,13 @@ async def test_llm_assist_builds_and_merges_same_span_different_type(
         "Legal Proposition",
     }
     assert len({item.id for item in result.result.propositions}) == 2
+    # LLM-assisted and lexicon propositions on the same span share one content IRI.
+    from folio_propositions import content_iri
+
+    from app.services.proposition.source import job_source_uri
+
+    expected = content_iri(job_source_uri(result), content)
+    assert [item.content_iri for item in result.result.propositions] == [expected, expected]
 
 
 @pytest.mark.asyncio
