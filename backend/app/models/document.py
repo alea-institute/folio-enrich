@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_serializer
 
 # Historical/default ontology for the models layer. Intentionally a literal (pydantic
 # field defaults must be class-def-time constants) and intentionally NOT
@@ -30,6 +30,19 @@ class DocumentInput(BaseModel):
     # (EnrichRequest.ontology); defaults so existing persisted jobs deserialize
     # unchanged. Not re-validated here (persisted model — must always deserialize).
     ontology: str = DEFAULT_ONTOLOGY
+    # Caller-supplied source URI for proposition content identity (see
+    # app.services.proposition.source.job_source_uri). Validated at the request
+    # boundary (EnrichRequest.source_uri); optional so legacy jobs deserialize.
+    source_uri: str | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_unset_source_uri(self, handler):
+        # Keep serialized jobs (and every export derived from them) byte-identical
+        # to the pre-source_uri shape unless a caller actually supplied a URI.
+        data = handler(self)
+        if isinstance(data, dict) and data.get("source_uri") is None:
+            data.pop("source_uri", None)
+        return data
 
 
 class TextElement(BaseModel):

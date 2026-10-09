@@ -304,13 +304,13 @@ async def test_session_save_upgrades_v2_payloads_and_session_stamp(tmp_path: Pat
         session.session_id, "p1", outcome="accepted"
     )
 
-    assert updated.schema_version == SCHEMA_VERSION == 3
+    assert updated.schema_version == SCHEMA_VERSION == 4
     assert updated.candidates[0].proposition.proposition_type == (
         "Judicial Legal Conclusion"
     )
     persisted = json.loads(path.read_text())
-    assert persisted["schema_version"] == 3
-    assert persisted["candidates"][0]["original"]["schema_version"] == 3
+    assert persisted["schema_version"] == 4
+    assert persisted["candidates"][0]["original"]["schema_version"] == 4
 
 
 @pytest.mark.asyncio

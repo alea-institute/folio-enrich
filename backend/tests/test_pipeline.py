@@ -116,7 +116,7 @@ class TestJobStore:
         assert loaded.result.propositions[0].proposition_type == (
             "Judicial Legal Conclusion"
         )
-        assert listed[0].result.propositions[0].schema_version == 3
+        assert listed[0].result.propositions[0].schema_version == 4
 
     @pytest.mark.asyncio
     async def test_delete_job(self, tmp_path: Path):

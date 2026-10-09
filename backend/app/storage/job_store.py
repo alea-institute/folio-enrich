@@ -12,6 +12,12 @@ from app.models.job import Job, JobStatus
 
 logger = logging.getLogger(__name__)
 
+# Newest post-job state written in this process, per job id. The pipeline and
+# the annotation routes save whole jobs from in-memory copies that may predate a
+# user's review/push override; save() substitutes the newest revision so those
+# writers never roll it back. (Single-process store, like the asyncio locks.)
+_POST_JOB_LATEST: dict[str, object] = {}
+
 # Job IDs that must never be auto-deleted by cleanup_expired (e.g. seeded demo jobs
 # that back demo-mode exports). Populated at startup by app.services.demo_seed.
 PROTECTED_JOB_IDS: set[str] = set()
@@ -26,6 +32,7 @@ class JobStore:
         return self.base_dir / f"{job_id}.json"
 
     async def save(self, job: Job) -> None:
+        self._merge_post_job(job)
         path = self._job_path(job.id)
         data = job.model_dump_json(indent=2)
         # Atomic write: write to temp file then rename
@@ -37,6 +44,16 @@ class JobStore:
         except BaseException:
             Path(tmp_path).unlink(missing_ok=True)
             raise
+
+    @staticmethod
+    def _merge_post_job(job: Job) -> None:
+        key = str(job.id)
+        latest = _POST_JOB_LATEST.get(key)
+        current = job.post_job
+        if latest is not None and (current is None or current.revision < latest.revision):
+            job.post_job = latest.model_copy(deep=True)
+        elif current is not None:
+            _POST_JOB_LATEST[key] = current.model_copy(deep=True)
 
     async def load(self, job_id: UUID) -> Job | None:
         path = self._job_path(job_id)
@@ -55,6 +72,7 @@ class JobStore:
         return jobs
 
     async def delete(self, job_id: UUID) -> bool:
+        _POST_JOB_LATEST.pop(str(job_id), None)
         path = self._job_path(job_id)
         if path.exists():
             path.unlink()
@@ -147,6 +165,7 @@ class JobStore:
                     ts = datetime.fromisoformat(updated)
                     if ts < cutoff:
                         path.unlink()
+                        _POST_JOB_LATEST.pop(path.stem, None)
                         deleted += 1
             except Exception:
                 continue

@@ -96,6 +96,14 @@ def _as_bytes(value: Any) -> bytes:
 
 def _stable_export_bytes(fmt: str, value: Any) -> bytes:
     content = _as_bytes(value)
+    if fmt in {"propositions", "propositions-ndjson"}:
+        # The shared-schema record names the generating app version; pin it so
+        # a routine version bump does not masquerade as a payload change.
+        return re.sub(
+            rb'("tool": "folio-enrich",\s*"version": )"[^"]*"',
+            rb'\1"<app-version>"',
+            content,
+        )
     if fmt != "excel":
         return content
     # XLSX is a ZIP container whose member headers otherwise carry wall-clock

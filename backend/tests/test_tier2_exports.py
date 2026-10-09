@@ -39,10 +39,10 @@ def _make_export_job() -> Job:
 
 
 class TestTier2Exports:
-    def test_all_13_formats_registered(self):
+    def test_all_15_formats_registered(self):
         formats = list_formats()
-        assert len(formats) == 13
-        expected = {"json", "jsonld", "xml", "csv", "jsonl", "parquet", "elasticsearch", "neo4j", "rag", "rdf", "brat", "html", "excel"}
+        assert len(formats) == 15
+        expected = {"json", "jsonld", "xml", "csv", "jsonl", "parquet", "elasticsearch", "neo4j", "rag", "rdf", "brat", "html", "excel", "propositions", "propositions-ndjson"}
         assert set(formats) == expected
 
     def test_parquet_export(self):

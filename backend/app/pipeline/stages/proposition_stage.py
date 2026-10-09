@@ -12,6 +12,11 @@ from app.services.llm.base import LLMProvider
 from app.services.proposition.extractor import PropositionExtractor
 from app.services.proposition.identity import proposition_id
 from app.services.proposition.lexicon import LEXICON_VERSION
+from app.services.proposition.source import (
+    SOURCE_URI_METADATA_KEY,
+    job_source_uri,
+    proposition_content_iri,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +35,10 @@ class EarlyPropositionStage(PipelineStage):
         if not settings.proposition_extraction_enabled:
             return job
 
+        source_uri = job_source_uri(job)
         candidates = self._extractor.extract(job)
         job.result.metadata["proposition_lexicon_version"] = LEXICON_VERSION
+        job.result.metadata[SOURCE_URI_METADATA_KEY] = source_uri
         if self.llm is not None and job.result.canonical_text is not None:
             try:
                 candidates.extend(await self._assist(job))
@@ -49,6 +56,7 @@ class EarlyPropositionStage(PipelineStage):
 
     async def _assist(self, job: Job) -> list[Proposition]:
         text = job.result.canonical_text.full_text
+        source_uri = job_source_uri(job)
         prompt = (
             "Identify explicit proposition content spans in this judicial text. "
             "Return only spans supported verbatim by the text, with start_char, "
@@ -104,6 +112,7 @@ class EarlyPropositionStage(PipelineStage):
                         if validator_mode else None
                     ),
                     disposition=item.get("disposition", "unresolved"),
+                    content_iri=proposition_content_iri(source_uri, text[start:end]),
                 ))
             except (KeyError, TypeError, ValueError):
                 continue

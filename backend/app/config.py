@@ -108,6 +108,27 @@ class Settings(BaseSettings):
     llm_proposition_provider: str = ""
     llm_proposition_model: str = ""
 
+    # folio-insights corpus bridge (read-only status lookups for propositions).
+    # Empty URL = not connected; the Propositions tab then shows a muted banner
+    # and the review workflow is unaffected. The token is sent as a bearer
+    # header when set and is never logged or returned to the browser.
+    insights_api_url: str = ""
+    insights_corpus: str = ""  # empty → null corpus = the insights default
+    insights_api_token: str = ""
+    insights_timeout_seconds: float = 3.0
+    # Push (POST /api/bridge/v1/ingest) gets its own, longer timeout: the
+    # insights side writes shards, which is slower than a status lookup.
+    insights_push_timeout_seconds: float = 30.0
+    # Optional insights framework the pushed shards are filed under; empty =
+    # omit the query parameter and let insights use its default.
+    insights_framework_id: str = ""
+
+    # Post-job flow defaults, used when an /enrich caller sends neither
+    # review_before_continuing nor push_to_insights. The browser UI keeps its
+    # own per-browser preferences (localStorage) and always sends both.
+    post_job_review_default: bool = False
+    post_job_push_default: bool = False
+
     # FOLIO OWL auto-update
     folio_auto_update: bool = True
     folio_update_check_interval_hours: int = 24
