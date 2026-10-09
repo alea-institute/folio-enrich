@@ -28,9 +28,9 @@ bridge plan complete.
 - Reviewed the original seven commits against locally available `origin/main`
   (`510a652`), the bridge plan, and the worker receipts. The current checkout
   has no `docs/handoffs/`; the latest historical handoff was already retired.
-- Removed tracked Python bytecode from the Git index while retaining its
-  working copy, and added bytecode ignore rules.
-- Fixed the newly introduced lint findings. All 21 new Python files pass Ruff;
+- Removed tracked Python bytecode from the Git index while preserving its
+  bytes in ignored local lane output, and added bytecode ignore rules.
+- Fixed the newly introduced lint findings. All 18 new Python files pass Ruff;
   a comparison of findings by file, rule and message shows zero new findings.
   Full-tree Ruff still reports legacy findings: 398 on the base, 389 after
   cleanup. No repository-specific lint command is configured.
