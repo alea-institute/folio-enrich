@@ -12,6 +12,7 @@ from app.services.gold.store import GoldDataError, GoldStore, PreSelector
 from app.storage.job_store import JobStore
 
 router = APIRouter(prefix="/gold", tags=["gold"])
+ANNOTATION_COOKIE_PATHS = ("/gold", "/enrich")
 _job_store = JobStore()
 _gold_store = GoldStore(_job_store)
 
@@ -107,27 +108,31 @@ async def get_annotation_access(
 async def exchange_annotation_access(request: AnnotationAccessRequest, response: Response):
     """Exchange a scoped bearer for a browser-only, gold-path cookie."""
     require_annotation(request.token, None, None, None, None)
-    response.set_cookie(
-        key="folio_annotation_access",
-        value=request.token,
-        max_age=7 * 24 * 60 * 60,
-        path="/gold",
-        secure=True,
-        httponly=True,
-        samesite="strict",
-    )
+    # Scoped to the gold routes and to /enrich, where the same access gates
+    # requests to push a job into folio-insights. HttpOnly, never readable by JS.
+    for path in ANNOTATION_COOKIE_PATHS:
+        response.set_cookie(
+            key="folio_annotation_access",
+            value=request.token,
+            max_age=7 * 24 * 60 * 60,
+            path=path,
+            secure=True,
+            httponly=True,
+            samesite="strict",
+        )
     return {"authenticated": True}
 
 
 @router.delete("/access", status_code=204)
 async def clear_annotation_access(response: Response) -> None:
-    response.delete_cookie(
-        key="folio_annotation_access",
-        path="/gold",
-        secure=True,
-        httponly=True,
-        samesite="strict",
-    )
+    for path in ANNOTATION_COOKIE_PATHS:
+        response.delete_cookie(
+            key="folio_annotation_access",
+            path=path,
+            secure=True,
+            httponly=True,
+            samesite="strict",
+        )
 
 
 @router.post("/sessions", status_code=201, dependencies=[Depends(_require_annotation)])

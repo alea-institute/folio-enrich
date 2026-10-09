@@ -182,6 +182,16 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.warning("Orphaned-job reconciliation failed", exc_info=True)
 
+    # Post-job flow: pushes left "pending" by the previous process become
+    # retryable failures, and completed jobs whose post-job hook never ran
+    # (or failed jobs still "waiting") are settled.
+    try:
+        from app.api.routes.enrich import get_job_store
+        from app.services.post_job import flow as post_job_flow
+        await post_job_flow.recover_on_startup(get_job_store())
+    except Exception:
+        logger.warning("Post-job startup recovery failed", exc_info=True)
+
     cleanup_task = asyncio.create_task(_periodic_job_cleanup())
     owl_update_task = asyncio.create_task(_periodic_owl_update_check())
     yield

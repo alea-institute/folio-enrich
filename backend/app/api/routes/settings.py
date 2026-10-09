@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Header
 from folio_propositions import WORKING_TAXONOMY
 from pydantic import BaseModel
 
+from app.api.auth import require_admin
 from app.config import settings
 from app.models.llm_models import (
     ConnectionTestRequest,
@@ -163,12 +164,21 @@ async def get_settings() -> dict:
     # boolean is reported — never the insights URL or token.
     result["post_job_review_default"] = settings.post_job_review_default
     result["post_job_push_default"] = settings.post_job_push_default
-    result["insights_configured"] = bool((settings.insights_api_url or "").strip())
+    from app.services.insights_client import is_configured as insights_configured
+    result["insights_configured"] = insights_configured()
     return result
 
 
 @router.put("")
-async def update_settings(update: SettingsUpdate) -> dict:
+async def update_settings(
+    update: SettingsUpdate,
+    x_admin_token: str | None = Header(default=None),
+) -> dict:
+    # The post-job defaults decide whether jobs push into the shared insights
+    # corpus with the operator token, so changing them needs the admin token
+    # when one is configured. Checked first so a refused request changes nothing.
+    if update.post_job_review_default is not None or update.post_job_push_default is not None:
+        require_admin(x_admin_token)
     if update.llm_provider is not None:
         settings.llm_provider = update.llm_provider
     if update.llm_model is not None:

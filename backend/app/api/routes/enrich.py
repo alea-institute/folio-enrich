@@ -4,13 +4,15 @@ import asyncio
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, field_validator
 from sse_starlette.sse import EventSourceResponse
 
+from app.api.auth import require_annotation
 from app.models.document import DocumentInput
 from app.models.job import Job, JobStatus
 from app.pipeline.orchestrator import PipelineOrchestrator, TaskLLMs
+from app.services import insights_client
 from app.services.ingestion.registry import detect_format, ingest
 from app.services.post_job import flow as post_job_flow
 from app.services.proposition.source import (
@@ -104,8 +106,35 @@ def _get_llm_for_request(req: EnrichRequest):
         return None
 
 
+def push_permitted(request: Request) -> bool:
+    """Whether this caller may make enrich push into the shared insights corpus.
+
+    A push spends the operator's insights token, so it needs the same
+    annotation access as gold writes: open in local mode (no tokens, no
+    Cloudflare Access), otherwise Cloudflare Access, X-Annotation-Token /
+    X-Admin-Token, or the browser's annotation-access cookie (same-origin).
+    """
+    try:
+        require_annotation(
+            request.headers.get("x-annotation-token"),
+            request.headers.get("x-admin-token"),
+            request.cookies.get("folio_annotation_access"),
+            request.headers.get("origin"),
+            request.headers.get("host"),
+            request.headers.get("cf-access-jwt-assertion"),
+        )
+    except HTTPException:
+        return False
+    return True
+
+
+def _require_push_access(request: Request) -> None:
+    if not push_permitted(request):
+        raise HTTPException(status_code=403, detail=post_job_flow.PUSH_ACCESS_MESSAGE)
+
+
 @router.post("", status_code=202)
-async def create_enrichment(req: EnrichRequest) -> dict:
+async def create_enrichment(req: EnrichRequest, request: Request) -> dict:
     # Check concurrent job limit
     from app.config import settings as app_settings
     active = await _job_store.count_active()
@@ -115,6 +144,12 @@ async def create_enrichment(req: EnrichRequest) -> dict:
             detail=f"Too many concurrent jobs ({active}/{app_settings.max_concurrent_jobs}). Try again later.",
         )
 
+    # An explicit push request needs annotation access; the server push
+    # default silently does not apply to callers without it.
+    can_push = push_permitted(request)
+    if req.push_to_insights and not can_push:
+        raise HTTPException(status_code=403, detail=post_job_flow.PUSH_ACCESS_MESSAGE)
+
     fmt = req.format or detect_format(req.filename, req.content).value
     doc = DocumentInput(
         content=req.content, format=fmt, filename=req.filename,
@@ -122,7 +157,9 @@ async def create_enrichment(req: EnrichRequest) -> dict:
     )
     job = Job(
         input=doc,
-        post_job=post_job_flow.initial_state(req.review_before_continuing, req.push_to_insights),
+        post_job=post_job_flow.initial_state(
+            req.review_before_continuing, req.push_to_insights, push_allowed=can_push,
+        ),
     )
     await _job_store.save(job)
 
@@ -171,6 +208,15 @@ async def list_branches() -> dict:
     service = FolioService.get_instance()
     branches = service.get_all_branches()
     return {"branches": branches, "total": len(branches)}
+
+
+@router.get("/push-access")
+async def get_push_access(request: Request) -> dict:
+    """Whether this browser may request pushes to folio-insights (no secrets)."""
+    return {
+        "push_allowed": push_permitted(request),
+        "insights_configured": insights_client.is_configured(),
+    }
 
 
 def get_job_store() -> JobStore:
@@ -479,8 +525,9 @@ async def stream_enrichment(job_id: UUID):
 
 
 # ── Post-job flow: review gate and push to folio-insights ─────────────────
-# Same access model as the other job routes: the job id is the capability
-# (GET /enrich/{job_id} and the annotation mutations have no auth dependency).
+# Reads and review changes use the job-id-as-capability model of the other job
+# routes. Anything that starts a push (a push request at submission, PATCH
+# turning push on, POST insights-push) also needs annotation access.
 
 
 class PostJobOverride(BaseModel):
@@ -488,16 +535,15 @@ class PostJobOverride(BaseModel):
     push_to_insights: bool | None = None
 
 
-def _post_job_payload(job: Job) -> dict:
-    from app.config import settings as app_settings
-
+def _post_job_payload(job: Job, request: Request) -> dict:
     state = post_job_flow.effective_state(job)
     return {
         "job_id": str(job.id),
         "job_status": job.status.value,
         "legacy": job.post_job is None,
         "push_in_flight": post_job_flow.is_push_in_flight(job.id),
-        "insights_configured": bool((app_settings.insights_api_url or "").strip()),
+        "insights_configured": insights_client.is_configured(),
+        "push_allowed": push_permitted(request),
         "post_job": state.model_dump(mode="json"),
     }
 
@@ -507,39 +553,46 @@ def _post_job_http_error(exc: post_job_flow.PostJobError) -> HTTPException:
 
 
 @router.get("/{job_id}/post-job")
-async def get_post_job(job_id: UUID) -> dict:
-    job = await _job_store.load(job_id)
-    if job is None:
-        raise HTTPException(status_code=404, detail="Job not found")
-    return _post_job_payload(job)
+async def get_post_job(job_id: UUID, request: Request) -> dict:
+    try:
+        job = await post_job_flow.read_state(get_job_store(), job_id)
+    except post_job_flow.PostJobError as exc:
+        raise _post_job_http_error(exc) from exc
+    return _post_job_payload(job, request)
 
 
 @router.patch("/{job_id}/post-job")
-async def override_post_job(job_id: UUID, req: PostJobOverride) -> dict:
-    """Change this job's review / push choice (at or after completion)."""
+async def override_post_job(job_id: UUID, req: PostJobOverride, request: Request) -> dict:
+    """Change this job's review / push choice (before, at or after completion)."""
     try:
         job = await post_job_flow.apply_override(
-            _job_store, job_id, req.review_before_continuing, req.push_to_insights,
+            get_job_store(), job_id, req.review_before_continuing, req.push_to_insights,
+            push_allowed=push_permitted(request),
         )
     except post_job_flow.PostJobError as exc:
         raise _post_job_http_error(exc) from exc
-    return _post_job_payload(job)
+    return _post_job_payload(job, request)
 
 
 @router.post("/{job_id}/review/complete")
-async def complete_job_review(job_id: UUID) -> dict:
+async def complete_job_review(job_id: UUID, request: Request) -> dict:
     try:
-        job = await post_job_flow.complete_review(_job_store, job_id)
+        job = await post_job_flow.complete_review(get_job_store(), job_id)
     except post_job_flow.PostJobError as exc:
         raise _post_job_http_error(exc) from exc
-    return _post_job_payload(job)
+    return _post_job_payload(job, request)
 
 
 @router.post("/{job_id}/insights-push")
-async def push_job_to_insights(job_id: UUID) -> dict:
-    """Push (or re-push / retry) the job's propositions record now."""
+async def retry_job_push(job_id: UUID, request: Request) -> dict:
+    """Retry a failed, not-configured or interrupted push (409 otherwise).
+
+    To request a push for the first time, PATCH post-job with push_to_insights.
+    """
+    await load_job_or_404(job_id)
+    _require_push_access(request)
     try:
-        job = await post_job_flow.manual_push(_job_store, job_id)
+        job = await post_job_flow.retry_push(get_job_store(), job_id)
     except post_job_flow.PostJobError as exc:
         raise _post_job_http_error(exc) from exc
-    return _post_job_payload(job)
+    return _post_job_payload(job, request)

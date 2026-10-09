@@ -348,19 +348,41 @@ async def test_http_errors_are_sanitized_failures(client, store, insights, code,
 
 
 async def test_repush_is_idempotent(client, store, insights):
-    job_id = await submit(client, push_to_insights=True)
-    await settle(store, job_id)
-    second = await client.post(f"/enrich/{job_id}/insights-push")
-    assert second.status_code == 200
-    state = second.json()["post_job"]
+    """Two jobs over the same text push the same content IRIs: no duplicates."""
+    first = await submit(client, push_to_insights=True)
+    await settle(store, first)
+    second = await submit(client, push_to_insights=True)
+    state = await settle(store, second)
     assert state["push_status"] == "pushed"
     assert state["last_push_error"] is None
     assert state["last_push_report"]["created"] == 0
     assert state["last_push_report"]["existing"] == 2
     assert len(insights.stored) == 2  # no duplicate shards
-    # Both pushes sent identical content IRIs.
     assert [p["content_iri"] for p in insights.bodies[0]["propositions"]] == \
         [p["content_iri"] for p in insights.bodies[1]["propositions"]]
+
+
+async def test_retry_route_is_retry_only(client, store, insights):
+    pushed = await submit(client, push_to_insights=True)
+    await settle(store, pushed)
+    response = await client.post(f"/enrich/{pushed}/insights-push")
+    assert response.status_code == 409
+    assert "PATCH" in response.json()["detail"]
+
+    never = await submit(client, push_to_insights=False)
+    await settle(store, never)
+    assert (await client.post(f"/enrich/{never}/insights-push")).status_code == 409
+    assert len(insights.requests) == 1
+
+
+async def test_retry_after_not_configured(client, store, insights, monkeypatch):
+    monkeypatch.setattr(settings, "insights_api_url", "")
+    job_id = await submit(client, push_to_insights=True)
+    assert (await settle(store, job_id))["push_status"] == "not_configured"
+    monkeypatch.setattr(settings, "insights_api_url", BASE)
+    retry = await client.post(f"/enrich/{job_id}/insights-push")
+    assert retry.status_code == 200
+    assert retry.json()["post_job"]["push_status"] == "pushed"
 
 
 async def test_not_configured(client, store, monkeypatch):
@@ -409,7 +431,9 @@ async def test_concurrent_triggers_push_once(store, insights, monkeypatch):
             break
         await asyncio.sleep(0.005)
     with pytest.raises(flow.PostJobError):
-        await flow.manual_push(store, job.id)
+        await flow.retry_push(store, job.id)
+    with pytest.raises(flow.PostJobError):
+        await flow.run_push(store, job.id)
     gate.set()
     await flow.drain()
     assert len(calls) == 1
@@ -466,6 +490,9 @@ async def test_failed_pipeline_does_not_push(store, insights):
     stored = await store.load(job.id)
     assert stored.status == JobStatus.FAILED
     assert insights.requests == []
+    # Failed pipeline jobs get no review and no push.
+    assert stored.post_job.review_status == "not_required"
+    assert stored.post_job.push_status == "not_requested"
 
 
 async def test_legacy_job_without_post_job_loads(client, store, insights):
@@ -483,11 +510,14 @@ async def test_legacy_job_without_post_job_loads(client, store, insights):
     assert payload["post_job"]["push_status"] == "not_requested"
     assert "post_job" not in (await client.get(f"/enrich/{job.id}")).json()
 
-    # A legacy job can still be pushed on demand.
-    pushed = await client.post(f"/enrich/{job.id}/insights-push")
-    assert pushed.status_code == 200
-    assert pushed.json()["post_job"]["push_status"] == "pushed"
-    assert pushed.json()["legacy"] is False
+    # A legacy job can still be pushed on request (PATCH; the retry route is retry-only).
+    assert (await client.post(f"/enrich/{job.id}/insights-push")).status_code == 409
+    requested = await client.patch(f"/enrich/{job.id}/post-job", json={"push_to_insights": True})
+    assert requested.status_code == 200
+    assert requested.json()["legacy"] is False
+    await flow.drain()
+    payload = (await client.get(f"/enrich/{job.id}/post-job")).json()
+    assert payload["post_job"]["push_status"] == "pushed"
 
 
 # ── Client ───────────────────────────────────────────────────────────────

@@ -87,6 +87,9 @@ class PostJobState(BaseModel):
     last_push_error: str | None = None
     # Counts reported by the insights ingest route (created/existing/skipped/refused).
     last_push_report: dict[str, Any] | None = None
+    # Bumped on every post-job flow change; JobStore.save never lets a writer
+    # holding an older revision roll the state back.
+    revision: int = 0
 
 
 class Job(BaseModel):

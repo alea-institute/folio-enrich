@@ -97,6 +97,11 @@ def _base_url() -> str | None:
     return raw.rstrip("/") or None
 
 
+def is_configured() -> bool:
+    """Whether an insights base URL is set (reports a boolean, never the URL)."""
+    return _base_url() is not None
+
+
 def _valid_base(base: str) -> bool:
     try:
         parsed = urlparse(base)

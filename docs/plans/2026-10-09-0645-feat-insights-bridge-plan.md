@@ -115,7 +115,6 @@ Damien's original ask was to bring folio-insights' capabilities into folio-enric
 
 ### Outstanding Questions
 
-- Deferred to Planning: which envelope defaults (layer, fork, speech act, BFO category, framework) an enrich hypothesis carries, and where non-projected proposition types are kept.
 - Deferred to Planning: which bridges pass parity today; the plan records each outcome per R20–R21.
 
 ## Planning Contract
@@ -129,6 +128,7 @@ Damien's original ask was to bring folio-insights' capabilities into folio-enric
 - KTD5. **Export is two registry formats (`propositions`, `propositions-ndjson`)** so the existing export route, auth and byte-neutral guarantees carry over. Covers R10.
 - KTD6. **One hypothesis shard per content IRI; all enrich types and source ids go to a provenance manifest** (`bridge-ingest/manifest.jsonl` under the corpus root), because the envelope is `extra="forbid"` and owned by the axioms lane. Covers R11, R12.
 - KTD7. **Insights read API is `POST /api/bridge/v1/status` (batch ≤ 500) + `GET /health`; ingest over HTTP only with `FOLIO_INSIGHTS_BRIDGE_TOKEN`.** Enrich proxies it at `GET /enrich/{job_id}/insights-status`. Covers R15–R19.
+- KTD9. **Enrich hypotheses carry fixed, documented envelope defaults** (resolves the deferred envelope question): `epistemic_status=hypothesis`, `generation_method=inductive`, `verification_method=extractor_assertion`, `layer=L3_jurisdictional`, `fork=synthetic_a_posteriori`, `predication_mode=per_accidens`, `bfo_category=continuant_dependent`, `confidence=0.5`, `framework_id` default `us.case-law.unspecified` (overridable per ingest), speech act from the asserter role. They mark the shard as an unreviewed extractor claim; insights governance promotes or corrects them. Mapping table: folio-insights `docs/bridge-ingest.md`. Covers R11, R12.
 - KTD8. **Bridge retirement ships per seam behind parity tests in its own insights PR** (separate worktree), so a failed seam never blocks bridge-ingest. Covers R20–R22.
 
 ### Sequencing

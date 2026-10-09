@@ -409,14 +409,20 @@ class PipelineOrchestrator:
         """Start the post-job flow (review gate / insights push) for a finished job.
 
         Runs after every post-completion step has saved the job, so the flow's
-        own saves never race the orchestrator's in-memory copy. It never fails
-        the job: errors are logged and the job stays completed.
+        own saves never race the orchestrator's in-memory copy. User overrides
+        made earlier (even mid-pipeline) survive the orchestrator's saves:
+        JobStore.save keeps the newest post-job revision. It never fails the
+        job: errors are logged and the job stays completed. A failed job gets
+        no review and no push.
         """
-        if job.status != JobStatus.COMPLETED:
+        if job.status not in (JobStatus.COMPLETED, JobStatus.FAILED):
             return
         try:
             from app.services.post_job import flow as post_job_flow
-            await post_job_flow.on_job_completed(self.job_store, job)
+            if job.status == JobStatus.COMPLETED:
+                await post_job_flow.on_job_completed(self.job_store, job)
+            else:
+                await post_job_flow.on_job_failed(self.job_store, job)
         except Exception:  # noqa: BLE001
             logger.exception("Post-job hook failed for job %s", job.id)
 

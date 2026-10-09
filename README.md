@@ -293,6 +293,13 @@ Re-pushing is safe: shard IRIs are content-addressed, so insights reports alread
 - **In the browser**, the left panel's "Next job" card shows both toggles, prefilled from this browser's preferences (localStorage `postJobReview` / `postJobPush`, edited in Settings → After each job). Changing a toggle there affects only the next job. When the job finishes, the same card ("This job") shows the review and push status and lets you change either choice for that job. "Complete review" appears in the card and in the Propositions tab while a review is pending, and "Retry push" appears after a failed push.
 - **API callers** send `review_before_continuing` and `push_to_insights` (booleans) with `POST /enrich`. A field left out falls back to the server defaults below.
 
+**Who may push.** A push writes into the shared insights corpus with the operator's insights token, so every push trigger needs the same annotation access as gold writes. In local mode (no `FOLIO_ENRICH_ANNOTATION_TOKEN`, `FOLIO_ENRICH_ADMIN_TOKEN` or Cloudflare Access) everything is open. Otherwise the caller needs a Cloudflare Access login, an `X-Annotation-Token` / `X-Admin-Token` header, or the browser's annotation-access cookie (set by `POST /gold/access`, now scoped to `/gold` and `/enrich`, same-origin only):
+
+- `POST /enrich` with `push_to_insights: true` is refused with `403` without access, and the server push default never applies to such callers (their jobs are "not requested").
+- `PATCH .../post-job` turning push on, and `POST .../insights-push`, return `403` without access. Review changes and turning push off need no push access; completing or skipping a review starts a push that was already authorized when it was requested.
+- Changing `post_job_review_default` / `post_job_push_default` through `PUT /settings` needs `X-Admin-Token` when `FOLIO_ENRICH_ADMIN_TOKEN` is set (the rest of `PUT /settings` is unchanged).
+- `GET /enrich/push-access` tells the browser whether it may push (`push_allowed`, `insights_configured`; no secrets). Without access the push toggle is disabled with a short explanation.
+
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `FOLIO_ENRICH_POST_JOB_REVIEW_DEFAULT` | `false` | Server default for `review_before_continuing` (also `GET`/`PUT /settings` `post_job_review_default`) |
@@ -302,14 +309,15 @@ Re-pushing is safe: shard IRIs are content-addressed, so insights reports alread
 
 The push reuses `FOLIO_ENRICH_INSIGHTS_API_URL`, `_CORPUS` and `_API_TOKEN` from the table above.
 
-The job's `post_job` object records the state: `review_status` (`pending_job`, `awaiting_review`, `completed`, `not_required`) and `push_status` (`not_requested`, `waiting_for_job`, `waiting_for_review`, `pending`, `pushed`, `failed`, `not_configured`), plus `push_attempts`, `last_push_at`, `last_push_error` (a sanitized message that never contains the URL or token) and `last_push_report` (the insights `created` / `existing` / `skipped` / `refused` counts). A failed push is not retried automatically; use the retry route. Jobs saved before this feature have no `post_job` and behave as "no review, no push".
+The job's `post_job` object records the state: `review_status` (`pending_job`, `awaiting_review`, `completed`, `not_required`) and `push_status` (`not_requested`, `waiting_for_job`, `waiting_for_review`, `pending`, `pushed`, `failed`, `not_configured`), plus `push_attempts`, `last_push_at`, `last_push_error` (a sanitized message that never contains the URL or token) and `last_push_report` (the insights `created` / `existing` / `skipped` / `refused` counts). A failed push is not retried automatically; use the retry route. A push that was `pending` when the process died (or whose result could not be saved) is reported as `failed` with "Push was interrupted; retry." when the state is read, and a startup sweep does the same and also runs the post-job step for completed jobs that never got it. A pipeline job that **fails** gets no review and no push. Turning push off while a push is in flight records `push: not_requested` but keeps the truthful final `push_status` (shown in the chip). User changes made at any time, even while the pipeline is still saving the job, are never rolled back: the state carries a `revision`, and the job store keeps the newest one. Jobs saved before this feature have no `post_job` and behave as "no review, no push".
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/enrich/{job_id}/post-job` | Current review/push state |
-| `PATCH` | `/enrich/{job_id}/post-job` | Change `review_before_continuing` / `push_to_insights` for this job. Turning push on starts it unless a review is pending; turning review off while it is pending skips it |
+| `GET` | `/enrich/push-access` | Whether this caller may push (`push_allowed`, `insights_configured`) |
+| `PATCH` | `/enrich/{job_id}/post-job` | Change `review_before_continuing` / `push_to_insights` for this job (allowed before completion too). Turning push on (needs push access) starts it unless a review is pending; turning review off while it is pending skips it |
 | `POST` | `/enrich/{job_id}/review/complete` | Mark the review completed; a waiting push starts |
-| `POST` | `/enrich/{job_id}/insights-push` | Push now (first push, retry, or re-push); `409` while the job runs or a review or push is pending |
+| `POST` | `/enrich/{job_id}/insights-push` | Retry only (needs push access): allowed when `push_status` is `failed`, `not_configured` or an interrupted `pending`; otherwise `409` (request a push with `PATCH`) |
 
 ---
 

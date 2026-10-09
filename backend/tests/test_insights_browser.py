@@ -17,7 +17,6 @@ at a Playwright package directory to choose one explicitly, e.g.::
 from __future__ import annotations
 
 import json
-import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -25,6 +24,7 @@ from pathlib import Path
 import pytest
 from folio_propositions import ActorRef, Disposition, Proposition, content_iri
 
+from tests.browser_support import playwright_module
 from tests.helpers import make_job
 
 BACKEND = Path(__file__).resolve().parents[1]
@@ -35,18 +35,7 @@ SOURCE = "urn:example:browser-test"
 
 
 def _playwright_module(node: str) -> str | None:
-    explicit = os.environ.get("FOLIO_ENRICH_PLAYWRIGHT_MODULE")
-    if explicit:
-        return explicit if Path(explicit, "package.json").is_file() else None
-    probe = subprocess.run(
-        [node, "-e", "process.stdout.write(require.resolve('playwright/package.json'))"],
-        cwd=BACKEND.parent, capture_output=True, text=True, timeout=10,
-    )
-    if probe.returncode == 0 and probe.stdout:
-        return str(Path(probe.stdout).parent)
-    for candidate in sorted(Path.home().glob(".npm/_npx/*/node_modules/playwright/package.json")):
-        return str(candidate.parent)
-    return None
+    return playwright_module(node)
 
 
 def _fixture() -> dict:

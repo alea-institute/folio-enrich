@@ -4497,6 +4497,7 @@ async function savePropositionAnnotationToken() {
   const result = await window.__setAnnotationAccessToken(token);
   if (!result.current) return;
   refreshPropositionAccessStatus();
+  loadPostJobPushAccess();
   if (!result.ok) {
     setPropositionAccessState('Annotation access was rejected. Check the link or access code.', true);
     input.focus();
@@ -5495,6 +5496,7 @@ async function init() {
     if (event.detail?.ok) setPropositionAccessState('Annotation access is ready in this browser.');
     else setPropositionAccessState('Annotation access was rejected. Request a fresh scoped link.', true);
     refreshPropositionAccessStatus();
+    loadPostJobPushAccess();
   });
 
   // Restore detail panel visibility from localStorage
@@ -12738,7 +12740,10 @@ function copyCorpusIri(button) {
 // choices before submission and again once the job finishes (PATCH post-job).
 const POST_JOB_REVIEW_KEY = 'postJobReview';
 const POST_JOB_PUSH_KEY = 'postJobPush';
-let postJobServer = { review: false, push: false, insightsConfigured: null };
+let postJobServer = { review: false, push: false, insightsConfigured: null, pushAllowed: null };
+let postJobSeq = 0;           // request counter: drop responses older than the last applied
+let postJobAppliedSeq = 0;
+const POST_JOB_ACCESS_NOTE = 'Pushing to folio-insights needs annotation access (Propositions → Session tools → Annotation access).';
 let postJobState = null;      // GET /enrich/{id}/post-job payload for currentJobId
 let postJobSubmitted = null;  // { review, push } sent with the in-flight job
 let postJobDraft = null;      // unsaved per-job override before submission
@@ -12769,7 +12774,10 @@ function postJobPrefs() {
 }
 
 function postJobSubmissionChoices() {
-  return postJobDraft ? { ...postJobDraft } : postJobPrefs();
+  const choices = postJobDraft ? { ...postJobDraft } : postJobPrefs();
+  // The server refuses a push request without annotation access; don't send one.
+  if (postJobServer.pushAllowed === false) choices.push = false;
+  return choices;
 }
 
 async function loadPostJobServerDefaults() {
@@ -12784,6 +12792,18 @@ async function loadPostJobServerDefaults() {
       };
     }
   } catch { /* offline: keep built-in defaults */ }
+  await loadPostJobPushAccess();
+}
+
+async function loadPostJobPushAccess() {
+  try {
+    const r = await fetch(`${API}/enrich/push-access`, { headers: { Accept: 'application/json' } });
+    if (r.ok) {
+      const data = await r.json();
+      postJobServer.pushAllowed = Boolean(data.push_allowed);
+      postJobServer.insightsConfigured = Boolean(data.insights_configured);
+    }
+  } catch { /* unknown: the server still enforces access on every push */ }
   renderPostJob();
 }
 
@@ -12806,7 +12826,8 @@ function savePostJobSettings() {
 
 function postJobMode() {
   if (!currentJobId || isDemoMode) return 'submit';
-  const status = currentJob?.status;
+  // currentJob may still be the previous job right after a resubmit.
+  const status = currentJob && String(currentJob.id) === String(currentJobId) ? currentJob.status : null;
   if (status === 'failed') return 'submit';
   if (status === 'completed') return 'job';
   return postJobSubmitted ? 'running' : 'submit';
@@ -12859,9 +12880,11 @@ function renderPostJob() {
     const choices = postJobSubmissionChoices();
     reviewEl.checked = choices.review;
     pushEl.checked = choices.push;
-    reviewEl.disabled = pushEl.disabled = false;
+    reviewEl.disabled = false;
+    pushEl.disabled = postJobServer.pushAllowed === false;
     heading.textContent = 'Next job';
-    noteText = 'Applies to the next job. Defaults: Settings → After each job (this browser).';
+    noteText = postJobServer.pushAllowed === false ? POST_JOB_ACCESS_NOTE
+      : 'Applies to the next job. Defaults: Settings → After each job (this browser).';
   } else if (mode === 'running') {
     state = { review_status: 'pending_job', push_status: postJobSubmitted.push ? 'waiting_for_job' : 'not_requested' };
     reviewEl.checked = postJobSubmitted.review;
@@ -12873,9 +12896,12 @@ function renderPostJob() {
     state = postJobState?.job_id === currentJobId ? postJobState.post_job : null;
     reviewEl.checked = postJobOptimistic?.review ?? (state ? state.review === 'required' : false);
     pushEl.checked = postJobOptimistic?.push ?? (state ? state.push === 'requested' : false);
-    reviewEl.disabled = pushEl.disabled = postJobBusy || !state;
+    reviewEl.disabled = postJobBusy || !state;
+    // Without push access the toggle can only turn a requested push off.
+    pushEl.disabled = postJobBusy || !state || (postJobServer.pushAllowed === false && !pushEl.checked);
     heading.textContent = 'This job';
     if (!state) noteText = 'Loading review and push status…';
+    else if (postJobServer.pushAllowed === false && !pushEl.checked) noteText = POST_JOB_ACCESS_NOTE;
     else if (state.review_status === 'awaiting_review') noteText = state.push === 'requested'
       ? 'Review the results, then complete the review to push them.' : 'Review the results, then complete the review.';
     else noteText = 'Change these for this job only.';
@@ -12919,6 +12945,7 @@ function resetPostJobState() {
 function onPostJobSubmitted(choices, serverState) {
   resetPostJobState();
   postJobSubmitted = { ...choices };
+  postJobAppliedSeq = postJobSeq; // responses for the previous job are stale
   renderPostJob();
 }
 
@@ -12944,8 +12971,13 @@ function schedulePostJobPoll(payload) {
   }
 }
 
-function applyPostJobPayload(jobId, payload) {
+function applyPostJobPayload(jobId, payload, seq) {
   if (jobId !== currentJobId) return;
+  if (seq !== undefined) {
+    if (seq < postJobAppliedSeq) return; // an older response arrived late
+    postJobAppliedSeq = seq;
+  }
+  if (typeof payload.push_allowed === 'boolean') postJobServer.pushAllowed = payload.push_allowed;
   postJobState = payload;
   postJobSubmitted = null;
   renderPostJob();
@@ -12955,15 +12987,17 @@ function applyPostJobPayload(jobId, payload) {
 async function refreshPostJob() {
   const jobId = currentJobId;
   if (!jobId) return;
+  const seq = ++postJobSeq;
   try {
     const r = await fetch(`${API}/enrich/${encodeURIComponent(jobId)}/post-job`, { headers: { Accept: 'application/json' } });
-    if (!r.ok) { if (jobId === currentJobId) { postJobState = null; renderPostJob(); } return; }
-    applyPostJobPayload(jobId, await r.json());
+    if (!r.ok) { if (jobId === currentJobId && seq >= postJobAppliedSeq) { postJobState = null; renderPostJob(); } return; }
+    applyPostJobPayload(jobId, await r.json(), seq);
   } catch { /* transient; next render retries */ }
 }
 
 async function postJobRequest(path, options) {
   const jobId = currentJobId;
+  const seq = ++postJobSeq;
   postJobBusy = true;
   postJobError = '';
   renderPostJob();
@@ -12974,11 +13008,13 @@ async function postJobRequest(path, options) {
     });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(data.detail || r.statusText);
+    if (jobId !== currentJobId) return; // the user moved on to another job
     postJobBusy = false;
     postJobOptimistic = null;
     postJobPollCount = 0;
-    applyPostJobPayload(jobId, data);
+    applyPostJobPayload(jobId, data, seq);
   } catch (e) {
+    if (jobId !== currentJobId) return;
     postJobBusy = false;
     postJobOptimistic = null;
     postJobError = `Could not update this job: ${e.message}`;
