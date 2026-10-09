@@ -96,7 +96,7 @@ def test_insights_panel_in_browser(tmp_path):
 
     run = subprocess.run(
         [node, str(SCRIPT), module, str(FRONTEND), str(fixture_path)],
-        capture_output=True, text=True, timeout=110,
+        capture_output=True, text=True, timeout=110, check=False,
     )
     if run.returncode == 3:
         pytest.skip(f"Playwright browser unavailable: {run.stderr.strip()[:200]}")

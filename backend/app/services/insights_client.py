@@ -105,7 +105,7 @@ def is_configured() -> bool:
 def _valid_base(base: str) -> bool:
     try:
         parsed = urlparse(base)
-        parsed.port  # raises ValueError for a malformed or out-of-range port
+        _ = parsed.port  # raises ValueError for a malformed or out-of-range port
     except ValueError:
         return False
     return parsed.scheme in ("http", "https") and bool(parsed.hostname)

@@ -20,8 +20,8 @@ import uuid
 from pathlib import Path
 
 import pytest
-
 from app.services.post_job import flow
+
 from tests.browser_support import playwright_module
 from tests.helpers import make_job
 
@@ -66,7 +66,7 @@ def test_post_job_panel_in_browser(tmp_path):
 
     run = subprocess.run(
         [node, str(SCRIPT), module, str(FRONTEND), str(fixture_path)],
-        capture_output=True, text=True, timeout=140,
+        capture_output=True, text=True, timeout=140, check=False,
     )
     if run.returncode == 3:
         pytest.skip(f"Playwright browser unavailable: {run.stderr.strip()[:200]}")

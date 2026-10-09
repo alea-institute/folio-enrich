@@ -7,22 +7,25 @@ from datetime import datetime, timezone
 
 from app.models.job import Job, JobStatus
 from app.pipeline.stages.base import PipelineStage
-from app.pipeline.stages.ingestion_stage import IngestionStage
-from app.pipeline.stages.normalization_stage import NormalizationStage
-from app.pipeline.stages.entity_ruler_stage import EntityRulerStage
-from app.pipeline.stages.llm_concept_stage import LLMConceptStage
-from app.pipeline.stages.reconciliation_stage import ReconciliationStage
-from app.pipeline.stages.resolution_stage import ResolutionStage
-from app.pipeline.stages.string_match_stage import StringMatchStage
 from app.pipeline.stages.branch_judge_stage import BranchJudgeStage
-from app.pipeline.stages.metadata_stage import MetadataStage
 from app.pipeline.stages.dependency_stage import TripleEnrichmentStage
-from app.pipeline.stages.individual_stage import EarlyIndividualStage, LLMIndividualStage
+from app.pipeline.stages.document_type_stage import DocumentTypeStage
+from app.pipeline.stages.entity_ruler_stage import EntityRulerStage
+from app.pipeline.stages.individual_stage import (
+    EarlyIndividualStage,
+    LLMIndividualStage,
+)
+from app.pipeline.stages.ingestion_stage import IngestionStage
+from app.pipeline.stages.llm_concept_stage import LLMConceptStage
+from app.pipeline.stages.metadata_stage import MetadataStage
+from app.pipeline.stages.normalization_stage import NormalizationStage
 from app.pipeline.stages.property_stage import EarlyPropertyStage, LLMPropertyStage
 from app.pipeline.stages.proposition_stage import EarlyPropositionStage
-from app.pipeline.stages.triple_stage import EarlyTripleStage
-from app.pipeline.stages.document_type_stage import DocumentTypeStage
+from app.pipeline.stages.reconciliation_stage import ReconciliationStage
 from app.pipeline.stages.rerank_stage import ContextualRerankStage
+from app.pipeline.stages.resolution_stage import ResolutionStage
+from app.pipeline.stages.string_match_stage import StringMatchStage
+from app.pipeline.stages.triple_stage import EarlyTripleStage
 from app.services.llm.base import LLMProvider
 from app.storage.job_store import JobStore
 
@@ -271,9 +274,9 @@ def _make_llm(provider_name: str, model: str) -> LLMProvider | None:
 
     Returns None if the provider is unknown or no API key is available.
     """
+    from app.api.routes.settings import _get_api_key_for_provider
     from app.models.llm_models import LLMProviderType
     from app.services.llm.registry import REQUIRES_API_KEY, get_provider
-    from app.api.routes.settings import _get_api_key_for_provider
 
     normalized = provider_name.replace("-", "_")
     if normalized == "lm_studio":
@@ -423,7 +426,7 @@ class PipelineOrchestrator:
                 await post_job_flow.on_job_completed(self.job_store, job)
             else:
                 await post_job_flow.on_job_failed(self.job_store, job)
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("Post-job hook failed for job %s", job.id)
 
     async def run(self, job: Job) -> Job:
@@ -610,7 +613,9 @@ class PipelineOrchestrator:
             aol_llm = (self._task_llms.area_of_law if self._task_llms else None) or self._llm
             if aol_llm is not None:
                 try:
-                    from app.services.concept.area_of_law_assessor import AreaOfLawAssessor
+                    from app.services.concept.area_of_law_assessor import (
+                        AreaOfLawAssessor,
+                    )
                     assessor = AreaOfLawAssessor(aol_llm)
                     areas = await assessor.assess(job)
                     job.result.metadata["areas_of_law"] = areas
@@ -624,7 +629,9 @@ class PipelineOrchestrator:
             dt_llm = (self._task_llms.document_type if self._task_llms else None) or self._llm
             if dt_llm is not None and job.result.metadata.get("self_identified_type"):
                 try:
-                    from app.services.quality.document_type_checker import DocumentTypeChecker
+                    from app.services.quality.document_type_checker import (
+                        DocumentTypeChecker,
+                    )
                     checker = DocumentTypeChecker(dt_llm)
                     signals = await checker.check(job)
                     if signals:
@@ -670,7 +677,9 @@ class PipelineOrchestrator:
             aol_llm = (self._task_llms.area_of_law if self._task_llms else None) or self._llm
             if aol_llm is not None:
                 try:
-                    from app.services.concept.area_of_law_assessor import AreaOfLawAssessor
+                    from app.services.concept.area_of_law_assessor import (
+                        AreaOfLawAssessor,
+                    )
                     assessor = AreaOfLawAssessor(aol_llm)
                     areas = await assessor.assess(job)
                     job.result.metadata["areas_of_law"] = areas
@@ -684,7 +693,9 @@ class PipelineOrchestrator:
             dt_llm = (self._task_llms.document_type if self._task_llms else None) or self._llm
             if dt_llm is not None and job.result.metadata.get("self_identified_type"):
                 try:
-                    from app.services.quality.document_type_checker import DocumentTypeChecker
+                    from app.services.quality.document_type_checker import (
+                        DocumentTypeChecker,
+                    )
                     checker = DocumentTypeChecker(dt_llm)
                     signals = await checker.check(job)
                     if signals:

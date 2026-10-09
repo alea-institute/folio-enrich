@@ -13,14 +13,15 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from typing import ClassVar
 
 import pytest
-
 from app.config import settings
 from app.models.job import JobStatus
 from app.pipeline.orchestrator import PipelineOrchestrator
 from app.pipeline.stages.base import PipelineStage
 from app.services.post_job import flow
+
 from tests.helpers import make_job
 from tests.test_post_job_flow import (  # noqa: F401 — fixtures used by name
     BASE,
@@ -30,9 +31,9 @@ from tests.test_post_job_flow import (  # noqa: F401 — fixtures used by name
     FakePropositionStage,
     _proposition,
     defaults,
-    insights,
+    insights_fixture,
     settle,
-    store,
+    store_fixture,
     submit,
 )
 
@@ -186,7 +187,7 @@ class FakeAssessor:
     """Stands in for the post-completion area-of-law step and PATCHes mid-step."""
 
     store = None
-    override: dict = {}
+    override: ClassVar[dict] = {}
 
     def __init__(self, llm):
         pass

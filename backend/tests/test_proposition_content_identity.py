@@ -7,14 +7,6 @@ from pathlib import Path
 from urllib.parse import quote
 
 import pytest
-from fastapi.testclient import TestClient
-from folio_propositions import (
-    ActorRef,
-    Proposition,
-    content_iri,
-    document_source_uri,
-)
-
 from app.config import settings
 from app.models.document import CanonicalText, DocumentInput
 from app.models.job import Job, JobResult, JobStatus
@@ -27,6 +19,13 @@ from app.services.proposition.source import (
     validate_source_uri,
 )
 from app.storage.job_store import JobStore
+from fastapi.testclient import TestClient
+from folio_propositions import (
+    ActorRef,
+    Proposition,
+    content_iri,
+    document_source_uri,
+)
 
 TEXT = "Plaintiff contends the statute requires notice."
 SOURCE = "https://example.org/opinions/notice"
@@ -99,9 +98,8 @@ def test_validate_source_uri_rejects(value):
 
 
 def test_enrich_request_validates_source_uri():
-    from pydantic import ValidationError
-
     from app.api.routes.enrich import EnrichRequest
+    from pydantic import ValidationError
 
     assert EnrichRequest(content="x", source_uri=SOURCE).source_uri == SOURCE
     assert EnrichRequest(content="x").source_uri is None

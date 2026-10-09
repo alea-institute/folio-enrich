@@ -36,11 +36,10 @@ if str(BACKEND_ROOT) not in sys.path:
 
 def build_job(text: str, *, source_uri: str | None, job_id: UUID | None,
               document_id: str | None, filename: str | None):
-    from folio_propositions import document_source_uri
-
     from app.models.document import CanonicalText, DocumentInput
     from app.models.job import Job, JobResult, JobStatus
     from app.services.proposition.source import validate_source_uri
+    from folio_propositions import document_source_uri
 
     validate_source_uri(source_uri)
     identity_uri = source_uri or document_source_uri(text)
@@ -80,9 +79,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="job id (default: uuid5 of the source URI)")
     args = parser.parse_args(argv)
 
-    from folio_propositions import PropositionDocumentRecord
-
     from app.services.export.registry import get_exporter
+    from folio_propositions import PropositionDocumentRecord
 
     text = args.text_file.read_bytes().decode("utf-8")
     job = build_job(text, source_uri=args.source_uri, job_id=args.job_id,

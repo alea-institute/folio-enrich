@@ -6,6 +6,13 @@ import json
 from pathlib import Path
 
 import pytest
+from app.config import settings
+from app.models.document import CanonicalText, DocumentInput
+from app.models.job import Job, JobResult, JobStatus
+from app.pipeline.stages.proposition_stage import EarlyPropositionStage
+from app.services.export.propositions_exporter import app_version
+from app.services.export.registry import get_exporter, list_formats
+from app.storage.job_store import JobStore
 from fastapi.testclient import TestClient
 from folio_propositions import (
     SCHEMA_VERSION,
@@ -14,13 +21,6 @@ from folio_propositions import (
     document_source_uri,
 )
 
-from app.config import settings
-from app.models.document import CanonicalText, DocumentInput
-from app.models.job import Job, JobResult, JobStatus
-from app.pipeline.stages.proposition_stage import EarlyPropositionStage
-from app.services.export.propositions_exporter import app_version
-from app.services.export.registry import get_exporter, list_formats
-from app.storage.job_store import JobStore
 from tests.test_proposition_content_identity import TEXT, _write_v3_job
 
 SOURCE = "https://example.org/opinions/notice"

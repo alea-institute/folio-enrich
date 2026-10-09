@@ -7,10 +7,13 @@ import logging
 
 import httpx
 import pytest
-
 from app.config import settings
 from app.services import insights_client
-from app.services.insights_client import MAX_IRIS_PER_REQUEST, fetch_health, fetch_status
+from app.services.insights_client import (
+    MAX_IRIS_PER_REQUEST,
+    fetch_health,
+    fetch_status,
+)
 
 BASE = "http://insights.test"
 TOKEN = "tok-secret-1234567890"

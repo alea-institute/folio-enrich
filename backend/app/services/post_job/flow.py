@@ -203,7 +203,7 @@ async def _run_push_logged(store, job_id: UUID) -> None:
         await run_push(store, job_id, queued=True)
     except PostJobError as exc:
         logger.info("Automatic insights push for job %s skipped: %s", job_id, exc.message)
-    except Exception:  # noqa: BLE001 — a background push must never crash the loop
+    except Exception:
         logger.exception("Automatic insights push for job %s failed unexpectedly", job_id)
     finally:
         _queued.discard(str(job_id))
@@ -373,7 +373,7 @@ async def run_push(store, job_id: UUID, *, queued: bool = False) -> Job:
 
         try:
             record = build_proposition_record(job).model_dump(mode="json")
-        except Exception as exc:  # noqa: BLE001 — an invalid record is a push failure, not a crash
+        except Exception as exc:  # noqa: BLE001 — invalid records become push failures
             logger.warning("Could not build the propositions record for job %s: %s", job_id, type(exc).__name__)
             result = insights_client.PushResult(state="failed", message="The job's proposition record could not be built.")
         else:
@@ -382,12 +382,12 @@ async def run_push(store, job_id: UUID, *, queued: bool = False) -> Job:
         async with _lock(job_id):
             try:
                 return await _record_result(store, job_id, result)
-            except Exception as exc:  # noqa: BLE001 — never leave a silent "pending"
+            except Exception as exc:
                 logger.warning("Could not save the push result for job %s: %s", job_id, type(exc).__name__)
                 failed = insights_client.PushResult(state="failed", message="The push result could not be saved; retry.")
                 try:
                     await _record_result(store, job_id, failed)
-                except Exception:  # noqa: BLE001 — read_state reports it as interrupted
+                except Exception:
                     logger.exception("Could not record the failed push for job %s", job_id)
                 raise PostJobError("The push result could not be saved; retry.", 500) from exc
     finally:
@@ -429,7 +429,8 @@ async def recover_on_startup(store) -> dict[str, int]:
             ):
                 continue
             job_id = UUID(data["id"])
-        except Exception:  # noqa: BLE001 — unreadable files are not ours to fix here
+        except (OSError, ValueError, TypeError, KeyError, AttributeError):
+            logger.debug("Skipping an unreadable job during post-job recovery")
             continue
         try:
             resume = False
@@ -451,7 +452,7 @@ async def recover_on_startup(store) -> dict[str, int]:
             if resume:
                 await on_job_completed(store, job)
                 counts["resumed"] += 1
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("Post-job startup recovery failed for job %s", job_id)
     if any(counts.values()):
         logger.info("Post-job startup recovery: %s", counts)

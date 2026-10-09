@@ -15,8 +15,6 @@ import uuid
 
 import httpx
 import pytest
-from folio_propositions import ActorRef, Disposition, Proposition
-
 from app.api.routes import enrich as enrich_mod
 from app.api.routes import export as export_mod
 from app.config import settings
@@ -27,6 +25,8 @@ from app.pipeline.stages.base import PipelineStage
 from app.services import insights_client
 from app.services.post_job import flow
 from app.storage.job_store import JobStore
+from folio_propositions import ActorRef, Disposition, Proposition
+
 from tests.helpers import make_job
 
 TOKEN = "tok-post-job-secret-0123456789"
@@ -94,8 +94,8 @@ class FakeInsights:
         })
 
 
-@pytest.fixture
-def store(tmp_path, monkeypatch):
+@pytest.fixture(name="store")
+def store_fixture(tmp_path, monkeypatch):
     store = JobStore(base_dir=tmp_path / "jobs")
     monkeypatch.setattr(enrich_mod, "_job_store", store)
     monkeypatch.setattr(export_mod, "_job_store", store)
@@ -107,8 +107,8 @@ def store(tmp_path, monkeypatch):
     return store
 
 
-@pytest.fixture
-def insights(monkeypatch):
+@pytest.fixture(name="insights")
+def insights_fixture(monkeypatch):
     fake = FakeInsights()
     monkeypatch.setattr(settings, "insights_api_url", BASE)
     monkeypatch.setattr(settings, "insights_api_token", TOKEN)

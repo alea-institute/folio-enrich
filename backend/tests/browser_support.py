@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import os
 import subprocess
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
@@ -30,7 +30,7 @@ def _candidates(node: str) -> list[Path]:
     try:
         probe = subprocess.run(
             [node, "-e", "process.stdout.write(require.resolve('playwright/package.json'))"],
-            cwd=REPO, capture_output=True, text=True, timeout=10,
+            cwd=REPO, capture_output=True, text=True, timeout=10, check=False,
         )
         if probe.returncode == 0 and probe.stdout:
             found.append(Path(probe.stdout).parent)
@@ -50,13 +50,13 @@ def _candidates(node: str) -> list[Path]:
 
 def _launches(node: str, module: Path) -> bool:
     try:
-        run = subprocess.run([node, "-e", _PROBE, str(module)], capture_output=True, timeout=30)
+        run = subprocess.run([node, "-e", _PROBE, str(module)], capture_output=True, timeout=30, check=False)
     except (OSError, subprocess.SubprocessError):
         return False
     return run.returncode == 0
 
 
-@lru_cache(maxsize=None)
+@cache
 def playwright_module(node: str) -> str | None:
     """Path of the first Playwright package whose Chromium launches, or None."""
     for candidate in _candidates(node):

@@ -9,15 +9,15 @@ from functools import partial
 
 import httpx
 import pytest
-from fastapi.testclient import TestClient
-from folio_propositions import ActorRef, Disposition, Proposition, content_iri
-
 from app.api.routes import enrich as enrich_mod
 from app.config import settings
 from app.main import app
 from app.services import insights_client
 from app.services.proposition.source import job_source_uri
 from app.storage.job_store import JobStore
+from fastapi.testclient import TestClient
+from folio_propositions import ActorRef, Disposition, Proposition, content_iri
+
 from tests.helpers import make_job
 
 TOKEN = "tok-route-secret-abcdef"
