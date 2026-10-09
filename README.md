@@ -268,7 +268,7 @@ Tasks: `CLASSIFIER`, `EXTRACTOR`, `CONCEPT`, `BRANCH_JUDGE`, `AREA_OF_LAW`, `SYN
 
 ### Connecting folio-insights
 
-The Propositions tab can show each proposition's status in a [folio-insights](https://github.com/alea-institute/folio-insights) corpus (present or not, epistemic status, contested/superseded, related and contesting shards). Every proposition carries a `content_iri` (`urn:folio:shard/<32 hex>`) equal to the insights shard IRI for the same source and span, so lookups need no mapping table. The bridge is read-only; when it is not configured or unreachable, the tab shows a muted banner and the review workflow is unaffected.
+The Propositions tab can show each proposition's status in a [folio-insights](https://github.com/alea-institute/folio-insights) corpus (present or not, epistemic status, contested/superseded, related and contesting shards). Every proposition carries a `content_iri` (`urn:folio:shard/<32 hex>`) equal to the insights shard IRI for the same source and span, so lookups need no mapping table. Status lookups are read-only; when the bridge is not configured or unreachable, the tab shows a muted banner and the review workflow is unaffected.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -278,6 +278,38 @@ The Propositions tab can show each proposition's status in a [folio-insights](ht
 | `FOLIO_ENRICH_INSIGHTS_TIMEOUT_SECONDS` | `3.0` | Per-request timeout for insights calls |
 
 Endpoints: `GET /enrich/{job_id}/insights-status` (corpus status for the job's propositions; lookups are chunked at 500 IRIs) and `GET /insights/health` (proxied insights health, or the not-configured state). Both return a typed `state` of `connected`, `not_configured`, `unreachable` or `error`.
+
+### After a job: review, then push to folio-insights
+
+Each job carries two independent choices that apply once the pipeline finishes:
+
+- **Review before continuing** (or skip review). With review on, the job waits in `awaiting_review` until someone completes or skips the review.
+- **Push to folio-insights** (or don't). A push sends the job's `?format=propositions` record (the same shared-schema JSON the pull export serves, all propositions) to `POST {INSIGHTS_API_URL}/api/bridge/v1/ingest?corpus=<corpus>&framework_id=<id>`. With review on, the push waits until the review is completed.
+
+Re-pushing is safe: shard IRIs are content-addressed, so insights reports already-ingested propositions as `existing` instead of duplicating them. The pull path (`GET /enrich/{job_id}/export?format=propositions`) is unchanged.
+
+**Where the choices come from.**
+
+- **In the browser**, the left panel's "Next job" card shows both toggles, prefilled from this browser's preferences (localStorage `postJobReview` / `postJobPush`, edited in Settings → After each job). Changing a toggle there affects only the next job. When the job finishes, the same card ("This job") shows the review and push status and lets you change either choice for that job. "Complete review" appears in the card and in the Propositions tab while a review is pending, and "Retry push" appears after a failed push.
+- **API callers** send `review_before_continuing` and `push_to_insights` (booleans) with `POST /enrich`. A field left out falls back to the server defaults below.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `FOLIO_ENRICH_POST_JOB_REVIEW_DEFAULT` | `false` | Server default for `review_before_continuing` (also `GET`/`PUT /settings` `post_job_review_default`) |
+| `FOLIO_ENRICH_POST_JOB_PUSH_DEFAULT` | `false` | Server default for `push_to_insights` (also `post_job_push_default`) |
+| `FOLIO_ENRICH_INSIGHTS_FRAMEWORK_ID` | `""` | Optional `framework_id` sent with each push; empty = omitted |
+| `FOLIO_ENRICH_INSIGHTS_PUSH_TIMEOUT_SECONDS` | `30.0` | Timeout for one push request |
+
+The push reuses `FOLIO_ENRICH_INSIGHTS_API_URL`, `_CORPUS` and `_API_TOKEN` from the table above.
+
+The job's `post_job` object records the state: `review_status` (`pending_job`, `awaiting_review`, `completed`, `not_required`) and `push_status` (`not_requested`, `waiting_for_job`, `waiting_for_review`, `pending`, `pushed`, `failed`, `not_configured`), plus `push_attempts`, `last_push_at`, `last_push_error` (a sanitized message that never contains the URL or token) and `last_push_report` (the insights `created` / `existing` / `skipped` / `refused` counts). A failed push is not retried automatically; use the retry route. Jobs saved before this feature have no `post_job` and behave as "no review, no push".
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/enrich/{job_id}/post-job` | Current review/push state |
+| `PATCH` | `/enrich/{job_id}/post-job` | Change `review_before_continuing` / `push_to_insights` for this job. Turning push on starts it unless a review is pending; turning review off while it is pending skips it |
+| `POST` | `/enrich/{job_id}/review/complete` | Mark the review completed; a waiting push starts |
+| `POST` | `/enrich/{job_id}/insights-push` | Push now (first push, retry, or re-push); `409` while the job runs or a review or push is pending |
 
 ---
 

@@ -2605,6 +2605,34 @@
     flex-shrink: 0;
   }
 
+  /* Post-job flow: review gate + push to folio-insights */
+  .post-job { padding: 7px 16px 8px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .post-job-head { display:flex; align-items:center; gap:8px; min-height:22px; flex-wrap:wrap; }
+  .post-job-eyebrow { font-size:9px; font-weight:750; letter-spacing:.11em; text-transform:uppercase; color:var(--text-dim); }
+  .post-job-chips { display:inline-flex; gap:6px; flex-wrap:wrap; min-height:20px; align-items:center; }
+  .post-job-chip { display:inline-flex; align-items:center; gap:5px; padding:1px 8px; border:1px solid var(--border); border-radius:999px; background:var(--surface2); color:var(--text); font-size:10.5px; line-height:16px; white-space:nowrap; }
+  .post-job-chip::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--text-dim); flex:none; }
+  .post-job-chip b { font-weight:650; color:var(--text-dim); }
+  .post-job-chip.ok::before { background:var(--green); }
+  .post-job-chip.wait::before { background:var(--orange); }
+  .post-job-chip.busy::before { background:var(--accent); animation: post-job-pulse 1.1s ease-in-out infinite; }
+  .post-job-chip.bad { border-color:color-mix(in srgb,var(--red) 50%,var(--border)); }
+  .post-job-chip.bad::before { background:var(--red); }
+  @keyframes post-job-pulse { 50% { opacity:.35; } }
+  @media (prefers-reduced-motion: reduce) { .post-job-chip.busy::before { animation:none; } }
+  .post-job-controls { display:flex; align-items:center; gap:4px 14px; flex-wrap:wrap; min-height:26px; margin-top:3px; }
+  .post-job-option { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--text); cursor:pointer; }
+  .post-job-option input { margin:0; accent-color:var(--accent); }
+  .post-job-option input:disabled + span { color:var(--text-dim); }
+  .post-job-option:has(input:disabled) { cursor:default; }
+  .post-job-option input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .post-job-actions { display:inline-flex; gap:6px; margin-left:auto; }
+  .post-job-note { margin-top:2px; min-height:14px; font-size:10.5px; color:var(--text-dim); }
+  .post-job-note.error { color:var(--red); }
+  .post-job-bar { margin:8px 0 0; padding:5px 9px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; min-height:30px; box-sizing:border-box; border:1px solid var(--border); border-radius:6px; background:var(--surface2); }
+  .post-job-bar .post-job-chip { background:var(--surface); }
+  .post-job-bar .post-job-actions { margin-left:auto; }
+
   /* LLM setup banner */
   .llm-banner {
     margin: 8px 16px; padding: 12px 16px; border-radius: 8px;
@@ -3754,6 +3782,23 @@
       </div>
     </div>
 
+    <!-- Post-job flow: per-job review gate + push to folio-insights -->
+    <section class="post-job" id="postJobPanel" aria-labelledby="postJobHeading">
+      <div class="post-job-head">
+        <span class="post-job-eyebrow" id="postJobHeading">Next job</span>
+        <span class="post-job-chips" id="postJobChips" role="status" aria-live="polite"></span>
+      </div>
+      <div class="post-job-controls">
+        <label class="post-job-option"><input type="checkbox" id="postJobReviewToggle" onchange="onPostJobToggle('review', this.checked)"><span>Review before continuing</span></label>
+        <label class="post-job-option"><input type="checkbox" id="postJobPushToggle" onchange="onPostJobToggle('push', this.checked)"><span>Push to folio-insights</span></label>
+        <span class="post-job-actions">
+          <button type="button" class="primary small" id="postJobCompleteReviewBtn" onclick="completePostJobReview()" hidden>Complete review</button>
+          <button type="button" class="secondary small" id="postJobRetryBtn" onclick="retryPostJobPush()" hidden>Retry push</button>
+        </span>
+      </div>
+      <div class="post-job-note" id="postJobNote"></div>
+    </section>
+
     <!-- LLM setup banner (shown once per session when no AI key configured) -->
     <div class="llm-banner" id="llmBanner" style="display:none">
       <div class="llm-banner-title">
@@ -4011,6 +4056,12 @@
           <span class="proposition-corpus-banner-text" id="propositionCorpusBannerText" role="status" aria-live="polite"></span>
           <button type="button" class="secondary small" id="refreshCorpusStatusBtn" onclick="refreshInsightsStatus()">Refresh corpus status</button>
         </div>
+        <div class="post-job-bar" id="propositionPostJobBar" role="group" aria-label="Review and push status for this job" style="display:none">
+          <span class="post-job-chips" id="propositionPostJobChips"></span>
+          <span class="post-job-actions">
+            <button type="button" class="primary small" id="propositionCompleteReviewBtn" onclick="completePostJobReview()" hidden>Complete review</button>
+          </span>
+        </div>
         <div class="proposition-review-shell" id="propositionReviewShell">
           <section class="proposition-context-pane" aria-labelledby="propositionContextHeading">
             <header class="proposition-review-header">
@@ -4173,6 +4224,18 @@
         Translation matching
       </label>
       <div style="font-size:11px;color:var(--text-dim);margin-top:4px;margin-left:22px">Index ~52K FOLIO translations (Spanish, French, etc.) for text matching. Off by default — most documents are English-only.</div>
+    </div>
+    <div class="settings-section-label">After each job</div>
+    <div style="margin-bottom:16px">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="settingsPostJobReview" aria-describedby="settingsPostJobHint">
+        Review before continuing
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;margin-top:6px">
+        <input type="checkbox" id="settingsPostJobPush" aria-describedby="settingsPostJobHint">
+        Push results to folio-insights
+      </label>
+      <div id="settingsPostJobHint" style="font-size:11px;color:var(--text-dim);margin-top:4px;margin-left:22px">These are this browser's defaults. You can change both for any job before you submit it and again when it finishes. With review on, the push waits until you complete the review.</div>
     </div>
     <div class="settings-section-label">Cloud Providers</div>
     <div id="settingsProviderCards"></div>
@@ -5417,6 +5480,8 @@ async function init() {
   // Restore UI state immediately (before any async calls)
   if (showThinking) applyShowThinkingStyle(document.getElementById('showThinkingBtn'), true);
   if (debugMode) applyDebugBtnStyle(document.getElementById('debugModeBtn'), true);
+  renderPostJob();
+  loadPostJobServerDefaults();
   const annotationAccess = await window.__annotationAccessBootstrap;
   if (annotationAccess?.attempted && annotationAccess.current) {
     if (annotationAccess.ok) {
@@ -5931,6 +5996,7 @@ function _providerKeyField(provider) {
 
 function openSettings() {
   document.getElementById('settingsModal').classList.add('visible');
+  populatePostJobSettings();
   populateOllamaSettings();
   populateSettingsMatchingOptions();
   populateSettingsCards();
@@ -6087,6 +6153,7 @@ async function testSettingsProvider(providerName) {
 }
 
 async function saveSettings() {
+  savePostJobSettings();
   // Read selected provider from radio
   const checkedRadio = document.querySelector('input[name="settingsActiveProvider"]:checked');
   if (!checkedRadio) { closeSettings(); return; }
@@ -6890,6 +6957,10 @@ async function submitEnrichment() {
     if (uploadedFilename) body.filename = uploadedFilename;
     // Capture-at-submit: the job runs under whatever ontology is active right now.
     body.ontology = activeOntology;
+    // Post-job choices for this job (prefilled from this browser's preferences).
+    const postJobChoices = postJobSubmissionChoices();
+    body.review_before_continuing = postJobChoices.review;
+    body.push_to_insights = postJobChoices.push;
     if (_llmBannerSymbolicOnce) {
       // Symbolic AI only — don't send LLM provider/model/key
       // Backend LLM stages will skip gracefully when no provider is configured
@@ -6914,6 +6985,7 @@ async function submitEnrichment() {
     const data = await r.json();
     currentJobId = data.job_id;
     resetPropositionSessionState();
+    onPostJobSubmitted(postJobChoices, data.post_job);
     setStatus(`Job ${currentJobId.slice(0,8)}... submitted`, 'running');
     startSSE();
   } catch (e) {
@@ -7642,6 +7714,7 @@ function renderResults(job) {
   renderPropertiesTab(properties);
   renderPropositionsTab();
   renderExportButtons();
+  onPostJobJobRendered(job);
 
   // Show toolbar + header controls if there are any annotations/individuals/properties
   const hasContent = annotations.length > 0 || (individuals && individuals.length > 0) || (properties && properties.length > 0);
@@ -12626,6 +12699,284 @@ function copyCorpusIri(button) {
   else fallback();
 }
 
+// ── Post-job flow: optional review, then optional push to folio-insights ──
+// Two independent per-job choices. This browser's defaults live in localStorage
+// (postJobReview / postJobPush, edited in Settings → After each job); when unset,
+// the server defaults from GET /settings apply. The left-panel card offers the
+// choices before submission and again once the job finishes (PATCH post-job).
+const POST_JOB_REVIEW_KEY = 'postJobReview';
+const POST_JOB_PUSH_KEY = 'postJobPush';
+let postJobServer = { review: false, push: false, insightsConfigured: null };
+let postJobState = null;      // GET /enrich/{id}/post-job payload for currentJobId
+let postJobSubmitted = null;  // { review, push } sent with the in-flight job
+let postJobDraft = null;      // unsaved per-job override before submission
+let postJobBusy = false;
+let postJobOptimistic = null; // { review?, push? } shown while a PATCH is in flight
+let postJobError = '';
+let postJobPollTimer = null;
+let postJobPollCount = 0;
+
+function readPostJobPref(key, fallback) {
+  try {
+    const value = localStorage.getItem(key);
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+  } catch { /* storage unavailable: fall back to server default */ }
+  return fallback;
+}
+
+function writePostJobPref(key, value) {
+  try { localStorage.setItem(key, value ? 'true' : 'false'); } catch { /* non-critical preference */ }
+}
+
+function postJobPrefs() {
+  return {
+    review: readPostJobPref(POST_JOB_REVIEW_KEY, postJobServer.review),
+    push: readPostJobPref(POST_JOB_PUSH_KEY, postJobServer.push),
+  };
+}
+
+function postJobSubmissionChoices() {
+  return postJobDraft ? { ...postJobDraft } : postJobPrefs();
+}
+
+async function loadPostJobServerDefaults() {
+  try {
+    const r = await fetch(`${API}/settings`);
+    if (r.ok) {
+      const data = await r.json();
+      postJobServer = {
+        review: Boolean(data.post_job_review_default),
+        push: Boolean(data.post_job_push_default),
+        insightsConfigured: Boolean(data.insights_configured),
+      };
+    }
+  } catch { /* offline: keep built-in defaults */ }
+  renderPostJob();
+}
+
+function populatePostJobSettings() {
+  const prefs = postJobPrefs();
+  const review = document.getElementById('settingsPostJobReview');
+  const push = document.getElementById('settingsPostJobPush');
+  if (review) review.checked = prefs.review;
+  if (push) push.checked = prefs.push;
+}
+
+function savePostJobSettings() {
+  const review = document.getElementById('settingsPostJobReview');
+  const push = document.getElementById('settingsPostJobPush');
+  if (review) writePostJobPref(POST_JOB_REVIEW_KEY, review.checked);
+  if (push) writePostJobPref(POST_JOB_PUSH_KEY, push.checked);
+  postJobDraft = null;
+  renderPostJob();
+}
+
+function postJobMode() {
+  if (!currentJobId || isDemoMode) return 'submit';
+  const status = currentJob?.status;
+  if (status === 'failed') return 'submit';
+  if (status === 'completed') return 'job';
+  return postJobSubmitted ? 'running' : 'submit';
+}
+
+function postJobChip(label, value, tone, title) {
+  const attr = title ? ` title="${escapeAttr(title)}"` : '';
+  return `<span class="post-job-chip ${tone}"${attr}><b>${escapeHtml(label)}</b>${escapeHtml(value)}</span>`;
+}
+
+function postJobChipsHtml(state) {
+  if (!state) return '';
+  const review = {
+    pending_job: ['after the run', ''],
+    awaiting_review: ['awaiting', 'wait'],
+    completed: ['completed', 'ok'],
+    not_required: ['skipped', ''],
+  }[state.review_status] || [state.review_status, ''];
+  let push;
+  const report = state.last_push_report;
+  switch (state.push_status) {
+    case 'pushed':
+      push = [report ? `pushed (${report.created} new, ${report.existing} existing)` : 'pushed', 'ok'];
+      break;
+    case 'pending': push = ['pushing…', 'busy']; break;
+    case 'waiting_for_review': push = ['waiting for review', 'wait']; break;
+    case 'waiting_for_job': push = ['after the run', '']; break;
+    case 'failed': push = ['failed', 'bad']; break;
+    case 'not_configured': push = ['not configured', '']; break;
+    default: push = ['not pushed', ''];
+  }
+  return postJobChip('Review: ', review[0], review[1])
+    + postJobChip('Insights: ', push[0], push[1], state.push_status === 'failed' ? state.last_push_error : '');
+}
+
+function renderPostJob() {
+  const panel = document.getElementById('postJobPanel');
+  if (!panel) return;
+  const mode = postJobMode();
+  const reviewEl = document.getElementById('postJobReviewToggle');
+  const pushEl = document.getElementById('postJobPushToggle');
+  const heading = document.getElementById('postJobHeading');
+  const note = document.getElementById('postJobNote');
+  const chips = document.getElementById('postJobChips');
+  const completeBtn = document.getElementById('postJobCompleteReviewBtn');
+  const retryBtn = document.getElementById('postJobRetryBtn');
+  let state = null;
+  let noteText = '';
+  if (mode === 'submit') {
+    const choices = postJobSubmissionChoices();
+    reviewEl.checked = choices.review;
+    pushEl.checked = choices.push;
+    reviewEl.disabled = pushEl.disabled = false;
+    heading.textContent = 'Next job';
+    noteText = 'Applies to the next job. Defaults: Settings → After each job (this browser).';
+  } else if (mode === 'running') {
+    state = { review_status: 'pending_job', push_status: postJobSubmitted.push ? 'waiting_for_job' : 'not_requested' };
+    reviewEl.checked = postJobSubmitted.review;
+    pushEl.checked = postJobSubmitted.push;
+    reviewEl.disabled = pushEl.disabled = true;
+    heading.textContent = 'This job';
+    noteText = 'You can change these when the run finishes.';
+  } else {
+    state = postJobState?.job_id === currentJobId ? postJobState.post_job : null;
+    reviewEl.checked = postJobOptimistic?.review ?? (state ? state.review === 'required' : false);
+    pushEl.checked = postJobOptimistic?.push ?? (state ? state.push === 'requested' : false);
+    reviewEl.disabled = pushEl.disabled = postJobBusy || !state;
+    heading.textContent = 'This job';
+    if (!state) noteText = 'Loading review and push status…';
+    else if (state.review_status === 'awaiting_review') noteText = state.push === 'requested'
+      ? 'Review the results, then complete the review to push them.' : 'Review the results, then complete the review.';
+    else noteText = 'Change these for this job only.';
+  }
+  const configured = postJobState?.insights_configured ?? postJobServer.insightsConfigured;
+  if (configured === false && pushEl.checked) noteText += ' folio-insights is not configured on this server.';
+  if (postJobError) noteText = postJobError;
+  note.textContent = noteText;
+  note.classList.toggle('error', Boolean(postJobError));
+  const chipHtml = postJobChipsHtml(state);
+  if (chips.innerHTML !== chipHtml) chips.innerHTML = chipHtml;
+  const awaiting = mode === 'job' && state?.review_status === 'awaiting_review';
+  completeBtn.hidden = !awaiting;
+  completeBtn.disabled = postJobBusy;
+  retryBtn.hidden = !(mode === 'job' && state?.push_status === 'failed');
+  retryBtn.disabled = postJobBusy;
+
+  const bar = document.getElementById('propositionPostJobBar');
+  if (bar) {
+    bar.style.display = mode === 'job' && state ? '' : 'none';
+    const barChips = document.getElementById('propositionPostJobChips');
+    if (barChips.innerHTML !== chipHtml) barChips.innerHTML = chipHtml;
+    const barBtn = document.getElementById('propositionCompleteReviewBtn');
+    barBtn.hidden = !awaiting;
+    barBtn.disabled = postJobBusy;
+  }
+}
+
+function resetPostJobState() {
+  if (postJobPollTimer) clearTimeout(postJobPollTimer);
+  postJobPollTimer = null;
+  postJobState = null;
+  postJobSubmitted = null;
+  postJobDraft = null;
+  postJobBusy = false;
+  postJobOptimistic = null;
+  postJobError = '';
+  renderPostJob();
+}
+
+function onPostJobSubmitted(choices, serverState) {
+  resetPostJobState();
+  postJobSubmitted = { ...choices };
+  renderPostJob();
+}
+
+function onPostJobFailed() {
+  postJobSubmitted = null;
+  renderPostJob();
+}
+
+function onPostJobJobRendered(job) {
+  if (isDemoMode || !job || job.status !== 'completed' || !currentJobId) { renderPostJob(); return; }
+  postJobPollCount = 0;
+  refreshPostJob();
+}
+
+function schedulePostJobPoll(payload) {
+  if (postJobPollTimer) clearTimeout(postJobPollTimer);
+  postJobPollTimer = null;
+  const s = payload?.post_job;
+  const unsettled = s && (s.push_status === 'pending' || s.review_status === 'pending_job' || payload.push_in_flight);
+  if (unsettled && postJobPollCount < 120) {
+    postJobPollCount += 1;
+    postJobPollTimer = setTimeout(refreshPostJob, 1500);
+  }
+}
+
+function applyPostJobPayload(jobId, payload) {
+  if (jobId !== currentJobId) return;
+  postJobState = payload;
+  postJobSubmitted = null;
+  renderPostJob();
+  schedulePostJobPoll(payload);
+}
+
+async function refreshPostJob() {
+  const jobId = currentJobId;
+  if (!jobId) return;
+  try {
+    const r = await fetch(`${API}/enrich/${encodeURIComponent(jobId)}/post-job`, { headers: { Accept: 'application/json' } });
+    if (!r.ok) { if (jobId === currentJobId) { postJobState = null; renderPostJob(); } return; }
+    applyPostJobPayload(jobId, await r.json());
+  } catch { /* transient; next render retries */ }
+}
+
+async function postJobRequest(path, options) {
+  const jobId = currentJobId;
+  postJobBusy = true;
+  postJobError = '';
+  renderPostJob();
+  try {
+    const r = await fetch(`${API}/enrich/${encodeURIComponent(jobId)}${path}`, {
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      ...options,
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.detail || r.statusText);
+    postJobBusy = false;
+    postJobOptimistic = null;
+    postJobPollCount = 0;
+    applyPostJobPayload(jobId, data);
+  } catch (e) {
+    postJobBusy = false;
+    postJobOptimistic = null;
+    postJobError = `Could not update this job: ${e.message}`;
+    renderPostJob();
+    refreshPostJob();
+  }
+}
+
+function onPostJobToggle(kind, checked) {
+  postJobError = '';
+  const mode = postJobMode();
+  if (mode === 'submit') {
+    postJobDraft = { ...postJobSubmissionChoices(), [kind]: checked };
+    renderPostJob();
+    return;
+  }
+  if (mode !== 'job') { renderPostJob(); return; }
+  const body = kind === 'review' ? { review_before_continuing: checked } : { push_to_insights: checked };
+  postJobOptimistic = { [kind]: checked };
+  postJobRequest('/post-job', { method: 'PATCH', body: JSON.stringify(body) });
+}
+
+function completePostJobReview() {
+  postJobRequest('/review/complete', { method: 'POST' });
+}
+
+function retryPostJobPush() {
+  postJobRequest('/insights-push', { method: 'POST' });
+}
+
 function renderPropositionsTab() {
   const doc = document.getElementById('propositionDocument');
   if (!doc) return;
@@ -13295,6 +13646,7 @@ function clearAll() {
   accumulatedPOS = null;
   activityEntries = [];
   resetPropositionSessionState();
+  resetPostJobState();
   // Clear feedback, dismiss, and data caches
   Object.keys(_feedbackCache).forEach(k => delete _feedbackCache[k]);
   Object.keys(_noteCache).forEach(k => delete _noteCache[k]);
@@ -13337,6 +13689,7 @@ function setStatus(text, state) {
   const colorMap = { running: 'var(--accent)', completed: 'var(--conf-high)', failed: 'var(--red)', idle: 'var(--text-dim)' };
   badge.style.color = colorMap[state] || 'var(--text-dim)';
   badge.textContent = state;
+  if (state === 'failed') onPostJobFailed();
 }
 
 // ==============================================

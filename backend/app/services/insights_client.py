@@ -1,4 +1,4 @@
-"""Read-only client for the folio-insights bridge status API.
+"""Client for the folio-insights bridge API (status lookups and record push).
 
 folio-enrich extracts propositions from one document; folio-insights holds the
 multi-document corpus. Each enrich proposition carries a ``content_iri``
@@ -11,6 +11,10 @@ Contract (implemented by folio-insights):
   (at most 500 IRIs per request; 422 above) → ``{"corpus", "insights_version",
   "results": [{"iri", "present", ...}]}``. 404 = unknown corpus.
 * ``GET {base}/api/bridge/v1/health`` → ``{"status", "corpus", "shards"}``.
+* ``POST {base}/api/bridge/v1/ingest?corpus=<name>&framework_id=<id>`` with the
+  job's ``propositions`` export as the JSON body → 200 ``IngestReport``
+  ``{"created", "existing", "skipped", "refused", ...}``; 401 bad token, 404
+  route disabled, 413 record too large. Idempotent per shard IRI.
 
 This module never raises to callers for network or protocol failures: every
 outcome is an :class:`InsightsStatus` / :class:`InsightsHealth` whose ``state``
@@ -35,6 +39,8 @@ logger = logging.getLogger(__name__)
 
 STATUS_PATH = "/api/bridge/v1/status"
 HEALTH_PATH = "/api/bridge/v1/health"
+INGEST_PATH = "/api/bridge/v1/ingest"
+INGEST_COUNT_KEYS = ("created", "existing", "skipped", "refused")
 MAX_IRIS_PER_REQUEST = 500
 
 InsightsState = Literal["connected", "not_configured", "unreachable", "error"]
@@ -285,3 +291,99 @@ async def fetch_health(*, transport: httpx.AsyncBaseTransport | None = None) -> 
         shards=shards if isinstance(shards, int) and not isinstance(shards, bool) else None,
         status_code=200,
     )
+
+
+PushState = Literal["pushed", "not_configured", "failed"]
+
+
+@dataclass
+class PushResult:
+    state: PushState
+    message: str | None = None
+    status_code: int | None = None
+    # Whitelisted IngestReport counts (created/existing/skipped/refused) + corpus.
+    report: dict[str, Any] | None = None
+
+
+def _push_timeout() -> httpx.Timeout:
+    seconds = settings.insights_push_timeout_seconds
+    if not isinstance(seconds, (int, float)) or seconds <= 0:
+        seconds = 30.0
+    return httpx.Timeout(float(seconds))
+
+
+def _push_error_message(status_code: int) -> str:
+    if status_code in (401, 403):
+        return "folio-insights rejected the configured credentials."
+    if status_code == 404:
+        return "folio-insights ingest is disabled or the corpus is unknown."
+    if status_code == 413:
+        return "folio-insights refused the record as too large."
+    if status_code == 422:
+        return "folio-insights rejected the proposition record."
+    if status_code >= 500:
+        return f"folio-insights returned a server error ({status_code})."
+    return f"folio-insights returned an unexpected status ({status_code})."
+
+
+def _normalize_ingest_report(payload: Any) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise _ProtocolError("ingest report is not an object")
+    report: dict[str, Any] = {}
+    for key in INGEST_COUNT_KEYS:
+        value = payload.get(key)
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise _ProtocolError(f"ingest report without integer {key}")
+        report[key] = value
+    if isinstance(payload.get("corpus"), str):
+        report["corpus"] = payload["corpus"]
+    return report
+
+
+async def push_record(
+    record: dict[str, Any],
+    *,
+    transport: httpx.AsyncBaseTransport | None = None,
+) -> PushResult:
+    """Push one shared-schema proposition record to the insights ingest route.
+
+    Never raises for network, HTTP or protocol failures. Messages never carry
+    the base URL or the token, so callers may persist and display them.
+    """
+    base = _base_url()
+    if base is None:
+        return PushResult(state="not_configured", message="folio-insights is not connected.")
+    if not _valid_base(base):
+        return PushResult(state="failed", message="The folio-insights URL is not a valid http(s) URL.")
+    params: dict[str, str] = {}
+    corpus = _corpus()
+    if corpus:
+        params["corpus"] = corpus
+    framework_id = (settings.insights_framework_id or "").strip()
+    if framework_id:
+        params["framework_id"] = framework_id
+    headers = _headers()
+    headers["Content-Type"] = "application/json"
+    try:
+        async with httpx.AsyncClient(
+            base_url=base,
+            headers=headers,
+            timeout=_push_timeout(),
+            transport=transport,
+            follow_redirects=False,
+        ) as client:
+            response = await client.post(INGEST_PATH, params=params, json=record)
+            if response.status_code != 200:
+                return PushResult(
+                    state="failed",
+                    message=_push_error_message(response.status_code),
+                    status_code=response.status_code,
+                )
+            report = _normalize_ingest_report(response.json())
+    except (httpx.TimeoutException, httpx.TransportError) as exc:
+        logger.info("folio-insights push unreachable: %s", type(exc).__name__)
+        return PushResult(state="failed", message="folio-insights could not be reached.")
+    except (_ProtocolError, ValueError) as exc:
+        logger.warning("folio-insights ingest response did not match the contract: %s", type(exc).__name__)
+        return PushResult(state="failed", message="folio-insights returned an unexpected response.", status_code=200)
+    return PushResult(state="pushed", status_code=200, report=report)

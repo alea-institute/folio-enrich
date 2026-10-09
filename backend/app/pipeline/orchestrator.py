@@ -405,6 +405,21 @@ class PipelineOrchestrator:
         job.result.ontology_name = spec.display_name
         job.result.base_iri = spec.base_iri
 
+    async def _post_job_hook(self, job: Job) -> None:
+        """Start the post-job flow (review gate / insights push) for a finished job.
+
+        Runs after every post-completion step has saved the job, so the flow's
+        own saves never race the orchestrator's in-memory copy. It never fails
+        the job: errors are logged and the job stays completed.
+        """
+        if job.status != JobStatus.COMPLETED:
+            return
+        try:
+            from app.services.post_job import flow as post_job_flow
+            await post_job_flow.on_job_completed(self.job_store, job)
+        except Exception:  # noqa: BLE001
+            logger.exception("Post-job hook failed for job %s", job.id)
+
     async def run(self, job: Job) -> Job:
         self._stamp_ontology(job)
         if self._config is not None:
@@ -622,6 +637,7 @@ class PipelineOrchestrator:
             job.updated_at = datetime.now(timezone.utc)
             await self.job_store.save(job)
 
+        await self._post_job_hook(job)
         return job
 
     async def _run_flat(self, job: Job) -> Job:
@@ -680,4 +696,5 @@ class PipelineOrchestrator:
             job.updated_at = datetime.now(timezone.utc)
             await self.job_store.save(job)
 
+        await self._post_job_hook(job)
         return job

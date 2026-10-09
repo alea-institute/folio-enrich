@@ -12,6 +12,7 @@ from app.models.document import DocumentInput
 from app.models.job import Job, JobStatus
 from app.pipeline.orchestrator import PipelineOrchestrator, TaskLLMs
 from app.services.ingestion.registry import detect_format, ingest
+from app.services.post_job import flow as post_job_flow
 from app.services.proposition.source import (
     job_source_uri,
     stamped_propositions,
@@ -43,6 +44,11 @@ class EnrichRequest(BaseModel):
     # proposition content IRIs shared with folio-insights; otherwise a
     # deterministic urn:sha256: URI of the canonical text is used.
     source_uri: str | None = None
+    # Post-job flow (None = use the server default from settings):
+    # wait for a human review after the pipeline finishes, and/or push the
+    # job's propositions record to folio-insights (after review, if any).
+    review_before_continuing: bool | None = None
+    push_to_insights: bool | None = None
 
     @field_validator("source_uri")
     @classmethod
@@ -114,7 +120,10 @@ async def create_enrichment(req: EnrichRequest) -> dict:
         content=req.content, format=fmt, filename=req.filename,
         ontology=req.ontology, source_uri=req.source_uri,
     )
-    job = Job(input=doc)
+    job = Job(
+        input=doc,
+        post_job=post_job_flow.initial_state(req.review_before_continuing, req.push_to_insights),
+    )
     await _job_store.save(job)
 
     # Build pipeline with per-task LLMs (task-specific overrides > request > global)
@@ -124,7 +133,11 @@ async def create_enrichment(req: EnrichRequest) -> dict:
 
     # Run pipeline in background
     asyncio.create_task(orchestrator.run(job))
-    return {"job_id": str(job.id), "status": job.status.value}
+    return {
+        "job_id": str(job.id),
+        "status": job.status.value,
+        "post_job": job.post_job.model_dump(mode="json") if job.post_job else None,
+    }
 
 
 class ExtractRequest(BaseModel):
@@ -451,3 +464,70 @@ async def stream_enrichment(job_id: UUID):
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     return EventSourceResponse(job_event_stream(job_id, _job_store))
+
+
+# ── Post-job flow: review gate and push to folio-insights ─────────────────
+# Same access model as the other job routes: the job id is the capability
+# (GET /enrich/{job_id} and the annotation mutations have no auth dependency).
+
+
+class PostJobOverride(BaseModel):
+    review_before_continuing: bool | None = None
+    push_to_insights: bool | None = None
+
+
+def _post_job_payload(job: Job) -> dict:
+    from app.config import settings as app_settings
+
+    state = post_job_flow.effective_state(job)
+    return {
+        "job_id": str(job.id),
+        "job_status": job.status.value,
+        "legacy": job.post_job is None,
+        "push_in_flight": post_job_flow.is_push_in_flight(job.id),
+        "insights_configured": bool((app_settings.insights_api_url or "").strip()),
+        "post_job": state.model_dump(mode="json"),
+    }
+
+
+def _post_job_http_error(exc: post_job_flow.PostJobError) -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=exc.message)
+
+
+@router.get("/{job_id}/post-job")
+async def get_post_job(job_id: UUID) -> dict:
+    job = await _job_store.load(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return _post_job_payload(job)
+
+
+@router.patch("/{job_id}/post-job")
+async def override_post_job(job_id: UUID, req: PostJobOverride) -> dict:
+    """Change this job's review / push choice (at or after completion)."""
+    try:
+        job = await post_job_flow.apply_override(
+            _job_store, job_id, req.review_before_continuing, req.push_to_insights,
+        )
+    except post_job_flow.PostJobError as exc:
+        raise _post_job_http_error(exc) from exc
+    return _post_job_payload(job)
+
+
+@router.post("/{job_id}/review/complete")
+async def complete_job_review(job_id: UUID) -> dict:
+    try:
+        job = await post_job_flow.complete_review(_job_store, job_id)
+    except post_job_flow.PostJobError as exc:
+        raise _post_job_http_error(exc) from exc
+    return _post_job_payload(job)
+
+
+@router.post("/{job_id}/insights-push")
+async def push_job_to_insights(job_id: UUID) -> dict:
+    """Push (or re-push / retry) the job's propositions record now."""
+    try:
+        job = await post_job_flow.manual_push(_job_store, job_id)
+    except post_job_flow.PostJobError as exc:
+        raise _post_job_http_error(exc) from exc
+    return _post_job_payload(job)
