@@ -138,7 +138,8 @@ async def test_jwks_failure_denies(client, token, verifier, configured):
 
 async def test_expired_jwks_fetch_failure_does_not_use_stale_keys(client, token, verifier):
     assert (await mutate(client, token())).status_code == 201
-    verifier._jwks_fetched_at = 0
+    # Expire relative to the monotonic clock; 0 stays "fresh" on hosts up < TTL.
+    verifier._jwks_fetched_at = time.monotonic() - verifier._jwks_ttl - 1
     def unavailable():
         raise OSError("offline")
     verifier._fetch = unavailable
