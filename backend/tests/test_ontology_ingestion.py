@@ -6,6 +6,7 @@ import hashlib
 import socket
 
 import pytest
+
 from app.services.ontology.ingestion import (
     OWLIngestionError,
     _assert_safe_url,
