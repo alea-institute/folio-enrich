@@ -56,7 +56,7 @@ multi-ontology work as PRs #20 through #31): `dev`, `feat/canon-demos`, `feat/de
    validation receipt.
    Recommendation: do it in one sitting through the Cloudflare Access annotation UI once deployed.
    Setting: browser-with-logins.
-2. **Delete stale remote branches?** Recommendation: delete the 15 merged/equivalent
+2. **Delete stale remote branches?** Recommendation: delete the 14 merged/equivalent
    branches now. For the 11 pre-rewrite branches, keep or tag them first (e.g.
    `archive/<name>`), then delete. Setting: quick-decision.
 3. **Demo rebake.** `test_demos_are_fresh` (opt-in `demo_regen`) fails on main: baked
