@@ -200,8 +200,6 @@ class TestWordSdtContentControls:
     """
 
     def _make_sdt_docx(self, text: str) -> str:
-        import io
-
         from docx import Document
         from docx.oxml import OxmlElement
 
@@ -239,11 +237,8 @@ class TestWordNestedParagraphs:
     """Regression: text boxes / nested w:p must not double-count (B2 review)."""
 
     def _make_nested_p_docx(self, outer: str, nested: str) -> str:
-        import io
-
         from docx import Document
         from docx.oxml import OxmlElement
-        from docx.oxml.ns import qn
 
         d = Document()
         para = d.add_paragraph(outer)
@@ -269,3 +264,29 @@ class TestWordNestedParagraphs:
         assert text.count("OUTER_TEXT") == 1
         # And the two are not glued together into one token.
         assert "OUTER_TEXTTEXTBOX_TEXT" not in text
+
+    def test_text_box_alternate_content_appears_once(self):
+        """Word stores text boxes in mc:Choice and again in mc:Fallback."""
+        from docx import Document
+        from lxml import etree
+
+        from app.models.document import DocumentInput
+        from app.services.ingestion.word_ingestor import WordIngestor
+
+        w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+        mc = "http://schemas.openxmlformats.org/markup-compatibility/2006"
+        box = '<w:txbxContent><w:p><w:r><w:t>TEXTBOX_TEXT</w:t></w:r></w:p></w:txbxContent>'
+        run = (
+            f'<w:r xmlns:w="{w}" xmlns:mc="{mc}"><mc:AlternateContent>'
+            f'<mc:Choice Requires="wps"><w:drawing>{box}</w:drawing></mc:Choice>'
+            f"<mc:Fallback><w:pict>{box}</w:pict></mc:Fallback>"
+            "</mc:AlternateContent></w:r>"
+        )
+        d = Document()
+        d.add_paragraph("OUTER_TEXT")._p.append(etree.fromstring(run))
+        buf = io.BytesIO()
+        d.save(buf)
+        b64 = base64.b64encode(buf.getvalue()).decode()
+        text = WordIngestor().ingest(DocumentInput(content=b64))
+        assert text.count("TEXTBOX_TEXT") == 1
+        assert text.count("OUTER_TEXT") == 1

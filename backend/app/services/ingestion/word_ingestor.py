@@ -14,6 +14,9 @@ if TYPE_CHECKING:
 class WordIngestor(IngestorBase):
     # WordprocessingML main namespace
     _W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    # Markup Compatibility: Word writes each text box twice, in mc:Choice
+    # (DrawingML) and mc:Fallback (VML); read only the Choice copy.
+    _MC_FALLBACK = "{http://schemas.openxmlformats.org/markup-compatibility/2006}Fallback"
 
     def ingest(self, doc: DocumentInput) -> str:
         from docx import Document
@@ -28,7 +31,7 @@ class WordIngestor(IngestorBase):
 
         return self._extract_all_text(document)
 
-    def _extract_all_text(self, document: "DocxDocument") -> str:
+    def _extract_all_text(self, document: DocxDocument) -> str:
         """Gather every ``w:t`` text node, grouped by paragraph, in document order.
 
         Iterating python-docx ``document.paragraphs`` skips paragraphs nested
@@ -54,6 +57,8 @@ class WordIngestor(IngestorBase):
 
         paragraphs: list[str] = []
         for para in body.iter(f"{{{w}}}p"):
+            if any(a.tag == self._MC_FALLBACK for a in para.iterancestors()):
+                continue  # duplicate VML copy of a text box
             text = self._para_text(para)
             if text:
                 paragraphs.append(text)
