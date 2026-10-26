@@ -23,6 +23,7 @@ async function run(browser, width) {
   const writes = [];
   let failNext = false, holdNext = null, completenessCalls = 0;
   let lookupCalls = 0, creates = 0, failLookup = scenario === 'lookup', noSession = false, holdLookup = null;
+  let pinnedCalls = 0, failPinned = scenario === 'pinned-lookup';
   let failCompleteness = false, holdCompleteness = null, complete = false;
   await page.route('**/*', async route => {
     const request = route.request(), url = new URL(request.url()), method = request.method();
@@ -45,7 +46,10 @@ async function run(browser, width) {
       if (gate) await gate.promise;
       return fail ? json({ detail: 'Synthetic lookup failure <unsafe>' }, 503) : json(body);
     }
-    if (url.pathname === '/gold/sessions/synthetic-session') return json(session);
+    if (url.pathname === '/gold/sessions/synthetic-session') {
+      pinnedCalls++;
+      return failPinned ? json({ detail: 'Synthetic pinned lookup failure' }, 503) : json(session);
+    }
     if (url.pathname.endsWith('/completeness')) {
       completenessCalls++;
       const gate = holdCompleteness; holdCompleteness = null;
@@ -98,8 +102,21 @@ async function run(browser, width) {
     node.dispatchEvent(new PointerEvent(type, { pointerType: 'touch', pointerId, clientX: x, clientY: 100, bubbles: true }));
   }, { type, pointerId, x });
   try {
-    await page.goto(`${base}/?job=${job.id}&tab=propositions`);
+    await page.goto(`${base}/?job=${job.id}&tab=propositions${scenario === 'pinned-lookup' ? '&gold_session=synthetic-session' : ''}`);
     await card.waitFor();
+    if (scenario === 'pinned-lookup') {
+      const retry = page.getByRole('button', { name: 'Retry session lookup', exact: true });
+      await retry.waitFor();
+      assert.match(await page.locator('#propositionSessionStatus').innerText(), /Synthetic pinned lookup failure/);
+      failPinned = false; await retry.click(); await saved();
+      await page.waitForFunction(() => document.getElementById('propositionModeToggle').checked);
+      assert.equal(pinnedCalls, 2, 'retry reads the same pinned session');
+      assert.equal(lookupCalls, 0, 'pinned retry never selects another session');
+      assert.equal(creates, 0);
+      assert.equal(await card.getAttribute('data-candidate-id'), 'prop-0');
+      assert.deepEqual(errors, []);
+      return;
+    }
     if (scenario === 'lookup') {
       const retry = page.getByRole('button', { name: 'Retry session lookup', exact: true });
       await retry.waitFor();
@@ -125,7 +142,29 @@ async function run(browser, width) {
     await saved();
     await page.waitForLoadState('networkidle');
     const first = await id();
-    if (scenario === 'queue-finished') {
+    if (scenario === 'lookup-after-save') {
+      for (const pendingAtStart of [false, true]) {
+        const candidate = await id();
+        let writeGate;
+        if (pendingAtStart) { holdNext = deferred(); writeGate = holdNext; }
+        await card.locator('[data-field="proposition_type"]').selectOption('Factual Statement');
+        if (pendingAtStart) await key('a');
+        holdLookup = deferred(); const lookupGate = holdLookup;
+        const lookups = lookupCalls;
+        await page.evaluate(() => { window.pendingLookup = ensurePropositionSession(false, { lookupOnly: true }); });
+        await until(() => lookupCalls > lookups);
+        if (!pendingAtStart) await key('a');
+        if (writeGate) writeGate.release();
+        await saved();
+        assert.equal(stored(candidate).outcome, 'edited');
+        lookupGate.release(); await page.evaluate(() => window.pendingLookup);
+        await page.locator('#propositionReviewFilter').selectOption('all');
+        await page.locator(`.proposition-span[data-proposition-id="${candidate}"]`).click();
+        assert.equal(await card.locator('.proposition-outcome').innerText(), 'Edited', 'older lookup cannot roll back the saved outcome');
+        assert.equal(await card.locator('[data-field="proposition_type"]').inputValue(), 'Factual Statement');
+        await key('n');
+      }
+    } else if (scenario === 'queue-finished') {
       for (let i = 0; i < 8; i++) await key('a');
       await saved();
       await page.waitForFunction(() => document.getElementById('propositionCompletenessMessage').textContent.startsWith('Incomplete:'));

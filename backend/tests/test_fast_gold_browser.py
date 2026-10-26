@@ -16,7 +16,7 @@ BACKEND = Path(__file__).resolve().parents[1]
 SCRIPT = Path(__file__).parent / "browser" / "fast_gold_annotation.cjs"
 SCENARIOS = ["queue", "failed-edit", "held-key", "same-type", "discarded", "multitouch", "mid-swipe", "hand-added",
              "focus", "shortcut-target", "states", "empty", "lookup", "completeness", "validation", "stale-reads",
-             "read-preservation", "queue-finished"]
+             "read-preservation", "queue-finished", "pinned-lookup", "lookup-after-save"]
 
 
 def _fixture() -> dict:

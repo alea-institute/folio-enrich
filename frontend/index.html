@@ -5397,20 +5397,7 @@ async function tryLoadJob() {
 
     // A pinned validation session enables review without enabling extraction.
     // Lookup-only must never create a session on a miss.
-    const requestedSessionId = params.get('gold_session');
-    if (requestedSessionId) {
-      const session = await propositionFetch(`/gold/sessions/${encodeURIComponent(requestedSessionId)}`);
-      if (session.job_id !== currentJobId) throw new Error('Annotation session belongs to another job');
-      reconcilePropositionSession(session);
-      const authorized = await propositionValidationAccess(session);
-      if (currentJobId !== session.job_id) return false;
-      propositionAnnotationMode = authorized;
-      resumePropositionReview();
-      await refreshPropositionCompleteness(currentJobId, session.session_id);
-      renderPropositionsTab();
-    } else {
-      await ensurePropositionSession(false, { lookupOnly: true });
-    }
+    await ensurePropositionSession(false, { lookupOnly: true });
 
     const requestedTab = params.get('tab');
     if (requestedTab) {
@@ -5418,7 +5405,7 @@ async function tryLoadJob() {
       if (tab && document.getElementById(`tab-${requestedTab}`)) switchTab(tab, requestedTab);
     }
 
-    if (!propositionSession?.validation_of) {
+    if (!propositionSession?.validation_of && propositionSessionRead?.status !== 'error') {
       params.delete('job');
       params.delete('tab');
       params.delete('gold_session');
@@ -12480,6 +12467,10 @@ async function ensurePropositionSession(force, { lookupOnly = false } = {}) {
   }
   const activeJobId = currentJobId;
   const priorSessionId = propositionSession?.session_id;
+  const priorQueue = propositionSaveQueue();
+  const priorRevision = priorQueue?.revision;
+  const writesPending = Boolean(priorQueue?.pending.length);
+  const requestedSessionId = new URLSearchParams(location.search).get('gold_session');
   const read = { jobId: activeJobId, status: 'loading', retrying: propositionSessionRead?.status === 'error',
     retryFocused: document.activeElement?.id === 'retryPropositionSessionBtn' };
   propositionSessionRead = read;
@@ -12487,7 +12478,9 @@ async function ensurePropositionSession(force, { lookupOnly = false } = {}) {
   renderPropositionReadState();
   try {
     if (!force) {
-      const sessions = await propositionFetch(`/gold/sessions?job_id=${encodeURIComponent(activeJobId)}`, { method: 'GET' });
+      const sessions = requestedSessionId
+        ? [await propositionFetch(`/gold/sessions/${encodeURIComponent(requestedSessionId)}`, { method: 'GET' })]
+        : await propositionFetch(`/gold/sessions?job_id=${encodeURIComponent(activeJobId)}`, { method: 'GET' });
       if (!isCurrent()) return;
       const available = Array.isArray(sessions) ? sessions : sessions.sessions || [];
       const existing = available.find(session => session.session_id === propositionSession?.session_id)
@@ -12495,8 +12488,13 @@ async function ensurePropositionSession(force, { lookupOnly = false } = {}) {
       if (existing) {
         const session = existing.session_id ? existing : await propositionFetch(`/gold/sessions/${existing.session_id}`, { method: 'GET' });
         if (!isCurrent()) return;
+        if (session.job_id !== activeJobId) throw new Error('Annotation session belongs to another job');
+        if (priorSessionId === session.session_id && (writesPending || priorQueue.revision !== priorRevision)) {
+          read.status = 'ready';
+          return;
+        }
         reconcilePropositionSession(session);
-        if (session.validation_of && !session.exported_at && new URLSearchParams(location.search).get('tab') === 'propositions') {
+        if (requestedSessionId || (session.validation_of && !session.exported_at && new URLSearchParams(location.search).get('tab') === 'propositions')) {
           const authorized = await propositionValidationAccess(session);
           if (!isCurrent() || propositionSession?.session_id !== session.session_id) return;
           propositionAnnotationMode = authorized;
@@ -12598,13 +12596,17 @@ function renderPropositionReadState() {
   document.getElementById('startPropositionSessionBtn').disabled = lookup?.status === 'loading';
   const read = propositionCompletenessRead?.jobId === currentJobId && propositionCompletenessRead?.sessionId === propositionSession?.session_id
     ? propositionCompletenessRead : null;
-  document.getElementById('propositionCompletenessMessage').textContent = !propositionSession ? 'Completeness unavailable until a session starts.'
-    : read?.status === 'loading' ? 'Checking gold completeness…'
-    : read?.status === 'error' ? `Gold completeness unavailable: ${read.error}. Saved review actions are unaffected.`
-    : propositionCompleteness?.complete ? 'Complete: all candidates reviewed, coverage attested, and blind segment revealed.'
-    : propositionCompleteness ? `Incomplete: ${propositionCompleteness.reasons.join('; ')}.`
-    : 'Gold completeness will refresh after review actions save.';
+  document.getElementById('propositionCompletenessMessage').textContent = propositionCompletenessMessage(read);
   updatePropositionReadRetry('retryPropositionCompletenessBtn', read);
+}
+
+function propositionCompletenessMessage(read) {
+  if (!propositionSession) return 'Completeness unavailable until a session starts.';
+  if (read?.status === 'loading') return 'Checking gold completeness…';
+  if (read?.status === 'error') return `Gold completeness unavailable: ${read.error}. Saved review actions are unaffected.`;
+  if (propositionCompleteness?.complete) return 'Complete: all candidates reviewed, coverage attested, and blind segment revealed.';
+  if (propositionCompleteness) return `Incomplete: ${propositionCompleteness.reasons.join('; ')}.`;
+  return 'Gold completeness will refresh after review actions save.';
 }
 
 function updatePropositionReadRetry(id, read) {
@@ -12736,7 +12738,7 @@ function markPropositionCardDirty(control) {
         throw propositionFieldError('Mark unresolved deliberately before saving.', ['explicit_unresolved', 'disposition']);
       }
       clearPropositionCardError(card);
-    } catch { /* Keep the current validation visible until the correction is valid. */ }
+    } catch {}
   }
   card.dataset.dirty = 'true';
   const saveState = card.querySelector('.proposition-review-save-state');
@@ -13552,7 +13554,7 @@ function showPropositionCardError(card, error) {
 function propositionSaveQueue() {
   const id = propositionSession?.session_id;
   if (!id) return null;
-  if (!propositionSaveQueues.has(id)) propositionSaveQueues.set(id, { sessionId: id, pending: [], undo: [], running: false });
+  if (!propositionSaveQueues.has(id)) propositionSaveQueues.set(id, { sessionId: id, pending: [], undo: [], running: false, revision: 0 });
   return propositionSaveQueues.get(id);
 }
 
@@ -13570,6 +13572,7 @@ function applyPropositionOperation(session, operation) {
 function reconcilePropositionSession(session, queue = propositionSaveQueue()) {
   if (queue?.sessionId === session.session_id) queue.pending.forEach(operation => applyPropositionOperation(session, operation));
   propositionSession = session;
+  propositionSaveQueue().revision++;
 }
 
 function renderPropositionSaveState() {
@@ -13613,6 +13616,7 @@ function renderPropositionSaveState() {
 
 function enqueuePropositionOperation(operation, prior) {
   const queue = propositionSaveQueue();
+  queue.revision++;
   operation.quote = operation.body?.proposition?.text || prior?.proposition?.text || 'Hand-added proposition';
   if (prior !== undefined) queue.undo.push({ id: operation.id, prior: structuredClone(prior) });
   // Only a complete replacement (including undo) may supersede a failed write.
