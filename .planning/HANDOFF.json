@@ -1,0 +1,13 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-10-26T14:45:31Z",
+  "trigger": "precompact-auto",
+  "phase": "03-consolidated-system-status-chip",
+  "phase_dir": ".planning/phases/03-consolidated-system-status-chip",
+  "git": {
+    "branch": "codex/proposition-review-workspace-final",
+    "head": "a6e713c",
+    "modified_files": 3
+  },
+  "note": "Auto-saved by PreCompact hook. Run /gsd-resume-work in a fresh session."
+}
