@@ -60,3 +60,13 @@ The captures use only synthetic propositions. The System indicator reflects inte
 Using the existing Insights test environment, record both repository revisions and verify synthetic export identity parity, ingest acceptance, repeat-ingest idempotence, expected hypothesis IRIs via corpus query, and returned status. Local HTTP mocks cannot close this gate. No service installation, signup, credential access or production data is required from this worker. This is an outstanding controller integration check, not a request for a new human decision.
 
 Historical boundary: `docs/bridge-retirement-2026-10-09.md`. This receipt closes the local enrich checks only; it does not declare the entire cross-repository bridge complete.
+
+## Review and final checks
+
+Review run `20261026-114646-32d7e77f` returned **Ready to merge** for the local enrich change. Correctness, testing, maintainability, reliability, adversarial and frontend-race reviewers each returned zero findings. The requirements check found R1-R8 and U1-U3 met, with the authority-source and real-receiver limitations above retained. Cross-model review was disabled by checkout configuration; the adversarial review used a separate local agent.
+
+Simplification removed one redundant production comment. Proof tests remained intact; no review fixes were needed. The final working tree passed the default suite again: **1,240 passed, four dependency warnings, no skips reported**. The final browser gate passed both tests with zero page errors. The three inline frontend scripts and browser harness passed Node syntax checks; whitespace checks passed. No separate lint or typecheck command is configured for these files.
+
+The desktop capture was visually checked at 1600 × 1400: successful push, refreshed corpus row, unsaved rejected disposition and focused field are visible together. The 390 × 844 capture shows the refreshed banner and successful push on the narrow-screen page; the test separately verifies that the edited disposition survives.
+
+All changes are committed locally for controller publication. No worker push, PR, merge or deployment was attempted. No additional learning document was needed because the plan, regression tests and this receipt retain the rationale and verification limits.

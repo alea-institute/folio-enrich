@@ -12812,8 +12812,6 @@ async function ensureInsightsStatus(force = false) {
     result = { data: null, error: 'Corpus status request failed — check your connection.' };
   }
   entry.loading = false;
-  // A push observed during this read makes its response obsolete. Keep one
-  // refresh pending, including across navigation, without overlapping reads.
   if (entry.stale) {
     if (currentJobId === jobId) ensureInsightsStatus();
     return;
