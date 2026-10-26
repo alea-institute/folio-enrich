@@ -2306,7 +2306,7 @@
   .proposition-document.add-armed { cursor:text; outline:2px solid var(--orange); outline-offset:-3px; }
   .proposition-document.blind-armed { cursor:text; outline:2px solid var(--text-dim); outline-offset:-3px; }
   .proposition-blind-segment { background:repeating-linear-gradient(135deg, color-mix(in srgb, var(--text-dim) 10%, transparent) 0 4px, transparent 4px 8px); border-radius:2px; }
-  .proposition-span { padding:2px 1px; background:color-mix(in srgb,var(--orange) 11%,transparent); border-bottom:2px solid color-mix(in srgb,var(--orange) 58%,transparent); cursor:pointer; border-radius:2px; transition:background .16s ease,box-shadow .16s ease,border-color .16s ease; }
+  .proposition-span { color:inherit; padding:2px 1px; background:color-mix(in srgb,var(--orange) 11%,transparent); border-bottom:2px solid color-mix(in srgb,var(--orange) 58%,transparent); cursor:pointer; border-radius:2px; transition:background .16s ease,box-shadow .16s ease,border-color .16s ease; }
   .proposition-span:hover { background:color-mix(in srgb,var(--orange) 22%,transparent); }
   .proposition-span.active { background:color-mix(in srgb,var(--orange) 30%,transparent); border-bottom-color:var(--orange); box-shadow:0 0 0 3px color-mix(in srgb,var(--orange) 16%,transparent),5px 0 0 color-mix(in srgb,var(--orange) 72%,transparent); }
   .proposition-span.outcome-deleted { text-decoration:line-through; opacity:.55; }
@@ -2324,6 +2324,11 @@
   .proposition-card:focus-visible, #tab-propositions button:focus-visible, #tab-propositions input:focus-visible, #tab-propositions select:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
   .proposition-save-status { position:sticky; top:0; z-index:20; margin:8px 0; padding:8px; border:1px solid var(--border); border-radius:6px; background:var(--surface); font-size:12px; }
   .proposition-save-status button { margin:3px; }
+  .proposition-read-status { margin:8px 0; padding:9px 12px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
+  .proposition-read-status.error, .proposition-field-error { border-left:3px solid var(--conf-low); }
+  .proposition-read-status button { margin-left:8px; }
+  .proposition-field-error { margin:10px 0; padding:8px; color:var(--text); background:var(--conf-low-bg); font-size:12px; }
+  #tab-propositions [aria-invalid="true"] { border-color:var(--conf-low); }
   .proposition-type-keys { margin:0 0 12px; font-size:11px; color:var(--text-dim); }
   .proposition-type-keys summary { cursor:pointer; }
   .proposition-type-keys ol { padding-left:24px; }
@@ -2339,7 +2344,7 @@
   .proposition-card.deleted { opacity:.72; }
   .proposition-card-head { display:flex; gap:10px; justify-content:space-between; align-items:flex-start; margin-bottom:13px; }
   .proposition-quote { font-family:Iowan Old Style,Palatino Linotype,Book Antiqua,Georgia,serif; font-weight:650; font-size:15px; line-height:1.45; overflow-wrap:anywhere; }
-  .proposition-outcome { font-size:9px; font-weight:750; text-transform:uppercase; padding:4px 7px; border-radius:999px; background:var(--surface3); white-space:nowrap; }
+  .proposition-outcome { font-size:11px; font-weight:750; padding:4px 7px; border-radius:999px; background:var(--surface3); }
   .proposition-outcome.unreviewed { background:var(--conf-mid-bg); color:var(--conf-mid); }
   .proposition-outcome.accepted, .proposition-outcome.edited, .proposition-outcome.hand-added { background:var(--conf-high-bg); color:var(--conf-high); }
   .proposition-outcome.deleted { background:var(--conf-low-bg); color:var(--conf-low); }
@@ -2359,6 +2364,8 @@
   .proposition-review-save-state.dirty { color:var(--conf-mid); }
   .proposition-review-empty { height:100%; display:grid; place-content:center; gap:7px; text-align:center; color:var(--text-dim); }
   .proposition-review-empty strong { color:var(--text); }
+  .proposition-review-empty { font-size:12px; line-height:1.6; padding:12px; box-sizing:border-box; }
+  #propositionEmptyHeading:focus-visible, #tab-propositions summary:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
   .proposition-shortcuts { padding:7px 12px; border-top:1px solid var(--border); color:var(--text-dim); font-size:9px; line-height:1.5; }
   .proposition-shortcuts kbd { padding:1px 4px; border:1px solid var(--border); border-radius:3px; background:var(--surface2); font:700 9px ui-monospace,SFMono-Regular,Menlo,monospace; }
   .proposition-export.warning { border-color:var(--orange); color:var(--orange); }
@@ -4042,7 +4049,7 @@
           <span class="proposition-status" id="propositionModeStatus">Off</span>
           <button type="button" class="secondary small" onclick="jumpToUnreviewedProposition()">Next unreviewed</button>
           <button type="button" class="secondary small" onclick="undoPropositionAction()" data-proposition-undo disabled>Undo <kbd>Z</kbd></button>
-          <button type="button" class="secondary small" onclick="document.getElementById('propositionHelp').showModal()">Shortcuts ?</button>
+          <button type="button" class="secondary small" onclick="openPropositionHelp()">Shortcuts ?</button>
           <span class="chip" id="propositionRemainingChip">0 unreviewed remaining</span>
           <span class="chip" id="blindPendingChip" style="display:none">blind segment: 0 hidden</span>
           <span class="proposition-status" id="propositionAccessStatus" role="status" aria-live="polite" style="display:none"></span>
@@ -4071,12 +4078,17 @@
           </details>
         </div>
         <div id="propositionSaveStatus" class="proposition-save-status" role="status" aria-live="polite" aria-atomic="true"></div>
+        <div id="propositionReadOnlyStatus" class="proposition-status" hidden></div>
+        <div id="propositionSessionStatus" class="proposition-read-status" hidden>
+          <span id="propositionSessionMessage" role="status" aria-live="polite"></span>
+          <button type="button" id="retryPropositionSessionBtn" class="secondary small" hidden onclick="ensurePropositionSession(false, { lookupOnly: true })">Retry session lookup</button>
+        </div>
         <button type="button" id="addPropositionSelectionBtn" class="secondary small" hidden onclick="addSelectedProposition()">Add as proposition</button>
         <dialog id="propositionHelp" aria-labelledby="propositionHelpTitle">
           <h3 id="propositionHelpTitle">Review shortcuts</h3>
           <ul>
             <li>A: approve and advance · D: discard and advance</li>
-            <li>E: focus type editor · 1–9: set the numbered type, save as edited and advance</li>
+            <li>E: focus type editor · 1–9: set the numbered type and advance; choosing the current type approves unchanged fields</li>
             <li>← / →: previous / next item · N: next unreviewed</li>
             <li>[ / ]: move span start one word left / right</li>
             <li>{ / }: move span end one word left / right (Shift + [ / ])</li>
@@ -4140,7 +4152,10 @@
             <button class="secondary small" id="coveragePassBtn" onclick="recordCoveragePass()" disabled>Record full-text coverage pass</button>
             <span class="proposition-status">Attest that every sentence was read against the candidate list.</span>
           </div>
-          <div class="proposition-status" id="propositionCompletenessStatus">Completeness unavailable until a session starts.</div>
+          <div class="proposition-status" id="propositionCompletenessStatus">
+            <span id="propositionCompletenessMessage" role="status" aria-live="polite">Completeness unavailable until a session starts.</span>
+            <button type="button" id="retryPropositionCompletenessBtn" class="secondary small" hidden onclick="refreshPropositionCompleteness()">Retry completeness</button>
+          </div>
           <div class="proposition-diff" id="propositionBlindDiff" style="display:none"></div>
         </div>
         <div class="proposition-status" id="propositionExportResult"></div>
@@ -4482,6 +4497,8 @@ let propositionBlindArmed = false;
 let propositionDraft = null;
 let propositionSettings = null;
 let propositionCompleteness = null;
+let propositionSessionRead = null;
+let propositionCompletenessRead = null;
 // folio-insights corpus status, cached per job id: { loading, data, error }.
 const insightsStatusCache = new Map();
 const insightsDisclosureOpen = new Set();
@@ -4560,6 +4577,8 @@ function resetPropositionSessionState() {
   propositionSession = null;
   propositionDraft = null;
   propositionCompleteness = null;
+  propositionSessionRead = null;
+  propositionCompletenessRead = null;
   propositionReviewId = null;
   propositionReviewScrollPending = false;
   propositionAddArmed = false;
@@ -12336,6 +12355,34 @@ function renderPropertiesTab(properties) {
 
 let PROPOSITION_TYPES = ['Legal Proposition', 'Factual Statement', 'Judicial Legal Conclusion', 'Judicial Finding of Fact', 'stipulation', 'arguendo assumption', 'judicial notice', 'cited-authority proposition', 'hypothetical illustration', 'policy proposition'];
 const PROPOSITION_ROLES = ['party', 'plaintiff', 'defendant', 'appellant', 'appellee', 'petitioner', 'respondent', 'both_parties', 'court', 'secondary_source', 'system'];
+const PROPOSITION_OUTCOME_LABELS = { unreviewed: 'Needs review', accepted: 'Approved', edited: 'Edited', deleted: 'Discarded', 'hand-added': 'Hand-added' };
+
+function propositionOutcomeLabel(record) {
+  return record.draft ? 'Draft — not saved' : PROPOSITION_OUTCOME_LABELS[record.outcome || 'unreviewed'] || 'Needs review';
+}
+
+function renderPropositionEmptyState() {
+  let heading, message, action = '';
+  if (!currentJob) {
+    heading = 'Open a document to begin';
+    message = 'Run an enrichment or open a completed document to read its propositions.';
+  } else if (currentJob.status !== 'completed') {
+    const failed = ['failed', 'error', 'cancelled'].includes(currentJob.status);
+    heading = failed ? 'Document unavailable for review' : 'Document is still processing';
+    message = failed ? 'Review becomes available after a successful enrichment.' : 'Propositions will appear when enrichment finishes.';
+  } else if (!propositionSession && !propositionRecords().length) {
+    heading = 'No annotation session';
+    message = propositionAnnotationMode ? 'Start an annotation session in Session tools to review this document.' : 'Enable annotation mode to start reviewing this document.';
+  } else if (!propositionRecords().length) {
+    heading = 'No proposition candidates';
+    message = propositionAnnotationMode ? 'Select source text and choose Add as proposition to add a span the tool missed.' : 'This session has no propositions to browse.';
+  } else {
+    heading = 'No reviewed propositions yet';
+    message = 'Reviewed items will appear here after you approve, edit, or discard them.';
+    action = '<button type="button" class="secondary small proposition-browse-all" onclick="setPropositionReviewFilter(\'all\'); focusPropositionReview()">Show all propositions</button>';
+  }
+  return `<div class="proposition-review-empty"><strong id="propositionEmptyHeading" tabindex="-1">${heading}</strong><span>${message}</span>${action}</div>`;
+}
 
 function applyPropositionSettings(value) {
   propositionSettings = value;
@@ -12432,35 +12479,43 @@ async function ensurePropositionSession(force, { lookupOnly = false } = {}) {
     return;
   }
   const activeJobId = currentJobId;
+  const priorSessionId = propositionSession?.session_id;
+  const read = { jobId: activeJobId, status: 'loading', retrying: propositionSessionRead?.status === 'error',
+    retryFocused: document.activeElement?.id === 'retryPropositionSessionBtn' };
+  propositionSessionRead = read;
+  const isCurrent = () => currentJobId === activeJobId && propositionSessionRead === read;
+  renderPropositionReadState();
   try {
     if (!force) {
       const sessions = await propositionFetch(`/gold/sessions?job_id=${encodeURIComponent(activeJobId)}`, { method: 'GET' });
-      if (currentJobId !== activeJobId) return;
+      if (!isCurrent()) return;
       const available = Array.isArray(sessions) ? sessions : sessions.sessions || [];
       const existing = available.find(session => session.session_id === propositionSession?.session_id)
         || available.find(session => session.validation_of && !session.exported_at) || available[0];
       if (existing) {
         const session = existing.session_id ? existing : await propositionFetch(`/gold/sessions/${existing.session_id}`, { method: 'GET' });
-        if (currentJobId !== activeJobId) return;
+        if (!isCurrent()) return;
         reconcilePropositionSession(session);
         if (session.validation_of && !session.exported_at && new URLSearchParams(location.search).get('tab') === 'propositions') {
           const authorized = await propositionValidationAccess(session);
-          if (currentJobId !== activeJobId || propositionSession?.session_id !== session.session_id) return;
+          if (!isCurrent() || propositionSession?.session_id !== session.session_id) return;
           propositionAnnotationMode = authorized;
         }
-        resumePropositionReview();
+        read.status = 'ready';
+        if (priorSessionId !== session.session_id) resumePropositionReview();
         if (!await refreshPropositionCompleteness(activeJobId, session.session_id)) return;
-        renderPropositionsTab();
+        renderPropositionBackground();
         return;
       }
     }
     if (lookupOnly) {
-      renderPropositionsTab();
+      read.status = 'empty';
+      renderPropositionBackground();
       return;
     }
     if (!propositionSettings) {
       const settings = await propositionFetch('/settings', { method: 'GET' });
-      if (currentJobId !== activeJobId) return;
+      if (!isCurrent()) return;
       applyPropositionSettings(settings);
     }
     const overrideLlm = propositionSettings.task_llm_overrides?.proposition || {};
@@ -12480,22 +12535,86 @@ async function ensurePropositionSession(force, { lookupOnly = false } = {}) {
         pre_selector: { source: baseline || !hasLlm ? 'lexicon-only' : 'lexicon+llm', llm_provider: baseline ? null : llm.provider || null, llm_model: baseline ? null : llm.model || null },
       }),
     });
-    if (currentJobId !== activeJobId) return;
+    if (!isCurrent()) return;
     reconcilePropositionSession(session);
+    read.status = 'ready';
     if (!await refreshPropositionCompleteness(activeJobId, session.session_id)) return;
-    renderPropositionsTab();
-  } catch (error) { if (currentJobId === activeJobId) propositionApiError(error); }
+    renderPropositionBackground();
+  } catch (error) {
+    if (!isCurrent()) return;
+    read.status = 'error';
+    read.error = error.message || String(error);
+    if (error.goldAuthFailure) propositionApiError(error);
+  } finally {
+    if (isCurrent()) renderPropositionReadState();
+  }
 }
 
 async function refreshPropositionCompleteness(activeJobId = currentJobId, activeSessionId = propositionSession?.session_id) {
-  if (!activeSessionId) {
-    if (currentJobId === activeJobId) propositionCompleteness = null;
-    return currentJobId === activeJobId;
-  }
-  const completeness = await propositionFetch(`/gold/sessions/${activeSessionId}/completeness`, { method: 'GET' });
   if (currentJobId !== activeJobId || propositionSession?.session_id !== activeSessionId) return false;
-  propositionCompleteness = completeness;
-  return true;
+  propositionCompleteness = null;
+  if (!activeSessionId) {
+    propositionCompletenessRead = null;
+    renderPropositionReadState();
+    return true;
+  }
+  const read = { jobId: activeJobId, sessionId: activeSessionId, status: 'loading',
+    retrying: propositionCompletenessRead?.status === 'error',
+    retryFocused: document.activeElement?.id === 'retryPropositionCompletenessBtn' };
+  propositionCompletenessRead = read;
+  const isCurrent = () => currentJobId === activeJobId && propositionSession?.session_id === activeSessionId && propositionCompletenessRead === read;
+  renderPropositionReadState();
+  try {
+    const completeness = await propositionFetch(`/gold/sessions/${activeSessionId}/completeness`, { method: 'GET' });
+    if (!isCurrent()) return false;
+    propositionCompleteness = completeness;
+    read.status = 'ready';
+  } catch (error) {
+    if (!isCurrent()) return false;
+    read.status = 'error';
+    read.error = error.message || String(error);
+    if (error.goldAuthFailure) propositionApiError(error);
+  } finally {
+    if (isCurrent()) renderPropositionReadState();
+  }
+  return isCurrent();
+}
+
+function renderPropositionBackground() {
+  if (propositionGestureActive) propositionGestureRenderPending = true;
+  if (!propositionReviewBusy()) renderPropositionsTab();
+  else { renderPropositionSaveState(); renderPropositionReadState(); }
+}
+
+function renderPropositionReadState() {
+  const lookup = propositionSessionRead?.jobId === currentJobId ? propositionSessionRead : null;
+  const banner = document.getElementById('propositionSessionStatus');
+  banner.hidden = !lookup || lookup.status === 'ready';
+  banner.classList.toggle('error', lookup?.status === 'error');
+  document.getElementById('propositionSessionMessage').textContent = lookup?.status === 'loading' ? 'Looking up annotation session…'
+    : lookup?.status === 'error' ? `Annotation session unavailable: ${lookup.error}`
+    : lookup?.status === 'empty' ? 'No annotation session found. Extracted propositions remain available to browse.' : '';
+  updatePropositionReadRetry('retryPropositionSessionBtn', lookup);
+  document.getElementById('startPropositionSessionBtn').disabled = lookup?.status === 'loading';
+  const read = propositionCompletenessRead?.jobId === currentJobId && propositionCompletenessRead?.sessionId === propositionSession?.session_id
+    ? propositionCompletenessRead : null;
+  document.getElementById('propositionCompletenessMessage').textContent = !propositionSession ? 'Completeness unavailable until a session starts.'
+    : read?.status === 'loading' ? 'Checking gold completeness…'
+    : read?.status === 'error' ? `Gold completeness unavailable: ${read.error}. Saved review actions are unaffected.`
+    : propositionCompleteness?.complete ? 'Complete: all candidates reviewed, coverage attested, and blind segment revealed.'
+    : propositionCompleteness ? `Incomplete: ${propositionCompleteness.reasons.join('; ')}.`
+    : 'Gold completeness will refresh after review actions save.';
+  updatePropositionReadRetry('retryPropositionCompletenessBtn', read);
+}
+
+function updatePropositionReadRetry(id, read) {
+  const button = document.getElementById(id);
+  const visible = read?.status === 'error' || (read?.status === 'loading' && read.retrying);
+  const restoreFocus = !visible && (document.activeElement === button || (read?.retryFocused && document.activeElement === document.body));
+  button.hidden = !visible;
+  button.disabled = read?.status === 'loading';
+  if (restoreFocus) document.getElementById('propositionReviewFilter').focus({ preventScroll: true });
+  if (read && read.status !== 'loading') read.retryFocused = false;
 }
 
 function propositionRecords() {
@@ -12549,8 +12668,9 @@ function guardUnsavedPropositionEdits() {
 }
 
 function setActivePropositionReview(id) {
-  if (!id || id === propositionReviewId) return;
-  if (guardUnsavedPropositionEdits()) return;
+  if (!id) return false;
+  if (guardUnsavedPropositionEdits()) return false;
+  if (id === propositionReviewId) { focusPropositionReview(); return true; }
   const ordered = orderedPropositionRecords();
   const isVisible = filteredPropositionReviewRecords(ordered).some(record => record.proposition?.id === id);
   if (!isVisible) {
@@ -12560,7 +12680,26 @@ function setActivePropositionReview(id) {
   propositionReviewId = id;
   propositionReviewScrollPending = false;
   renderPropositionsTab();
+  focusPropositionReview();
+  return true;
 }
+
+function focusPropositionReview() {
+  const target = document.querySelector('#propositionCandidates .proposition-card, #propositionEmptyHeading')
+    || document.getElementById('propositionReviewFilter');
+  target?.focus({ preventScroll: true });
+}
+
+let propositionHelpOpener = null;
+function openPropositionHelp() {
+  propositionHelpOpener = document.activeElement;
+  document.getElementById('propositionHelp').showModal();
+}
+document.getElementById('propositionHelp').addEventListener('close', () => {
+  if (propositionHelpOpener?.isConnected) propositionHelpOpener.focus({ preventScroll: true });
+  else focusPropositionReview();
+  propositionHelpOpener = null;
+});
 
 function navigatePropositionReview(direction) {
   if (guardUnsavedPropositionEdits()) return;
@@ -12571,6 +12710,7 @@ function navigatePropositionReview(direction) {
   propositionReviewId = nextId;
   propositionReviewScrollPending = true;
   renderPropositionsTab();
+  focusPropositionReview();
 }
 
 function setPropositionReviewFilter(value) {
@@ -12589,6 +12729,15 @@ function setPropositionReviewFilter(value) {
 function markPropositionCardDirty(control) {
   const card = control.closest('.proposition-card');
   if (!card) return;
+  if (control.hasAttribute('aria-invalid')) {
+    try {
+      const value = propositionFromCard(card);
+      if (value.disposition === 'unresolved' && !card.querySelector('[data-field="explicit_unresolved"]').checked) {
+        throw propositionFieldError('Mark unresolved deliberately before saving.', ['explicit_unresolved', 'disposition']);
+      }
+      clearPropositionCardError(card);
+    } catch { /* Keep the current validation visible until the correction is valid. */ }
+  }
   card.dataset.dirty = 'true';
   const saveState = card.querySelector('.proposition-review-save-state');
   if (saveState) {
@@ -12647,7 +12796,10 @@ function refreshInsightsStatus() {
 // re-enable buttons mid-save, so while the reviewer is busy only the banner and
 // the active card's corpus row are patched in place.
 function propositionReviewBusy() {
-  return Boolean(propositionGestureActive || propositionDraft || propositionSelection || activePropositionCardIsDirty() || document.activeElement?.closest('#propositionCandidates .proposition-fields'));
+  return Boolean(propositionGestureActive || propositionDraft || propositionSelection || activePropositionCardIsDirty()
+    || document.querySelector('#propositionFieldError:not([hidden])')
+    || document.activeElement?.closest('#propositionCandidates .proposition-fields')
+    || document.activeElement?.matches('#propositionCandidates button, #propositionCandidates summary, #propositionCandidates a'));
 }
 
 function applyInsightsStatusUpdate() {
@@ -12665,6 +12817,7 @@ function patchActivePropositionCorpusRow() {
   const record = propositionRecords().find(r => r.proposition?.id === card.dataset.candidateId);
   const html = record ? renderPropositionCorpusRow(record.proposition) : '';
   const existing = card.querySelector('.proposition-corpus');
+  if (existing?.contains(document.activeElement)) return;
   if (existing) {
     if (html) existing.outerHTML = html; else existing.remove();
   } else if (html) {
@@ -13114,6 +13267,9 @@ function retryPostJobPush() {
 }
 
 function renderPropositionsTab() {
+  const focused = document.activeElement;
+  const focusedCardId = focused?.matches('.proposition-card') ? focused.dataset.candidateId : null;
+  const focusedSourceId = focused?.matches('.proposition-span') ? focused.dataset.propositionId : null;
   propositionGestureRenderPending = false;
   propositionSelection = null;
   document.getElementById('addPropositionSelectionBtn').hidden = true;
@@ -13131,6 +13287,11 @@ function renderPropositionsTab() {
   document.getElementById('propositionModeStatus').textContent = propositionAnnotationMode
     ? `On · ${propositionSession?.validation_of ? 'gold validation' : propositionSession?.baseline ? 'lexicon-only baseline' : llm?.provider && llm?.model ? `lexicon + ${llm.provider}/${llm.model}` : 'lexicon only'}` : 'Off';
   const complete = currentJob?.status === 'completed';
+  const readOnly = document.getElementById('propositionReadOnlyStatus');
+  readOnly.hidden = !complete || Boolean(propositionSession && propositionAnnotationMode);
+  readOnly.textContent = !propositionSession
+    ? 'No annotation session loaded · Read-only extracted propositions. Enable annotation mode or use Session tools to start reviewing.'
+    : 'Read-only · Enable annotation mode to review this session.';
   document.getElementById('startPropositionSessionBtn').style.display = propositionAnnotationMode && complete && !propositionSession ? '' : 'none';
   document.getElementById('addPropositionSpanBtn').disabled = !propositionAnnotationMode || !propositionSession;
   document.getElementById('blindSegmentBtn').disabled = !propositionAnnotationMode || !propositionSession || Boolean(propositionSession?.blind_segment);
@@ -13151,10 +13312,7 @@ function renderPropositionsTab() {
   const coverageButton = document.getElementById('coveragePassBtn');
   coverageButton.disabled = !propositionAnnotationMode || !propositionSession || Boolean(propositionSession.coverage_pass_completed_at);
   coverageButton.textContent = propositionSession?.coverage_pass_completed_at ? 'Coverage pass recorded' : 'Record full-text coverage pass';
-  const completenessStatus = document.getElementById('propositionCompletenessStatus');
-  completenessStatus.textContent = propositionCompleteness?.complete
-    ? 'Complete: all candidates reviewed, coverage attested, and blind segment revealed.'
-    : propositionCompleteness ? `Incomplete: ${propositionCompleteness.reasons.join('; ')}.` : 'Completeness unavailable until a session starts.';
+  renderPropositionReadState();
   const diff = propositionSession?.blind_diff_report?.anchoring_loss;
   const diffBlock = document.getElementById('propositionBlindDiff');
   diffBlock.style.display = diff ? '' : 'none';
@@ -13199,7 +13357,7 @@ function renderPropositionsTab() {
     html += appendPlainText(position, p.start_char);
     const activeClass = p.id === propositionReviewId ? ' active' : '';
     const outcomeClass = ` outcome-${escapeAttr(record.outcome || 'unreviewed')}`;
-    html += `<mark class="proposition-span${activeClass}${outcomeClass}" tabindex="0" data-proposition-id="${escapeAttr(p.id)}" aria-label="${escapeAttr(`${p.proposition_type || 'Proposition'} · ${record.outcome || 'unreviewed'}`)}">${escapeHtml(text.slice(p.start_char, p.end_char))}</mark>`;
+    html += `<mark class="proposition-span${activeClass}${outcomeClass}" tabindex="0" data-proposition-id="${escapeAttr(p.id)}" aria-label="${escapeAttr(`${p.proposition_type || 'Proposition'} · ${propositionOutcomeLabel(record)}`)}">${escapeHtml(text.slice(p.start_char, p.end_char))}</mark>`;
     position = p.end_char;
   }
   html += appendPlainText(position, text.length);
@@ -13223,7 +13381,7 @@ function renderPropositionsTab() {
   const list = document.getElementById('propositionCandidates');
   list.innerHTML = activeRecord
     ? renderPropositionCard(activeRecord)
-    : '<div class="proposition-review-empty"><strong>No propositions in this view</strong><span>Choose another review filter or start an annotation session.</span></div>';
+    : renderPropositionEmptyState();
   if (list.dataset.activeId !== activeProposition?.id) list.scrollTop = 0;
   list.dataset.activeId = activeProposition?.id || '';
   const activeCard = list.querySelector('.proposition-card');
@@ -13244,7 +13402,7 @@ function renderPropositionsTab() {
     list.querySelectorAll('.proposition-actions').forEach(actions => { actions.style.display = 'none'; });
   }
   // Copying a corpus IRI is read-only, so it stays available in every review state.
-  list.querySelectorAll('.corpus-copy').forEach(control => { control.disabled = false; });
+  list.querySelectorAll('.corpus-copy, .proposition-browse-all').forEach(control => { control.disabled = false; });
   const counts = sessionRecords.reduce((totals, record) => {
     const outcome = record.outcome || 'unreviewed';
     totals[outcome] = (totals[outcome] || 0) + 1;
@@ -13252,7 +13410,7 @@ function renderPropositionsTab() {
   }, {});
   const reviewed = sessionRecords.length - (counts.unreviewed || 0);
   document.getElementById('propositionReviewSummary').innerHTML = [
-    review.queueComplete ? '<span class="proposition-review-stat">Queue complete · browsing all</span>' : '',
+    review.queueComplete ? '<span class="proposition-review-stat">Review queue finished · browsing all</span>' : '',
     `<span class="proposition-review-stat">${counts.unreviewed || 0} needs review</span>`,
     `<span class="proposition-review-stat">${reviewed} of ${sessionRecords.length} reviewed</span>`,
     counts.deleted ? `<span class="proposition-review-stat">${counts.deleted} discarded</span>` : '',
@@ -13272,6 +13430,12 @@ function renderPropositionsTab() {
   document.getElementById('propositionRemainingChip').textContent = `${remaining} unreviewed remaining`;
   document.getElementById('exportGoldBtn').classList.toggle('warning', remaining > 0);
   renderPropositionSaveState();
+  if (focusedCardId && activeProposition?.id === focusedCardId) focusPropositionReview();
+  if (focusedSourceId) {
+    const mark = doc.querySelector(`[data-proposition-id="${CSS.escape(focusedSourceId)}"]`);
+    if (mark) mark.focus({ preventScroll: true });
+    else focusPropositionReview();
+  }
 }
 
 function propositionOptions(values, current, includeNone = false) {
@@ -13294,7 +13458,7 @@ function renderPropositionCard(record) {
     actions = '<button class="primary small" data-advance="true" onclick="savePropositionOutcome(this, \'accepted\')">Approve &amp; next <kbd>A</kbd></button><button class="secondary small" data-advance="true" onclick="savePropositionOutcome(this, \'edited\')">Save edits &amp; next</button><button class="secondary small" data-advance="true" onclick="savePropositionOutcome(this, \'deleted\')">Discard <kbd>D</kbd></button>';
   }
   return `<div class="proposition-card ${outcome === 'deleted' ? 'deleted' : ''}" tabindex="-1" data-candidate-id="${escapeAttr(id)}" data-draft="${isDraft}" data-dirty="false">
-    <div class="proposition-card-head"><div><span class="proposition-review-eyebrow">Classification</span><span class="proposition-quote">“${escapeHtml(p.text || '')}”</span></div><span class="proposition-outcome ${escapeAttr(outcome)}">${escapeHtml(outcome)}</span></div>
+    <div class="proposition-card-head"><div><span class="proposition-review-eyebrow">Classification</span><span class="proposition-quote">“${escapeHtml(p.text || '')}”</span></div><span class="proposition-outcome ${escapeAttr(outcome)}" aria-label="Review outcome">${escapeHtml(propositionOutcomeLabel(record))}</span></div>
     ${isDraft ? '' : renderPropositionCorpusRow(p)}
     <div class="proposition-swipe-hint" aria-live="polite"></div>
     <details class="proposition-type-keys" open><summary>Number keys · set type &amp; next</summary><ol>${PROPOSITION_TYPES.slice(0, 9).map(type => `<li>${escapeHtml(type)}</li>`).join('')}</ol><span>Other types are available in the type editor.</span></details>
@@ -13305,7 +13469,7 @@ function renderPropositionCard(record) {
       <label class="proposition-field"><span>Asserter assumed</span><input type="checkbox" data-field="asserter_assumed" ${p.asserter?.assumed ? 'checked' : ''}></label>
       <label class="proposition-field">Validator role<select data-field="validator_role">${propositionOptions(PROPOSITION_ROLES, p.validator?.role, true)}</select></label>
       <label class="proposition-field">Validator mode<select data-field="validator_mode">${propositionOptions(['ruled', 'pro_forma', 'declined'], p.validator?.mode || 'ruled')}</select></label>
-      <label class="proposition-field wide">Disposition<select data-field="disposition" onchange="handlePropositionDisposition(this)">${propositionOptions(['accepted', 'rejected', 'revised', 'unresolved', 'assumed-arguendo'], p.disposition)}</select></label>
+      <label class="proposition-field wide"><span id="propositionDispositionLabel">Legal disposition</span><select aria-labelledby="propositionDispositionLabel" data-field="disposition" onchange="handlePropositionDisposition(this)">${propositionOptions(['accepted', 'rejected', 'revised', 'unresolved', 'assumed-arguendo'], p.disposition)}</select></label>
       <label class="proposition-inline-confirm wide" style="display:${p.disposition === 'unresolved' ? '' : 'none'}"><input type="checkbox" data-field="explicit_unresolved" ${record.explicit_unresolved ? 'checked' : ''}> Mark unresolved deliberately</label>
       <details class="proposition-advanced">
         <summary>Span &amp; provenance</summary>
@@ -13316,6 +13480,7 @@ function renderPropositionCard(record) {
         </div>
       </details>
     </div>
+    <div id="propositionFieldError" class="proposition-field-error" role="alert" hidden></div>
     <div class="proposition-actions">
       ${actions}
       ${customType && !isDraft ? '<button class="secondary small" onclick="recordNewTypeLearning(this)">Record as new-type learning</button>' : ''}
@@ -13344,8 +13509,8 @@ function propositionFromCard(card) {
   const validatorRole = value('validator_role').value;
   const typeSelect = value('proposition_type').value;
   const propositionType = typeSelect === '__new__' ? value('new_type').value.trim() : typeSelect;
-  if (!propositionType) throw new Error('New proposition type is required');
-  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end <= start || end > fullText.length) throw new Error('Span boundaries are invalid');
+  if (!propositionType) throw propositionFieldError('New proposition type is required', ['new_type', 'proposition_type']);
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end <= start || end > fullText.length) throw propositionFieldError('Span boundaries are invalid', ['start_char', 'end_char']);
   return {
     ...original, id: card.dataset.candidateId, start_char: start, end_char: end,
     text: fullText.slice(start, end), proposition_type: propositionType, is_new_type: typeSelect === '__new__',
@@ -13353,6 +13518,35 @@ function propositionFromCard(card) {
     validator: validatorRole ? { ...original.validator, role: validatorRole, mode: value('validator_mode').value } : null,
     disposition: value('disposition').value, citation_edges: original.citation_edges || [], triple_ids: original.triple_ids || [],
   };
+}
+
+function propositionFieldError(message, fields) {
+  return Object.assign(new Error(message), { fields });
+}
+
+function clearPropositionCardError(card) {
+  const error = card.querySelector('.proposition-field-error');
+  error.hidden = true;
+  error.textContent = '';
+  card.querySelectorAll('[aria-invalid]').forEach(control => {
+    control.removeAttribute('aria-invalid');
+    control.removeAttribute('aria-describedby');
+  });
+}
+
+function showPropositionCardError(card, error) {
+  clearPropositionCardError(card);
+  const message = card.querySelector('.proposition-field-error');
+  message.textContent = error.message || String(error);
+  message.hidden = false;
+  const controls = (error.fields || []).map(field => card.querySelector(`[data-field="${field}"]`));
+  controls.forEach(control => {
+    control.setAttribute('aria-invalid', 'true');
+    control.setAttribute('aria-describedby', message.id);
+    const details = control.closest('details');
+    if (details) details.open = true;
+  });
+  controls[0]?.focus();
 }
 
 function propositionSaveQueue() {
@@ -13383,21 +13577,25 @@ function renderPropositionSaveState() {
   const pending = queue?.pending || [];
   const failed = pending.find(operation => operation.error);
   const status = document.getElementById('propositionSaveStatus');
+  const focusedId = status.contains(document.activeElement) ? document.activeElement.id : null;
   status.replaceChildren();
-  status.append(document.createTextNode(failed ? 'Not saved — retry. ' : pending.length ? `Saving ${pending.length} action(s)… ` : propositionDraft || activePropositionCardIsDirty() ? 'Unsaved edits — choose a save action.' : 'All actions saved.'));
+  status.append(document.createTextNode(!propositionSession ? 'No annotation session loaded — no review actions to save.' : failed ? `Not saved — retry. ${failed.error} ` : pending.length ? `Saving ${pending.length} action(s)… ` : propositionDraft || activePropositionCardIsDirty() ? 'Unsaved edits — choose a save action.' : 'All actions saved.'));
   if (failed) {
     const retry = document.createElement('button');
+    retry.id = 'retryPropositionSaveBtn';
     retry.className = 'secondary small';
     retry.textContent = 'Not saved — retry';
     retry.title = failed.error;
     retry.onclick = () => { failed.error = null; renderPropositionSaveState(); drainPropositionSaves(queue); };
     status.append(retry);
     const view = document.createElement('button');
+    view.id = 'viewUnsavedPropositionBtn';
     view.className = 'secondary small';
     view.textContent = `View unsaved item: ${failed.quote.slice(0, 60)}`;
     view.onclick = () => setActivePropositionReview(failed.id);
     status.append(view);
   }
+  if (focusedId) (document.getElementById(focusedId) || document.getElementById('propositionReviewFilter')).focus({ preventScroll: true });
   document.getElementById('exportGoldBtn').disabled = !propositionAnnotationMode || !propositionSession || pending.length > 0 || Boolean(propositionDraft || activePropositionCardIsDirty());
   document.querySelectorAll('[data-proposition-undo]').forEach(button => { button.disabled = !propositionAnnotationMode || !queue?.undo.length; });
   document.querySelectorAll('.proposition-span').forEach(mark => mark.classList.toggle('unsaved', pending.some(operation => operation.id === mark.dataset.propositionId)));
@@ -13425,6 +13623,7 @@ function enqueuePropositionOperation(operation, prior) {
   queue.pending.push(operation);
   applyPropositionOperation(propositionSession, operation);
   propositionCompleteness = null;
+  propositionCompletenessRead = null;
   drainPropositionSaves(queue);
 }
 
@@ -13496,7 +13695,7 @@ function savePropositionOutcome(button, outcome) {
       }
     }
     const value = body.proposition || prior.proposition;
-    if (['accepted', 'edited'].includes(effectiveOutcome) && value.disposition === 'unresolved' && !body.explicit_unresolved) throw new Error('Mark unresolved deliberately before saving.');
+    if (['accepted', 'edited'].includes(effectiveOutcome) && value.disposition === 'unresolved' && !body.explicit_unresolved) throw propositionFieldError('Mark unresolved deliberately before saving.', ['explicit_unresolved', 'disposition']);
     enqueuePropositionOperation({ id: card.dataset.candidateId, method: 'PATCH', body }, prior);
     const records = orderedPropositionRecords();
     const index = records.findIndex(record => record.proposition.id === card.dataset.candidateId);
@@ -13505,7 +13704,7 @@ function savePropositionOutcome(button, outcome) {
     propositionReviewScrollPending = true;
     renderPropositionsTab();
     document.querySelector('#propositionCandidates .proposition-card')?.focus({ preventScroll: true });
-  } catch (error) { propositionApiError(error); }
+  } catch (error) { showPropositionCardError(card, error); }
 }
 
 function undoPropositionAction() {
@@ -13530,16 +13729,16 @@ function saveHandAdded(button) {
   try {
     const proposition = propositionFromCard(card);
     const explicit_unresolved = card.querySelector('[data-field="explicit_unresolved"]').checked;
-    if (proposition.disposition === 'unresolved' && !explicit_unresolved) throw new Error('Mark unresolved deliberately before saving.');
+    if (proposition.disposition === 'unresolved' && !explicit_unresolved) throw propositionFieldError('Mark unresolved deliberately before saving.', ['explicit_unresolved', 'disposition']);
     enqueuePropositionOperation({ id: proposition.id, method: 'POST', body: { proposition, explicit_unresolved } }, null);
     propositionDraft = null;
     propositionReviewId = proposition.id;
     renderPropositionsTab();
     document.querySelector('#propositionCandidates .proposition-card')?.focus({ preventScroll: true });
-  } catch (error) { propositionApiError(error); }
+  } catch (error) { showPropositionCardError(card, error); }
 }
 
-function cancelHandAdded() { propositionDraft = null; propositionReviewId = null; renderPropositionsTab(); }
+function cancelHandAdded() { propositionDraft = null; propositionReviewId = null; renderPropositionsTab(); focusPropositionReview(); }
 
 async function recordNewTypeLearning(button) {
   const card = button.closest('.proposition-card');
@@ -13559,7 +13758,6 @@ function focusPropositionCard(event, id) {
   if (window.getSelection()?.toString()) return;
   if (propositionAddArmed || propositionBlindArmed) { event.preventDefault(); return; }
   setActivePropositionReview(id);
-  requestAnimationFrame(() => document.querySelector('.proposition-card')?.focus({ preventScroll: true }));
 }
 
 function togglePropositionAddMode() {
@@ -13683,6 +13881,7 @@ function jumpToUnreviewedProposition() {
   if (guardUnsavedPropositionEdits() || propositionDraft) return;
   resumePropositionReview();
   renderPropositionsTab();
+  focusPropositionReview();
 }
 
 function updatePropositionQuote(card) {
@@ -13778,13 +13977,15 @@ window.addEventListener('beforeunload', event => {
 
 document.addEventListener('keydown', event => {
   if (!document.getElementById('tab-propositions')?.classList.contains('active')) return;
-  if (document.getElementById('propositionHelp').open) return;
+  if (event.isComposing || document.querySelector('dialog[open]')) return;
   if (/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(event.target.tagName) || event.target.isContentEditable) return;
   if (event.ctrlKey || event.metaKey || event.altKey) return;
   if (event.key === 'Escape' && (propositionAddArmed || propositionBlindArmed)) { propositionAddArmed = false; propositionBlindArmed = false; renderPropositionsTab(); return; }
   const key = event.key.toLowerCase();
   if (event.repeat && (['a', 'd', 'z'].includes(key) || /^[1-9]$/.test(key))) { event.preventDefault(); return; }
-  if (key === '?') { event.preventDefault(); document.getElementById('propositionHelp').showModal(); return; }
+  if (key === '?') { event.preventDefault(); openPropositionHelp(); return; }
+  const sourceMark = event.target.closest('.proposition-span');
+  if (sourceMark && sourceMark.dataset.propositionId !== propositionReviewId) return;
   if (key === 'z') { event.preventDefault(); undoPropositionAction(); return; }
   if (key === 'n') { event.preventDefault(); jumpToUnreviewedProposition(); return; }
   const card = document.querySelector('#propositionCandidates .proposition-card');

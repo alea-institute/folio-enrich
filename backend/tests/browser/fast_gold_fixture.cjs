@@ -17,11 +17,13 @@ async function run(browser, width) {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   const session = { session_id: 'synthetic-session', job_id: job.id, annotator: 'tester', baseline: false, validation_of: 'synthetic-record',
-    blind_pending: 0, hand_added: [], candidates: job.result.propositions.map(proposition => ({
+    validated_annotator: 'synthetic annotator', blind_pending: 0, hand_added: [], candidates: job.result.propositions.map(proposition => ({
       proposition: clone(proposition), original: clone(proposition), outcome: 'unreviewed', explicit_unresolved: false,
     })) };
   const writes = [];
   let failNext = false, holdNext = null, completenessCalls = 0;
+  let lookupCalls = 0, creates = 0, failLookup = scenario === 'lookup', noSession = false, holdLookup = null;
+  let failCompleteness = false, holdCompleteness = null, complete = false;
   await page.route('**/*', async route => {
     const request = route.request(), url = new URL(request.url()), method = request.method();
     const json = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
@@ -35,9 +37,22 @@ async function run(browser, width) {
     if (url.pathname === '/gold/access') return json({ authenticated: true, via: 'local' });
     if (url.pathname === `/enrich/${job.id}`) return json(job);
     if (url.pathname.endsWith('/insights-status')) return json({ state: 'not_configured', connected: false, results: {}, propositions: {} });
-    if (url.pathname === '/gold/sessions') return json([session]);
+    if (url.pathname === '/gold/sessions') {
+      if (method === 'POST') { creates++; return json(session); }
+      lookupCalls++;
+      const gate = holdLookup; holdLookup = null;
+      const body = noSession ? [] : [clone(session)], fail = failLookup;
+      if (gate) await gate.promise;
+      return fail ? json({ detail: 'Synthetic lookup failure <unsafe>' }, 503) : json(body);
+    }
     if (url.pathname === '/gold/sessions/synthetic-session') return json(session);
-    if (url.pathname.endsWith('/completeness')) { completenessCalls++; return json({ complete: false, reasons: ['candidates remain unreviewed'] }); }
+    if (url.pathname.endsWith('/completeness')) {
+      completenessCalls++;
+      const gate = holdCompleteness; holdCompleteness = null;
+      const fail = failCompleteness, body = { complete, reasons: ['candidates remain unreviewed'] };
+      if (gate) await gate.promise;
+      return fail ? json({ detail: 'Synthetic completeness failure' }, 503) : json(body);
+    }
     if (url.pathname.startsWith('/gold/sessions/synthetic-session/') && ['PATCH', 'POST', 'DELETE'].includes(method)) {
       const id = decodeURIComponent(url.pathname.split('/').at(-1));
       const body = request.postDataJSON();
@@ -60,6 +75,21 @@ async function run(browser, width) {
   const failed = () => page.getByRole('button', { name: 'Not saved — retry', exact: true }).waitFor();
   const stored = candidate => session.candidates.find(item => item.proposition.id === candidate);
   const until = async predicate => { for (let i = 0; i < 200; i++) { if (predicate()) return; await new Promise(resolve => setTimeout(resolve, 10)); } throw new Error('API condition timed out'); };
+  const capture = async state => {
+    if (!process.env.FAST_ANNOTATION_SCREENSHOTS) return;
+    const root = path.resolve(process.env.FAST_ANNOTATION_SCREENSHOTS);
+    fs.mkdirSync(root, { recursive: true });
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate(theme => setTheme(theme), theme);
+      const target = scenario === 'empty' ? '#propositionEmptyHeading'
+        : scenario === 'lookup' ? '#propositionSessionStatus'
+        : scenario === 'completeness' ? '#propositionCompletenessStatus'
+        : scenario === 'validation' ? '#propositionFieldError'
+        : scenario === 'states' ? '#propositionSaveStatus' : '#propositionCandidates .proposition-card-head';
+      await page.locator(target).scrollIntoViewIfNeeded();
+      await page.screenshot({ path: path.join(root, `${scenario}-${state}-${width}-${theme}.png`) });
+    }
+  };
   // Dispatch the actual DOM pointer listeners, retaining the original node across
   // asynchronous saves. Synthetic events do not own native pointer capture.
   const pointer = async (type, pointerId, x) => page.evaluate(({ type, pointerId, x }) => {
@@ -70,12 +100,246 @@ async function run(browser, width) {
   try {
     await page.goto(`${base}/?job=${job.id}&tab=propositions`);
     await card.waitFor();
+    if (scenario === 'lookup') {
+      const retry = page.getByRole('button', { name: 'Retry session lookup', exact: true });
+      await retry.waitFor();
+      assert.match(await page.locator('#propositionSessionStatus').innerText(), /Synthetic lookup failure <unsafe>/);
+      assert.equal(await page.locator('#propositionSessionStatus unsafe').count(), 0);
+      assert.equal(creates, 0);
+      await capture('error');
+      failLookup = false; noSession = true; holdLookup = deferred(); const gate = holdLookup;
+      await retry.click(); await until(() => lookupCalls === 2);
+      assert.equal(await retry.isDisabled(), true);
+      assert.match(await page.locator('#propositionSessionStatus').innerText(), /Looking up/);
+      gate.release();
+      await page.waitForFunction(() => document.getElementById('propositionSessionStatus').textContent.includes('No annotation session found'));
+      assert.equal(creates, 0, 'lookup retry never creates a session');
+      assert.equal(await card.count(), 1, 'read-only extracted records remain available');
+      assert.equal(await page.locator('#propositionReviewFilter').evaluate(node => node === document.activeElement), true, 'retry removal leaves stable focus');
+      await capture('recovered');
+      assert.deepEqual(errors, []);
+      return;
+    }
     await page.waitForFunction(() => document.getElementById('propositionModeToggle').checked);
     await until(() => completenessCalls > 0);
     await saved();
     await page.waitForLoadState('networkidle');
     const first = await id();
-    if (scenario === 'queue') {
+    if (scenario === 'queue-finished') {
+      for (let i = 0; i < 8; i++) await key('a');
+      await saved();
+      await page.waitForFunction(() => document.getElementById('propositionCompletenessMessage').textContent.startsWith('Incomplete:'));
+      assert.match(await page.locator('#propositionReviewSummary').innerText(), /REVIEW QUEUE FINISHED.*BROWSING ALL/);
+      assert.equal(await card.count(), 1);
+      assert.equal(await card.locator('.proposition-outcome').innerText(), 'Approved');
+      assert.equal(await page.locator('#exportGoldBtn').isDisabled(), false, 'completeness adds no new export gate');
+    } else if (scenario === 'read-preservation') {
+      const type = card.locator('[data-field="proposition_type"]');
+      await type.focus();
+      await page.keyboard.press('a');
+      assert.equal(writes.length, 0, 'select handles its own keys');
+      await type.selectOption('__new__');
+      const custom = card.locator('[data-field="new_type"]');
+      await custom.fill('Draft classification');
+      await custom.evaluate(node => node.setSelectionRange(2, 7));
+      await page.evaluate(() => ensurePropositionSession(false, { lookupOnly: true }));
+      assert.equal(await custom.inputValue(), 'Draft classification');
+      assert.deepEqual(await custom.evaluate(node => [node === document.activeElement, node.selectionStart, node.selectionEnd]), [true, 2, 7]);
+      await page.evaluate(() => { applyInsightsStatusUpdate(); });
+      assert.equal(await custom.inputValue(), 'Draft classification');
+      assert.equal(await custom.evaluate(node => node === document.activeElement), true);
+      await card.focus(); await page.keyboard.press('Control+a');
+      assert.equal(writes.length, 0, 'modified shortcut does not approve');
+      await page.evaluate(() => window.getSelection()?.removeAllRanges());
+      await page.keyboard.press('?');
+      await page.evaluate(() => refreshPropositionCompleteness());
+      assert.equal(await page.locator('#propositionHelp').evaluate(node => node.contains(document.activeElement)), true);
+      await page.keyboard.press('Escape');
+      assert.equal(await card.evaluate(node => node === document.activeElement), true);
+      await key('a'); await saved();
+      const mark = page.locator('.proposition-span[data-proposition-id="prop-3"]');
+      await mark.focus();
+      await page.evaluate(() => { applyInsightsStatusUpdate(); });
+      assert.equal(await mark.evaluate(node => node === document.activeElement), true, 'source focus survives corpus refresh');
+      await mark.evaluate(node => {
+        const range = document.createRange(); range.selectNodeContents(node);
+        const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+        node.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      });
+      const selected = await page.evaluate(() => window.getSelection().toString());
+      await page.evaluate(() => ensurePropositionSession(false, { lookupOnly: true }));
+      assert.equal(await page.evaluate(() => window.getSelection().toString()), selected);
+      await page.getByRole('button', { name: 'Add as proposition', exact: true }).click();
+      const draftId = await id();
+      await card.locator('[data-field="proposition_type"]').selectOption('Factual Statement');
+      await page.evaluate(() => ensurePropositionSession(false, { lookupOnly: true }));
+      assert.equal(await id(), draftId);
+      assert.equal(await card.locator('[data-field="proposition_type"]').inputValue(), 'Factual Statement');
+      assert.equal(await card.getAttribute('data-draft'), 'true');
+      await card.getByRole('button', { name: 'Cancel', exact: true }).click();
+      assert.equal(await card.evaluate(node => node === document.activeElement), true);
+    } else if (scenario === 'completeness') {
+      failCompleteness = true;
+      await key('a'); await saved();
+      const retry = page.getByRole('button', { name: 'Retry completeness', exact: true });
+      await retry.waitFor();
+      await capture('error');
+      assert.match(await page.locator('#propositionCompletenessStatus').innerText(), /unavailable.*Synthetic completeness failure/i);
+      assert.equal(writes.length, 1);
+      await card.locator('[data-field="proposition_type"]').selectOption('Factual Statement');
+      failCompleteness = false; complete = true;
+      await retry.click();
+      await page.waitForFunction(() => document.getElementById('propositionCompletenessMessage').textContent.startsWith('Complete:'));
+      assert.equal(writes.length, 1, 'completeness retry cannot replay a save');
+      assert.equal(await card.locator('[data-field="proposition_type"]').inputValue(), 'Factual Statement');
+      assert.match(await page.locator('#propositionCompletenessStatus').innerText(), /Complete:/);
+      await capture('recovered');
+      failCompleteness = true; holdCompleteness = deferred(); const gate = holdCompleteness;
+      await page.evaluate(() => { refreshPropositionCompleteness(); });
+      assert.match(await page.locator('#propositionCompletenessStatus').innerText(), /Checking/);
+      gate.release();
+      await page.waitForFunction(() => document.getElementById('propositionCompletenessMessage').textContent.includes('Synthetic completeness failure'));
+      assert.doesNotMatch(await page.locator('#propositionCompletenessStatus').innerText(), /Complete:/);
+      assert.equal(await card.locator('[data-field="proposition_type"]').inputValue(), 'Factual Statement');
+    } else if (scenario === 'validation') {
+      const error = page.locator('#propositionFieldError');
+      await card.locator('[data-field="proposition_type"]').selectOption('__new__');
+      await card.locator('[data-field="new_type"]').fill('');
+      await key('a');
+      assert.match(await error.innerText(), /New proposition type is required/);
+      assert.equal(await card.locator('[data-field="new_type"]').getAttribute('aria-invalid'), 'true');
+      assert.equal(await card.locator('[data-field="new_type"]').evaluate(node => node === document.activeElement), true);
+      await card.locator('[data-field="asserter_role"]').selectOption('court');
+      assert.equal(await error.isVisible(), true, 'unrelated edits keep validation visible');
+      await card.locator('[data-field="new_type"]').fill('Custom type');
+      assert.equal(await error.isVisible(), false);
+      await card.locator('.proposition-advanced summary').click();
+      await card.locator('[data-field="start_char"]').fill('-1');
+      await key('a'); assert.match(await error.innerText(), /Span boundaries/);
+      await card.locator('[data-field="start_char"]').fill('0');
+      assert.equal(await error.isVisible(), false);
+      await card.locator('[data-field="disposition"]').selectOption('unresolved');
+      await key('a'); assert.match(await error.innerText(), /Mark unresolved deliberately/);
+      await capture('error');
+      assert.equal(writes.length, 0, 'invalid edits never send a mutation');
+      await page.evaluate(() => { refreshPropositionCompleteness(); });
+      await page.waitForLoadState('networkidle');
+      assert.equal(await error.isVisible(), true);
+      await card.locator('[data-field="explicit_unresolved"]').check();
+      assert.equal(await error.isVisible(), false);
+      await key('a'); await saved(); assert.equal(writes.length, 1);
+    } else if (scenario === 'stale-reads') {
+      holdCompleteness = deferred(); const gate = holdCompleteness; complete = true;
+      await page.evaluate(() => { refreshPropositionCompleteness(); });
+      await until(() => completenessCalls === 2);
+      complete = false; failCompleteness = true;
+      await page.evaluate(() => refreshPropositionCompleteness());
+      gate.release(); await page.waitForLoadState('networkidle');
+      assert.match(await page.locator('#propositionCompletenessStatus').innerText(), /Synthetic completeness failure/);
+      holdLookup = deferred(); const lookupGate = holdLookup; failLookup = true;
+      await page.evaluate(() => { ensurePropositionSession(false, { lookupOnly: true }); });
+      await until(() => lookupCalls === 2);
+      await page.evaluate(() => { currentJobId = 'other-job'; resetPropositionSessionState(); renderPropositionsTab(); });
+      lookupGate.release(); await page.waitForLoadState('networkidle');
+      assert.doesNotMatch(await page.locator('#propositionSessionStatus').innerText(), /Synthetic lookup failure/);
+      assert.doesNotMatch(await page.locator('#propositionCompletenessStatus').innerText(), /Synthetic completeness failure/);
+    } else if (scenario === 'states') {
+      assert.equal(await card.locator('.proposition-outcome').innerText(), 'Needs review');
+      assert.match(await page.locator('.proposition-span').first().getAttribute('aria-label'), /Needs review/);
+      await card.getByLabel('Legal disposition', { exact: true }).selectOption('rejected');
+      await key('a'); await saved();
+      assert.equal(stored(first).outcome, 'edited');
+      assert.equal(stored(first).proposition.disposition, 'rejected');
+      await page.locator('#propositionReviewFilter').selectOption('reviewed');
+      assert.equal(await card.locator('.proposition-outcome').innerText(), 'Edited');
+      await key('a'); await saved();
+      assert.equal(stored(first).outcome, 'accepted');
+      assert.equal(await card.locator('.proposition-outcome').innerText(), 'Approved');
+      assert.equal(await card.getByLabel('Legal disposition', { exact: true }).inputValue(), 'rejected');
+      failNext = true; await key('d'); await failed();
+      assert.equal(await card.locator('.proposition-outcome').innerText(), 'Discarded');
+      assert.match(await card.locator('.proposition-review-save-state').innerText(), /Not saved/);
+      assert.match(await page.locator('#propositionSaveStatus').innerText(), /Synthetic failed save/);
+      await capture('save-error');
+      await page.getByRole('button', { name: 'Not saved — retry', exact: true }).click(); await saved();
+      await page.evaluate(() => { propositionAnnotationMode = false; renderPropositionsTab(); });
+      assert.match(await page.locator('#propositionReadOnlyStatus').innerText(), /Read-only/);
+    } else if (scenario === 'empty') {
+      await page.locator('#propositionReviewFilter').selectOption('reviewed');
+      assert.match(await page.locator('#propositionEmptyHeading').innerText(), /No reviewed propositions/);
+      await capture('reviewed');
+      await page.getByRole('button', { name: 'Show all propositions', exact: true }).click();
+      assert.equal(await id(), first);
+      assert.equal(await card.evaluate(node => node === document.activeElement), true);
+      await page.evaluate(() => { propositionSession.candidates = []; renderPropositionsTab(); });
+      assert.match(await page.locator('#propositionEmptyHeading').innerText(), /No proposition candidates/);
+      assert.match(await page.locator('#propositionCandidates').innerText(), /Select source text/);
+      await capture('no-candidates');
+      await page.evaluate(() => { resetPropositionSessionState(); propositionAnnotationMode = false; renderPropositionsTab(); });
+      await card.waitFor();
+      assert.match(await page.locator('#propositionReadOnlyStatus').innerText(), /No annotation session/);
+      assert.match(await page.locator('#propositionSaveStatus').innerText(), /No annotation session/);
+      await page.locator('#propositionReviewFilter').selectOption('reviewed');
+      await page.getByRole('button', { name: 'Show all propositions', exact: true }).click();
+      assert.equal(await card.count(), 1, 'read-only empty filter has usable recovery');
+      await page.evaluate(() => { accumulatedPropositions = []; currentJob.status = 'processing'; renderPropositionsTab(); });
+      assert.match(await page.locator('#propositionEmptyHeading').innerText(), /still processing/);
+      await page.evaluate(() => { currentJob.status = 'failed'; renderPropositionsTab(); });
+      assert.match(await page.locator('#propositionEmptyHeading').innerText(), /unavailable/);
+      await page.evaluate(() => { currentJob = null; currentJobId = null; renderPropositionsTab(); });
+      assert.match(await page.locator('#propositionEmptyHeading').innerText(), /Open a document/);
+    } else if (scenario === 'focus') {
+      await card.focus();
+      for (const expected of ['prop-1', 'prop-2']) {
+        await page.keyboard.press('ArrowRight');
+        assert.equal(await id(), expected);
+        assert.equal(await card.evaluate(node => node === document.activeElement), true, 'navigation retains card focus');
+      }
+      await page.keyboard.press('n');
+      assert.equal(await id(), first);
+      await page.keyboard.press('ArrowLeft');
+      assert.equal(await card.evaluate(node => node === document.activeElement), true, 'boundary retains focus');
+      holdNext = deferred(); const gate = holdNext;
+      await page.keyboard.press('a');
+      gate.release(); await saved(); await page.waitForLoadState('networkidle');
+      assert.equal(await card.evaluate(node => node === document.activeElement), true, 'background save retains focus');
+      const filter = page.locator('#propositionReviewFilter');
+      await filter.focus(); await filter.selectOption('all');
+      assert.equal(await filter.evaluate(node => node === document.activeElement), true);
+      const mark = page.locator('.proposition-span[data-proposition-id="prop-3"]');
+      await mark.focus(); await page.keyboard.press('Enter');
+      assert.equal(await id(), 'prop-3');
+      assert.equal(await card.evaluate(node => node === document.activeElement), true);
+      await page.keyboard.press('?');
+      await page.getByRole('button', { name: 'Close', exact: true }).click();
+      assert.equal(await card.evaluate(node => node === document.activeElement), true, 'help returns to opener');
+      await capture('review');
+    } else if (scenario === 'shortcut-target') {
+      const mark = page.locator('.proposition-span[data-proposition-id="prop-3"]');
+      for (const value of ['a', 'd', '2', '[', '}']) {
+        await mark.focus(); await page.keyboard.press(value);
+        assert.equal(await id(), first, 'unactivated source mark cannot mutate another card');
+        assert.equal(writes.length, 0);
+        assert.equal(await card.getAttribute('data-dirty'), 'false');
+      }
+      const type = card.locator('[data-field="proposition_type"]');
+      await type.selectOption('Factual Statement');
+      for (const value of ['Enter', 'Space']) {
+        await mark.focus(); await page.keyboard.press(value);
+        assert.equal(await id(), first);
+        assert.equal(await type.inputValue(), 'Factual Statement');
+        assert.equal(await type.evaluate(node => node === document.activeElement), true, 'dirty guard retains editor focus');
+      }
+      await card.focus();
+      await card.evaluate(node => node.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', isComposing: true, bubbles: true })));
+      assert.equal(writes.length, 0, 'IME composition cannot approve');
+      await page.evaluate(() => {
+        const dialog = document.createElement('dialog'); dialog.id = 'synthetic-modal';
+        dialog.textContent = 'Native modal'; document.body.append(dialog); dialog.showModal();
+        dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true })); dialog.close();
+      });
+      assert.equal(writes.length, 0, 'native modal cannot approve');
+    } else if (scenario === 'queue') {
       holdNext = deferred(); const gate = holdNext;
       for (let i = 0; i < 3; i++) await key('a');
       assert.equal(await id(), 'prop-3');
@@ -215,10 +479,12 @@ async function run(browser, width) {
       await page.getByRole('button', { name: 'Add as proposition', exact: true }).click();
       const handId = await id();
       assert.equal(await card.getAttribute('data-draft'), 'true');
+      assert.equal(await card.locator('.proposition-outcome').innerText(), 'Draft — not saved');
       await card.locator('[data-field="disposition"]').selectOption('unresolved');
       await card.locator('[data-field="explicit_unresolved"]').check();
       await card.getByRole('button', { name: 'Save hand-added', exact: true }).click(); await saved();
       assert.equal(session.hand_added[0].proposition.text, text);
+      assert.equal(await card.locator('.proposition-outcome').innerText(), 'Hand-added');
       await key('z'); await saved();
       assert.equal(session.hand_added.length, 0);
       assert.equal(writes.at(-1).method, 'DELETE'); assert.equal(writes.at(-1).id, handId);

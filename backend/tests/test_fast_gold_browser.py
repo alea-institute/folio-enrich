@@ -14,7 +14,9 @@ from tests.helpers import make_job
 
 BACKEND = Path(__file__).resolve().parents[1]
 SCRIPT = Path(__file__).parent / "browser" / "fast_gold_annotation.cjs"
-SCENARIOS = ["queue", "failed-edit", "held-key", "same-type", "discarded", "multitouch", "mid-swipe", "hand-added"]
+SCENARIOS = ["queue", "failed-edit", "held-key", "same-type", "discarded", "multitouch", "mid-swipe", "hand-added",
+             "focus", "shortcut-target", "states", "empty", "lookup", "completeness", "validation", "stale-reads",
+             "read-preservation", "queue-finished"]
 
 
 def _fixture() -> dict:
