@@ -19,11 +19,11 @@ execution: code
 - **Target repos:** folio-enrich (home of this plan) for U2–U11; folio-propositions for U1. Paths are repo-relative to the unit's target repo.
 - **Execution profile:** implementation goes to workers per the cockpit worker policy; the orchestrating session plans, reviews, verifies, merges, and deploys. One branch per unit or tight unit group, each landed by PR.
 - **Stop conditions:**
-  - Any LLM-tier benchmark run in U9 stops until Damien approves its spend estimate (a spend hard block).
+  - Any U9 benchmark run that would bill an API key stops until Damien approves its spend (a spend hard block). On 2026-10-26 Damien chose to run the LLM tiers through his Claude Max and ChatGPT subscriptions instead, so the planned runs spend nothing.
   - Any change that alters flag-off exports or SSE output without a deliberate, reviewed baseline regeneration stops.
   - Any path where a model writes an IRI stops (R7).
   - Any change that breaks the existing server start command (`uvicorn app.main:app`) used by DEV and PROD deploys stops.
-- **Open blockers:** none for implementation. U9's LLM tiers wait on the spend approval above.
+- **Open blockers:** none.
 
 ---
 
@@ -207,7 +207,7 @@ This plan covers the shared record, the engine, and its folio-enrich surface. Th
   - **Ownership:** the job plus its overlay owns tags; gold sessions stay a separate gold-set tool.
   - Governs R15.
 - KTD6. **Byte-neutral exports.** The two shared-schema formats (`propositions`, `propositions-ndjson`) move to schema 5 unchanged in shape. Every other exporter emits a propositions section only when `job.result.propositions` is non-empty, following the brat precedent, so flag-off output stays byte-identical. Exports read propositions with the overlay applied, omit removed tags, write proposed tags with an empty IRI in tabular formats, and never emit an RDF or Neo4j node for a proposed tag. Governs R16.
-- KTD7. **Benchmark design.** Keep `backend/eval/proposition_benchmark.py`'s rule: greedy one-to-one matching at Dice ≥ 0.5, with Wilson intervals; scores are precision, recall, and F1 per gold set and per source type. Gold sets: the eight README synthetic examples, whose expected propositions Damien approved in the README (folio-insights PRs #48 and #49), and Palsgraf (already committed; AI-annotated, so its scores are labeled AI-gold until a validated record exists). Both sets carry heading and attribution adversarial lines. Selection uses F1 over the Palsgraf held-out split pooled with the README set; the development split, which tuned `phase-b-v1`, is reported for reference only. A strategy wins only when its 95% Wilson interval does not overlap the runner-up's; otherwise the cheaper strategy ships, and the held-out split is recorded as consumed. The zero-LLM tier runs free in CI; LLM and hybrid tiers run with pinned model and temperature, only after a spend estimate is approved. Governs R9.
+- KTD7. **Benchmark design.** Keep `backend/eval/proposition_benchmark.py`'s rule: greedy one-to-one matching at Dice ≥ 0.5, with Wilson intervals; scores are precision, recall, and F1 per gold set and per source type. Gold sets: the eight README synthetic examples, whose expected propositions Damien approved in the README (folio-insights PRs #48 and #49), and Palsgraf (already committed; AI-annotated, so its scores are labeled AI-gold until a validated record exists). Both sets carry heading and attribution adversarial lines. Selection uses F1 over the Palsgraf held-out split pooled with the README set; the development split, which tuned `phase-b-v1`, is reported for reference only. A strategy wins only when its 95% Wilson interval does not overlap the runner-up's; otherwise the cheaper strategy ships, and the held-out split is recorded as consumed. The zero-LLM tier runs free in CI; LLM and hybrid tiers run at no API cost through the subscription CLIs (Damien, 2026-10-26): Claude Code (`claude -p`, Max plan) as the primary row and Codex (`codex exec`, ChatGPT plan) as a second model, each on a pinned model ID. Neither CLI exposes temperature, so each LLM row runs three times and reports its mean and spread. Governs R9.
 - KTD8. **Engine packaging.** The top-level package `app` becomes `folio_enrich` (web modules stay inside it), so installing the engine never adds a generic `app` package to a consumer; the package declares every runtime dependency it imports, including a pinned `en_core_web_sm` wheel. The repo keeps a `backend/app/main.py` shim outside the wheel so `uvicorn app.main:app` still starts DEV and PROD. The engine supports Python 3.11–3.13. Releases use `engine-vX.Y.Z` tags, which do not match the `v*` trigger of the desktop build, and consumers pin `git+…@engine-vX.Y.Z#subdirectory=backend`. Governs R11.
 - KTD9. **Engine API and corpus runs.** The engine exposes a document entry point and a corpus entry point, both taking an explicit settings snapshot and injected LLM providers.
   - **Settings delivery:** the entry points install the snapshot into a context variable, and the module-level `settings` object becomes a proxy that resolves through it, so existing stage code keeps reading `settings.x` while each call sees its own snapshot. The snapshot carries `require_user_api_key`, so no engine path falls back to a server-held key when it is set.
@@ -289,7 +289,7 @@ Run modes:
 
 - Enrich's code uses no syntax newer than Python 3.11; U10 verifies this with a 3.11 test run.
 - A uuid5 proposition id change is acceptable for existing jobs; migrated jobs keep their stored ids, and only new runs use KTD2 ids.
-- The LLM and hybrid benchmark tiers may never get spend approval while Damien is away; the engine then ships `phase-b-v1` lexicon extraction, and a later engine release carries any measured winner.
+- Subscription rate limits (Claude Max's five-hour and weekly windows; the Codex weekly allotment the worker fleet shares) may delay the LLM rows. The run covers two small gold sets and resumes per document; until a measured winner lands, the engine ships `phase-b-v1` lexicon extraction, and a later engine release carries the winner.
 
 ### Risks
 
@@ -500,21 +500,26 @@ Run modes:
 - **Goal:** the engine ships the extraction strategy chosen by measurement.
 - **Requirements:** R9, Success Criteria; KTD3, KTD7.
 - **Dependencies:** U3, U8.
-- **Files:** `backend/app/services/proposition/strategies/__init__.py` (new), `strategies/lexicon.py` (new, wraps today's `phase-b-v1` extractor), `strategies/llm.py` (new, ports folio-insights' boundary and distill prompts), `strategies/hybrid.py` (new), `backend/eval/proposition_benchmark.py`, `backend/eval/estimate_spend.py`, `backend/eval/reports/propositions/` (new report), `backend/app/config.py`, `backend/tests/test_proposition_strategies.py` (new).
+- **Files:** `backend/app/services/proposition/strategies/__init__.py` (new), `strategies/lexicon.py` (new, wraps today's `phase-b-v1` extractor), `strategies/llm.py` (new, ports folio-insights' boundary and distill prompts), `strategies/hybrid.py` (new), `backend/eval/proposition_benchmark.py`, `backend/eval/subscription_llm.py` (new, eval-only providers that call the `claude` and `codex` CLIs), `backend/eval/reports/propositions/` (new report), `backend/app/config.py`, `backend/tests/test_proposition_strategies.py` (new).
 - **Approach:**
   1. Put the three strategies behind one interface; all three propose quotes and pass through U3 anchoring. The hybrid merges a lexicon and an LLM candidate of the same type overlapping at Dice ≥ 0.5 into one proposition, keeping the LLM span.
   2. Port folio-insights' LLM extraction prompts, keeping its distilled wording only as `statement`.
-  3. Score the lexicon strategy for free and commit that report; estimate the LLM and hybrid runs against the spend decision `folio-enrich-2026-10-26-1239-bakeoff-spend-cap`.
-  4. Once spend is approved, run with pinned model and temperature, add the results and per-strategy anchor-rejection rates to the report, and set the default strategy to the KTD7 winner, keeping lexicon as the keyless strategy.
+  3. Score the lexicon strategy and commit that report.
+  4. Run the LLM and hybrid strategies through the eval-only subscription providers, three runs each, then add the results and per-strategy anchor-rejection rates to the report. Set the default strategy to the KTD7 winner, and keep lexicon as the keyless strategy.
+     - **Claude row:** `claude -p` with a pinned Sonnet model ID, `--tools ""`, `--setting-sources ""`, `--strict-mcp-config`, `--no-session-persistence`, `--output-format json`, and `--json-schema`. The child environment drops `ANTHROPIC_API_KEY` and `ANTHROPIC_BASE_URL`, so the call always bills the Max login, never a key.
+     - **Codex row:** `codex exec` with a pinned Sol model, `--ephemeral`, `--skip-git-repo-check`, `-s read-only`, `--output-schema`, and `-o`, with stdin closed. Without closed stdin, `codex exec` waits for input and hangs.
+     - **Boundary:** these providers live under `backend/eval/` only, never in the webapp's provider registry. The deployed engine serves users with their own keys, and Damien's subscriptions never back a hosted request.
+     - **Smoke test (2026-10-26):** both CLIs returned schema-valid verbatim quotes from a Palsgraf passage, in 6 seconds (Claude) and 12 seconds (Codex).
   5. Record the scores and the unvalidated label decision against the RUB-EXTRACT bar in the report and README.
-- **Execution note:** steps 1–3 proceed now; step 4 waits on spend approval and may land after `engine-v0.1.0` as a later engine release.
+- **Execution note:** a worker builds steps 1–3 and the providers. Step 4 needs the home box's logged-in CLIs and network, which sandboxed workers lack, so the orchestrating session runs the benchmark command itself. A rate-limit delay may push step 4 past `engine-v0.1.0` into a later engine release.
 - **Patterns to follow:** `backend/eval/proposition_benchmark.py` and its `phase-b-v1` report; `PINNED_FLAGS` in `backend/eval/synthetic_runner.py`.
 - **Test scenarios:**
   - Each strategy, given a stub LLM returning fixed quotes, yields anchored propositions only.
   - The hybrid merges an overlapping lexicon and LLM candidate into one proposition with the LLM span.
-  - The runner refuses an LLM tier without an explicit approved-spend flag.
+  - The subscription providers strip API-key variables from the child environment, fail clearly when a CLI is missing or logged out, and parse schema output; no module under `backend/app/` imports them.
+  - The runner refuses an API-key LLM provider without an explicit approved-spend flag.
   - The keyless config always selects the lexicon strategy.
-- **Verification:** strategy tests pass; the committed report lists lexicon precision, recall, and F1 on both gold sets, and LLM and hybrid rows once spend is approved.
+- **Verification:** strategy tests pass; the committed report lists lexicon precision, recall, and F1 on both gold sets, and LLM and hybrid rows from both subscription models.
 
 ### U10. Engine package rename
 
@@ -585,6 +590,6 @@ Run modes:
   - **Byte neutrality:** flag-off exports and SSE output match the baseline, apart from U2's reviewed regeneration of the two proposition formats.
   - **Cleanup:** no abandoned-attempt code, stray debug output, or committed non-public source text remains.
 - **Releases:** folio-propositions `v0.5.0` and folio-enrich `engine-v0.1.0` tags exist, and folio-enrich pins `v0.5.0`.
-- **Benchmark:** the U9 report with lexicon scores on both gold sets is committed. The README states the measured precision and recall, labeled unvalidated if below the RUB-EXTRACT bar. LLM and hybrid rows follow spend approval and are not required for done.
+- **Benchmark:** the U9 report with lexicon scores on both gold sets is committed. The README states the measured precision and recall, labeled unvalidated if below the RUB-EXTRACT bar. LLM and hybrid rows come from the subscription CLIs; if a rate limit delays them, they may land in a later engine release.
 - **Handoff:** `docs/engine-contract.md` lets the folio-insights follow-on plan proceed without inventing fields, and a sanitized handoff in `docs/handoffs/` points to it.
 - **Deploy:** DEV runs the new build. The release notes record the schema-downgrade one-way door.

@@ -8,7 +8,7 @@
 
 ## Decisions recorded (Cockpit)
 - `folio-enrich-2026-10-25-2017-insights-into-enrich-scope`, `...-2022-insights-propositions-combine`, `...-2046-insights-single-doc-surface`: answered by Damien.
-- `folio-enrich-2026-10-26-1239-bakeoff-spend-cap`: OPEN hard block (LLM benchmark spend); Chief recommends $10; only Damien can approve. Lexicon tier proceeds without it.
+- `folio-enrich-2026-10-26-1239-bakeoff-spend-cap`: ANSWERED 2026-10-26 by Damien: no API credits. U9 runs its LLM and hybrid tiers through the subscription CLIs (`claude -p` on the Max plan as the primary row, `codex exec` as a second model); see plan U9 step 4 for the exact flags. Both were smoke-tested. The benchmark run needs the logged-in CLIs, so the orchestrating session runs it, not a sandboxed worker.
 - Damien (2026-10-26): at a conference; proceed as if he will not annotate.
 
 ## Conventions learned
