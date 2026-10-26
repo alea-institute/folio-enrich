@@ -478,6 +478,7 @@ async def test_gold_mutations_require_configured_annotation_or_admin_token(
         ("POST", "/gold/sessions"),
         ("PATCH", "/gold/sessions/example/candidates/example"),
         ("POST", "/gold/sessions/example/annotations"),
+        ("DELETE", "/gold/sessions/example/annotations/example"),
         ("POST", "/gold/sessions/example/learnings"),
         ("POST", "/gold/sessions/example/blind-segment"),
         ("POST", "/gold/sessions/example/blind-segment/reveal"),
@@ -494,3 +495,22 @@ async def test_every_gold_mutation_rejects_missing_credentials(
     monkeypatch.setattr(settings, "admin_token", "admin-secret")
     monkeypatch.setattr(settings, "annotation_token", "annotation-secret")
     assert (await client.request(method, path, json={})).status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_fast_annotation_undo_restores_body_and_deletes_hand_added(tmp_path: Path) -> None:
+    store, _, _, session = await make_store(tmp_path, [proposition("p1")])
+    prior = session.candidates[0].proposition.model_dump()
+    edited = {**prior, "proposition_type": "Factual Statement"}
+    await store.record_candidate_outcome(session.session_id, "p1", outcome="edited", proposition=edited)
+    await store.record_candidate_outcome(session.session_id, "p1", outcome="unreviewed", proposition=prior)
+    restored = await store.get(session.session_id)
+    assert restored.candidates[0].outcome == "unreviewed"
+    assert restored.candidates[0].proposition.model_dump() == prior
+    await store.add_hand_added(session.session_id, proposition("hand-undo"))
+    await store.delete_hand_added(session.session_id, "hand-undo")
+    # Retry is safe if a DELETE response was lost after persistence.
+    await store.delete_hand_added(session.session_id, "hand-undo")
+    restored = await store.get(session.session_id)
+    assert not restored.hand_added
+    assert len(restored.candidates) == 1

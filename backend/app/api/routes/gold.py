@@ -213,6 +213,17 @@ async def add_annotation(session_id: str, request: AnnotationRequest):
         raise _http_error(exc) from exc
 
 
+@router.delete(
+    "/sessions/{session_id}/annotations/{annotation_id}",
+    dependencies=[Depends(_require_annotation)],
+)
+async def delete_annotation(session_id: str, annotation_id: str):
+    try:
+        return await _gold_store.delete_hand_added(session_id, annotation_id)
+    except (ValueError, LookupError) as exc:
+        raise _http_error(exc) from exc
+
+
 @router.post(
     "/sessions/{session_id}/learnings",
     status_code=201,

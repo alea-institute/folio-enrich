@@ -438,6 +438,16 @@ class GoldStore:
             await self._save(session)
             return self._public_session(session)
 
+    async def delete_hand_added(self, session_id: str, annotation_id: str) -> AnnotationSession:
+        """Undo a hand-added annotation; retrying a completed delete is safe."""
+        async with self._locks[session_id]:
+            session = await self._load(session_id)
+            session.hand_added = [
+                item for item in session.hand_added if item.proposition.id != annotation_id
+            ]
+            await self._save(session)
+            return self._public_session(session)
+
     async def add_learning(self, session_id: str, **data: Any) -> AnnotationSession:
         async with self._locks[session_id]:
             session = await self._load(session_id)
