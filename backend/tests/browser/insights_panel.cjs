@@ -163,7 +163,7 @@ async function pushRegressions(browser, out) {
     assert.match(await page.textContent('.proposition-card .proposition-corpus'), /hypothesis/);
     if (process.env.FOLIO_ENRICH_INSIGHTS_SCREENSHOT) {
       await page.setViewportSize({ width: 1600, height: 1400 });
-      await page.click('.proposition-type-keys summary');
+      await page.$eval('.proposition-type-keys', el => { el.open = false; });
       await page.focus(field);
       await page.$eval('#propositionCandidates', el => { el.scrollTop = 0; });
       await page.screenshot({ path: process.env.FOLIO_ENRICH_INSIGHTS_SCREENSHOT, fullPage: true });
