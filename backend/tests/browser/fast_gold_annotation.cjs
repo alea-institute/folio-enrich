@@ -1,10 +1,15 @@
-/* Local acceptance run: node tests/browser/fast_gold_annotation.cjs /path/to/playwright
- * Requires isolated uvicorn on 127.0.0.1:8741. Creates local Palsgraf sessions only.
+/* Manual: node tests/browser/fast_gold_annotation.cjs /path/to/playwright http://127.0.0.1:<port>
+ * Requires an isolated local backend; creates local Palsgraf sessions only.
+ * CI: append <frontend dir> <fixture json> <scenario> to run the synthetic API.
  */
+if (process.argv[4]) {
+  require('./fast_gold_fixture.cjs');
+} else {
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { chromium, request } = require(process.argv[2]);
-const base = 'http://127.0.0.1:8741';
+const base = process.argv[3] || process.env.FAST_ANNOTATION_BASE_URL;
+assert.ok(base, 'Pass the isolated local server base URL');
 const screenshotRoot = process.env.FAST_ANNOTATION_SCREENSHOTS || require('node:os').homedir();
 (async () => {
   const browser = await chromium.launch({ headless: true });
@@ -313,3 +318,5 @@ const screenshotRoot = process.env.FAST_ANNOTATION_SCREENSHOTS || require('node:
     console.log(JSON.stringify({ results, sessions }, null, 2));
   } finally { await api.dispose(); await browser.close(); }
 })().catch(error => { console.error(error); process.exit(1); });
+
+}

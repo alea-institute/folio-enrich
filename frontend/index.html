@@ -4490,6 +4490,8 @@ let propositionReviewScrollPending = false;
 // Queues belong to sessions, so changing the viewed job cannot lose a pending save.
 const propositionSaveQueues = new Map();
 let propositionSelection = null;
+let propositionGestureActive = false;
+let propositionGestureRenderPending = false;
 const PROPOSITION_REVIEW_FILTERS = ['needs-review', 'reviewed', 'all'];
 const PROPOSITION_REVIEW_FILTER_KEY = 'folioPropositionReviewFilter';
 let propositionReviewFilter = (() => {
@@ -12645,7 +12647,7 @@ function refreshInsightsStatus() {
 // re-enable buttons mid-save, so while the reviewer is busy only the banner and
 // the active card's corpus row are patched in place.
 function propositionReviewBusy() {
-  return Boolean(propositionDraft || propositionSelection || activePropositionCardIsDirty() || document.activeElement?.closest('#propositionCandidates .proposition-fields'));
+  return Boolean(propositionGestureActive || propositionDraft || propositionSelection || activePropositionCardIsDirty() || document.activeElement?.closest('#propositionCandidates .proposition-fields'));
 }
 
 function applyInsightsStatusUpdate() {
@@ -13112,6 +13114,7 @@ function retryPostJobPush() {
 }
 
 function renderPropositionsTab() {
+  propositionGestureRenderPending = false;
   propositionSelection = null;
   document.getElementById('addPropositionSelectionBtn').hidden = true;
   const doc = document.getElementById('propositionDocument');
@@ -13414,8 +13417,11 @@ function enqueuePropositionOperation(operation, prior) {
   const queue = propositionSaveQueue();
   operation.quote = operation.body?.proposition?.text || prior?.proposition?.text || 'Hand-added proposition';
   if (prior !== undefined) queue.undo.push({ id: operation.id, prior: structuredClone(prior) });
-  // A correction or inverse replaces a failed write for this same item.
-  queue.pending = queue.pending.filter(item => !(item.id === operation.id && item.error));
+  // Only a complete replacement (including undo) may supersede a failed write.
+  // Outcome-only PATCHes must keep the failed proposition ahead of them.
+  if (operation.method === 'DELETE' || operation.body?.proposition) {
+    queue.pending = queue.pending.filter(item => !(item.id === operation.id && item.error));
+  }
   queue.pending.push(operation);
   applyPropositionOperation(propositionSession, operation);
   propositionCompleteness = null;
@@ -13445,6 +13451,7 @@ async function drainPropositionSaves(queue) {
         queue.pending.shift();
         if (propositionSession?.session_id === queue.sessionId) {
           reconcilePropositionSession(session, queue);
+          if (propositionGestureActive) propositionGestureRenderPending = true;
           if (!propositionReviewBusy()) renderPropositionsTab();
           else renderPropositionSaveState();
         }
@@ -13460,7 +13467,10 @@ async function drainPropositionSaves(queue) {
       renderPropositionSaveState();
       if (!queue.pending.length) {
         try {
-          if (await refreshPropositionCompleteness(currentJobId, queue.sessionId) && !propositionReviewBusy()) renderPropositionsTab();
+          if (await refreshPropositionCompleteness(currentJobId, queue.sessionId)) {
+            if (propositionGestureActive) propositionGestureRenderPending = true;
+            if (!propositionReviewBusy()) renderPropositionsTab();
+          }
         } catch { /* Outcomes are saved; completeness remains unavailable until refreshed. */ }
       }
     }
@@ -13472,9 +13482,19 @@ function savePropositionOutcome(button, outcome) {
   if (!propositionAnnotationMode || !propositionSession || !card) return;
   try {
     const prior = propositionRecords().find(record => record.proposition.id === card.dataset.candidateId);
-    const effectiveOutcome = outcome === 'accepted' && card.dataset.dirty === 'true' ? 'edited' : outcome;
+    const pendingEdit = propositionSaveQueue().pending.some(operation => operation.id === card.dataset.candidateId &&
+      operation.method === 'PATCH' && operation.body?.outcome === 'edited' && operation.body.proposition);
+    let effectiveOutcome = outcome === 'accepted' && (card.dataset.dirty === 'true' || pendingEdit) ? 'edited' : outcome;
     const body = { outcome: effectiveOutcome, explicit_unresolved: card.querySelector('[data-field="explicit_unresolved"]').checked };
-    if (effectiveOutcome === 'edited') body.proposition = propositionFromCard(card);
+    if (effectiveOutcome === 'edited') {
+      body.proposition = propositionFromCard(card);
+      // Pending edits still need their full body persisted, even when the
+      // optimistic card already matches it. Otherwise a no-op is an approval.
+      if (!pendingEdit && JSON.stringify(body.proposition) === JSON.stringify(prior.proposition)) {
+        body.outcome = effectiveOutcome = 'accepted';
+        delete body.proposition;
+      }
+    }
     const value = body.proposition || prior.proposition;
     if (['accepted', 'edited'].includes(effectiveOutcome) && value.disposition === 'unresolved' && !body.explicit_unresolved) throw new Error('Mark unresolved deliberately before saving.');
     enqueuePropositionOperation({ id: card.dataset.candidateId, method: 'PATCH', body }, prior);
@@ -13709,9 +13729,20 @@ function propositionCardAction(action) {
 function wirePropositionSwipe(card) {
   if (!card || !propositionAnnotationMode || card.dataset.draft === 'true') return;
   let gesture = null;
+  const clearGesture = () => {
+    gesture = null;
+    propositionGestureActive = false;
+    delete card.dataset.swipe;
+    card.querySelector('.proposition-swipe-hint').textContent = '';
+  };
+  const renderAfterGesture = () => {
+    if (propositionGestureRenderPending && !propositionReviewBusy()) renderPropositionsTab();
+  };
   card.addEventListener('pointerdown', event => {
+    if (gesture && gesture.id !== event.pointerId) { clearGesture(); renderAfterGesture(); return; }
     if (event.pointerType === 'mouse' || event.target.closest('input, select, button, summary, a')) return;
     gesture = { x: event.clientX, y: event.clientY, id: event.pointerId, vertical: false };
+    propositionGestureActive = true;
     card.setPointerCapture(event.pointerId);
   });
   card.addEventListener('pointermove', event => {
@@ -13723,16 +13754,16 @@ function wirePropositionSwipe(card) {
     card.querySelector('.proposition-swipe-hint').textContent = horizontal ? `${Math.abs(dx) >= 80 ? 'Release to' : 'Keep swiping to'} ${dx > 0 ? 'approve' : 'discard'}` : '';
   });
   const finish = event => {
-    if (!gesture) return;
+    if (!gesture || event.pointerId !== gesture.id) return;
     const dx = event.clientX - gesture.x, dy = event.clientY - gesture.y;
     const commit = event.type === 'pointerup' && !gesture.vertical && Math.abs(dx) >= 80 && Math.abs(dx) > Math.abs(dy) * 1.5;
-    gesture = null;
-    delete card.dataset.swipe;
-    card.querySelector('.proposition-swipe-hint').textContent = '';
+    clearGesture();
     if (commit) propositionCardAction(dx > 0 ? 'accepted' : 'deleted');
+    renderAfterGesture();
   };
   card.addEventListener('pointerup', finish);
   card.addEventListener('pointercancel', finish);
+  card.addEventListener('lostpointercapture', finish);
 }
 
 document.getElementById('propositionDocument').addEventListener('touchend', () => setTimeout(handlePropositionSelection, 0));
@@ -13752,6 +13783,7 @@ document.addEventListener('keydown', event => {
   if (event.ctrlKey || event.metaKey || event.altKey) return;
   if (event.key === 'Escape' && (propositionAddArmed || propositionBlindArmed)) { propositionAddArmed = false; propositionBlindArmed = false; renderPropositionsTab(); return; }
   const key = event.key.toLowerCase();
+  if (event.repeat && (['a', 'd', 'z'].includes(key) || /^[1-9]$/.test(key))) { event.preventDefault(); return; }
   if (key === '?') { event.preventDefault(); document.getElementById('propositionHelp').showModal(); return; }
   if (key === 'z') { event.preventDefault(); undoPropositionAction(); return; }
   if (key === 'n') { event.preventDefault(); jumpToUnreviewedProposition(); return; }
@@ -13759,7 +13791,8 @@ document.addEventListener('keydown', event => {
   if (!card) return;
   if (event.key === 'ArrowLeft') { event.preventDefault(); navigatePropositionReview(-1); }
   else if (event.key === 'ArrowRight') { event.preventDefault(); navigatePropositionReview(1); }
-  else if (propositionAnnotationMode && !card.querySelector('[data-field="proposition_type"]').disabled) {
+  else if (propositionAnnotationMode && !card.querySelector('[data-field="proposition_type"]').disabled &&
+    (card.dataset.draft === 'true' || card.querySelector('button[onclick*="edited"]'))) {
     if (/^[1-9]$/.test(key) && PROPOSITION_TYPES[Number(key) - 1]) {
       event.preventDefault();
       const type = card.querySelector('[data-field="proposition_type"]');
