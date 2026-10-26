@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import uuid
 from pathlib import Path
 
 import pytest
@@ -26,6 +27,7 @@ from folio_propositions import ActorRef, Disposition, Proposition, content_iri
 
 from tests.browser_support import playwright_module
 from tests.helpers import make_job
+from app.services.post_job import flow
 
 BACKEND = Path(__file__).resolve().parents[1]
 FRONTEND = BACKEND.parent / "frontend"
@@ -67,8 +69,22 @@ def _fixture() -> dict:
         }
 
     base = {"insights_version": "0.1.0", "propositions": by_id}
+    absent = {**base, "connected": True, "state": "connected", "message": None,
+              "corpus": "default", "results": {iri: result(iri, False) for iri in (shared, other)}}
+    def post_job(**fields):
+        state = flow.initial_state(True, True).model_dump(mode="json")
+        return {**state, **fields}
+
     return {
         "job": json.loads(job.model_dump_json()),
+        "otherJob": {**json.loads(job.model_dump_json()), "id": str(uuid.uuid4())},
+        "absent": absent,
+        "postJob": {
+            "awaiting": post_job(review_status="awaiting_review", push_status="waiting_for_review"),
+            "pushed": post_job(review_status="completed", push_status="pushed", push_attempts=1,
+                               last_push_report={"created": 1, "existing": 0, "skipped": 1, "refused": 1}),
+            "failed": post_job(review_status="completed", push_status="failed", push_attempts=1),
+        },
         "scenarios": {
             # Two propositions share the present IRI: 2 of 3 propositions, not 1 of 2 IRIs.
             "connected": {**base, "connected": True, "state": "connected", "message": None, "corpus": "default",
@@ -130,4 +146,10 @@ def test_insights_panel_in_browser(tmp_path):
     assert out["dirtySameNodeAfterRefresh"] is True
     assert out["dirtyStatusCalls"] == 2
 
+    assert out["pushChecks"] == [
+        "success-dirty-dedupe-later-attempt", "in-flight-coalescing",
+        "initial-success-hidden-tab", "cached-success-hidden-tab",
+        "navigation-and-stale-payload", "failed-push-status-error-manual-retry",
+        "hand-added-draft-focus", "mobile-push-preserves-edit",
+    ]
     assert out["errors"] == []
