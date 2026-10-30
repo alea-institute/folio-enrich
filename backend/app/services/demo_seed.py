@@ -14,7 +14,7 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
-from app.models.job import Job
+from app.models.job import Job, JobStatus
 from app.storage.job_store import PROTECTED_JOB_IDS, JobStore
 
 logger = logging.getLogger(__name__)
@@ -57,6 +57,10 @@ async def seed_demo_jobs(store: JobStore | None = None) -> int:
         try:
             job = Job.model_validate(job_dict)
             job.updated_at = now  # keep fresh so cleanup never targets it
+            # A demo is a finished result. Force a terminal status regardless of
+            # what the bake recorded, or startup's orphan reconciliation
+            # (fail_orphaned_jobs) would flip it to "failed".
+            job.status = JobStatus.COMPLETED
             await store.save(job)
             PROTECTED_JOB_IDS.add(str(job.id))
             seeded += 1
