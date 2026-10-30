@@ -1,12 +1,22 @@
 from __future__ import annotations
 
+import functools
+import logging
 import re
 
 from app.config import settings
 from app.models.document import CanonicalText, DocumentFormat, TextChunk
 
+logger = logging.getLogger(__name__)
+
+# C0 controls (minus \t, \n, \r) and DEL: invalid in XML 1.0 and rejected by
+# Excel writers. Spans index the normalized text, so replacing them with a space
+# (collapsed below like any other whitespace) keeps every offset consistent.
+_CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
 
 def normalize_whitespace(text: str) -> str:
+    text = _CONTROL_CHARS.sub(" ", text)
     # Collapse runs of whitespace (except newlines) to single space
     text = re.sub(r"[^\S\n]+", " ", text)
     # Collapse 3+ newlines to 2
@@ -23,15 +33,27 @@ def split_sentences(text: str) -> list[str]:
     without incorrectly splitting at abbreviation periods.
     Falls back to regex if nupunkt is not installed.
     """
-    try:
-        from nupunkt import SentenceTokenizer
-        tokenizer = SentenceTokenizer()
+    tokenizer = _get_sentence_tokenizer()
+    if tokenizer is not None:
         sentences = tokenizer.tokenize(text)
         return [s for s in sentences if s.strip()]
+    # Fallback to regex if nupunkt not installed
+    parts = re.split(r"(?<=[.!?])\s+(?=[A-Z])", text)
+    return [p for p in parts if p.strip()]
+
+
+@functools.lru_cache(maxsize=1)
+def _get_sentence_tokenizer():
+    """Load NuPunkt's default legal model once (nupunkt >= 0.6 API)."""
+    try:
+        from nupunkt import load_default_model
     except ImportError:
-        # Fallback to regex if nupunkt not installed
-        parts = re.split(r"(?<=[.!?])\s+(?=[A-Z])", text)
-        return [p for p in parts if p.strip()]
+        logger.warning(
+            "nupunkt is unavailable; falling back to a regex sentence splitter "
+            "that breaks at legal abbreviations (e.g. 'Stat.', 'v.')"
+        )
+        return None
+    return load_default_model()
 
 
 def build_sentence_index(text: str) -> list[tuple[int, int, str]]:
