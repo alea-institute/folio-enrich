@@ -45,6 +45,8 @@ dependencies = [
     # signed axiom history; v3 records migrate via migrate_record.
     "folio-propositions @ git+https://github.com/alea-institute/folio-propositions@v0.4.0",
     "markdown>=3.7,<4",
+    "openai>=3.0,<4",
+    "anthropic>=2.0,<3",
 ]
 
 [project.optional-dependencies]
