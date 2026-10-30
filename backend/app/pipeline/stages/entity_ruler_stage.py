@@ -6,9 +6,12 @@ import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+import spacy
+
 from app.models.annotation import Annotation, ConceptMatch, Span
 from app.models.job import Job, JobStatus
 from app.pipeline.stages.base import PipelineStage, record_lineage
+from app.services.entity_ruler.pattern_builder import build_patterns
 from app.services.entity_ruler.ruler import EntityRulerMatch, FOLIOEntityRuler
 from app.services.entity_ruler.semantic_ruler import SemanticEntityRuler, can_encode
 from app.services.folio.branch_config import get_branch_color
@@ -58,10 +61,59 @@ class _RulerBundle:
     # run it on worker threads; serialize calls rather than rely on spaCy's
     # thread-safety.
     lock: threading.Lock = field(default_factory=threading.Lock)
+    max_label_chars: int = 0
 
     def find_matches(self, text: str) -> list[EntityRulerMatch]:
-        with self.lock:
-            return self.ruler.find_matches(text)
+        """Match *text* in overlapping windows.
+
+        spaCy's token Matcher holds the GIL for the whole call and costs
+        O(tokens x patterns): with ~18k FOLIO patterns a 65 KB document is one
+        ~7 s call, which freezes the event loop even from a worker thread.
+        Matching ~2 KB windows bounds each GIL hold. Every window carries a
+        context margin longer than any label on both sides and keeps only the
+        matches that START in its own region, so overlap resolution sees the
+        same neighbours as a whole-document pass.
+        """
+        margin = self.max_label_chars + _WINDOW_MARGIN_SLACK
+        n = len(text)
+        if n <= _WINDOW_CHARS + 2 * margin:
+            with self.lock:
+                return self.ruler.find_matches(text)
+        matches: list[EntityRulerMatch] = []
+        pos = 0
+        while pos < n:
+            own_end = _snap_forward(text, min(pos + _WINDOW_CHARS, n))
+            lo = _snap_back(text, max(0, pos - margin))
+            hi = _snap_forward(text, min(n, own_end + margin))
+            with self.lock:
+                window_matches = self.ruler.find_matches(text[lo:hi])
+            for m in window_matches:
+                start = m.start_char + lo
+                if pos <= start < own_end:
+                    m.start_char = start
+                    m.end_char += lo
+                    matches.append(m)
+            pos = own_end
+        return matches
+
+
+_WINDOW_CHARS = 2000
+_WINDOW_MARGIN_SLACK = 50
+
+
+def _snap_forward(text: str, i: int) -> int:
+    """Move *i* forward to the next whitespace (or the end) so windows never
+    split a token."""
+    n = len(text)
+    while i < n and not text[i].isspace():
+        i += 1
+    return i
+
+
+def _snap_back(text: str, i: int) -> int:
+    while i > 0 and not text[i - 1].isspace():
+        i -= 1
+    return i
 
 
 # Built rulers keyed by ontology id. Building one compiles every ontology label
@@ -69,6 +121,36 @@ class _RulerBundle:
 # not once per job.
 _RULER_CACHE: dict[str, _RulerBundle] = {}
 _RULER_CACHE_LOCK = threading.Lock()
+
+
+def _build_fast_ruler(all_labels: dict) -> FOLIOEntityRuler:
+    """Build a FOLIOEntityRuler whose patterns match exactly as
+    ``FOLIOEntityRuler.load_patterns`` would, but mostly via the PhraseMatcher.
+
+    ``build_patterns`` emits every multi-word label as a token pattern
+    (``[{"LOWER": w}, ...]``). spaCy's token Matcher scans all of them at every
+    token — ~19k FOLIO patterns made a 64 KB document a ~10 s, GIL-holding call.
+    When the tokenizer splits a label's lowercase text into exactly those words,
+    the token pattern and a LOWER phrase pattern match the same spans, so it is
+    added as a phrase pattern (hash lookup) instead. Labels the tokenizer would
+    split differently stay token patterns, preserving their behavior.
+    """
+    nlp = spacy.blank("en")
+    ruler = FOLIOEntityRuler(nlp=nlp)
+    if not all_labels:
+        return ruler
+    ruler.load_patterns({})  # creates the (empty) entity_ruler pipe; marks loaded
+    patterns = []
+    for pattern in build_patterns(all_labels):
+        spec = pattern["pattern"]
+        if isinstance(spec, list) and all(set(tok) == {"LOWER"} for tok in spec):
+            words = [tok["LOWER"] for tok in spec]
+            phrase = " ".join(words)
+            if [t.lower_ for t in nlp.make_doc(phrase)] == words:
+                pattern = {**pattern, "pattern": phrase}
+        patterns.append(pattern)
+    nlp.get_pipe("entity_ruler").add_patterns(patterns)
+    return ruler
 
 
 def _get_ruler_bundle(ontology_id: str) -> _RulerBundle:
@@ -85,9 +167,8 @@ def _get_ruler_bundle(ontology_id: str) -> _RulerBundle:
         ):
             return bundle
 
-        ruler = FOLIOEntityRuler()
+        ruler = _build_fast_ruler(all_labels)
         if all_labels:
-            ruler.load_patterns(all_labels)
             logger.info("EntityRuler loaded %d FOLIO patterns", len(all_labels))
         else:
             logger.warning("No FOLIO labels found — EntityRuler will be empty")
@@ -113,6 +194,7 @@ def _get_ruler_bundle(ontology_id: str) -> _RulerBundle:
             label_to_concepts=label_to_concepts,
             labels=all_labels,
             labels_multi=all_labels_multi,
+            max_label_chars=max((len(k) for k in all_labels), default=0),
         )
         _RULER_CACHE[key] = bundle
         return bundle

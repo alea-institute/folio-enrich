@@ -255,12 +255,13 @@ def test_candidates_do_not_cross_blank_lines():
 
 
 def test_candidate_containing_a_known_span_is_excluded():
-    text = "the material breach of contract claim"
-    s = text.index("breach of contract")
-    phrases = _phrases(text, {(s, s + len("breach of contract"))})
-    assert "material breach of contract" not in phrases
-    assert "breach of contract claim" not in phrases
-    assert not any("breach" in p or "contract" in p for p in phrases)
+    text = "a material contract claim arose"
+    s = text.index("contract")
+    phrases = _phrases(text, {(s, s + len("contract"))})
+    # Strictly contains the known span (starts before it, ends after it).
+    assert "material contract claim" not in phrases
+    assert not any("contract" in p for p in phrases)
+    assert "claim arose" in phrases
 
 
 # ── Defect 7: forged kids cannot force a JWKS fetch per request ────────────
@@ -305,3 +306,40 @@ def test_unknown_kid_refresh_is_rate_limited(signing_key):
     with pytest.raises(auth.AccessAuthError):
         verifier.verify(_forged(signing_key, "forged-again"))
     assert len(calls) == 3
+
+
+# ── Defect 1/2: the shared ruler matches exactly like load_patterns, faster ──
+
+_TRICKY = [
+    "breach of contract", "lease agreement", "u.s. district court", "non-compete agreement",
+    "deep sea, coastal, and great lakes water transportation", "motion to dismiss",
+    "court of appeals", "notice of default", "district court", "contract", "landlord",
+    "attorney's fees", "e-discovery", "confidential information", "summary judgment",
+]
+
+
+def test_fast_ruler_and_windows_match_load_patterns_exactly(monkeypatch):
+    single, multi = _labels(*_TRICKY)
+    old = ers.FOLIOEntityRuler()
+    old.load_patterns(single)
+    bundle = ers._RulerBundle(
+        ruler=ers._build_fast_ruler(single), iri_to_branch={}, iri_to_concept={},
+        label_to_concepts={}, labels=single, labels_multi=multi,
+        max_label_chars=max(len(k) for k in single),
+    )
+    monkeypatch.setattr(ers, "_WINDOW_CHARS", 300)  # force many windows
+    sentences = [
+        "The U.S. District Court denied the motion to dismiss the breach of contract claim.",
+        "A non-compete agreement and the lease agreement were breached; attorney's fees followed.",
+        "Deep sea, coastal, and great lakes water transportation is regulated by the Court of Appeals.",
+        "The landlord sent a notice of default regarding confidential information and e-discovery.",
+        "Summary judgment\n\nwas entered by the district court on the contract.",
+    ]
+    text = " ".join(sentences[i % len(sentences)] for i in range(60))
+
+    def key(ms):
+        return sorted((m.start_char, m.end_char, m.entity_id, m.match_type, m.text) for m in ms)
+
+    expected = key(old.find_matches(text))
+    assert len(expected) > 100
+    assert key(bundle.find_matches(text)) == expected

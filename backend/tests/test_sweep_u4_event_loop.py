@@ -53,8 +53,12 @@ def _job(text: str) -> Job:
     return job
 
 
-async def _max_tick_gap(work) -> float:
-    """Run *work* while a ticker sleeps TICK in a loop; return the longest gap."""
+async def _max_tick_gap(make_work) -> float:
+    """Run ``make_work()`` while a ticker sleeps TICK in a loop; return the longest gap.
+
+    The work is created only after the ticker is running: ``asyncio.gather``
+    schedules its tasks immediately, so passing it in pre-built would let
+    blocking work finish before the ticker ever started."""
     done = asyncio.Event()
     gaps: list[float] = []
 
@@ -69,7 +73,7 @@ async def _max_tick_gap(work) -> float:
     tick_task = asyncio.create_task(ticker())
     await asyncio.sleep(0)  # let the ticker start before the work begins
     try:
-        await work
+        await make_work()
     finally:
         done.set()
         await tick_task
@@ -102,7 +106,7 @@ async def test_parallel_phase_stages_keep_event_loop_responsive():
     ruler_stage._patterns_loaded = True  # injected ruler; no FOLIO load
 
     start = time.perf_counter()
-    gap = await _max_tick_gap(asyncio.gather(
+    gap = await _max_tick_gap(lambda: asyncio.gather(
         EarlyTripleStage().execute(triple_job),
         ruler_stage.execute(ruler_job),
     ))
@@ -114,3 +118,48 @@ async def test_parallel_phase_stages_keep_event_loop_responsive():
     assert elapsed > 2 * MAX_GAP, f"document too small to prove anything ({elapsed:.2f}s)"
     # ...yet the loop kept ticking throughout.
     assert gap < MAX_GAP, f"event loop stalled for {gap:.2f}s (total work {elapsed:.2f}s)"
+
+
+class _ManyLabelsFolio:
+    """Thousands of multi-word labels, like FOLIO's ~19k token patterns."""
+
+    ontology_id = "folio"
+
+    def __init__(self, count: int = 20000):
+        self.labels, self.multi = {}, {}
+        words = ["breach of contract", "lease agreement", "motion to dismiss", "district court"]
+        names = words + [f"term{i} of art{i % 97}" for i in range(count)]
+        for i, name in enumerate(names):
+            concept = FOLIOConcept(
+                iri=f"https://example.org/M{i}", preferred_label=name.title(),
+                alternative_labels=[], definition="", branch="Area of Law", parent_iris=[],
+            )
+            info = LabelInfo(concept=concept, label_type="preferred", matched_label=name)
+            self.labels[name] = info
+            self.multi[name] = [info]
+
+    def get_all_labels(self):
+        return self.labels
+
+    def get_all_labels_multi(self):
+        return self.multi
+
+
+@pytest.mark.asyncio
+async def test_shared_ruler_with_many_patterns_keeps_event_loop_responsive(monkeypatch):
+    """The production path: no injected ruler, so the stage builds (once) and
+    uses the shared FOLIO ruler. spaCy's token Matcher holds the GIL, so moving
+    it to a thread alone was not enough; matching must also be cheap/windowed."""
+    from app.pipeline.stages import entity_ruler_stage as ers
+
+    if hasattr(ers, "_RULER_CACHE"):
+        monkeypatch.setattr(ers, "_RULER_CACHE", {})
+    svc = _ManyLabelsFolio()
+    monkeypatch.setattr(ers.FolioService, "get_instance", classmethod(lambda cls, oid=None: svc))
+    text = _large_text(60_000)
+
+    for _ in range(2):  # first job builds the shared ruler, second reuses it
+        job = _job(text)
+        gap = await _max_tick_gap(lambda: EntityRulerStage().execute(job))
+        assert len(job.result.annotations) > 300
+        assert gap < MAX_GAP, f"event loop stalled for {gap:.2f}s"
