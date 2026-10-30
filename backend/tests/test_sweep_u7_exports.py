@@ -247,6 +247,53 @@ class TestHTMLOffsets:
         p.feed(body + "</pre>")
         assert p.text == job.result.canonical_text.full_text
 
+    @pytest.mark.parametrize("order", ["long_first", "short_first"])
+    def test_spans_sharing_a_start_nest_longest_outside(self, order):
+        text = "breach of contract claim"
+
+        def ann(start, end, label):
+            return Annotation(span=Span(start=start, end=end, text=text[start:end]), concepts=[
+                ConceptMatch(concept_text=text[start:end], folio_iri=f"https://x/{label}",
+                             folio_label=label, confidence=0.9)])
+
+        anns = [ann(0, 18, "BreachOfContract"), ann(0, 6, "Breach")]
+        if order == "short_first":
+            anns.reverse()
+
+        class _Links(HTMLParser):
+            def __init__(self):
+                super().__init__(convert_charrefs=True)
+                self.stack: list[tuple[str, str]] = []
+                self.found: dict[str, str] = {}
+                self.depth_ok = True
+
+            def handle_starttag(self, tag, attrs):
+                if tag == "a":
+                    self.stack.append((dict(attrs)["href"], ""))
+
+            def handle_endtag(self, tag):
+                if tag == "a":
+                    href, txt = self.stack.pop()
+                    self.found[href] = txt
+                    if self.stack:  # the enclosing link contains this text too
+                        outer, otxt = self.stack[-1]
+                        self.stack[-1] = (outer, otxt + txt)
+
+            def handle_data(self, data):
+                if self.stack:
+                    href, txt = self.stack[-1]
+                    self.stack[-1] = (href, txt + data)
+
+        out = HTMLExporter().export(make_job(text=text, annotations=anns))
+        links = _Links()
+        links.feed(out[out.index("<pre"):out.index("</pre>") + 6])
+        assert links.found == {
+            "https://x/BreachOfContract/html": "breach of contract",
+            "https://x/Breach/html": "breach",
+        }
+        body = out[out.index("<pre"):out.index("</pre>")]
+        assert body.index("BreachOfContract") < body.index('"https://x/Breach"')
+
 
 # ── brat line framing ────────────────────────────────────────────────
 

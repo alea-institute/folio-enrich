@@ -34,16 +34,18 @@ class HTMLExporter(ExporterBase):
         # never shifts the offsets of another.
         n = len(full_text)
         chars = [_esc(c) for c in full_text]
-        opens: list[list[str]] = [[] for _ in range(n + 1)]
-        closes: list[list[str]] = [[] for _ in range(n + 1)]
+        # (start, end, seq, tag) per offset; ordered when woven in below.
+        opens: list[list[tuple[int, int, int, str]]] = [[] for _ in range(n + 1)]
+        closes: list[list[tuple[int, int, int, str]]] = [[] for _ in range(n + 1)]
+        seq = 0
 
         def add_tag(start: int, end: int, open_tag: str, close_tag: str) -> None:
+            nonlocal seq
             start = max(0, min(start, n))
             end = max(start, min(end, n))
-            # Spans added later open outside, and close outside, earlier ones
-            # that share an offset.
-            opens[start].insert(0, open_tag)
-            closes[end].append(close_tag)
+            opens[start].append((start, end, seq, open_tag))
+            closes[end].append((start, end, seq, close_tag))
+            seq += 1
 
         for ann in job.result.annotations:
             if not ann.concepts:
@@ -117,10 +119,13 @@ class HTMLExporter(ExporterBase):
             )
             add_tag(prop.span.start, prop.span.end, open_tag, close_tag)
 
+        # Nest properly: at an offset the longest span opens first (outermost)
+        # and the latest-starting span closes first (innermost). Identical spans
+        # keep the old order: one added later wraps the earlier one.
         parts: list[str] = []
         for i in range(n + 1):
-            parts.extend(closes[i])
-            parts.extend(opens[i])
+            parts.extend(t[3] for t in sorted(closes[i], key=lambda t: (-t[0], t[2])))
+            parts.extend(t[3] for t in sorted(opens[i], key=lambda t: (-t[1], -t[2])))
             if i < n:
                 parts.append(chars[i])
         body = "".join(parts)
