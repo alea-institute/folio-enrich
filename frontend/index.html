@@ -4603,6 +4603,27 @@ function saveLocalKey(provider, key) {
     else localStorage.removeItem(_localKeyName(provider));
   } catch {}
 }
+// PUT /settings changes the server-wide settings every visitor shares, so it is
+// admin-only. On a public (BYOK) server this browser keeps its own provider/model
+// choice and sends it with each request instead of writing server settings.
+const LOCAL_LLM_CHOICE_KEY = 'folio_enrich_llm_choice';
+const ADMIN_ONLY_MESSAGE = 'Admin only on this server';
+function loadLocalLLMChoice() {
+  try { return JSON.parse(localStorage.getItem(LOCAL_LLM_CHOICE_KEY) || 'null'); } catch { return null; }
+}
+function saveLocalLLMChoice(provider, model) {
+  try { localStorage.setItem(LOCAL_LLM_CHOICE_KEY, JSON.stringify({ provider, model })); } catch {}
+}
+// Write server-wide settings; a 403 means this server reserves them for its admin.
+async function putServerSettings(body) {
+  const r = await fetch(`${API}/settings`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (r.status === 403) _showInfoToast(`${ADMIN_ONLY_MESSAGE} — server settings were not changed.`);
+  return r;
+}
 // Restore the inline key for the active provider from this browser's storage.
 function restoreLocalKeyForProvider() {
   if (!_requireUserKey) return;
@@ -6042,11 +6063,15 @@ async function loadSettings() {
     if (!r.ok) return;
     const data = await r.json();
     _requireUserKey = !!data.require_user_api_key;
-    if (data.llm_provider) {
-      document.getElementById('providerSelect').value = data.llm_provider;
+    // Public server: this browser's own choice wins over the server default.
+    const local = _requireUserKey ? loadLocalLLMChoice() : null;
+    const llmProvider = (local && local.provider) || data.llm_provider;
+    const llmModel = local && local.provider ? local.model : data.llm_model;
+    if (llmProvider) {
+      document.getElementById('providerSelect').value = llmProvider;
       onProviderChange();
-      if (data.llm_model) {
-        document.getElementById('modelSelect').value = data.llm_model;
+      if (llmModel) {
+        document.getElementById('modelSelect').value = llmModel;
       }
     }
     // BYOK: re-hydrate the inline key from this browser (the server holds none).
@@ -6274,11 +6299,13 @@ async function saveSettings() {
       }
     }
 
-    await fetch(`${API}/settings`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    if (_requireUserKey) {
+      // Public server: keep the choice in this browser; it travels with each
+      // /enrich request. Server-wide options are disabled in this posture.
+      saveLocalLLMChoice(provider, model);
+    } else {
+      await putServerSettings(body);
+    }
 
     // Refresh provider metadata (updates api_key_set flags)
     await loadProviders();
@@ -6311,7 +6338,11 @@ async function populateSettingsMatchingOptions() {
     if (!r.ok) return;
     const data = await r.json();
     const transEl = document.getElementById('translationMatchingEnabled');
-    if (transEl) transEl.checked = !!data.translation_matching_enabled;
+    if (transEl) {
+      transEl.checked = !!data.translation_matching_enabled;
+      transEl.disabled = _requireUserKey;
+      transEl.title = _requireUserKey ? ADMIN_ONLY_MESSAGE : '';
+    }
   } catch {}
 }
 
@@ -6576,13 +6607,9 @@ function saveFolioAutoSettings() {
     try {
       const autoCheck = document.getElementById('folioModalAutoCheck').checked;
       const interval = parseInt(document.getElementById('folioModalInterval').value, 10) || 24;
-      await fetch(`${API}/settings`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          folio_auto_update: autoCheck,
-          folio_update_check_interval_hours: Math.max(1, Math.min(168, interval)),
-        }),
+      await putServerSettings({
+        folio_auto_update: autoCheck,
+        folio_update_check_interval_hours: Math.max(1, Math.min(168, interval)),
       });
     } catch {}
   }, 500);
@@ -6803,21 +6830,23 @@ async function populateOllamaSettings() {
       }
       const settingsR = await fetch(`${API}/settings`);
       const settingsData = settingsR.ok ? await settingsR.json() : {};
+      // Tier models are server-wide: read-only on a public server.
+      const tierLock = _requireUserKey ? ` disabled title="${ADMIN_ONLY_MESSAGE}"` : '';
 
       tierHtml = `
         <div class="ollama-tier-row">
           <span class="ollama-tier-label">Simple</span>
-          <input class="ollama-tier-model" id="ollamaTierSimple" value="${escapeAttr(settingsData.ollama_model_simple || 'qwen3:4b')}">
+          <input class="ollama-tier-model" id="ollamaTierSimple" value="${escapeAttr(settingsData.ollama_model_simple || 'qwen3:4b')}"${tierLock}>
           <span class="ollama-tier-tasks">${tiers.simple.join(', ')}</span>
         </div>
         <div class="ollama-tier-row">
           <span class="ollama-tier-label">Medium</span>
-          <input class="ollama-tier-model" id="ollamaTierMedium" value="${escapeAttr(settingsData.ollama_model_medium || 'qwen3:8b')}">
+          <input class="ollama-tier-model" id="ollamaTierMedium" value="${escapeAttr(settingsData.ollama_model_medium || 'qwen3:8b')}"${tierLock}>
           <span class="ollama-tier-tasks">${tiers.medium.join(', ')}</span>
         </div>
         <div class="ollama-tier-row">
           <span class="ollama-tier-label">Complex</span>
-          <input class="ollama-tier-model" id="ollamaTierComplex" value="${escapeAttr(settingsData.ollama_model_complex || 'qwen3:14b')}">
+          <input class="ollama-tier-model" id="ollamaTierComplex" value="${escapeAttr(settingsData.ollama_model_complex || 'qwen3:14b')}"${tierLock}>
           <span class="ollama-tier-tasks">${tiers.complex.join(', ')}</span>
         </div>`;
     }
@@ -7047,23 +7076,26 @@ async function submitEnrichment() {
   renderProgressStages('pending');
 
   try {
-    // Save provider/model to backend settings first. The key is handled
-    // differently per mode: in BYOK it stays in THIS browser (localStorage) and
-    // is only sent per-request below — never persisted server-side.
-    const settingsBody = { llm_provider: provider, llm_model: model };
-    if (apiKey) {
-      if (_requireUserKey) {
-        saveLocalKey(provider, apiKey);
-      } else {
+    // Remember provider/model (and key) for next time. On a public (BYOK)
+    // server they stay in THIS browser (localStorage) and are only sent
+    // per-request below — never written to the shared server settings. A local
+    // install saves them as server defaults; that PUT is best-effort because the
+    // request below carries the choice either way.
+    if (_requireUserKey) {
+      saveLocalLLMChoice(provider, model);
+      if (apiKey) saveLocalKey(provider, apiKey);
+    } else {
+      const settingsBody = { llm_provider: provider, llm_model: model };
+      if (apiKey) {
         const keyField = _providerKeyField(provider);
         if (keyField) settingsBody[keyField] = apiKey;
       }
+      await fetch(`${API}/settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settingsBody),
+      }).catch(() => {});
     }
-    await fetch(`${API}/settings`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(settingsBody),
-    }).catch(() => {});
 
     const body = { content };
     if (uploadedFilename) {
@@ -12482,6 +12514,7 @@ async function propositionFetch(path, options = {}) {
     const body = await response.json().catch(() => ({ detail: response.statusText }));
     const error = new Error(typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail));
     error.goldAuthFailure = path.startsWith('/gold') && (response.status === 401 || response.status === 403);
+    error.status = response.status;
     throw error;
   }
   return response.json();
@@ -12495,7 +12528,16 @@ async function togglePropositionMode(enabled) {
   }
   try {
     applyPropositionSettings(await propositionFetch('/settings', { method: 'GET' }));
-    await propositionFetch('/settings', { method: 'PUT', body: JSON.stringify({ proposition_extraction_enabled: enabled }) });
+    // Extraction is a server-wide switch (admin-only). Annotation mode itself is
+    // this browser's choice, so a refused switch still lets the mode change.
+    if (!!propositionSettings?.proposition_extraction_enabled !== enabled) {
+      try {
+        await propositionFetch('/settings', { method: 'PUT', body: JSON.stringify({ proposition_extraction_enabled: enabled }) });
+      } catch (error) {
+        if (error.status !== 403) throw error;
+        _showInfoToast(`${ADMIN_ONLY_MESSAGE}: proposition pre-selection unchanged; annotation mode changed in this browser only.`);
+      }
+    }
     propositionAnnotationMode = enabled;
     propositionAddArmed = false;
     propositionBlindArmed = false;

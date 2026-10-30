@@ -152,8 +152,8 @@ async def test_post_job_defaults_need_admin_token_when_configured(client, monkey
         assert refused.status_code == 403
         assert settings.post_job_push_default is False
         assert settings.llm_model != "x"  # a refused request changes nothing
-        # The rest of PUT /settings is unchanged (no admin token needed).
-        assert (await client.put("/settings", json={"translation_matching_enabled": False})).status_code == 200
+        # Every server-wide field needs the token once one is configured.
+        assert (await client.put("/settings", json={"translation_matching_enabled": False})).status_code == 403
         ok = await client.put("/settings", json={"post_job_review_default": True, "post_job_push_default": True},
                               headers={"X-Admin-Token": ADMIN})
         assert ok.status_code == 200

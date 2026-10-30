@@ -89,14 +89,21 @@ async def test_put_settings_does_not_persist_key_when_required(client, google_ke
 
     On a public deployment the settings singleton is shared across visitors, so
     storing one user's key there is the very leak BYOK prevents. Non-key fields
-    must still update.
+    must still update for an admin; anonymous callers change nothing.
     """
     settings.require_user_api_key = True
     settings.google_api_key = "original-server-key"
-    resp = await client.put(
-        "/settings",
-        json={"google_api_key": "attacker-supplied-key", "llm_provider": "anthropic"},
-    )
+    payload = {"google_api_key": "attacker-supplied-key", "llm_provider": "anthropic"}
+    prev_admin = settings.admin_token
+    try:
+        settings.admin_token = ""
+        assert (await client.put("/settings", json=payload)).status_code == 403
+        assert settings.google_api_key == "original-server-key"
+        assert settings.llm_provider == "google"
+        settings.admin_token = "admin"
+        resp = await client.put("/settings", json=payload, headers={"X-Admin-Token": "admin"})
+    finally:
+        settings.admin_token = prev_admin
     assert resp.status_code == 200
     assert settings.google_api_key == "original-server-key"  # unchanged
     assert settings.llm_provider == "anthropic"  # non-key field still updates

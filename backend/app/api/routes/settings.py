@@ -6,7 +6,7 @@ from fastapi import APIRouter, Header
 from folio_propositions import WORKING_TAXONOMY
 from pydantic import BaseModel
 
-from app.api.auth import require_admin
+from app.api.auth import require_admin_fail_closed
 from app.config import settings
 from app.models.llm_models import (
     ConnectionTestRequest,
@@ -183,11 +183,15 @@ async def update_settings(
     update: SettingsUpdate,
     x_admin_token: str | None = Header(default=None),
 ) -> dict:
-    # The post-job defaults decide whether jobs push into the shared insights
-    # corpus with the operator token, so changing them needs the admin token
-    # when one is configured. Checked first so a refused request changes nothing.
-    if update.post_job_review_default is not None or update.post_job_push_default is not None:
-        require_admin(x_admin_token)
+    # Every field here mutates the process-wide settings singleton, so a change
+    # applies to every visitor's jobs: the default and per-task LLM routing (which
+    # decides where document text is sent), Ollama tiers, FOLIO auto-update,
+    # matching options, proposition extraction, the post-job defaults and stored
+    # server keys. Any change needs admin: a public deploy fails closed without a
+    # configured token, a local install without one stays open. Checked before
+    # any assignment so a refused request changes nothing.
+    if any(value is not None for value in update.model_dump().values()):
+        require_admin_fail_closed(x_admin_token)
     if update.llm_provider is not None:
         settings.llm_provider = update.llm_provider
     if update.llm_model is not None:
