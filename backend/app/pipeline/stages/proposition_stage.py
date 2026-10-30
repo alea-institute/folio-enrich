@@ -59,9 +59,11 @@ class EarlyPropositionStage(PipelineStage):
         source_uri = job_source_uri(job)
         prompt = (
             "Identify explicit proposition content spans in this judicial text. "
-            "Return only spans supported verbatim by the text, with start_char, "
-            "end_char, proposition_type, asserter_role, validator_mode (or null), "
-            "and disposition. Allowed proposition types: "
+            "Return only spans supported verbatim by the text. Respond with a "
+            'JSON object whose top-level key "propositions" holds an array; each '
+            "item has start_char, end_char, proposition_type, asserter_role, "
+            "validator_mode (or null), and disposition. Return "
+            '{"propositions": []} when there are none. Allowed proposition types: '
             + ", ".join(WORKING_TAXONOMY)
             + ".\n\n"
             + text

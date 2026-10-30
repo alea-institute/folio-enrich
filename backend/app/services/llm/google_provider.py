@@ -1,37 +1,21 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from typing import Any
 
 import httpx
 
-from app.models.llm_models import ModelInfo
+from app.models.llm_models import LLMProviderType, ModelInfo
 from app.services.llm.base import LLMProvider
+from app.services.llm.json_utils import parse_json_response, with_schema_instruction
+from app.services.llm.registry import DEFAULT_MODELS
 
 logger = logging.getLogger(__name__)
 
 
-def _loads_first_json(text: str):
-    """Parse JSON, tolerating leading prose or trailing data the model may emit.
-
-    Gemini sometimes returns a valid JSON value followed by extra text (a bare
-    ``json.loads`` then raises "Extra data"). Fall back to decoding the first complete
-    JSON value found, ignoring anything after it.
-    """
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        decoder = json.JSONDecoder()
-        for i, ch in enumerate(text):
-            if ch in "{[":
-                try:
-                    obj, _ = decoder.raw_decode(text[i:])
-                    return obj
-                except json.JSONDecodeError:
-                    continue
-        raise
+def _default_model() -> str:
+    return DEFAULT_MODELS[LLMProviderType.google]
 
 
 class GoogleProvider(LLMProvider):
@@ -78,7 +62,7 @@ class GoogleProvider(LLMProvider):
         )
 
     async def chat(self, messages: list[dict[str, str]], **kwargs: Any) -> str:
-        model = kwargs.pop("model", self.model or "gemini-2.0-flash")
+        model = kwargs.pop("model", self.model or _default_model())
 
         # Separate system instruction from conversation
         system_parts = []
@@ -114,12 +98,9 @@ class GoogleProvider(LLMProvider):
     async def structured(
         self, prompt: str, schema: dict, **kwargs: Any
     ) -> dict:
-        model = kwargs.pop("model", self.model or "gemini-2.0-flash")
+        model = kwargs.pop("model", self.model or _default_model())
 
-        prompt_with_json = (
-            f"{prompt}\n\nRespond ONLY with valid JSON matching this schema:\n"
-            f"{json.dumps(schema, indent=2)}"
-        )
+        prompt_with_json = with_schema_instruction(prompt, schema)
 
         body: dict[str, Any] = {
             "contents": [
@@ -139,18 +120,10 @@ class GoogleProvider(LLMProvider):
             parts = candidates[0].get("content", {}).get("parts", [])
             text = parts[0].get("text", "") if parts else ""
 
-        text = text.strip()
-        # Strip markdown code fences if present
-        if text.startswith("```"):
-            lines = text.split("\n")
-            text = "\n".join(
-                lines[1:-1] if lines[-1].startswith("```") else lines[1:]
-            )
-
-        return _loads_first_json(text)
+        return parse_json_response(text)
 
     async def test_connection(self) -> bool:
-        model = self.model or "gemini-2.0-flash"
+        model = self.model or _default_model()
         url = f"{self._base}/models/{model}:generateContent"
         body = {
             "contents": [{"role": "user", "parts": [{"text": "Hi"}]}],
