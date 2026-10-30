@@ -31,6 +31,34 @@ _LEMMA_DENYLIST: frozenset[str] = FOLIO_SPEC.behavior.lemma_denylist
 __all__ = ["ConceptRecord", "FOLIOConcept", "FOLIOProperty", "FolioService", "LabelInfo"]
 
 
+class _DropFolioLLMInitWarning(logging.Filter):
+    """Drop folio-python's "Failed to initialize LLM model" traceback warning."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not str(record.msg).startswith("Failed to initialize LLM model")
+
+
+def _construct_folio(**kwargs):
+    """Construct folio-python's FOLIO without its LLM search client.
+
+    folio-enrich never uses folio-python's LLM search, but FOLIO.__init__ treats
+    ``llm=None`` as "build a default OpenAIModel", which logs a traceback on every
+    load when no OpenAI key is configured (and holds a client when one is).
+    Silence that one warning during construction and drop the client afterwards.
+    """
+    from folio import FOLIO
+
+    folio_logger = logging.getLogger("folio.graph")
+    log_filter = _DropFolioLLMInitWarning()
+    folio_logger.addFilter(log_filter)
+    try:
+        instance = FOLIO(llm=None, **kwargs)
+    finally:
+        folio_logger.removeFilter(log_filter)
+    instance.llm = None
+    return instance
+
+
 def _translation_matching_enabled() -> bool:
     """Check if translation matching is enabled in settings (lazy import to avoid circular deps)."""
     from app.config import settings
@@ -145,12 +173,10 @@ class FolioService:
 
     def _load_folio(self):
         """Construct the folio-python FOLIO object for this ontology's coords."""
-        from folio import FOLIO
-
         coords = self._spec.coords
         if coords.source_type == "http":
             return self._load_http_via_hardened_ingestion(coords)
-        return FOLIO(github_repo_branch=coords.repo_branch)
+        return _construct_folio(github_repo_branch=coords.repo_branch)
 
     def _load_http_via_hardened_ingestion(self, coords: OntologyCoords):
         """Load an http-source ontology WITHOUT folio-python ever fetching.
@@ -204,7 +230,7 @@ class FolioService:
                 f"Pre-seeded cache not read back by folio-python for '{self._spec.id}' "
                 "(cache-path scheme mismatch); refusing to fall back to an unguarded fetch"
             )
-        return FOLIO(source_type="http", http_url=coords.owl_url, use_cache=True)
+        return _construct_folio(source_type="http", http_url=coords.owl_url, use_cache=True)
 
     def _get_folio(self):
         if self._folio is None:
@@ -399,7 +425,9 @@ class FolioService:
         folio = self._get_folio()
         try:
             results = folio.search_by_prefix(prefix)
-            return [self._to_folio_concept(c) for c, _ in results[:top_k]]
+            # folio-python returns List[OWLClass] here (no scores, unlike
+            # search_by_label), so do not unpack (concept, score) tuples.
+            return [self._to_folio_concept(c) for c in results[:top_k]]
         except Exception:
             logger.warning("search_by_prefix failed for '%s'", prefix, exc_info=True)
             return []
