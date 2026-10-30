@@ -12781,24 +12781,42 @@ function insightsStatusEntry(jobId = currentJobId) {
   return jobId ? insightsStatusCache.get(jobId) || null : null;
 }
 
+function observeInsightsPush(jobId, state) {
+  if (state?.push_status !== 'pushed') return;
+  const entry = insightsStatusCache.get(jobId) || { loading: false, data: null, error: null };
+  if (state.push_attempts <= (entry.successfulPushAttempt ?? -1)) return;
+  entry.successfulPushAttempt = state.push_attempts;
+  entry.stale = true;
+  insightsStatusCache.set(jobId, entry);
+  ensureInsightsStatus();
+  renderInsightsBanner();
+}
+
 async function ensureInsightsStatus(force = false) {
   const jobId = currentJobId;
   if (!jobId || currentJob?.status !== 'completed') return;
   const existing = insightsStatusCache.get(jobId);
-  if (existing && (existing.loading || !force)) return;
-  insightsStatusCache.set(jobId, { loading: true, data: existing?.data || null, error: null });
-  let entry;
+  if (existing && (existing.loading || (!force && !existing.stale))) return;
+  const entry = existing || { data: null };
+  Object.assign(entry, { loading: true, stale: false, error: null });
+  insightsStatusCache.set(jobId, entry);
+  let result;
   try {
     const response = await fetch(`${API}/enrich/${encodeURIComponent(jobId)}/insights-status`, { headers: { Accept: 'application/json' } });
     if (!response.ok) {
-      entry = { loading: false, data: null, error: response.status === 404 ? 'This job is not stored on the server, so corpus status is unavailable.' : `Corpus status request failed (${response.status}).` };
+      result = { data: null, error: response.status === 404 ? 'This job is not stored on the server, so corpus status is unavailable.' : `Corpus status request failed (${response.status}).` };
     } else {
-      entry = { loading: false, data: await response.json(), error: null };
+      result = { data: await response.json(), error: null };
     }
   } catch (error) {
-    entry = { loading: false, data: null, error: 'Corpus status request failed — check your connection.' };
+    result = { data: null, error: 'Corpus status request failed — check your connection.' };
   }
-  insightsStatusCache.set(jobId, entry);
+  entry.loading = false;
+  if (entry.stale) {
+    if (currentJobId === jobId) ensureInsightsStatus();
+    return;
+  }
+  Object.assign(entry, result);
   if (currentJobId === jobId) applyInsightsStatusUpdate();
 }
 
@@ -13215,6 +13233,7 @@ function applyPostJobPayload(jobId, payload, seq) {
   postJobSubmitted = null;
   renderPostJob();
   schedulePostJobPoll(payload);
+  observeInsightsPush(jobId, payload.post_job);
 }
 
 async function refreshPostJob() {
