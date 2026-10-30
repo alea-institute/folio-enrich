@@ -1,6 +1,6 @@
 ---
 title: "fix: repo-wide bug sweep (security, ingestion, exports, performance, providers, UI)"
-status: active
+status: completed
 date: 2026-10-30
 ---
 
@@ -98,3 +98,20 @@ commits behind `main`.
 ## Verification
 Each unit adds regression tests; full backend suite plus a Playwright pass over the
 fixed UI paths; DEV deploy and smoke test.
+
+## Outcome (2026-10-30)
+- All 8 units merged on `fix/bug-sweep`, plus integration fixes (parser Span text
+  for O(n) triples, admin gate moved to `app/api/auth.py`, Word ingestor never opens
+  request content as a path, Ollama tiering keyed on the request's provider,
+  `nupunkt>=0.6.0`, EntityRuler warmed at startup) and review fixes (admin gate on
+  every server-wide `PUT /settings` field, HTML export nesting, dropped `.doc` routed
+  to extraction, embedding readiness requires a working encoder).
+- Full backend suite: 1546 passed (two consecutive runs).
+- Live checks on a local server: uploads via the frontend path and raw `.eml` ingest
+  correctly; all 15 export formats parse with control characters in the source;
+  money amounts no longer absorb the next word; `/health` max 1.17 s during a 65 KB
+  job (was 7.65 s on 27 KB); public posture returns 403 for anonymous
+  `PUT /settings`, `/ollama/*` mutations, and feedback export/delete.
+- Model-ID choices (Google default kept at gemini-3-flash-preview; Meta provider moved
+  to the Meta Model API) are recorded in the U6 commit.
+- PROD deploy blocked on SSH access (see Out of scope).
