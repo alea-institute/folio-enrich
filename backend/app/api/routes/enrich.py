@@ -165,7 +165,11 @@ async def create_enrichment(req: EnrichRequest, request: Request) -> dict:
 
     # Build pipeline with per-task LLMs (task-specific overrides > request > global)
     fallback_llm = _get_llm_for_request(req)
-    task_llms = TaskLLMs.from_settings(fallback=fallback_llm)
+    task_llms = TaskLLMs.from_settings(
+        fallback=fallback_llm,
+        provider=req.llm_provider or app_settings.llm_provider,
+        model=req.llm_model or app_settings.llm_model,
+    )
     orchestrator = PipelineOrchestrator(_job_store, llm=fallback_llm, task_llms=task_llms)
 
     # Run pipeline in background

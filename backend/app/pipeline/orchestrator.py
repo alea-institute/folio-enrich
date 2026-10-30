@@ -74,11 +74,21 @@ class TaskLLMs:
     # --- factory ------------------------------------------------------------
 
     @classmethod
-    def from_settings(cls, fallback: LLMProvider | None = None) -> TaskLLMs:
-        """Build TaskLLMs from per-task env vars, falling back to *fallback*."""
+    def from_settings(
+        cls,
+        fallback: LLMProvider | None = None,
+        provider: str | None = None,
+        model: str | None = None,
+    ) -> TaskLLMs:
+        """Build TaskLLMs from per-task env vars, falling back to *fallback*.
+
+        *provider*/*model* are the request's effective choice (request value or
+        server default); Ollama tiering applies only when that provider is
+        Ollama with no model. Omitted, the server settings decide.
+        """
         result = cls()
         for task in LLM_TASKS:
-            llm = _try_get_task_llm(task, fallback)
+            llm = _try_get_task_llm(task, fallback, provider=provider, model=model)
             field = _TASK_FIELD_MAP.get(task, task)
             setattr(result, field, llm)
         return result
@@ -327,13 +337,24 @@ def _is_ollama_llm(llm: LLMProvider) -> bool:
     return (llm.base_url or "").rstrip("/") == ollama_url
 
 
-def _try_get_task_llm(task: str, fallback: LLMProvider | None) -> LLMProvider | None:
+def _is_ollama_provider_name(name: str | None) -> bool:
+    return (name or "").strip().lower().replace("-", "_") == "ollama"
+
+
+def _try_get_task_llm(
+    task: str,
+    fallback: LLMProvider | None,
+    provider: str | None = None,
+    model: str | None = None,
+) -> LLMProvider | None:
     """Get a task-specific LLM, falling back to *fallback* (the global default).
 
     Reads ``llm_{task}_provider`` and ``llm_{task}_model`` from settings.
-    If neither is set, returns *fallback* unchanged.  When the global provider
-    is ``ollama`` with an empty model (tier mode), selects the tier-appropriate
-    model for the task automatically.
+    If neither is set, returns *fallback* unchanged.  When the effective
+    provider is ``ollama`` with an empty model (tier mode), selects the
+    tier-appropriate model for the task automatically. The effective
+    provider/model are *provider*/*model* when given (the request's choice),
+    else the global settings.
     """
     from app.config import settings
 
@@ -351,11 +372,15 @@ def _try_get_task_llm(task: str, fallback: LLMProvider | None) -> LLMProvider | 
             logger.warning("Failed to create task-specific LLM for %s — using global default", task, exc_info=True)
         return fallback
 
-    # Adaptive tier selection: ollama with empty global model — only when the
-    # request didn't choose another provider (its fallback must be Ollama).
+    # Adaptive tier selection: Ollama with no model — only when the request
+    # didn't choose another provider. A request naming a keyless non-Ollama
+    # provider has fallback None, so the effective provider must decide, not
+    # the fallback alone (its fallback, when built, must also be Ollama).
+    if provider is None:
+        provider, model = settings.llm_provider, settings.llm_model
     if (
-        settings.llm_provider == "ollama"
-        and not settings.llm_model
+        _is_ollama_provider_name(provider)
+        and not model
         and (fallback is None or _is_ollama_llm(fallback))
     ):
         try:
