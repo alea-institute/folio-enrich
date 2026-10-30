@@ -21,13 +21,16 @@ class WordIngestor(IngestorBase):
     def ingest(self, doc: DocumentInput) -> str:
         from docx import Document
 
-        # Content is base64-encoded docx bytes
+        # Content is base64-encoded docx bytes. Never hand the request content
+        # to Document() directly: python-docx treats a str as a filesystem path,
+        # so a body like "/etc/passwd" would be opened on the server.
         try:
             docx_bytes = base64.b64decode(doc.content)
             document = Document(io.BytesIO(docx_bytes))
-        except Exception:
-            # Might be a file path
-            document = Document(doc.content)
+        except Exception as exc:
+            raise ValueError(
+                "Could not read the Word document: expected base64-encoded .docx content."
+            ) from exc
 
         return self._extract_all_text(document)
 
