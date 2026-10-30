@@ -141,14 +141,55 @@ def test_chunked_extraction_long_document():
         assert match.span.start == text.index(cite)
 
 
-def test_chunker_covers_text_without_overlap():
-    para = ("word " * 2500).strip()  # ~12.5 KB, forces whitespace hard-split
+def test_chunker_owned_regions_tile_text():
+    para = ("word " * 2500).strip()  # ~12.5 KB, forces whitespace splits
     text = "intro\n\n" + para + "\nline two\n\nend"
     chunks = ce._chunk_text(text)
-    assert "".join(c for _, c in chunks) == text
-    for offset, chunk in chunks:
-        assert text[offset:offset + len(chunk)] == chunk
-        assert len(chunk) <= ce._CITEURL_CHUNK_CHARS
+    assert chunks[0][0] == 0 and chunks[-1][1] == len(text)
+    for (_, prev_end, _), (start, _, _) in zip(chunks, chunks[1:]):
+        assert prev_end == start  # owned regions tile with no gap or overlap
+    for start, end, scan_end in chunks:
+        assert end - start <= ce._CITEURL_CHUNK_CHARS
+        assert end <= scan_end <= end + ce._CITEURL_LOOKAHEAD
+
+
+def test_citation_straddling_forced_split_is_found():
+    """A blank-line-free paragraph over the chunk limit is force-split at
+    whitespace; a citation crossing the cut must still be found once."""
+    cite = "42 U.S.C. § 1983"
+    head = "x " * ((ce._CITEURL_CHUNK_CHARS - len("42 U.S.C. §")) // 2)
+    text = head + cite + " applies." + " more words" * 50
+    start = text.index(cite)
+    assert start < ce._CITEURL_CHUNK_CHARS < start + len(cite)
+
+    result = _citeurl_only(_normalize_with_citeurl(text, []))
+    hits = [i for i in result if "1983" in i.span.text]
+    assert len(hits) == 1
+    assert (hits[0].span.start, hits[0].span.text) == (start, cite)
+    _assert_spans_exact(text, result)
+
+
+async def test_statute_hits_survive_deduplication():
+    """Eyecite emits a bare "§" for Minn. Stat. cites; the longer CiteURL hit must
+    replace it so the deduplicator does not fold every statute into one "§"."""
+    from app.services.individual.deduplicator import deduplicate
+
+    text = (
+        "Under Minn. Stat. § 504B.178 the landlord must return deposits. Later, "
+        "Minn. Stat. § 504B.161 covers habitability, and 12 C.F.R. 1026.18 covers disclosure."
+    )
+    result = deduplicate(await CitationExtractor().extract(text))
+    _assert_spans_exact(text, result)
+
+    assert not [i for i in result if i.span.text.strip() == "§"]
+    by_form = {(i.normalized_form or i.name): i for i in result}
+    for form, host in (
+        ("Minn. Stat. § 504B.178", "revisor.mn.gov"),
+        ("Minn. Stat. § 504B.161", "revisor.mn.gov"),
+        ("12 C.F.R. § 1026.18", "ecfr"),
+    ):
+        assert form in by_form, list(by_form)
+        assert by_form[form].url and host in by_form[form].url
 
 
 # ── Known CiteURL limits (documented, not fixed here) ─────────────────
@@ -183,6 +224,22 @@ def test_known_limit_reads_civ_p_rule_as_statute():
     assert len(rule) == 1
     # Leading whitespace in CiteURL's span (" 56.01") is stripped
     assert rule[0].span.text == "56.01"
+
+
+def test_known_limit_short_form_lost_across_chunks():
+    """Known limit of chunking, not fixed here: CiteURL resolves "Id." and other
+    short forms against the previous citation in the same list_cites call. Each
+    chunk is a separate call (whole-document calls are superlinearly slow), so an
+    "Id." whose antecedent sits in an earlier chunk is not reported. A whole-text
+    call would yield "Id. § 1988" as "42 U.S.C. § 1988"."""
+    filler = "The parties dispute the lease terms and notice obligations. " * 80
+    text = (
+        "Relief lies under 42 U.S.C. § 1983.\n\n" + filler + "\n\n" + filler
+        + "\n\nId. § 1988 also allows fees."
+    )
+    assert len(ce._chunk_text(text)) > 1
+    result = _citeurl_only(_normalize_with_citeurl(text, []))
+    assert [i.span.text for i in result] == ["42 U.S.C. § 1983"]
 
 
 # ── Health ────────────────────────────────────────────────────────────

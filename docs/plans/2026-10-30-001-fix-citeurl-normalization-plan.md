@@ -41,7 +41,8 @@ citations to the first occurrence. citeurl exposes `Citation.span`.
 - After the fix: both citations extracted with revisor.mn.gov / eCFR URLs; full backend
   suite 1251 passed; the new tests fail 10/11 with `markdown` uninstalled.
 - A 210 KB synthetic document extracts in 1.3 s (600 citations) with chunking.
-- Trade-off: chunking resets CiteURL's short-form/"id." context at chunk boundaries
-  (8000-char chunks on paragraph breaks), so a short form whose full cite sits in an
-  earlier chunk goes unresolved. Eyecite's bare "§" FullLawCitation match still appears
-  beside the fuller CiteURL citation (pre-existing; follow-up candidate).
+- Review fixes: CiteURL hits now replace eyecite's bare "§" FullLawCitation (the
+  deduplicator had folded every statute into it); forced splits inside long
+  blank-line-free paragraphs scan 300 chars past the cut so straddling cites survive.
+- Accepted trade-off (tested as a known limit): chunking resets CiteURL's short-form /
+  "Id." context at chunk boundaries (8000-char chunks on paragraph breaks).
