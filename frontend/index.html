@@ -6931,8 +6931,10 @@ function handleFileUpload(event) {
 // readable text so the editor shows the document, not a blob or markup.
 //   binary → base64-encode first (PyMuPDF / python-docx / striprtf / extract-msg)
 //   markup → send raw text (the HTML/email ingestors strip tags & headers)
-// Legacy .doc is not listed: the backend can only read .docx.
-const EXTRACT_BINARY_EXTS = ['pdf', 'docx', 'rtf', 'msg'];
+// Legacy .doc stays out of the file picker (the backend reads only .docx), but
+// a dropped .doc still goes to /extract as base64 so the backend's clear
+// "save as .docx" message shows instead of binary garbage in the editor.
+const EXTRACT_BINARY_EXTS = ['pdf', 'docx', 'doc', 'rtf', 'msg'];
 const EXTRACT_TEXT_EXTS = ['html', 'htm', 'eml'];
 
 function needsServerExtraction(filename) {

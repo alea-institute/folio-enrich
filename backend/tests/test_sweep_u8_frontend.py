@@ -42,8 +42,16 @@ def test_extracted_upload_is_submitted_as_plain_text(html):
 def test_legacy_doc_upload_not_offered(html):
     accept = re.search(r'id="fileInput" accept="([^"]+)"', html).group(1).split(",")
     assert ".doc" not in accept and ".docx" in accept
+
+
+def test_dropped_legacy_doc_goes_to_extraction(html):
+    # A drag-and-dropped .doc is sent to /enrich/extract as base64 so the
+    # backend's 400 ("save as .docx") reaches the editor, not file.text() garbage.
     binary = re.search(r"const EXTRACT_BINARY_EXTS = \[([^\]]+)\]", html).group(1)
-    assert "'doc'" not in binary and "'docx'" in binary
+    assert "'doc'" in binary and "'docx'" in binary
+    process = _function_body(html, "processFile")
+    assert "ta.placeholder = `Could not extract text from ${file.name}: ${e.message}`" in process
+    assert "err.detail" in process
 
 
 def test_leaving_demo_clears_results_and_header(html):
