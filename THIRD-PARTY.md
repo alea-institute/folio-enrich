@@ -22,6 +22,7 @@ Alliance**; consumed via `folio-python`. Licensed **CC-BY 4.0**.
 |-----------|---------|-------|
 | fastapi, folio-python[search], spacy, markdown-it-py, nupunkt, citeurl, faiss-cpu, openpyxl | MIT | permissive |
 | pyahocorasick, rdflib, sse-starlette, psutil, eyecite | BSD | permissive |
+| **markdown** (Python-Markdown) | BSD-3-Clause | Undeclared runtime import of `citeurl` (`citeurl/mdx.py`); pinned `markdown>=3.7,<4` in `backend/pyproject.toml` so statute/regulation citation normalization actually runs (added 2026-10-30). |
 | **pypdf** | BSD | **PDF text extraction** (replaced PyMuPDF — see below) |
 | PyJWT (`pyjwt[crypto]`) | MIT | Cloudflare Access RS256 JWT verification |
 | cryptography | Apache-2.0 / BSD | RSA verification for the PyJWT crypto extra |

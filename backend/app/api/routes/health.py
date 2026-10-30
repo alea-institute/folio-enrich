@@ -24,6 +24,7 @@ async def health_detail() -> dict:
         "embedding": _check_embedding(),
         "llm": _check_llm(),
         "spacy": _check_spacy(),
+        "citations": _check_citations(),
     }
     return result
 
@@ -139,5 +140,14 @@ def _check_spacy() -> dict:
         }
     except ImportError:
         return {"status": "error", "message": "spaCy not installed"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+def _check_citations() -> dict:
+    """CiteURL powers statute/regulation citations; report degraded mode loudly."""
+    try:
+        from app.services.individual.citation_extractor import citeurl_status
+        return citeurl_status()
     except Exception as e:
         return {"status": "error", "message": str(e)}

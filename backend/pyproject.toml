@@ -44,6 +44,7 @@ dependencies = [
     # shared with folio-insights (Proposition.content_iri, record source_uri) and the
     # signed axiom history; v3 records migrate via migrate_record.
     "folio-propositions @ git+https://github.com/alea-institute/folio-propositions@v0.4.0",
+    "markdown>=3.7,<4",
 ]
 
 [project.optional-dependencies]
