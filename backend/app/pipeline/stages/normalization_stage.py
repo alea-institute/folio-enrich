@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 
 from app.models.document import TextElement
@@ -16,7 +17,7 @@ class NormalizationStage(PipelineStage):
     async def execute(self, job: Job) -> Job:
         job.status = JobStatus.NORMALIZING
         raw_text = job.result.metadata.pop("_raw_text", "")
-        canonical = normalize_and_chunk(raw_text, job.input.format)
+        canonical = await asyncio.to_thread(normalize_and_chunk, raw_text, job.input.format)
 
         # Attach text elements from ingestion if available
         elements_raw = job.result.metadata.pop("_text_elements", [])

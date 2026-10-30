@@ -6,6 +6,7 @@ No dependency on concepts, individuals, or properties.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 
 from app.config import settings
@@ -35,7 +36,11 @@ class EarlyTripleStage(PipelineStage):
         if not text or not text.strip():
             return job
 
-        triples, pos_data, ner_entities = self.parser.extract_triples_and_pos(text)
+        # Full spaCy parse (tagger + parser + NER) is CPU-bound — seconds on a
+        # large document — so run it off the event loop.
+        triples, pos_data, ner_entities = await asyncio.to_thread(
+            self.parser.extract_triples_and_pos, text
+        )
 
         job.result.triples = triples
 
