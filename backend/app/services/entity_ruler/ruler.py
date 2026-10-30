@@ -6,10 +6,16 @@ from dataclasses import dataclass
 import spacy
 from spacy.language import Language
 
+from app.services.dependency.parser import iter_spacy_chunks
 from app.services.entity_ruler.pattern_builder import build_patterns, decode_pattern_id
 from app.services.folio.folio_service import LabelInfo
 
 logger = logging.getLogger(__name__)
+
+# Components that only tokenize and pattern-match; their memory grows linearly
+# with text length, so spaCy's max_length guard (meant for parser/NER) can be
+# lifted instead of chunking, which could split a multi-word concept.
+_RULE_ONLY_PIPES = {"entity_ruler"}
 
 
 @dataclass
@@ -51,19 +57,28 @@ class FOLIOEntityRuler:
             return []
 
         nlp = self._get_nlp()
-        doc = nlp(text)
+        if set(nlp.pipe_names) <= _RULE_ONLY_PIPES:
+            if len(text) >= nlp.max_length:
+                nlp.max_length = len(text) + 1
+            pieces = [(0, text)]
+        else:
+            # An injected statistical pipeline keeps spaCy's memory guard.
+            pieces = iter_spacy_chunks(text)
+
         matches = []
-        for ent in doc.ents:
-            if ent.label_ == "FOLIO_CONCEPT":
-                iri, match_type = decode_pattern_id(ent.ent_id_)
-                matches.append(
-                    EntityRulerMatch(
-                        text=ent.text,
-                        start_char=ent.start_char,
-                        end_char=ent.end_char,
-                        label=ent.label_,
-                        entity_id=iri,
-                        match_type=match_type,
+        for offset, chunk in pieces:
+            doc = nlp(chunk)
+            for ent in doc.ents:
+                if ent.label_ == "FOLIO_CONCEPT":
+                    iri, match_type = decode_pattern_id(ent.ent_id_)
+                    matches.append(
+                        EntityRulerMatch(
+                            text=ent.text,
+                            start_char=ent.start_char + offset,
+                            end_char=ent.end_char + offset,
+                            label=ent.label_,
+                            entity_id=iri,
+                            match_type=match_type,
+                        )
                     )
-                )
         return matches

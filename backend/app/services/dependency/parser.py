@@ -21,6 +21,47 @@ from app.services.nlp.spacy_singleton import get_spacy_nlp
 
 logger = logging.getLogger(__name__)
 
+# spaCy refuses texts longer than ``nlp.max_length`` (1,000,000 chars by
+# default, error E088), and the parser/NER need roughly 1 GB per 100k chars.
+# Long documents are therefore processed in chunks of at most this size.
+SPACY_CHUNK_CHARS = 100_000
+
+# Preferred chunk boundaries, strongest first.
+_CHUNK_SEPARATORS = ("\n\n", "\n", ". ", " ")
+
+
+def iter_spacy_chunks(text: str, max_chars: int | None = None):
+    """Yield ``(offset, chunk)`` pieces of *text* of at most *max_chars* chars.
+
+    Texts that fit yield a single ``(0, text)`` piece, so short documents are
+    processed exactly as before. Longer texts split at the last paragraph,
+    line, sentence or word boundary in the back half of each window (hard cut
+    only when none exists); ``offset`` maps chunk positions back to *text*.
+    """
+    limit = max_chars or SPACY_CHUNK_CHARS
+    n = len(text)
+    if n <= limit:
+        yield 0, text
+        return
+    start = 0
+    while start < n:
+        end = min(start + limit, n)
+        if end < n:
+            window = text[start:end]
+            for sep in _CHUNK_SEPARATORS:
+                i = window.rfind(sep)
+                if i >= limit // 2:
+                    end = start + i + len(sep)
+                    break
+        yield start, text[start:end]
+        start = end
+
+
+def _shift_span(span: Span | None, offset: int) -> Span | None:
+    if span is None or not offset:
+        return span
+    return span.model_copy(update={"start": span.start + offset, "end": span.end + offset})
+
 
 class DependencyParser:
     """Extract SPO triples and POS data from text using spaCy dependency parsing."""
@@ -39,11 +80,42 @@ class DependencyParser:
         spaCy passes). Guarded so a doc without an NER component simply yields [].
         """
         nlp = self._get_nlp()
-        doc = nlp(text)
+        triples: list[SPOTriple] = []
+        pos_data: list[SentencePOS] = []
+        ner_entities: list[dict] = []
+
+        # Long texts are parsed chunk by chunk; spans are shifted back to
+        # absolute offsets and sentence indices continue across chunks.
+        for offset, chunk in iter_spacy_chunks(text):
+            doc = nlp(chunk)
+            chunk_triples, chunk_pos, chunk_ner = self._extract_from_doc(
+                doc, sent_base=len(pos_data)
+            )
+            if offset:
+                for t in chunk_triples:
+                    t.subject_span = _shift_span(t.subject_span, offset)
+                    t.predicate_span = _shift_span(t.predicate_span, offset)
+                    t.object_span = _shift_span(t.object_span, offset)
+                for p in chunk_pos:
+                    p.start += offset
+                    p.end += offset
+                for e in chunk_ner:
+                    e["start"] += offset
+                    e["end"] += offset
+            triples.extend(chunk_triples)
+            pos_data.extend(chunk_pos)
+            ner_entities.extend(chunk_ner)
+
+        return triples, pos_data, ner_entities
+
+    def _extract_from_doc(
+        self, doc, sent_base: int = 0
+    ) -> tuple[list[SPOTriple], list[SentencePOS], list[dict]]:
+        """Extract triples, POS and NER from one parsed doc (chunk-relative offsets)."""
         triples: list[SPOTriple] = []
         pos_data: list[SentencePOS] = []
 
-        for sent_idx, sent in enumerate(doc.sents):
+        for sent_idx, sent in enumerate(doc.sents, start=sent_base):
             # POS data for every sentence
             pos_data.append(SentencePOS(
                 sentence_index=sent_idx,
@@ -262,23 +334,23 @@ class DependencyParser:
         )
 
     @staticmethod
-    def _subtree_text(token) -> str:
-        """Get full noun phrase text from token's subtree."""
+    def _subtree_bounds(token) -> tuple[int, int]:
+        """Character bounds covering the token's full subtree."""
         subtree = sorted(token.subtree, key=lambda t: t.i)
-        return " ".join(t.text for t in subtree)
-
-    @staticmethod
-    def _subtree_span(token) -> Span:
-        """Get character span covering the token's full subtree."""
-        subtree = sorted(token.subtree, key=lambda t: t.i)
-        start = subtree[0].idx
         last = subtree[-1]
-        end = last.idx + len(last.text)
-        return Span(
-            start=start,
-            end=end,
-            text=" ".join(t.text for t in subtree),
-        )
+        return subtree[0].idx, last.idx + len(last.text)
+
+    @classmethod
+    def _subtree_text(cls, token) -> str:
+        """Get full noun phrase text from token's subtree, exactly as written."""
+        start, end = cls._subtree_bounds(token)
+        return token.doc.text[start:end]
+
+    @classmethod
+    def _subtree_span(cls, token) -> Span:
+        """Get character span covering the token's full subtree."""
+        start, end = cls._subtree_bounds(token)
+        return Span(start=start, end=end, text=token.doc.text[start:end])
 
     @staticmethod
     def _token_span(token) -> Span:
