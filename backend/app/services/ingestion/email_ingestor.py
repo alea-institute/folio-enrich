@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import email
 import email.policy
+import re
 
 from app.models.document import DocumentInput
 from app.services.ingestion.base import IngestorBase
@@ -22,13 +25,12 @@ class EmailIngestor(IngestorBase):
 
     def _ingest_eml(self, content: str) -> str:
         """Parse EML using stdlib email module."""
-        # Content may be base64-encoded raw bytes or the EML text directly
-        try:
-            import base64
-            raw = base64.b64decode(content)
-            content = raw.decode("utf-8", errors="replace")
-        except Exception:
-            pass
+        # Content may be base64-encoded raw bytes or the EML text directly.
+        # Lenient b64decode drops non-alphabet chars, so raw RFC 822 text often
+        # "decodes" into garbage; decode strictly and keep only real headers.
+        decoded = _decode_b64_eml(content)
+        if decoded is not None:
+            content = decoded
 
         msg = email.message_from_string(content, policy=email.policy.default)
         parts = []
@@ -98,6 +100,23 @@ class EmailIngestor(IngestorBase):
         if body:
             parts.append(body)
         return "\n".join(parts)
+
+
+# An RFC 822 header line ("Field-Name: value"; names are printable ASCII) or
+# an mbox "From " separator.
+_HEADER_LINE = re.compile(rb"^(?:[!-9;-~]+:[ \t]?\S|From )")
+
+
+def _decode_b64_eml(content: str) -> str | None:
+    """Return the base64-decoded EML text, or None if *content* is raw text."""
+    try:
+        raw = base64.b64decode("".join(content.split()), validate=True)
+    except (binascii.Error, ValueError):
+        return None
+    first_line = raw.lstrip(b"\r\n").split(b"\n", 1)[0]
+    if not _HEADER_LINE.match(first_line):
+        return None
+    return raw.decode("utf-8", errors="replace")
 
 
 def _msg_str(ole, prop_id: str) -> str | None:

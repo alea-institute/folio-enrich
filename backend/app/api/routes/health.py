@@ -54,17 +54,39 @@ def _check_folio() -> dict:
 
 def _check_embedding() -> dict:
     try:
-        from app.services.embedding.service import EmbeddingService
+        from app.services.embedding.service import EmbeddingService, can_encode
         svc = EmbeddingService.get_instance()
-        if svc._provider is not None:
-            provider_name = type(svc._provider).__name__
+        provider_name = type(svc._provider).__name__ if svc._provider is not None else None
+        if svc.index_size > 0 and not can_encode(svc):
+            # Vectors loaded from the disk cache, but no query can be embedded.
+            return {
+                "status": "unavailable",
+                "provider": provider_name,
+                "index_size": svc.index_size,
+                "message": "Embedding provider cannot encode queries "
+                           "(sentence-transformers is not installed)",
+            }
+        if svc.is_ready:
             return {
                 "status": "ready",
                 "provider": provider_name,
                 "index_size": svc.index_size,
             }
-        else:
-            return {"status": "not_loaded", "message": "Loaded at startup"}
+        if svc.last_error:
+            return {
+                "status": "unavailable",
+                "provider": provider_name,
+                "index_size": 0,
+                "message": svc.last_error,
+            }
+        if svc._provider is not None:
+            return {
+                "status": "unavailable",
+                "provider": provider_name,
+                "index_size": 0,
+                "message": "Embedding index is empty",
+            }
+        return {"status": "not_loaded", "message": "Loaded at startup"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 

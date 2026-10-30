@@ -27,6 +27,8 @@ class CfAccessVerifier:
 
     The fetcher is injectable for offline tests. A missing kid refreshes the
     team's keys once to support rotation; fetch errors never use stale keys.
+    Such forced refreshes are rate-limited (``min_refresh_interval``) so tokens
+    with forged kids cannot trigger a blocking fetch on every request.
     """
 
     def __init__(
@@ -37,6 +39,7 @@ class CfAccessVerifier:
         allowed_emails: str,
         jwks_fetcher: Callable[[], Mapping[str, Any]] | None = None,
         jwks_ttl: float = 600.0,
+        min_refresh_interval: float = 60.0,
     ) -> None:
         domain = team_domain.strip().rstrip("/")
         if "://" not in domain:
@@ -64,6 +67,8 @@ class CfAccessVerifier:
         self._jwks_ttl = jwks_ttl
         self._jwks_cache: Mapping[str, Any] | None = None
         self._jwks_fetched_at = 0.0
+        self._min_refresh_interval = min_refresh_interval
+        self._last_forced_refresh: float | None = None
         self._lock = threading.Lock()
 
     def _fetch_jwks(self) -> Mapping[str, Any]:
@@ -98,6 +103,14 @@ class CfAccessVerifier:
             raise AccessAuthError("RS256 assertion with a key id required")
         with self._lock:
             for refresh in (False, True):
+                if refresh:
+                    now = time.monotonic()
+                    if (
+                        self._last_forced_refresh is not None
+                        and now - self._last_forced_refresh < self._min_refresh_interval
+                    ):
+                        break  # Recently refreshed: an unknown kid stays unknown.
+                    self._last_forced_refresh = now
                 jwks = self._get_jwks(refresh=refresh)
                 for candidate in jwks["keys"]:
                     if candidate.get("kid") != kid:
@@ -211,6 +224,24 @@ def require_admin(x_admin_token: str | None = Header(default=None)) -> None:
     ):
         raise HTTPException(status_code=403, detail="Valid X-Admin-Token required")
 
+
+
+def require_admin_fail_closed(x_admin_token: str | None = Header(default=None)) -> None:
+    """``require_admin`` that also fails closed on a public deploy.
+
+    A public deploy (``require_user_api_key``) with no admin token configured
+    refuses outright instead of leaving the route open. Local single-user
+    installs (not public, no admin token) stay open, exactly like
+    ``require_admin``; with a token set, ``X-Admin-Token`` must match.
+    """
+    from app.config import settings
+
+    if settings.require_user_api_key and not settings.admin_token:
+        raise HTTPException(
+            status_code=403,
+            detail="Admin token not configured; route disabled on this deployment",
+        )
+    require_admin(x_admin_token)
 
 def _require_same_origin(origin_header: str | None, request_host: str | None) -> None:
     try:

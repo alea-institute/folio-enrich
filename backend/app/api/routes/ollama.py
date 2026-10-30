@@ -4,10 +4,11 @@ from __future__ import annotations
 import json
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
+from app.api.auth import require_admin_fail_closed
 from app.services.ollama.manager import OllamaManager, OllamaStatus
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,7 @@ async def ollama_status() -> dict:
     }
 
 
-@router.post("/setup")
+@router.post("/setup", dependencies=[Depends(require_admin_fail_closed)])
 async def ollama_setup() -> EventSourceResponse:
     """Full auto-setup: install + start + pull all tier models. SSE stream."""
     async def event_stream():
@@ -90,7 +91,7 @@ async def ollama_setup() -> EventSourceResponse:
     return EventSourceResponse(event_stream())
 
 
-@router.post("/start")
+@router.post("/start", dependencies=[Depends(require_admin_fail_closed)])
 async def ollama_start() -> dict:
     """Start Ollama server only."""
     manager = OllamaManager.get_instance()
@@ -98,7 +99,7 @@ async def ollama_start() -> dict:
     return {"started": started}
 
 
-@router.post("/stop")
+@router.post("/stop", dependencies=[Depends(require_admin_fail_closed)])
 async def ollama_stop() -> dict:
     """Stop managed Ollama process."""
     manager = OllamaManager.get_instance()
@@ -106,7 +107,7 @@ async def ollama_stop() -> dict:
     return {"stopped": True}
 
 
-@router.post("/pull")
+@router.post("/pull", dependencies=[Depends(require_admin_fail_closed)])
 async def ollama_pull(req: PullRequest) -> EventSourceResponse:
     """Pull specific model or all tier models. SSE stream."""
     async def event_stream():

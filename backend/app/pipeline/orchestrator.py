@@ -74,11 +74,21 @@ class TaskLLMs:
     # --- factory ------------------------------------------------------------
 
     @classmethod
-    def from_settings(cls, fallback: LLMProvider | None = None) -> TaskLLMs:
-        """Build TaskLLMs from per-task env vars, falling back to *fallback*."""
+    def from_settings(
+        cls,
+        fallback: LLMProvider | None = None,
+        provider: str | None = None,
+        model: str | None = None,
+    ) -> TaskLLMs:
+        """Build TaskLLMs from per-task env vars, falling back to *fallback*.
+
+        *provider*/*model* are the request's effective choice (request value or
+        server default); Ollama tiering applies only when that provider is
+        Ollama with no model. Omitted, the server settings decide.
+        """
         result = cls()
         for task in LLM_TASKS:
-            llm = _try_get_task_llm(task, fallback)
+            llm = _try_get_task_llm(task, fallback, provider=provider, model=model)
             field = _TASK_FIELD_MAP.get(task, task)
             setattr(result, field, llm)
         return result
@@ -319,13 +329,32 @@ def _try_get_llm() -> LLMProvider | None:
         return None
 
 
-def _try_get_task_llm(task: str, fallback: LLMProvider | None) -> LLMProvider | None:
+def _is_ollama_llm(llm: LLMProvider) -> bool:
+    """True if *llm* talks to the configured Ollama server."""
+    from app.config import settings
+
+    ollama_url = f"{settings.ollama_base_url.rstrip('/')}/v1"
+    return (llm.base_url or "").rstrip("/") == ollama_url
+
+
+def _is_ollama_provider_name(name: str | None) -> bool:
+    return (name or "").strip().lower().replace("-", "_") == "ollama"
+
+
+def _try_get_task_llm(
+    task: str,
+    fallback: LLMProvider | None,
+    provider: str | None = None,
+    model: str | None = None,
+) -> LLMProvider | None:
     """Get a task-specific LLM, falling back to *fallback* (the global default).
 
     Reads ``llm_{task}_provider`` and ``llm_{task}_model`` from settings.
-    If neither is set, returns *fallback* unchanged.  When the global provider
-    is ``ollama`` with an empty model (tier mode), selects the tier-appropriate
-    model for the task automatically.
+    If neither is set, returns *fallback* unchanged.  When the effective
+    provider is ``ollama`` with an empty model (tier mode), selects the
+    tier-appropriate model for the task automatically. The effective
+    provider/model are *provider*/*model* when given (the request's choice),
+    else the global settings.
     """
     from app.config import settings
 
@@ -343,8 +372,17 @@ def _try_get_task_llm(task: str, fallback: LLMProvider | None) -> LLMProvider | 
             logger.warning("Failed to create task-specific LLM for %s — using global default", task, exc_info=True)
         return fallback
 
-    # Adaptive tier selection: ollama with empty global model
-    if settings.llm_provider == "ollama" and not settings.llm_model:
+    # Adaptive tier selection: Ollama with no model — only when the request
+    # didn't choose another provider. A request naming a keyless non-Ollama
+    # provider has fallback None, so the effective provider must decide, not
+    # the fallback alone (its fallback, when built, must also be Ollama).
+    if provider is None:
+        provider, model = settings.llm_provider, settings.llm_model
+    if (
+        _is_ollama_provider_name(provider)
+        and not model
+        and (fallback is None or _is_ollama_llm(fallback))
+    ):
         try:
             from app.services.ollama.manager import OllamaManager
             manager = OllamaManager.get_instance()
@@ -357,6 +395,21 @@ def _try_get_task_llm(task: str, fallback: LLMProvider | None) -> LLMProvider | 
             logger.warning("Failed to create Ollama tier LLM for %s — using global default", task, exc_info=True)
 
     return fallback
+
+
+# Stages that produce the document text; nothing downstream can run without it.
+_TEXT_STAGES = frozenset({"ingestion", "normalization"})
+
+
+def _document_read_error(stage_name: str, err: Exception) -> RuntimeError:
+    """A job error a user can act on, for a failed ingestion/normalization stage."""
+    detail = str(err) or type(err).__name__
+    if stage_name == "ingestion":
+        return RuntimeError(
+            f"Could not read the document: {detail}. Check that the file "
+            "matches its extension, or paste the text as plain text."
+        )
+    return RuntimeError(f"Could not prepare the document text ({stage_name}): {detail}")
 
 
 def _log_activity(job: Job, stage: str, msg: str) -> None:
@@ -442,16 +495,13 @@ class PipelineOrchestrator:
 
         try:
             # Phase 1: Sequential pre-parallel stages (Ingestion, Normalization)
+            # Every later stage needs their text, so a failure here fails the job.
             for stage in config.pre_parallel:
                 logger.info("Running stage %s for job %s", stage.name, job.id)
                 try:
                     job = await stage.execute(job)
                 except Exception as stage_err:
-                    logger.warning(
-                        "Stage %s failed for job %s: %s — continuing",
-                        stage.name, job.id, stage_err,
-                    )
-                    continue
+                    raise _document_read_error(stage.name, stage_err) from stage_err
                 job.updated_at = datetime.now(timezone.utc)
                 await self.job_store.save(job)
 
@@ -661,6 +711,8 @@ class PipelineOrchestrator:
                 try:
                     job = await stage.execute(job)
                 except Exception as stage_err:
+                    if stage.name in _TEXT_STAGES:
+                        raise _document_read_error(stage.name, stage_err) from stage_err
                     logger.warning(
                         "Stage %s failed for job %s: %s — continuing",
                         stage.name, job.id, stage_err,

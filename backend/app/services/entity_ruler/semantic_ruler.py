@@ -3,6 +3,9 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
+import numpy as np
+
+from app.services.embedding.service import can_encode
 from app.services.entity_ruler.pattern_builder import _STOPWORDS
 
 logger = logging.getLogger(__name__)
@@ -21,7 +24,17 @@ _SEMANTIC_STOPWORDS = _STOPWORDS | frozenset({
     "with", "from", "into", "than", "then", "also", "just", "even",
     "more", "most", "only", "over", "very", "well", "much", "back",
     "like", "upon", "thus", "once",
+    "after", "before", "under", "about", "against", "between", "during",
+    "within", "without", "through", "among", "until", "since", "while",
+    "there", "their", "these", "those", "would", "should", "could", "must",
 })
+
+# Characters stripped from the edges of a whitespace token to get its "core".
+# A trailing one on any word but the last (or a leading one on any word but the
+# first) marks a sentence/clause boundary inside the n-gram, so the n-gram is
+# dropped: "in damages. The" and "Corp. in the" must never become candidates.
+_LEADING_PUNCT = "\"'([{“‘<"
+_TRAILING_PUNCT = ".,;:!?\"')]}”’>"
 
 
 @dataclass
@@ -63,24 +76,65 @@ class SemanticEntityRuler:
             offsets.append((start, i))
         return offsets
 
+    @staticmethod
+    def _token_core(text: str, start: int, end: int) -> tuple[int, int, bool, bool]:
+        """Strip edge punctuation from a token. Returns (core_start, core_end,
+        had_leading, had_trailing). A dotted abbreviation ("U.S.") keeps its final
+        period and does not count as a boundary."""
+        cs, ce = start, end
+        while cs < ce and text[cs] in _LEADING_PUNCT:
+            cs += 1
+        while ce > cs and text[ce - 1] in _TRAILING_PUNCT:
+            ce -= 1
+        if ce < end and text[ce] == "." and "." in text[cs:ce]:
+            ce += 1
+        return cs, ce, cs > start, ce < end
+
     def _collect_candidates(
         self, text: str, known_spans: set[tuple[int, int]]
     ) -> list[tuple[str, int, int]]:
-        """Candidate n-grams (2-4 words) with correct char offsets, minus known
-        spans and all-stopword phrases. Returns (normalized_phrase, start, end)."""
+        """Candidate n-grams (2-4 words) with correct char offsets.
+
+        A candidate never crosses a sentence/clause boundary (interior edge
+        punctuation or a blank line), never starts or ends with a stopword, is
+        trimmed of edge punctuation, and does not overlap any known span at all
+        (including fully containing one). Returns (normalized_phrase, start, end).
+        """
         offsets = self._word_offsets(text)
-        words = [text[s:e] for s, e in offsets]
+        cores = [self._token_core(text, s, e) for s, e in offsets]
+        # Prefix count of characters covered by known spans: an O(1) "does [a, b)
+        # overlap any known span?" test instead of scanning every span per candidate.
+        diff = np.zeros(len(text) + 1, dtype=np.int32)
+        for ks, ke in known_spans:
+            ks, ke = max(ks, 0), min(ke, len(text))
+            if ke > ks:
+                diff[ks] += 1
+                diff[ke] -= 1
+        covered = np.cumsum(diff[:-1]) > 0
+        prefix = np.concatenate(([0], np.cumsum(covered)))
+
         candidates: list[tuple[str, int, int]] = []
-        num_words = len(words)
+        num_words = len(offsets)
         for n in range(2, 5):
             for i in range(num_words - n + 1):
-                start = offsets[i][0]
-                end = offsets[i + n - 1][1]
-                # Overlaps an exact-match span? (same test as before)
-                if any(s <= start < e or s < end <= e for s, e in known_spans):
+                last = i + n - 1
+                first_core, last_core = cores[i], cores[last]
+                if first_core[0] >= first_core[1] or last_core[0] >= last_core[1]:
+                    continue  # pure-punctuation edge token
+                if first_core[3] or last_core[2]:
+                    continue  # boundary after the first word / before the last
+                if any(cores[k][2] or cores[k][3] for k in range(i + 1, last)):
+                    continue  # boundary inside the n-gram
+                # A blank line between words is a paragraph/heading break.
+                if any(text.count("\n", offsets[k][1], offsets[k + 1][0]) > 1
+                       for k in range(i, last)):
                     continue
-                tokens = words[i : i + n]
-                if all(t.lower() in _SEMANTIC_STOPWORDS for t in tokens):
+                start, end = first_core[0], last_core[1]
+                if prefix[end] - prefix[start]:
+                    continue  # overlaps (or contains) an exact-match span
+                tokens = text[start:end].split()
+                if (tokens[0].lower() in _SEMANTIC_STOPWORDS
+                        or tokens[-1].lower() in _SEMANTIC_STOPWORDS):
                     continue
                 candidates.append((" ".join(tokens), start, end))
         return candidates
@@ -93,6 +147,8 @@ class SemanticEntityRuler:
         known_spans: set of (start, end) already matched by EntityRuler/Aho-Corasick
         """
         if self._embedding_service is None or self._embedding_service.index_size == 0:
+            return []
+        if not can_encode(self._embedding_service):
             return []
 
         # Phase 1: candidate n-grams with correct O(1) offsets.

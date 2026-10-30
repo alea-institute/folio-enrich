@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import threading
 from abc import ABC, abstractmethod
 from functools import partial
 from uuid import uuid4
@@ -90,24 +91,34 @@ class MonetaryAmountExtractor(EntityExtractor):
     def confidence(self) -> float:
         return 0.93
 
+    # Scale words are case-insensitive and word-bounded; single-letter scale
+    # suffixes are case-sensitive and must end the word, so "$10 more" or
+    # "$20 Monthly" never absorb the next word's initial.
     _PATTERN = re.compile(
-        r"(?:[$€£¥₹])\s*[\d,]+(?:\.\d+)?\s*(?:(?:hundred|thousand|million|billion|trillion|[KMBTkmbt])(?:\s+dollars?)?)?|"
-        r"[\d,]+(?:\.\d+)?\s*(?:dollars?|cents?|USD|EUR|GBP|JPY)|"
+        r"(?:[$€£¥₹])\s*\d(?:[\d,]*\d)?(?:\.\d+)?"
+        r"(?:\s*(?:hundred|thousand|million|billion|trillion)\b(?:\s+dollars?\b)?"
+        r"|(?-i:\s?(?:[KMBT]|MM|bn)|[kmb]|mm)\b)?|"
+        r"\d(?:[\d,]*\d)?(?:\.\d+)?\s*(?:dollars?|cents?|USD|EUR|GBP|JPY)\b|"
         r"(?:(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
         r"thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|"
         r"thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|"
         r"million|billion|trillion)[\s-]*)+"
-        r"(?:dollars?|cents?|pounds?|euros?)",
+        r"(?:dollars?|cents?|pounds?|euros?)\b",
         re.IGNORECASE,
     )
 
     def extract_sync(self, text: str) -> list[Individual]:
         results: list[Individual] = []
         for m in self._PATTERN.finditer(text):
-            matched = m.group().strip()
+            raw = m.group()
+            matched = raw.strip()
             if len(matched) < 2:
                 continue
-            results.append(self._make_individual(text, matched, m.start(), m.end()))
+            # Keep the span aligned with the stripped mention text.
+            start = m.start() + (len(raw) - len(raw.lstrip()))
+            results.append(
+                self._make_individual(text, matched, start, start + len(matched))
+            )
         return results
 
 
@@ -499,28 +510,25 @@ class SpaCyPersonExtractor(EntityExtractor):
         return 0.80
 
     def extract_sync(self, text: str) -> list[Individual]:
-        nlp = _get_spacy_nlp()
-        if nlp is None:
+        ents = _spacy_entities(text)
+        if ents is None:
             return []
-        doc = nlp(text)
         results: list[Individual] = []
-        for ent in doc.ents:
-            if ent.label_ == "PERSON":
-                if ent.text.lower().strip() in _SPACY_NER_STOP_PHRASES:
+        for ent_text, start, end, label in ents:
+            if label == "PERSON":
+                if ent_text.lower().strip() in _SPACY_NER_STOP_PHRASES:
                     continue
                 # Reclassify as Organization if text contains an org suffix
-                if _ORG_SUFFIX_RE.search(ent.text):
+                if _ORG_SUFFIX_RE.search(ent_text):
                     results.append(
                         self._make_individual(
-                            text, ent.text, ent.start_char, ent.end_char,
+                            text, ent_text, start, end,
                             folio_label="Organization",
                         )
                     )
                     continue
                 results.append(
-                    self._make_individual(
-                        text, ent.text, ent.start_char, ent.end_char
-                    )
+                    self._make_individual(text, ent_text, start, end)
                 )
         return results
 
@@ -543,19 +551,16 @@ class SpaCyOrgExtractor(EntityExtractor):
         return 0.78
 
     def extract_sync(self, text: str) -> list[Individual]:
-        nlp = _get_spacy_nlp()
-        if nlp is None:
+        ents = _spacy_entities(text)
+        if ents is None:
             return []
-        doc = nlp(text)
         results: list[Individual] = []
-        for ent in doc.ents:
-            if ent.label_ == "ORG":
-                if ent.text.lower().strip() in _SPACY_NER_STOP_PHRASES:
+        for ent_text, start, end, label in ents:
+            if label == "ORG":
+                if ent_text.lower().strip() in _SPACY_NER_STOP_PHRASES:
                     continue
                 results.append(
-                    self._make_individual(
-                        text, ent.text, ent.start_char, ent.end_char
-                    )
+                    self._make_individual(text, ent_text, start, end)
                 )
         return results
 
@@ -578,19 +583,16 @@ class SpaCyLocationExtractor(EntityExtractor):
         return 0.78
 
     def extract_sync(self, text: str) -> list[Individual]:
-        nlp = _get_spacy_nlp()
-        if nlp is None:
+        ents = _spacy_entities(text)
+        if ents is None:
             return []
-        doc = nlp(text)
         results: list[Individual] = []
-        for ent in doc.ents:
-            if ent.label_ in ("GPE", "LOC"):
-                if ent.text.lower().strip() in _SPACY_NER_STOP_PHRASES:
+        for ent_text, start, end, label in ents:
+            if label in ("GPE", "LOC"):
+                if ent_text.lower().strip() in _SPACY_NER_STOP_PHRASES:
                     continue
                 results.append(
-                    self._make_individual(
-                        text, ent.text, ent.start_char, ent.end_char
-                    )
+                    self._make_individual(text, ent_text, start, end)
                 )
         return results
 
@@ -605,6 +607,40 @@ def _get_spacy_nlp():
     except Exception:
         logger.warning("spaCy model not available — NER extractors disabled")
         return None
+
+
+# The three NER extractors run back to back on the same text; parse it once
+# and share the (small) entity tuples instead of three full spaCy passes.
+_ents_lock = threading.Lock()
+_ents_cache: tuple[str, list[tuple[str, int, int, str]]] | None = None
+
+
+def _spacy_entities(text: str) -> list[tuple[str, int, int, str]] | None:
+    """Return ``(text, start, end, label)`` for every spaCy entity in *text*.
+
+    Long texts are parsed in chunks (spaCy's max_length guard) with offsets
+    mapped back to *text*. Returns None when the spaCy model is unavailable.
+    """
+    global _ents_cache
+    with _ents_lock:
+        cached = _ents_cache
+    if cached is not None and cached[0] == text:
+        return cached[1]
+    nlp = _get_spacy_nlp()
+    if nlp is None:
+        return None
+    from app.services.dependency.parser import iter_spacy_chunks
+
+    ents: list[tuple[str, int, int, str]] = []
+    for offset, chunk in iter_spacy_chunks(text):
+        doc = nlp(chunk)
+        ents.extend(
+            (ent.text, ent.start_char + offset, ent.end_char + offset, ent.label_)
+            for ent in doc.ents
+        )
+    with _ents_lock:
+        _ents_cache = (text, ents)
+    return ents
 
 
 # ── Registry of all extractors ─────────────────────────────────────────

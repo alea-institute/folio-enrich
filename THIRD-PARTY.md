@@ -24,6 +24,8 @@ Alliance**; consumed via `folio-python`. Licensed **CC-BY 4.0**.
 | pyahocorasick, rdflib, sse-starlette, psutil, eyecite | BSD | permissive |
 | **markdown** (Python-Markdown) | BSD-3-Clause | Undeclared runtime import of `citeurl` (`citeurl/mdx.py`); pinned `markdown>=3.7,<4` in `backend/pyproject.toml` so statute/regulation citation normalization actually runs (added 2026-10-30). |
 | **pypdf** | BSD | **PDF text extraction** (replaced PyMuPDF — see below) |
+| **openai** (OpenAI Python SDK) | Apache-2.0 | Client for every OpenAI-compatible LLM provider (Ollama, OpenAI, Mistral, Groq, LM Studio, xAI, Llama, custom) and the OpenAI embedding provider. Previously imported but undeclared, so those providers failed at call time; pinned `openai>=3.0,<4` (added 2026-10-30). Pulls `jiter` (MIT), `httpx2`/`httpcore2` (BSD-3-Clause), `truststore` (MIT), `opentelemetry-api` (Apache-2.0). |
+| **anthropic** (Anthropic Python SDK) | Apache-2.0 | Client for the Anthropic LLM provider. Previously imported but undeclared; pinned `anthropic>=2.0,<3` (added 2026-10-30). Pulls `docstring-parser` (MIT). |
 | PyJWT (`pyjwt[crypto]`) | MIT | Cloudflare Access RS256 JWT verification |
 | cryptography | Apache-2.0 / BSD | RSA verification for the PyJWT crypto extra |
 | pyarrow | Apache-2.0 | permissive |

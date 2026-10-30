@@ -9,6 +9,7 @@ Split into two stages for progressive display:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 
@@ -54,6 +55,17 @@ def _resolve_class_link_iris(
                 link.folio_iri = iri
                 if not link.branch:
                     link.branch = branch
+
+
+def _dedupe_and_resolve(individuals: list[Individual], ontology_id: str) -> list[Individual]:
+    """Deduplicate, then fill missing class-link IRIs via FOLIO ontology lookup."""
+    deduplicated = deduplicate(individuals)
+    try:
+        folio_svc = FolioService.get_instance(ontology_id)
+        _resolve_class_link_iris(deduplicated, folio_svc)
+    except Exception:
+        logger.warning("Class link IRI resolution failed", exc_info=True)
+    return deduplicated
 
 
 class EarlyIndividualStage(PipelineStage):
@@ -113,16 +125,12 @@ class EarlyIndividualStage(PipelineStage):
             "msg": f"Pass 2 (regex/spaCy): {len(entities)} found",
         })
 
-        # Store preliminary individuals (pre-dedup for now — LLM stage will dedup)
+        # Store preliminary individuals (pre-dedup for now — LLM stage will dedup).
+        # Dedup + IRI resolution are CPU-bound on large documents: off the loop.
         all_individuals = citations + entities
-        job.result.individuals = deduplicate(all_individuals)
-
-        # Resolve missing IRIs on class links via FOLIO ontology lookup
-        try:
-            folio_svc = FolioService.get_instance(job.ontology)
-            _resolve_class_link_iris(job.result.individuals, folio_svc)
-        except Exception:
-            logger.warning("Class link IRI resolution failed", exc_info=True)
+        job.result.individuals = await asyncio.to_thread(
+            _dedupe_and_resolve, all_individuals, job.ontology
+        )
 
         logger.info(
             "Early individual extraction for job %s: %d individuals "
@@ -191,16 +199,9 @@ class LLMIndividualStage(PipelineStage):
 
         # Pass 4: Final merge & deduplicate (early individuals + LLM individuals)
         combined = existing_individuals + llm_new
-        deduplicated = deduplicate(combined)
+        deduplicated = await asyncio.to_thread(_dedupe_and_resolve, combined, job.ontology)
 
         job.result.individuals = deduplicated
-
-        # Resolve missing IRIs on class links via FOLIO ontology lookup
-        try:
-            folio_svc = FolioService.get_instance(job.ontology)
-            _resolve_class_link_iris(job.result.individuals, folio_svc)
-        except Exception:
-            logger.warning("Class link IRI resolution failed", exc_info=True)
 
         log.append({
             "ts": datetime.now(timezone.utc).isoformat(),

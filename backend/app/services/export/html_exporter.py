@@ -4,6 +4,12 @@ import html
 
 from app.models.job import Job
 from app.services.export.base import ExporterBase
+from app.services.export.sanitize import strip_xml_illegal
+
+
+def _esc(value: str) -> str:
+    """HTML-escape text after dropping control characters HTML disallows."""
+    return html.escape(strip_xml_illegal(value))
 
 
 class HTMLExporter(ExporterBase):
@@ -21,25 +27,38 @@ class HTMLExporter(ExporterBase):
 
         full_text = job.result.canonical_text.full_text
 
-        # Combine annotations and individuals, sorted by start position (reverse for safe insertion)
-        sorted_anns = sorted(job.result.annotations, key=lambda a: a.span.start, reverse=True)
-        sorted_inds = sorted(job.result.individuals, key=lambda i: i.span.start, reverse=True)
+        # Escape and sanitize per character so list indices stay equal to the
+        # document's character offsets (escaping the whole string first turns
+        # "&" into five list items and shifts every later tag). Tags are
+        # collected per offset and woven in once, so inserting one kind of span
+        # never shifts the offsets of another.
+        n = len(full_text)
+        chars = [_esc(c) for c in full_text]
+        # (start, end, seq, tag) per offset; ordered when woven in below.
+        opens: list[list[tuple[int, int, int, str]]] = [[] for _ in range(n + 1)]
+        closes: list[list[tuple[int, int, int, str]]] = [[] for _ in range(n + 1)]
+        seq = 0
 
-        # Build annotated HTML by inserting spans
-        result = list(html.escape(full_text))
+        def add_tag(start: int, end: int, open_tag: str, close_tag: str) -> None:
+            nonlocal seq
+            start = max(0, min(start, n))
+            end = max(start, min(end, n))
+            opens[start].append((start, end, seq, open_tag))
+            closes[end].append((start, end, seq, close_tag))
+            seq += 1
 
-        for ann in sorted_anns:
+        for ann in job.result.annotations:
             if not ann.concepts:
                 continue
             concept = ann.concepts[0]
             branch_str = concept.branches[0] if concept.branches else ""
             branch_part = f" ({branch_str})" if branch_str else ""
-            tooltip = html.escape(
+            tooltip = _esc(
                 f"{concept.folio_label or concept.concept_text}"
                 f"{branch_part}"
                 f" - {concept.folio_definition or 'No definition'}"
             )
-            iri = html.escape(concept.folio_iri or "#")
+            iri = _esc(concept.folio_iri or "#")
             iri_link = f"{iri}/html" if iri != "#" else "#"
 
             # Confidence-based styling
@@ -61,21 +80,17 @@ class HTMLExporter(ExporterBase):
                 f'<span class="folio-annotation" '
                 f'style="border-bottom-color: {border_color}; background-color: {branch_color}18;" '
                 f'data-iri="{iri}" '
-                f'data-branch="{html.escape(branch_str)}" '
+                f'data-branch="{_esc(branch_str)}" '
                 f'data-confidence="{concept.confidence:.2f}">'
                 f'<a href="{iri_link}" title="{tooltip}" class="folio-link">'
             )
 
-            # Insert tags at correct positions in the escaped text
-            end_pos = ann.span.end
-            start_pos = ann.span.start
-            result.insert(end_pos, close_tag)
-            result.insert(start_pos, open_tag)
+            add_tag(ann.span.start, ann.span.end, open_tag, close_tag)
 
-        # Insert individual spans (top border style)
-        for ind in sorted_inds:
+        # Individual spans (top border style)
+        for ind in job.result.individuals:
             class_label = ind.class_links[0].folio_label if ind.class_links else ind.individual_type
-            tooltip = html.escape(f"{ind.name} ({class_label})")
+            tooltip = _esc(f"{ind.name} ({class_label})")
             conf = ind.confidence
             border_color = "#009688" if ind.individual_type == "legal_citation" else "#FF9800"
 
@@ -84,34 +99,36 @@ class HTMLExporter(ExporterBase):
                 f'<span class="folio-individual" '
                 f'style="border-top: 2px solid {border_color}; background-color: {border_color}12;" '
                 f'data-type="individual" '
-                f'data-individual-type="{html.escape(ind.individual_type)}" '
+                f'data-individual-type="{_esc(ind.individual_type)}" '
                 f'title="{tooltip}">'
             )
-            end_pos = ind.span.end
-            start_pos = ind.span.start
-            result.insert(end_pos, close_tag)
-            result.insert(start_pos, open_tag)
+            add_tag(ind.span.start, ind.span.end, open_tag, close_tag)
 
-        # Insert property spans (purple wavy underline)
-        sorted_props = sorted(job.result.properties, key=lambda p: p.span.start, reverse=True)
-        for prop in sorted_props:
+        # Property spans (purple wavy underline)
+        for prop in job.result.properties:
             label = prop.folio_label or prop.property_text
-            tooltip = html.escape(f"{label} — {prop.folio_definition or 'OWL ObjectProperty'}")
+            tooltip = _esc(f"{label} — {prop.folio_definition or 'OWL ObjectProperty'}")
 
             close_tag = "</span>"
             open_tag = (
                 f'<span class="folio-property" '
                 f'style="text-decoration: underline wavy #9C27B0; text-underline-offset: 3px;" '
                 f'data-type="property" '
-                f'data-iri="{html.escape(prop.folio_iri or "#")}" '
+                f'data-iri="{_esc(prop.folio_iri or "#")}" '
                 f'title="{tooltip}">'
             )
-            end_pos = prop.span.end
-            start_pos = prop.span.start
-            result.insert(end_pos, close_tag)
-            result.insert(start_pos, open_tag)
+            add_tag(prop.span.start, prop.span.end, open_tag, close_tag)
 
-        body = "".join(result)
+        # Nest properly: at an offset the longest span opens first (outermost)
+        # and the latest-starting span closes first (innermost). Identical spans
+        # keep the old order: one added later wraps the earlier one.
+        parts: list[str] = []
+        for i in range(n + 1):
+            parts.extend(t[3] for t in sorted(closes[i], key=lambda t: (-t[0], t[2])))
+            parts.extend(t[3] for t in sorted(opens[i], key=lambda t: (-t[1], -t[2])))
+            if i < n:
+                parts.append(chars[i])
+        body = "".join(parts)
 
         # Build triples table HTML
         triples_html = ""
@@ -121,10 +138,10 @@ class HTMLExporter(ExporterBase):
                 has_link = bool(t.subject_links or t.object_links or t.predicate_links)
                 link_badge = '<span style="color:#009688;font-weight:bold;">&#x2713;</span>' if has_link else ""
                 triples_rows += (
-                    f"<tr><td>{html.escape(t.subject)}</td>"
-                    f"<td><em>{html.escape(t.predicate)}</em></td>"
-                    f"<td>{html.escape(t.object)}</td>"
-                    f"<td>{t.voice}</td>"
+                    f"<tr><td>{_esc(t.subject)}</td>"
+                    f"<td><em>{_esc(t.predicate)}</em></td>"
+                    f"<td>{_esc(t.object)}</td>"
+                    f"<td>{_esc(t.voice)}</td>"
                     f"<td>{t.confidence:.2f}</td>"
                     f"<td>{link_badge}</td></tr>\n"
                 )

@@ -4,6 +4,7 @@ import xml.etree.ElementTree as ET
 
 from app.models.job import Job
 from app.services.export.base import ExporterBase
+from app.services.export.sanitize import strip_xml_illegal
 
 
 class XMLExporter(ExporterBase):
@@ -125,5 +126,21 @@ class XMLExporter(ExporterBase):
                     if link.folio_iri:
                         ET.SubElement(t_elem, "object_iri").text = link.folio_iri
 
+        _sanitize_tree(root)
         ET.indent(root)
         return ET.tostring(root, encoding="unicode", xml_declaration=True)
+
+
+def _sanitize_tree(root: ET.Element) -> None:
+    """Strip XML-illegal characters from every text, tail and attribute value.
+
+    ElementTree serializes control characters verbatim, producing a document no
+    XML parser accepts, so clean the whole tree once before serializing.
+    """
+    for elem in root.iter():
+        if elem.text:
+            elem.text = strip_xml_illegal(elem.text)
+        if elem.tail:
+            elem.tail = strip_xml_illegal(elem.tail)
+        for key, value in elem.attrib.items():
+            elem.attrib[key] = strip_xml_illegal(value)

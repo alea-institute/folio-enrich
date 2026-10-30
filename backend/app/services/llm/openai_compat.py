@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
 
 from app.models.llm_models import ModelInfo
 from app.services.llm.base import LLMProvider
+from app.services.llm.json_utils import parse_json_response, with_schema_instruction
 
 logger = logging.getLogger(__name__)
 
@@ -53,14 +53,20 @@ class OpenAICompatProvider(LLMProvider):
         self, prompt: str, schema: dict, **kwargs: Any
     ) -> dict:
         client = self._get_client()
+        # json_object mode alone does not convey the schema (local servers then
+        # invent their own keys), and OpenAI/Groq reject it with HTTP 400 unless
+        # a message mentions JSON — so state both in the prompt, as the other
+        # providers do.
         response = await client.chat.completions.create(
             model=kwargs.pop("model", self.model or "gpt-4o-mini"),
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {"role": "user", "content": with_schema_instruction(prompt, schema)}
+            ],
             response_format={"type": "json_object"},
             **kwargs,
         )
         text = response.choices[0].message.content or "{}"
-        return json.loads(text)
+        return parse_json_response(text)
 
     async def test_connection(self) -> bool:
         client = self._get_client()

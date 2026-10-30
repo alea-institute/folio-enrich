@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import re
 import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -21,6 +23,45 @@ _POST_JOB_LATEST: dict[str, object] = {}
 # Job IDs that must never be auto-deleted by cleanup_expired (e.g. seeded demo jobs
 # that back demo-mode exports). Populated at startup by app.services.demo_seed.
 PROTECTED_JOB_IDS: set[str] = set()
+
+# count_active() needs only each job's status and timestamps, which Job's
+# serialization writes first (id, status, created_at, updated_at). Read a small
+# file head instead of parsing whole multi-MB jobs, and cache the result per path
+# keyed by (inode, mtime_ns, size) so unchanged files cost a stat only. Any writer
+# (save's atomic rename, stale/orphan reconciliation, external tools) changes
+# that stamp, so the cache cannot go stale.
+_HEADER_BYTES = 1024
+_HEADER_CACHE: dict[str, tuple[tuple[int, int, int], str, str | None]] = {}
+_STATUS_RE = re.compile(r'"status"\s*:\s*"([^"]*)"')
+_CREATED_RE = re.compile(r'"created_at"\s*:\s*"([^"]*)"')
+_UPDATED_RE = re.compile(r'"updated_at"\s*:\s*"([^"]*)"')
+_INPUT_RE = re.compile(r'"(input|result)"\s*:')
+
+
+def _job_header(path: Path) -> tuple[str, str | None]:
+    """Return (status, updated_at or created_at) for a job file, cheaply."""
+    st = path.stat()
+    key = str(path)
+    stamp = (st.st_ino, st.st_mtime_ns, st.st_size)
+    cached = _HEADER_CACHE.get(key)
+    if cached is not None and cached[0] == stamp:
+        return cached[1], cached[2]
+    with open(path, "rb") as f:
+        head = f.read(_HEADER_BYTES).decode("utf-8", errors="ignore")
+    # Only trust the head when the top-level fields precede the nested payload
+    # (whose own "status"-like keys could otherwise be mistaken for the job's).
+    nested = _INPUT_RE.search(head)
+    scope = head[: nested.start()] if nested else head
+    status_m = _STATUS_RE.search(scope)
+    if status_m is not None and (nested is not None or st.st_size <= _HEADER_BYTES):
+        updated_m = _UPDATED_RE.search(scope) or _CREATED_RE.search(scope)
+        status, updated = status_m.group(1), (updated_m.group(1) if updated_m else None)
+    else:  # Unexpected layout: fall back to a full parse.
+        data = json.loads(path.read_text())
+        status = data.get("status", "")
+        updated = data.get("updated_at") or data.get("created_at")
+    _HEADER_CACHE[key] = (stamp, status, updated)
+    return status, updated
 
 
 class JobStore:
@@ -80,22 +121,33 @@ class JobStore:
         return False
 
     async def count_active(self) -> int:
-        """Count jobs currently in progress, auto-failing stale ones."""
+        """Count jobs currently in progress, auto-failing stale ones.
+
+        Runs on a worker thread and reads only each job file's header (cached
+        by mtime/size), so a POST /enrich no longer parses every retained job.
+        """
+        return await asyncio.to_thread(self._count_active_sync)
+
+    def _count_active_sync(self) -> int:
         cutoff = datetime.now(timezone.utc) - timedelta(
             minutes=settings.stale_job_timeout_minutes
         )
         count = 0
+        seen: set[str] = set()
         for path in self.base_dir.glob("*.json"):
+            key = str(path)
+            seen.add(key)
             try:
-                data = json.loads(path.read_text())
-                status = data.get("status", "")
+                status, updated = _job_header(path)
                 if status in ("completed", "failed", "pending"):
                     continue
                 # Check if this in-progress job is stale
-                updated = data.get("updated_at") or data.get("created_at")
                 if updated:
                     ts = datetime.fromisoformat(updated)
                     if ts < cutoff:
+                        data = json.loads(path.read_text())
+                        if data.get("status", "") in ("completed", "failed", "pending"):
+                            continue  # finished since the header read
                         data["status"] = "failed"
                         data["error"] = "Job timed out (stale)"
                         data["updated_at"] = datetime.now(
@@ -107,6 +159,10 @@ class JobStore:
                 count += 1
             except Exception:
                 continue
+        # Forget headers of deleted job files in this directory.
+        base = str(self.base_dir)
+        for key in [k for k in _HEADER_CACHE if k not in seen and str(Path(k).parent) == base]:
+            _HEADER_CACHE.pop(key, None)
         return count
 
     async def fail_orphaned_jobs(self) -> int:

@@ -21,4 +21,7 @@ class RTFIngestor(IngestorBase):
         except Exception:
             pass
 
+        if not content.lstrip().startswith("{\\rtf"):
+            # Already-extracted text: striprtf would strip its line breaks.
+            return content
         return rtf_to_text(content)

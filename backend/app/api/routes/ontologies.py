@@ -28,13 +28,30 @@ def _spec_payload(ontology_id: str) -> dict:
     }
 
 
+def _embeddings_available() -> bool:
+    """True only when embeddings are enabled AND the startup index is usable.
+
+    ``is_ready`` requires vectors and a provider that can encode queries, so a
+    disk-cached index without sentence-transformers reports False.
+
+    Reads the startup-seeded singleton without creating one, so this never
+    triggers an index build from a request.
+    """
+    if settings.embedding_disabled:
+        return False
+    from app.services.embedding.service import EmbeddingService
+
+    svc = EmbeddingService._instance
+    return svc is not None and svc.is_ready
+
+
 @router.get("")
 async def list_ontologies() -> dict:
     """List enabled ontologies + which is default, plus a global embeddings flag."""
     reg = get_registry()
     return {
         "default": reg.default_id,
-        "embeddings_available": not settings.embedding_disabled,
+        "embeddings_available": _embeddings_available(),
         "ontologies": [_spec_payload(oid) for oid in reg.enabled_ids()],
     }
 
