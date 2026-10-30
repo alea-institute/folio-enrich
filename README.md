@@ -692,12 +692,46 @@ curl -X POST http://localhost:8731/synthetic \
 
 ## Testing
 
+### Default backend suite (pull-request CI)
+
+[Backend tests](.github/workflows/tests.yml) runs on pull requests without path or
+target-branch filters, and on pushes to `main`. The `backend-tests` job uses
+Python 3.13 and uv 0.9.22, installs frozen dev dependencies and the pinned spaCy
+model, then runs the default suite with two workers. Installation or test failures
+fail the job; a superseded run may be cancelled.
+
+To reproduce it locally, use **uv 0.9.22** and run from the repository root:
+
 ```bash
 cd backend
-.venv/bin/python -m pytest tests/ -v
+uv python install 3.13
+uv sync --python 3.13 --frozen --extra dev
+uv pip install --no-cache https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+uv run --no-sync python -m pytest tests/ -q -n 2 -ra -p no:cacheprovider
 ```
 
-**887 tests** across 74 test files covering:
+The explicit Python selection matches CI's setup step. Keep `--no-sync` on the
+test command so uv preserves the separately installed model.
+
+- **Default selection:** `backend/pyproject.toml` excludes `slow`, `demo_regen`,
+  and `eval`, enforces registered markers, and sets a 30-second per-test timeout
+  unless a test overrides it. A passing default run does not certify those
+  excluded tiers; opt into a tier with `-m slow`, `-m demo_regen`, or `-m eval`
+  when its ontology, model, or fixture prerequisites are available.
+- **Optional browsers:** browser tests use Node, Playwright, and a launchable
+  Chromium when available; otherwise they report explicit skips. The shared
+  helper accepts `FOLIO_ENRICH_PLAYWRIGHT_MODULE` or discovers a local/npx package.
+  CI does not install browser tooling, so a green backend check is not browser
+  acceptance evidence.
+- **Optional embeddings:** CI installs only `[dev]`, leaving `[embeddings]`
+  (sentence-transformers, torch, and model weights) out of this lane. Default
+  tests still cover applicable embedding behavior, but do not certify the
+  optional local model stack. No paid-provider credentials are needed.
+
+Use each run's summary and skip reasons for current counts. The dated
+[fe-2 verification receipt](docs/plans/evidence/2026-10-26-fe-2-backend-ci-verification.md)
+records the tested revision and separates local results from hosted acceptance.
+Coverage includes:
 
 | Area | Tests Cover |
 |------|------------|
@@ -735,8 +769,13 @@ cd backend
 - **Gold set:** `backend/eval/gold/folio_ner_gold.jsonl` (+ `gold/README.md` for the
   format and how to extend it). Human-verifiable span→concept labels; `deterministic`
   and `human` entries are scored, `needs_review` borderline cases await verification.
-- **CI:** `.github/workflows/eval.yml` runs the fast unit tier on every push and the
-  deterministic eval tier on demand / weekly.
+- **CI:** the separate [NER eval workflow](.github/workflows/eval.yml) runs on
+  pushes and pull requests touching `backend/eval/**` or
+  `backend/tests/test_ner_eval_harness.py`, pushes changing the workflow itself,
+  manual dispatch, and Mondays at 06:00 UTC. Every triggered run executes both
+  the fast unit tier and deterministic eval tier, generates the comparison
+  report, and uploads it. The fast unit tier also belongs to the default backend
+  suite above; the `eval` tier does not.
 - **Design:** `docs/plans/2026-07-07-001-ner-eval-harness-plan.md`; latest run + borderline
   cases in the evidence pack `docs/evidence/ner-eval/pack.html` (indexed in `EVIDENCE.md`).
 
@@ -805,7 +844,7 @@ folio-enrich/
 │   │   └── storage/
 │   │       ├── job_store.py                 # Atomic JSON job persistence
 │   │       └── feedback_store.py            # Feedback persistence
-│   ├── tests/                               # 887 tests across 74 files
+│   ├── tests/                               # Backend regression tests and optional tiers
 │   └── pyproject.toml                       # Dependencies + build config
 ├── frontend/
 │   └── index.html                           # Single-file SPA (vanilla JS, dark theme)
