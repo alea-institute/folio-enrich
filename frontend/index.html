@@ -1661,7 +1661,9 @@
     border-bottom: 1px solid var(--border);
     background: var(--surface);
     flex-shrink: 0;
-    overflow-x: auto;
+    /* Wrap instead of scrolling: with the detail panel open the bar is narrower than
+       its tabs, and a 5px-tall scrollbar hid the last ones. */
+    flex-wrap: wrap;
   }
 
   .tab {
@@ -1676,6 +1678,7 @@
 
   .tab:hover { color: var(--text); }
   .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
   .tab-content { display: none; }
   .tab-content.active { display: block; }
@@ -2757,6 +2760,10 @@
   .ppl-step.done  .ppl-step-label { color: var(--text); }
   .ppl-step.active .ppl-step-label { color: var(--accent); font-weight: 700; }
   .ppl-step.error .ppl-step-label { color: var(--conf-low); font-weight: 700; }
+  /* skipped: the stage did not run (LLM stages without an AI provider) — hollow dashed
+     node + dim italic label so it never reads as "done" */
+  .ppl-step.skipped .ppl-node { border-style: dashed; border-color: var(--text-dim); background: var(--surface); }
+  .ppl-step.skipped .ppl-step-label { color: var(--text-dim); font-style: italic; }
 
   /* status row: active full name + description (left), live count (right) */
   .ppl-status { display: flex; align-items: baseline; gap: 8px; margin-top: 21px; min-height: 14px; }
@@ -2781,6 +2788,8 @@
   .ppl-legend-item.done   .ppl-legend-dot { border-color: var(--conf-high); background: var(--conf-high); }
   .ppl-legend-item.active .ppl-legend-dot { border-color: var(--accent); background: var(--accent); }
   .ppl-legend-item.error  .ppl-legend-dot { border-color: var(--conf-low); background: var(--conf-low); }
+  .ppl-legend-item.skipped .ppl-legend-dot { border-style: dashed; border-color: var(--text-dim); background: var(--surface); }
+  .ppl-legend-item.skipped .ppl-legend-name { color: var(--text-dim); font-style: italic; }
   .ppl-legend-name { font-weight: 600; color: var(--text); }
   .ppl-legend-item.active .ppl-legend-name { color: var(--accent); }
   .ppl-legend-item.todo  .ppl-legend-name { color: var(--text-dim); font-weight: 500; }
@@ -3233,7 +3242,7 @@
   .upload-zone input { display: none; }
 
   /* Scrollbar */
-  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: var(--accent-dim); }
@@ -3554,8 +3563,9 @@
   /* Superimposed DEMO badge on the 22 exemplar buttons when demo mode is active */
   #demoExemplars .sample-btn,
   #demoExemplarsCanon .sample-btn { position: relative; }
+  /* Reserve room on the right for the badge so it never covers short labels ("NDA", "M&A"). */
   #demoExemplars.demo-mode .sample-btn,
-  #demoExemplarsCanon.demo-mode .sample-btn { border-color: var(--accent); }
+  #demoExemplarsCanon.demo-mode .sample-btn { border-color: var(--accent); padding-right: 30px; }
   #demoExemplars.demo-mode .sample-btn::after,
   #demoExemplarsCanon.demo-mode .sample-btn::after {
     content: "DEMO";
@@ -3841,7 +3851,7 @@
       <!-- File upload -->
       <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
         Drop a file here or click to upload (PDF, DOCX, HTML, MD, TXT, RTF, EML, MSG)
-        <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.html,.htm,.md,.txt,.rtf,.eml,.msg" onchange="handleFileUpload(event)">
+        <input type="file" id="fileInput" accept=".pdf,.docx,.html,.htm,.md,.txt,.rtf,.eml,.msg" onchange="handleFileUpload(event)">
       </div>
 
       <!-- Text input -->
@@ -3987,19 +3997,19 @@
 
   <!-- Right panel: Results -->
   <div class="panel panel-right">
-    <div class="tabs">
-      <div class="tab active" data-tab="annotated" onclick="switchTab(this, 'annotated')">Annotated Text</div>
-      <div class="tab" data-tab="concepts" onclick="switchTab(this, 'concepts')">Concepts</div>
-      <div class="tab" data-tab="triples" onclick="switchTab(this, 'triples')">Triples</div>
-      <div class="tab" data-tab="metadata" onclick="switchTab(this, 'metadata')">Metadata</div>
-      <div class="tab" data-tab="individuals" onclick="switchTab(this, 'individuals')">Individuals</div>
-      <div class="tab" data-tab="properties" onclick="switchTab(this, 'properties')">Properties</div>
-      <div class="tab" data-tab="propositions" onclick="switchTab(this, 'propositions')">Propositions</div>
-      <div class="tab" data-tab="export" onclick="switchTab(this, 'export')">Export</div>
-      <div class="tab" data-tab="insights" onclick="switchTab(this, 'insights'); loadInsights()">Insights</div>
+    <div class="tabs" role="tablist" aria-label="Results views">
+      <div class="tab active" data-tab="annotated" role="tab" id="tabbtn-annotated" aria-controls="tab-annotated" aria-selected="true" tabindex="0" onclick="switchTab(this, 'annotated')">Annotated Text</div>
+      <div class="tab" data-tab="concepts" role="tab" id="tabbtn-concepts" aria-controls="tab-concepts" aria-selected="false" tabindex="-1" onclick="switchTab(this, 'concepts')">Concepts</div>
+      <div class="tab" data-tab="triples" role="tab" id="tabbtn-triples" aria-controls="tab-triples" aria-selected="false" tabindex="-1" onclick="switchTab(this, 'triples')">Triples</div>
+      <div class="tab" data-tab="metadata" role="tab" id="tabbtn-metadata" aria-controls="tab-metadata" aria-selected="false" tabindex="-1" onclick="switchTab(this, 'metadata')">Metadata</div>
+      <div class="tab" data-tab="individuals" role="tab" id="tabbtn-individuals" aria-controls="tab-individuals" aria-selected="false" tabindex="-1" onclick="switchTab(this, 'individuals')">Individuals</div>
+      <div class="tab" data-tab="properties" role="tab" id="tabbtn-properties" aria-controls="tab-properties" aria-selected="false" tabindex="-1" onclick="switchTab(this, 'properties')">Properties</div>
+      <div class="tab" data-tab="propositions" role="tab" id="tabbtn-propositions" aria-controls="tab-propositions" aria-selected="false" tabindex="-1" onclick="switchTab(this, 'propositions')">Propositions</div>
+      <div class="tab" data-tab="export" role="tab" id="tabbtn-export" aria-controls="tab-export" aria-selected="false" tabindex="-1" onclick="switchTab(this, 'export')">Export</div>
+      <div class="tab" data-tab="insights" role="tab" id="tabbtn-insights" aria-controls="tab-insights" aria-selected="false" tabindex="-1" onclick="switchTab(this, 'insights'); loadInsights()">Insights</div>
     </div>
     <div class="panel-body" id="resultBody">
-      <div class="tab-content active" id="tab-annotated">
+      <div class="tab-content active" id="tab-annotated" role="tabpanel" aria-labelledby="tabbtn-annotated">
         <div class="doc-type-banner" id="docTypeBanner">
           <span class="doc-type-label" id="docTypeLabel"></span>
           <span class="doc-type-conf" id="docTypeConf"></span>
@@ -4019,24 +4029,24 @@
         </div>
         <div class="annotated-text" id="annotatedText" style="display:none"></div>
       </div>
-      <div class="tab-content" id="tab-concepts">
+      <div class="tab-content" id="tab-concepts" role="tabpanel" aria-labelledby="tabbtn-concepts">
         <div id="conceptsList"></div>
       </div>
-      <div class="tab-content" id="tab-triples">
+      <div class="tab-content" id="tab-triples" role="tabpanel" aria-labelledby="tabbtn-triples">
         <div id="triplesList"></div>
       </div>
-      <div class="tab-content" id="tab-metadata">
+      <div class="tab-content" id="tab-metadata" role="tabpanel" aria-labelledby="tabbtn-metadata">
         <div id="metadataDisplay"></div>
       </div>
-      <div class="tab-content" id="tab-individuals">
+      <div class="tab-content" id="tab-individuals" role="tabpanel" aria-labelledby="tabbtn-individuals">
         <div id="individualsSummary" style="font-size:12px;color:var(--text-dim);margin-bottom:10px"></div>
         <div id="individualsList"></div>
       </div>
-      <div class="tab-content" id="tab-properties">
+      <div class="tab-content" id="tab-properties" role="tabpanel" aria-labelledby="tabbtn-properties">
         <div id="propertiesSummary" style="font-size:12px;color:var(--text-dim);margin-bottom:10px"></div>
         <div id="propertiesList"></div>
       </div>
-      <div class="tab-content" id="tab-propositions">
+      <div class="tab-content" id="tab-propositions" role="tabpanel" aria-labelledby="tabbtn-propositions">
         <div class="proposition-toolbar">
           <label class="proposition-mode-control"><input type="checkbox" id="propositionModeToggle" onchange="togglePropositionMode(this.checked)"> Annotation mode</label>
           <span class="proposition-status" id="propositionModeStatus">Off</span>
@@ -4145,14 +4155,14 @@
         </div>
         <div class="proposition-status" id="propositionExportResult"></div>
       </div>
-      <div class="tab-content" id="tab-export">
-        <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px">Download annotations in any of the 12 supported formats:</p>
+      <div class="tab-content" id="tab-export" role="tabpanel" aria-labelledby="tabbtn-export">
+        <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px">Download annotations in any of the <span id="exportFormatCount">13</span> supported formats:</p>
         <div class="export-option-row">
           <label><input type="checkbox" id="exportIncludeDismissed"> Include dismissed annotations</label>
         </div>
         <div class="export-grid" id="exportButtons"></div>
       </div>
-      <div class="tab-content" id="tab-insights">
+      <div class="tab-content" id="tab-insights" role="tabpanel" aria-labelledby="tabbtn-insights">
         <div id="insightsPanel"></div>
       </div>
     </div>
@@ -4606,6 +4616,7 @@ let isDemoMode = false;          // a pre-baked demo result is currently display
 let demoModeOn = false;          // the "Demo" toggle is active (session-scoped, not persisted)
 let currentDemoSlug = null;
 let originalDemoCache = null;    // deep clone of the loaded demo (for clean re-hydrate)
+let currentDemoMeta = null;      // the demo's {title,…} block, persisted so a reload keeps the title
 
 // The 22 exemplars (Rich Enrichment + Quick Start) that have pre-baked demo JSON.
 const EXEMPLAR_DEMO_SLUGS = new Set([
@@ -4638,6 +4649,7 @@ function cacheState() {
       docInput: document.getElementById('docInput')?.value || '',
       filename: uploadedFilename,
       ontology: activeOntology,
+      ...(isDemoMode && currentDemoMeta ? { _demoMeta: currentDemoMeta } : {}),
     }));
   } catch (e) { /* quota exceeded — ignore */ }
 }
@@ -4839,7 +4851,10 @@ function syncOntologyUI() {
     h1.appendChild(span);
     span.textContent = 'Enrich';
   }
-  document.title = ontologyBrand(id) + ' Enrich';
+  // Keep a displayed demo's title: this also runs asynchronously (loadOntologies) after
+  // a demo has hydrated, and would otherwise reset it.
+  document.title = ontologyBrand(id) + ' Enrich'
+    + (isDemoMode && currentDemoMeta ? ' \u2014 Demo: ' + currentDemoMeta.title : '');
   // Choose WHICH exemplar grid is shown for the active ontology. This only picks the
   // grid — it does not open/close the demo panel (demo-mode gating is unchanged).
   const fg = document.getElementById('demoExemplars');
@@ -5243,6 +5258,9 @@ function setDemoMode(on, { announce = true } = {}) {
 
 function toggleDemoMode() {
   setDemoMode(!demoModeOn);
+  // Turning Demo off leaves the displayed demo too: drop its baked results
+  // (the document text stays so it can be enriched live).
+  if (!demoModeOn && isDemoMode) exitDemoMode({ clearResults: true });
 }
 
 // Build the static demo JSON URL, namespaced by ontology. FOLIO stays flat at
@@ -5442,6 +5460,7 @@ function hydrateFromDemo(cache, slug) {
 
   // Set title
   const meta = cache._demoMeta;
+  currentDemoMeta = meta || null;
   const title = meta ? meta.title : slug;
   document.title = ontologyBrand(activeOntology) + ' Enrich \u2014 Demo: ' + title;
 
@@ -5470,6 +5489,15 @@ function clearResultsOnly() {
   document.getElementById('metadataDisplay').innerHTML = '';
   document.getElementById('exportButtons').innerHTML = '';
   document.getElementById('tooltip')?.classList.remove('visible');
+  // Header state rendered from the previous result (doc-type banner, tab counts,
+  // toolbar) would otherwise outlive it and mislabel the next run.
+  hideDocTypeBanner();
+  const triTab = document.querySelector('.tab[data-tab="triples"]');
+  if (triTab) triTab.textContent = 'Triples';
+  const toolbar = document.getElementById('annToolbar');
+  if (toolbar) toolbar.style.display = 'none';
+  const hdrCtrl = document.getElementById('headerControls');
+  if (hdrCtrl) hdrCtrl.style.display = 'none';
   resetPropositionSessionState();
   currentJobId = null;
   currentJob = null;
@@ -5493,6 +5521,7 @@ function exitDemoMode({ clearResults = false } = {}) {
   isDemoMode = false;
   currentDemoSlug = null;
   originalDemoCache = null;
+  currentDemoMeta = null;
   document.title = ontologyBrand(activeOntology) + ' Enrich';
   // Drop ?demo= from the URL so refresh / back no longer reload the demo.
   try {
@@ -6623,57 +6652,76 @@ async function startOllamaWizard() {
   // Use SSE setup endpoint
   setWizardStep(1, 'active', 'Running auto-setup...');
   try {
-    const evtSource = new EventSource(`${API}/ollama/setup`);
-    await new Promise((resolve, reject) => {
-      evtSource.addEventListener('status', e => {
-        const d = JSON.parse(e.data);
+    // /ollama/setup is POST-only (EventSource can only GET), so stream the SSE
+    // response through fetch.
+    const r = await fetch(`${API}/ollama/setup`, { method: 'POST' });
+    if (!r.ok) {
+      const msg = r.status === 403 ? 'Admin only on this server' : `Setup failed (HTTP ${r.status})`;
+      setWizardStep(2, 'error', msg);
+      throw new Error(msg);
+    }
+    let completed = false;
+    await readSSEStream(r, (event, d) => {
+      if (event === 'status') {
         if (d.step === 'detect') setWizardStep(1, 'active', d.message);
         if (d.step === 'install') { setWizardStep(1, 'done', 'Detected'); setWizardStep(2, 'active', d.message); }
         if (d.step === 'start') { setWizardStep(1, 'done', 'Detected'); setWizardStep(2, 'active', d.message); }
         if (d.step === 'pull') { setWizardStep(2, 'done', 'Server running'); setWizardStep(3, 'active', d.message); }
-      });
-      evtSource.addEventListener('install', e => {
-        const d = JSON.parse(e.data);
+      } else if (event === 'install') {
         setWizardStep(1, 'active', d.message);
-      });
-      evtSource.addEventListener('pull_start', e => {
-        const d = JSON.parse(e.data);
+      } else if (event === 'pull_start') {
         document.getElementById('wizProgressBar').style.display = '';
         setWizardStep(3, 'active', `Downloading ${d.model}...`);
-      });
-      evtSource.addEventListener('pull_progress', e => {
-        const d = JSON.parse(e.data);
+      } else if (event === 'pull_progress') {
         document.getElementById('wizProgressFill').style.width = d.percent + '%';
         const mb = d.completed_bytes ? `${(d.completed_bytes / 1e9).toFixed(1)}/${(d.total_bytes / 1e9).toFixed(1)} GB` : '';
         setWizardStep(3, 'active', `${d.model}: ${d.status} ${mb}`);
-      });
-      evtSource.addEventListener('pull_error', e => {
-        const d = JSON.parse(e.data);
+      } else if (event === 'pull_error') {
         setWizardStep(3, 'error', `Failed: ${d.model} — ${d.error}`);
-      });
-      evtSource.addEventListener('error_event', e => {
-        const d = JSON.parse(e.data);
+      } else if (event === 'error' || event === 'error_event') {
         setWizardStep(2, 'error', d.message);
-        evtSource.close();
-        reject(new Error(d.message));
-      });
-      evtSource.addEventListener('complete', e => {
-        evtSource.close();
+      } else if (event === 'complete') {
+        completed = true;
         setWizardStep(1, 'done', 'Installed');
         setWizardStep(2, 'done', 'Server running');
         setWizardStep(3, 'done', 'All models ready');
         document.getElementById('wizProgressBar').style.display = 'none';
-        resolve();
-      });
-      evtSource.onerror = () => {
-        evtSource.close();
-        reject(new Error('Connection lost'));
-      };
+      }
     });
+    if (!completed) throw new Error('Connection lost');
   } catch (err) {
     console.error('Wizard error:', err);
   }
   btn.textContent = 'Done';
+}
+
+// Minimal SSE reader for fetch() responses (POST streams EventSource can't open).
+// Calls onEvent(eventName, parsedData) per message; tolerates CRLF framing.
+async function readSSEStream(response, onEvent) {
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '', event = 'message', data = '';
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split(/\r?\n/);
+    buf = lines.pop();
+    for (const line of lines) {
+      if (line === '') {
+        if (data) {
+          let parsed = null;
+          try { parsed = JSON.parse(data); } catch { parsed = { message: data }; }
+          onEvent(event, parsed);
+        }
+        event = 'message'; data = '';
+      } else if (line.startsWith('event:')) {
+        event = line.slice(6).trim();
+      } else if (line.startsWith('data:')) {
+        data += (data ? '\n' : '') + line.slice(5).replace(/^ /, '');
+      }
+    }
+  }
 }
 
 async function wizardPullModels(models) {
@@ -6681,13 +6729,17 @@ async function wizardPullModels(models) {
   document.getElementById('wizProgressBar').style.display = '';
 
   try {
-    const evtSource = new EventSource(`${API}/ollama/pull`);
-    // POST pull won't work via EventSource; use fetch-based SSE
+    // POST-only route: EventSource can't call it, so read the SSE stream via fetch.
     const r = await fetch(`${API}/ollama/pull`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({})
     });
+    if (!r.ok) {
+      setWizardStep(3, 'error', r.status === 403 ? 'Admin only on this server' : `Download failed (HTTP ${r.status})`);
+      document.getElementById('wizProgressBar').style.display = 'none';
+      return;
+    }
     const reader = r.body.getReader();
     const decoder = new TextDecoder();
     let buf = '';
@@ -6850,8 +6902,14 @@ function handleFileUpload(event) {
 // readable text so the editor shows the document, not a blob or markup.
 //   binary → base64-encode first (PyMuPDF / python-docx / striprtf / extract-msg)
 //   markup → send raw text (the HTML/email ingestors strip tags & headers)
-const EXTRACT_BINARY_EXTS = ['pdf', 'docx', 'doc', 'rtf', 'msg'];
+// Legacy .doc is not listed: the backend can only read .docx.
+const EXTRACT_BINARY_EXTS = ['pdf', 'docx', 'rtf', 'msg'];
 const EXTRACT_TEXT_EXTS = ['html', 'htm', 'eml'];
+
+function needsServerExtraction(filename) {
+  const ext = (filename || '').split('.').pop().toLowerCase();
+  return EXTRACT_BINARY_EXTS.includes(ext) || EXTRACT_TEXT_EXTS.includes(ext);
+}
 
 function readFileAsBase64(file) {
   return new Promise((resolve, reject) => {
@@ -6961,8 +7019,9 @@ async function submitEnrichment() {
   let content = document.getElementById('docInput').value.trim();
   if (!content) return;
 
-  // Soft lockdown: running a live enrichment consciously exits demo mode.
-  if (isDemoMode) exitDemoMode();
+  // Soft lockdown: running a live enrichment consciously exits demo mode, and the
+  // demo's baked results must not linger beside the live run's.
+  if (isDemoMode) exitDemoMode({ clearResults: true });
 
   // LLM banner gate: show once per session when no AI key is configured
   if (!_llmBannerDismissed && !isLlmConfigured()) {
@@ -7007,7 +7066,13 @@ async function submitEnrichment() {
     }).catch(() => {});
 
     const body = { content };
-    if (uploadedFilename) body.filename = uploadedFilename;
+    if (uploadedFilename) {
+      body.filename = uploadedFilename;
+      // The editor holds text already extracted from PDF/DOCX/HTML/…; without an
+      // explicit format the backend would sniff the filename and try to decode
+      // that plain text as the original binary/markup (→ empty job).
+      if (needsServerExtraction(uploadedFilename)) body.format = 'plain_text';
+    }
     // Capture-at-submit: the job runs under whatever ontology is active right now.
     body.ontology = activeOntology;
     // Post-job choices for this job (prefilled from this browser's preferences).
@@ -7469,6 +7534,12 @@ const PPL_ACTIVITY_MAP = {
   area_of_law: 'finalize', quality_check: 'finalize',
   // 'orchestrator' intentionally excluded (cross-cutting meta messages, not stage-specific)
 };
+// Stations whose only work is LLM calls. When the run had no AI provider those stages
+// are never built (orchestrator.build_stages), so they leave no activity — show them
+// as "skipped", not "done". The LLM station (concept + doc-type calls) always logs when
+// a provider ran; the judge can legitimately stay silent (nothing ambiguous), so a run
+// counts as keyless only when the LLM station recorded nothing.
+const PPL_LLM_ONLY = new Set(['identifying', 'judging']);
 const PPL_DWELL = 600;   // min ms each stage holds focus (so the "walk" is visible)
 const PPL_FAST  = 170;   // ms/stage when fast-forwarding remaining stages to completion
 
@@ -7585,7 +7656,9 @@ const PipelineJourney = {
       + `<div class="ppl-detail-desc">${escapeHtml(desc)}</div>`
       + (msgs.length
           ? `<ul class="ppl-detail-msgs">${msgs.map(m => `<li>${escapeHtml(m)}</li>`).join('')}</ul>`
-          : `<div class="ppl-detail-empty">No recorded activity for this stage${this.phase === 'running' ? ' yet' : ''}.</div>`);
+          : (this.isSkipped(s.key)
+              ? `<div class="ppl-detail-empty">Skipped — this run had no AI provider, so this stage did not run.</div>`
+              : `<div class="ppl-detail-empty">No recorded activity for this stage${this.phase === 'running' ? ' yet' : ''}.</div>`));
     detail.hidden = false;
     document.querySelectorAll('#pplSteps .ppl-step').forEach((li, idx) => {
       const sel = idx === i;
@@ -7638,11 +7711,45 @@ const PipelineJourney = {
     this.cur = PPL_LAST; this.paint(PPL_LAST, { done: true });
     this.phase = 'done';
     const w = this.el('pplWrap'); if (w) w.dataset.phase = 'done';
-    const descEl = this.el('pplDesc');
-    if (descEl) descEl.innerHTML = '<b>✓ Complete</b> — click any stage to see what it did';
-    const countEl = this.el('pplCount'); if (countEl) countEl.textContent = `${PPL_STAGES.length} / ${PPL_STAGES.length}`;
+    const skipped = this.markSkipped();
     if (this.openIdx >= 0) { const i = this.openIdx; this.openIdx = -1; this.openStageDetail(i); }  // refresh open panel with final messages
-    this.announce('Pipeline complete');
+    this.announce(skipped ? `Pipeline complete; ${skipped} AI stage${skipped > 1 ? 's' : ''} skipped` : 'Pipeline complete');
+  },
+
+  isSkipped(key) {
+    return this.phase === 'done' && PPL_LLM_ONLY.has(key)
+      && this.stageMessages('identifying').length === 0 && this.stageMessages(key).length === 0;
+  },
+
+  // On a finished run, mark LLM-only stations that recorded no activity as skipped and
+  // reflect it in the count/description. Re-run when the final job (full activity log)
+  // arrives. Returns the number skipped.
+  markSkipped() {
+    if (this.phase !== 'done') return 0;
+    const steps = document.querySelectorAll('#pplSteps .ppl-step');
+    const legend = document.querySelectorAll('#pplLegend .ppl-legend-item');
+    let skipped = 0;
+    PPL_STAGES.forEach((s, i) => {
+      const isSkipped = this.isSkipped(s.key);
+      const name = STAGE_LABELS[s.key] || s.key;
+      if (steps[i]) {
+        steps[i].className = `ppl-step ${isSkipped ? 'skipped' : 'done'}${this.openIdx === i ? ' selected' : ''}`;
+        steps[i].setAttribute('aria-label', isSkipped
+          ? `${name}: skipped — no AI provider for this run`
+          : `${name}: show what this stage did`);
+        steps[i].title = isSkipped ? `${name}: skipped (no AI provider)` : '';
+      }
+      if (legend[i]) legend[i].className = `ppl-legend-item ${isSkipped ? 'skipped' : 'done'}`;
+      if (isSkipped) skipped++;
+    });
+    const n = PPL_STAGES.length;
+    const descEl = this.el('pplDesc');
+    if (descEl) descEl.innerHTML = skipped
+      ? `<b>✓ Complete</b> — ${skipped} AI stage${skipped > 1 ? 's' : ''} skipped (no AI provider) · click any stage for details`
+      : '<b>✓ Complete</b> — click any stage to see what it did';
+    const countEl = this.el('pplCount');
+    if (countEl) countEl.textContent = skipped ? `${n - skipped} / ${n} · ${skipped} skipped` : `${n} / ${n}`;
+    return skipped;
   },
 
   finishDone(animate) {
@@ -7768,6 +7875,8 @@ function renderResults(job) {
   renderPropositionsTab();
   renderExportButtons();
   onPostJobJobRendered(job);
+  // The final job carries the full activity log — refresh skipped-stage marks.
+  PipelineJourney.markSkipped();
 
   // Show toolbar + header controls if there are any annotations/individuals/properties
   const hasContent = annotations.length > 0 || (individuals && individuals.length > 0) || (properties && properties.length > 0);
@@ -10349,7 +10458,11 @@ async function buildConceptsTabTree(annotations, individuals) {
 }
 
 function renderConceptsTabTree(treeData) {
-  const { branches, conceptMap, totalLeaves } = treeData;
+  const { conceptMap, totalLeaves } = treeData;
+  // Branches holding only individuals (e.g. citations under Legal Authorities) have no
+  // concepts; they'd read "(0)" here and inflate the branch count. The Individuals tab
+  // lists them.
+  const branches = new Map([...treeData.branches].filter(([, b]) => b.conceptCount > 0));
   const branchCount = branches.size;
   const conceptCount = conceptMap.size;
 
@@ -10697,6 +10810,13 @@ async function renderDetailLineage(annId) {
   const srcContainer = document.getElementById('detailSource');
   const stagesContainer = document.getElementById('detailLineage');
   if (!annId || !currentJobId) { srcContainer.innerHTML = ''; stagesContainer.innerHTML = ''; return; }
+  // A link (e.g. an individual's class_link) can name an annotation this job no longer
+  // has; the lineage endpoint would 404. Skip the fetch and say so neutrally.
+  if (!_annotationDataById[annId] && !accumulatedAnnotations.some(a => a.id === annId)) {
+    srcContainer.innerHTML = '';
+    stagesContainer.innerHTML = '<div style="color:var(--text-dim);font-size:12px">No pipeline lineage recorded for this link.</div>';
+    return;
+  }
 
   srcContainer.innerHTML = '<div style="color:var(--text-dim);font-size:12px"><span class="spinner"></span> Loading...</div>';
   stagesContainer.innerHTML = '';
@@ -11741,7 +11861,7 @@ function renderInsightsPanel(data) {
                   </td>
                   <td style="text-align:center">
                     <span class="${fb.rating === 'up' ? 'insights-rating-up' : 'insights-rating-down'}">
-                      ${fb.rating === 'up' ? '${_thumbUpIcon}' : fb.rating === 'dismissed' ? '&#x1F6AB;' : '${_thumbDownIcon}'}
+                      ${fb.rating === 'up' ? _thumbUpIcon : fb.rating === 'dismissed' ? '&#x1F6AB;' : _thumbDownIcon}
                     </span>
                   </td>
                   <td>
@@ -11763,9 +11883,9 @@ function renderInsightsPanel(data) {
       <h3>Feedback &amp; Insights</h3>
       <div class="insights-actions">
         ${renderScopeToggle()}
-        <button class="small secondary" onclick="exportFeedback('json')">Export JSON</button>
+        ${_requireUserKey ? '' : `<button class="small secondary" onclick="exportFeedback('json')">Export JSON</button>
         <button class="small secondary" onclick="exportFeedback('csv')">Export CSV</button>
-        <button class="small secondary" style="color:var(--red);border-color:var(--red)" onclick="clearAllFeedback()">Clear All</button>
+        <button class="small secondary" style="color:var(--red);border-color:var(--red)" onclick="clearAllFeedback()">Clear All</button>`}
       </div>
     </div>
     <div class="insights-stats">
@@ -11815,6 +11935,7 @@ function renderScopeToggle() {
 async function exportFeedback(format) {
   try {
     const resp = await fetch(`${API}/feedback/export?format=${format}`);
+    if (resp.status === 403) { _showInfoToast('Admin only on this server'); return; }
     if (!resp.ok) throw new Error('Export failed');
     const blob = await resp.blob();
     const url = URL.createObjectURL(blob);
@@ -11832,10 +11953,10 @@ async function clearAllFeedback() {
   if (!confirm('Clear all feedback? This cannot be undone.')) return;
   try {
     const resp = await fetch(`${API}/feedback`, { method: 'DELETE' });
-    if (resp.ok) {
-      Object.keys(_feedbackCache).forEach(k => delete _feedbackCache[k]);
-      loadInsights();
-    }
+    if (resp.status === 403) { _showInfoToast('Admin only on this server'); return; }
+    if (!resp.ok) throw new Error('Clear failed');
+    Object.keys(_feedbackCache).forEach(k => delete _feedbackCache[k]);
+    loadInsights();
   } catch (e) {
     alert('Failed to clear feedback');
   }
@@ -13810,6 +13931,8 @@ document.addEventListener('keydown', event => {
 
 function renderExportButtons() {
   const container = document.getElementById('exportButtons');
+  const countEl = document.getElementById('exportFormatCount');
+  if (countEl) countEl.textContent = String(EXPORT_FORMATS.length);
   if (!currentJobId) {
     container.innerHTML = '<p style="color:var(--text-dim);font-size:12px">Complete an enrichment first.</p>';
     return;
@@ -13835,7 +13958,10 @@ async function exportFormat(format, ext) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `folio-enrich-${currentJobId.slice(0,8)}${ext}`;
+    // Name the format when the extension alone doesn't (Neo4j CSV vs CSV, RAG vs
+    // JSON share extensions and would otherwise overwrite each other).
+    const suffix = ext === `.${format}` ? '' : `-${format}`;
+    a.download = `folio-enrich-${currentJobId.slice(0,8)}${suffix}${ext}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -13957,9 +14083,15 @@ async function generateSynthetic() {
 // ==============================================
 
 function switchTab(tabEl, name) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => {
+    t.classList.remove('active');
+    t.setAttribute('aria-selected', 'false');
+    t.setAttribute('tabindex', '-1');
+  });
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
   tabEl.classList.add('active');
+  tabEl.setAttribute('aria-selected', 'true');
+  tabEl.setAttribute('tabindex', '0');
   document.getElementById(`tab-${name}`).classList.add('active');
   if (name === 'propositions') {
     renderPropositionsTab();
@@ -14016,6 +14148,7 @@ function clearAll() {
   isDemoMode = false;
   currentDemoSlug = null;
   originalDemoCache = null;
+  currentDemoMeta = null;
   setDemoMode(false, { announce: false });
   // Clear keeps the active ontology — reconcile title + masthead to it (not a
   // hardcoded "FOLIO Enrich") so branding + palette stay in sync under Canon.
@@ -14082,11 +14215,27 @@ function clearAll() {
   document.getElementById('detailToggleBtn').classList.remove('has-content');
 
   // Reset to first tab
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-  document.querySelector('.tab[data-tab="annotated"]').classList.add('active');
-  document.getElementById('tab-annotated').classList.add('active');
+  switchTab(document.querySelector('.tab[data-tab="annotated"]'), 'annotated');
 }
+
+// Tablist keyboard support (WAI-ARIA tabs): Enter/Space activate the focused tab;
+// Left/Right/Home/End move focus between tabs (roving tabindex).
+document.querySelector('.tabs[role="tablist"]')?.addEventListener('keydown', (e) => {
+  const tab = e.target.closest('.tab');
+  if (!tab) return;
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tab.click(); return; }
+  const tabs = Array.from(document.querySelectorAll('.tabs[role="tablist"] .tab'));
+  const i = tabs.indexOf(tab);
+  let next = null;
+  if (e.key === 'ArrowRight') next = tabs[(i + 1) % tabs.length];
+  else if (e.key === 'ArrowLeft') next = tabs[(i - 1 + tabs.length) % tabs.length];
+  else if (e.key === 'Home') next = tabs[0];
+  else if (e.key === 'End') next = tabs[tabs.length - 1];
+  if (!next) return;
+  e.preventDefault();
+  tabs.forEach(t => t.setAttribute('tabindex', t === next ? '0' : '-1'));
+  next.focus();
+});
 
 function setStatus(text, state) {
   document.getElementById('statusText').textContent = text;
@@ -14352,14 +14501,21 @@ document.addEventListener('keydown', (e) => {
       closeSystemPopover();
       return;
     }
-    const folioModal = document.getElementById('folioModal');
-    if (folioModal && folioModal.classList.contains('visible')) {
-      closeFolioModal();
-      return;
-    }
-    const graphModal = document.getElementById('graphModal');
-    if (graphModal.classList.contains('visible')) {
-      closeGraphModal();
+    // Close one modal per Escape, topmost first. The wizard opens from inside
+    // Settings, so it outranks Settings.
+    const modalClosers = [
+      ['graphModal', closeGraphModal],
+      ['folioModal', closeFolioModal],
+      ['ollamaWizardModal', closeOllamaWizard],
+      ['syntheticModal', closeSynthetic],
+      ['settingsModal', closeSettings],
+    ];
+    for (const [id, close] of modalClosers) {
+      const el = document.getElementById(id);
+      if (el && el.classList.contains('visible')) {
+        close();
+        return;
+      }
     }
   }
 });
