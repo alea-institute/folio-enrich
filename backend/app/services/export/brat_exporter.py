@@ -5,6 +5,11 @@ from app.services.export.base import ExporterBase
 from folio_propositions import Proposition
 
 
+def _field(value: str) -> str:
+    """Keep a value on one standoff line: brat is tab- and newline-delimited."""
+    return value.replace("\r\n", " ").replace("\r", " ").replace("\n", " ").replace("\t", " ")
+
+
 class BratExporter(ExporterBase):
     """Export in brat standoff annotation format."""
 
@@ -27,7 +32,7 @@ class BratExporter(ExporterBase):
                 label = ann.concepts[0].branches[0].replace(" ", "_")
 
             # T line: entity annotation
-            lines.append(f"T{t_idx}\t{label} {ann.span.start} {ann.span.end}\t{ann.span.text}")
+            lines.append(f"T{t_idx}\t{label} {ann.span.start} {ann.span.end}\t{_field(ann.span.text)}")
 
             # A lines: attributes
             for concept in ann.concepts:
@@ -35,7 +40,7 @@ class BratExporter(ExporterBase):
                     lines.append(f"A{a_idx}\tFOLIO_IRI T{t_idx} {concept.folio_iri}")
                     a_idx += 1
                 if concept.folio_label:
-                    lines.append(f"A{a_idx}\tFOLIO_Label T{t_idx} {concept.folio_label}")
+                    lines.append(f"A{a_idx}\tFOLIO_Label T{t_idx} {_field(concept.folio_label)}")
                     a_idx += 1
 
             t_idx += 1
@@ -46,10 +51,10 @@ class BratExporter(ExporterBase):
             if ind.class_links and ind.class_links[0].folio_label:
                 label = ind.class_links[0].folio_label.replace(" ", "_")
 
-            lines.append(f"T{t_idx}\t{label} {ind.span.start} {ind.span.end}\t{ind.mention_text}")
+            lines.append(f"T{t_idx}\t{label} {ind.span.start} {ind.span.end}\t{_field(ind.mention_text)}")
 
             if ind.name != ind.mention_text:
-                lines.append(f"A{a_idx}\tCanonicalName T{t_idx} {ind.name}")
+                lines.append(f"A{a_idx}\tCanonicalName T{t_idx} {_field(ind.name)}")
                 a_idx += 1
 
             for cl in ind.class_links:
@@ -62,7 +67,7 @@ class BratExporter(ExporterBase):
         # Property annotations
         for prop in job.result.properties:
             label = (prop.folio_label or "PROPERTY").replace(" ", "_")
-            lines.append(f"T{t_idx}\t{label} {prop.span.start} {prop.span.end}\t{prop.property_text}")
+            lines.append(f"T{t_idx}\t{label} {prop.span.start} {prop.span.end}\t{_field(prop.property_text)}")
 
             if prop.folio_iri:
                 lines.append(f"A{a_idx}\tFOLIO_IRI T{t_idx} {prop.folio_iri}")
@@ -75,13 +80,13 @@ class BratExporter(ExporterBase):
         for t in job.result.triples:
             if t.subject_span and t.object_span:
                 # Create entity annotations for subject and object
-                lines.append(f"T{t_idx}\tTRIPLE_SUBJECT {t.subject_span.start} {t.subject_span.end}\t{t.subject}")
+                lines.append(f"T{t_idx}\tTRIPLE_SUBJECT {t.subject_span.start} {t.subject_span.end}\t{_field(t.subject)}")
                 subj_t = t_idx
                 t_idx += 1
-                lines.append(f"T{t_idx}\tTRIPLE_OBJECT {t.object_span.start} {t.object_span.end}\t{t.object}")
+                lines.append(f"T{t_idx}\tTRIPLE_OBJECT {t.object_span.start} {t.object_span.end}\t{_field(t.object)}")
                 obj_t = t_idx
                 t_idx += 1
-                lines.append(f"R{r_idx}\t{t.predicate.replace(' ', '_')} Arg1:T{subj_t} Arg2:T{obj_t}")
+                lines.append(f"R{r_idx}\t{_field(t.predicate).replace(' ', '_')} Arg1:T{subj_t} Arg2:T{obj_t}")
                 r_idx += 1
 
         # Keep the legacy export byte-identical unless propositions actually exist.
@@ -106,7 +111,7 @@ class BratExporter(ExporterBase):
             label = proposition.proposition_type.upper().replace(" ", "_").replace("-", "_")
             text = proposition.text or ""
             lines.append(
-                f"T{t_idx}\t{label} {proposition.start_char} {proposition.end_char}\t{text}"
+                f"T{t_idx}\t{label} {proposition.start_char} {proposition.end_char}\t{_field(text)}"
             )
             if proposition.asserter is not None:
                 lines.append(f"A{a_idx}\tAsserter T{t_idx} {proposition.asserter.role.value}")

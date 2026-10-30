@@ -9,12 +9,18 @@ from openpyxl.styles import Font, PatternFill
 
 from app.models.job import Job
 from app.services.export.base import ExporterBase
+from app.services.export.sanitize import clean_cell
 
 
 def _hex_to_rgb(hex_color: str) -> str:
     """Convert '#1a5276' to 'FF1A5276' for openpyxl."""
     h = hex_color.lstrip("#")
     return f"FF{h.upper()}"
+
+
+def _append_row(ws, row: list) -> None:
+    """Append a data row, dropping characters openpyxl refuses to store."""
+    ws.append([clean_cell(v) for v in row])
 
 
 def _confidence_fill(confidence: float) -> PatternFill | None:
@@ -74,7 +80,7 @@ class ExcelExporter(ExporterBase):
                     hierarchy,
                     concept.folio_definition or "",
                 ]
-                ws.append(row_data)
+                _append_row(ws, row_data)
 
                 # Apply branch color to the Branch cell
                 if branch_color:
@@ -118,7 +124,7 @@ class ExcelExporter(ExporterBase):
                 class_labels = "; ".join(
                     cl.folio_label or "" for cl in ind.class_links
                 )
-                ws_ind.append([
+                _append_row(ws_ind, [
                     ind.span.start,
                     ind.span.end,
                     ind.mention_text,
@@ -157,7 +163,7 @@ class ExcelExporter(ExporterBase):
 
             prop_row_idx = 2
             for prop in job.result.properties:
-                ws_prop.append([
+                _append_row(ws_prop, [
                     prop.span.start,
                     prop.span.end,
                     prop.property_text,
@@ -199,7 +205,7 @@ class ExcelExporter(ExporterBase):
                 obj_iri = next((l.folio_iri for l in t.object_links if l.folio_iri), "")
                 pred_iri = next((l.folio_iri for l in t.predicate_links if l.folio_iri), "")
                 has_link = bool(t.subject_links or t.object_links or t.predicate_links)
-                ws_tri.append([
+                _append_row(ws_tri, [
                     t.subject,
                     t.predicate,
                     t.object,
