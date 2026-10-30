@@ -157,6 +157,18 @@ class EmbeddingService:
         # a different ontology must NOT score its candidates against these vectors —
         # callers gate on matches_ontology() and degrade gracefully.
         self._ontology_id: str = "folio"
+        # Why the last index build failed (e.g. sentence-transformers missing), so
+        # status endpoints can report "unavailable" instead of "ready".
+        self._last_error: str | None = None
+
+    @property
+    def is_ready(self) -> bool:
+        """True only when label vectors exist and can be searched."""
+        return self._embeddings is not None and len(self._labels) > 0
+
+    @property
+    def last_error(self) -> str | None:
+        return self._last_error
 
     def matches_ontology(self, ontology_id: str | None) -> bool:
         """True when this index was built for ``ontology_id`` (None → "folio")."""
@@ -176,14 +188,21 @@ class EmbeddingService:
         return self._provider
 
     def index_labels(self, labels: list[str], metadata: list[dict] | None = None) -> None:
-        provider = self._get_provider()
+        # Encode BEFORE touching state: if the provider cannot encode (e.g.
+        # sentence-transformers is not installed), leave no labels without vectors
+        # behind, so index_size stays 0 and consumers skip embeddings.
+        try:
+            provider = self._get_provider()
+            embeddings = provider.encode(labels) if labels else None
+        except Exception as exc:
+            self._last_error = f"{type(exc).__name__}: {exc}"
+            raise
         self._labels = labels
         self._metadata = metadata or [{} for _ in labels]
-        if labels:
-            self._embeddings = provider.encode(labels)
-            logger.info("Indexed %d labels (%d dims)", len(labels), self._embeddings.shape[1])
-        else:
-            self._embeddings = None
+        self._embeddings = embeddings
+        self._last_error = None
+        if embeddings is not None:
+            logger.info("Indexed %d labels (%d dims)", len(labels), embeddings.shape[1])
 
     @staticmethod
     def _top_k_indices(scores: np.ndarray, top_k: int) -> np.ndarray:
@@ -286,6 +305,7 @@ class EmbeddingService:
                 self._labels = cached["labels"]
                 self._metadata = cached["metadata"]
                 self._embeddings = cached["embeddings"]
+                self._last_error = None
                 logger.info(
                     "Loaded label embeddings from cache (%d labels, hash=%s)",
                     len(self._labels), owl_hash,
