@@ -7,10 +7,11 @@ import logging
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel
 
+from app.api.routes.ollama import require_admin_fail_closed
 from app.models.annotation import FeedbackItem
 from app.models.feedback import FeedbackEntry, InsightsSummary
 from app.storage.feedback_store import FeedbackStore
@@ -141,7 +142,7 @@ async def get_job_insights(job_id: str) -> InsightsSummary:
     return await _feedback_store.get_insights(job_id=job_id)
 
 
-@router.get("/export")
+@router.get("/export", dependencies=[Depends(require_admin_fail_closed)])
 async def export_feedback(format: str = Query("json", pattern="^(json|csv)$")) -> Response:
     """Export all feedback + lineage snapshots as JSON or CSV."""
     entries = await _feedback_store.list_all()
@@ -176,14 +177,16 @@ async def export_feedback(format: str = Query("json", pattern="^(json|csv)$")) -
     )
 
 
-@router.delete("", status_code=200)
+@router.delete("", status_code=200, dependencies=[Depends(require_admin_fail_closed)])
 async def clear_all_feedback() -> dict:
     """Clear all persisted feedback."""
     count = await _feedback_store.delete_all()
     return {"deleted": count}
 
 
-@router.delete("/{feedback_id}", status_code=200)
+@router.delete(
+    "/{feedback_id}", status_code=200, dependencies=[Depends(require_admin_fail_closed)]
+)
 async def delete_feedback(feedback_id: str) -> dict:
     """Delete a single feedback entry."""
     deleted = await _feedback_store.delete(feedback_id)

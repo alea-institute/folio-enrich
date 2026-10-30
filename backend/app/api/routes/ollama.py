@@ -4,15 +4,33 @@ from __future__ import annotations
 import json
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
+from app.api.auth import require_admin
+from app.config import settings
 from app.services.ollama.manager import OllamaManager, OllamaStatus
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ollama", tags=["ollama"])
+
+
+def require_admin_fail_closed(x_admin_token: str | None = Header(default=None)) -> None:
+    """``require_admin`` that also fails closed on a public deploy.
+
+    A public deploy (``require_user_api_key``) with no admin token configured
+    refuses outright instead of leaving the route open. Local single-user
+    installs (not public, no admin token) stay open, exactly like
+    ``require_admin``; with a token set, ``X-Admin-Token`` must match.
+    """
+    if settings.require_user_api_key and not settings.admin_token:
+        raise HTTPException(
+            status_code=403,
+            detail="Admin token not configured; route disabled on this deployment",
+        )
+    require_admin(x_admin_token)
 
 
 class PullRequest(BaseModel):
@@ -38,7 +56,7 @@ async def ollama_status() -> dict:
     }
 
 
-@router.post("/setup")
+@router.post("/setup", dependencies=[Depends(require_admin_fail_closed)])
 async def ollama_setup() -> EventSourceResponse:
     """Full auto-setup: install + start + pull all tier models. SSE stream."""
     async def event_stream():
@@ -90,7 +108,7 @@ async def ollama_setup() -> EventSourceResponse:
     return EventSourceResponse(event_stream())
 
 
-@router.post("/start")
+@router.post("/start", dependencies=[Depends(require_admin_fail_closed)])
 async def ollama_start() -> dict:
     """Start Ollama server only."""
     manager = OllamaManager.get_instance()
@@ -98,7 +116,7 @@ async def ollama_start() -> dict:
     return {"started": started}
 
 
-@router.post("/stop")
+@router.post("/stop", dependencies=[Depends(require_admin_fail_closed)])
 async def ollama_stop() -> dict:
     """Stop managed Ollama process."""
     manager = OllamaManager.get_instance()
@@ -106,7 +124,7 @@ async def ollama_stop() -> dict:
     return {"stopped": True}
 
 
-@router.post("/pull")
+@router.post("/pull", dependencies=[Depends(require_admin_fail_closed)])
 async def ollama_pull(req: PullRequest) -> EventSourceResponse:
     """Pull specific model or all tier models. SSE stream."""
     async def event_stream():
