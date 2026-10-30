@@ -774,7 +774,7 @@ requires-dist = [
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.28.0" },
     { name = "markdown", specifier = ">=3.7,<4" },
     { name = "markdown-it-py", specifier = ">=3.0.0" },
-    { name = "nupunkt", specifier = ">=0.1.0" },
+    { name = "nupunkt", specifier = ">=0.6.0" },
     { name = "olefile", specifier = ">=0.47" },
     { name = "openai", specifier = ">=3.0,<4" },
     { name = "openpyxl", specifier = ">=3.1.0" },

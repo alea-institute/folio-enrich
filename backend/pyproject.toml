@@ -17,7 +17,7 @@ dependencies = [
     "sse-starlette>=2.0.0",
     "pyarrow>=15.0.0; platform_system != 'Windows' or platform_machine != 'ARM64'",
     "rdflib>=7.0.0",
-    "nupunkt>=0.1.0",
+    "nupunkt>=0.6.0",
     "striprtf>=0.0.26",
     "olefile>=0.47",
     "httpx>=0.28.0",
