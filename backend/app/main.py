@@ -130,6 +130,36 @@ async def _stop_ollama() -> None:
         logger.warning("Failed to stop Ollama", exc_info=True)
 
 
+def _warm_pipeline_caches(ontology_id: str) -> None:
+    """Build the per-process caches the first job would otherwise pay for.
+
+    Runs on a worker thread. The shared FOLIO EntityRuler compiles every label
+    into spaCy patterns (seconds), and NuPunkt's model load holds the GIL for
+    about a second; both would otherwise land on the first enrichment request.
+    Each step logs and swallows its own failure: a cold cache only costs time.
+    """
+    try:
+        from app.services.normalization.normalizer import split_sentences
+
+        split_sentences("Warm up. Done.")
+    except Exception:
+        logger.warning("Sentence-splitter warm-up failed", exc_info=True)
+    try:
+        from app.pipeline.stages.entity_ruler_stage import _get_ruler_bundle
+
+        _get_ruler_bundle(ontology_id)
+        logger.info("EntityRuler cache warmed for ontology %s", ontology_id)
+    except Exception:
+        logger.warning("EntityRuler warm-up failed for ontology %s", ontology_id, exc_info=True)
+
+
+async def _warm_pipeline_caches_in_background(ontology_id: str) -> None:
+    try:
+        await asyncio.to_thread(_warm_pipeline_caches, ontology_id)
+    except Exception:
+        logger.warning("Pipeline cache warm-up failed", exc_info=True)
+
+
 def _warn_insecure_admin_config() -> None:
     """A public deploy (require_user_api_key) with no admin_token leaves the
     mutating OWL-update routes (fetch/reload/rollback) open and disables the
@@ -168,6 +198,12 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.warning("Could not attach ontology registry to app.state", exc_info=True)
 
+    # Warm the shared EntityRuler (and sentence splitter) off the event loop,
+    # without delaying startup; a job arriving mid-build waits on the cache lock.
+    warm_task = asyncio.create_task(
+        _warm_pipeline_caches_in_background(getattr(app.state, "default_ontology", "folio"))
+    )
+
     # Seed pre-baked demo jobs so demo-mode exports resolve server-side
     try:
         from app.services.demo_seed import seed_demo_jobs
@@ -199,6 +235,7 @@ async def lifespan(app: FastAPI):
     owl_update_task = asyncio.create_task(_periodic_owl_update_check())
     yield
     # Shutdown
+    warm_task.cancel()
     cleanup_task.cancel()
     owl_update_task.cancel()
     await _stop_ollama()
