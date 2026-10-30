@@ -29,7 +29,10 @@ def _spec_payload(ontology_id: str) -> dict:
 
 
 def _embeddings_available() -> bool:
-    """True only when embeddings are enabled AND the startup index actually built.
+    """True only when embeddings are enabled AND the startup index is usable.
+
+    ``is_ready`` requires vectors and a provider that can encode queries, so a
+    disk-cached index without sentence-transformers reports False.
 
     Reads the startup-seeded singleton without creating one, so this never
     triggers an index build from a request.

@@ -20,6 +20,7 @@ from app.models.job import Job, JobStatus
 from app.pipeline.stages import entity_ruler_stage as ers
 from app.services.concept import llm_concept_identifier as lci
 from app.services.embedding.providers.local import LocalEmbeddingProvider
+from app.services.embedding import service as embedding_service_mod
 from app.services.embedding.service import EmbeddingService
 from app.services.entity_ruler import semantic_ruler as sr
 from app.services.entity_ruler.semantic_ruler import SemanticEntityRuler
@@ -186,7 +187,7 @@ def _index_without_encoder() -> EmbeddingService:
 
 
 async def test_semantic_ruler_skipped_without_sentence_transformers(monkeypatch):
-    monkeypatch.setattr(sr, "_sentence_transformers_available", lambda: False)
+    monkeypatch.setattr(embedding_service_mod, "_sentence_transformers_available", lambda: False)
     svc = _index_without_encoder()
     stage = ers.EntityRulerStage(ruler=MagicMock(find_matches=MagicMock(return_value=[])),
                                  embedding_service=svc)
@@ -202,7 +203,7 @@ async def test_semantic_ruler_skipped_without_sentence_transformers(monkeypatch)
 
 
 def test_can_encode_true_when_local_dependency_present(monkeypatch):
-    monkeypatch.setattr(sr, "_sentence_transformers_available", lambda: True)
+    monkeypatch.setattr(embedding_service_mod, "_sentence_transformers_available", lambda: True)
     assert sr.can_encode(_index_without_encoder())
     assert not sr.can_encode(None)
     assert sr.can_encode(MagicMock())  # remote/test providers are not pre-judged

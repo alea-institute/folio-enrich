@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import importlib.util
 import logging
 from dataclasses import dataclass
-from functools import lru_cache
 
 import numpy as np
 
+from app.services.embedding.service import can_encode
 from app.services.entity_ruler.pattern_builder import _STOPWORDS
 
 logger = logging.getLogger(__name__)
@@ -36,33 +35,6 @@ _SEMANTIC_STOPWORDS = _STOPWORDS | frozenset({
 # dropped: "in damages. The" and "Corp. in the" must never become candidates.
 _LEADING_PUNCT = "\"'([{“‘<"
 _TRAILING_PUNCT = ".,;:!?\"')]}”’>"
-
-
-@lru_cache(maxsize=1)
-def _sentence_transformers_available() -> bool:
-    return importlib.util.find_spec("sentence_transformers") is not None
-
-
-def can_encode(embedding_service) -> bool:
-    """Cheap (cached) check that the service's provider can embed new text.
-
-    An index loaded from the on-disk label cache has ``index_size > 0`` even when
-    the local provider's ``sentence-transformers`` dependency is missing; every
-    query encode then raises ImportError, but only after the costly candidate
-    build. Remote providers (Ollama/OpenAI) are assumed able to encode; their
-    errors stay per-request.
-    """
-    if embedding_service is None:
-        return False
-    try:
-        provider = embedding_service._get_provider()
-    except Exception:
-        return False
-    from app.services.embedding.providers.local import LocalEmbeddingProvider
-
-    if isinstance(provider, LocalEmbeddingProvider):
-        return _sentence_transformers_available()
-    return True
 
 
 @dataclass

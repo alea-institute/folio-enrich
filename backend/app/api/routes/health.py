@@ -54,9 +54,18 @@ def _check_folio() -> dict:
 
 def _check_embedding() -> dict:
     try:
-        from app.services.embedding.service import EmbeddingService
+        from app.services.embedding.service import EmbeddingService, can_encode
         svc = EmbeddingService.get_instance()
         provider_name = type(svc._provider).__name__ if svc._provider is not None else None
+        if svc.index_size > 0 and not can_encode(svc):
+            # Vectors loaded from the disk cache, but no query can be embedded.
+            return {
+                "status": "unavailable",
+                "provider": provider_name,
+                "index_size": svc.index_size,
+                "message": "Embedding provider cannot encode queries "
+                           "(sentence-transformers is not installed)",
+            }
         if svc.is_ready:
             return {
                 "status": "ready",
