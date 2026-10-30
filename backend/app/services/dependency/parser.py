@@ -334,23 +334,29 @@ class DependencyParser:
         )
 
     @staticmethod
-    def _subtree_bounds(token) -> tuple[int, int]:
-        """Character bounds covering the token's full subtree."""
-        subtree = sorted(token.subtree, key=lambda t: t.i)
-        last = subtree[-1]
-        return subtree[0].idx, last.idx + len(last.text)
+    def _subtree_bounds(token) -> tuple[int, int, str]:
+        """Character bounds and source text covering the token's full subtree.
+
+        Text comes from a spaCy Span, never ``token.doc.text[...]``: spaCy
+        rebuilds ``Doc.text`` on every access, which made each call O(doc) and
+        triple extraction quadratic in document length.
+        """
+        subtree = list(token.subtree)
+        first = min(subtree, key=lambda t: t.i)
+        last = max(subtree, key=lambda t: t.i)
+        text = token.doc[first.i : last.i + 1].text
+        return first.idx, last.idx + len(last.text), text
 
     @classmethod
     def _subtree_text(cls, token) -> str:
         """Get full noun phrase text from token's subtree, exactly as written."""
-        start, end = cls._subtree_bounds(token)
-        return token.doc.text[start:end]
+        return cls._subtree_bounds(token)[2]
 
     @classmethod
     def _subtree_span(cls, token) -> Span:
         """Get character span covering the token's full subtree."""
-        start, end = cls._subtree_bounds(token)
-        return Span(start=start, end=end, text=token.doc.text[start:end])
+        start, end, text = cls._subtree_bounds(token)
+        return Span(start=start, end=end, text=text)
 
     @staticmethod
     def _token_span(token) -> Span:

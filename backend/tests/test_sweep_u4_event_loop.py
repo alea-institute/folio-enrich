@@ -33,6 +33,17 @@ _SENTENCES = [
 ]
 
 
+@pytest.fixture(autouse=True, scope="module")
+def _warm_sentence_splitter():
+    """Load NuPunkt's model before measuring. The one-time load holds the GIL
+    for ~1 s (decompressing the model), which would otherwise land inside
+    whichever test of this xdist worker runs first. It is a cold-start cost,
+    paid at startup in production, not the per-job stall these tests guard."""
+    from app.services.normalization.normalizer import split_sentences
+
+    split_sentences("Warm up. Done.")
+
+
 def _large_text(target_chars: int = 250_000) -> str:
     parts: list[str] = []
     size = i = 0
