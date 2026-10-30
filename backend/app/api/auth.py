@@ -225,6 +225,24 @@ def require_admin(x_admin_token: str | None = Header(default=None)) -> None:
         raise HTTPException(status_code=403, detail="Valid X-Admin-Token required")
 
 
+
+def require_admin_fail_closed(x_admin_token: str | None = Header(default=None)) -> None:
+    """``require_admin`` that also fails closed on a public deploy.
+
+    A public deploy (``require_user_api_key``) with no admin token configured
+    refuses outright instead of leaving the route open. Local single-user
+    installs (not public, no admin token) stay open, exactly like
+    ``require_admin``; with a token set, ``X-Admin-Token`` must match.
+    """
+    from app.config import settings
+
+    if settings.require_user_api_key and not settings.admin_token:
+        raise HTTPException(
+            status_code=403,
+            detail="Admin token not configured; route disabled on this deployment",
+        )
+    require_admin(x_admin_token)
+
 def _require_same_origin(origin_header: str | None, request_host: str | None) -> None:
     try:
         origin = urlsplit(origin_header or "")

@@ -4,33 +4,16 @@ from __future__ import annotations
 import json
 import logging
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from app.api.auth import require_admin
-from app.config import settings
+from app.api.auth import require_admin_fail_closed
 from app.services.ollama.manager import OllamaManager, OllamaStatus
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ollama", tags=["ollama"])
-
-
-def require_admin_fail_closed(x_admin_token: str | None = Header(default=None)) -> None:
-    """``require_admin`` that also fails closed on a public deploy.
-
-    A public deploy (``require_user_api_key``) with no admin token configured
-    refuses outright instead of leaving the route open. Local single-user
-    installs (not public, no admin token) stay open, exactly like
-    ``require_admin``; with a token set, ``X-Admin-Token`` must match.
-    """
-    if settings.require_user_api_key and not settings.admin_token:
-        raise HTTPException(
-            status_code=403,
-            detail="Admin token not configured; route disabled on this deployment",
-        )
-    require_admin(x_admin_token)
 
 
 class PullRequest(BaseModel):

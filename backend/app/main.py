@@ -132,12 +132,15 @@ async def _stop_ollama() -> None:
 
 def _warn_insecure_admin_config() -> None:
     """A public deploy (require_user_api_key) with no admin_token leaves the
-    mutating OWL-update routes (fetch/reload/rollback) open — warn loudly."""
+    mutating OWL-update routes (fetch/reload/rollback) open and disables the
+    fail-closed Ollama and feedback admin routes — warn loudly."""
     if app_settings.require_user_api_key and not app_settings.admin_token:
         logger.warning(
             "SECURITY: require_user_api_key is set (public posture) but admin_token "
-            "is empty — /folio/update/{check,apply,rollback} are UNAUTHENTICATED. "
-            "Set FOLIO_ENRICH_ADMIN_TOKEN to gate them.",
+            "is empty — /folio/update/{check,apply,rollback} are UNAUTHENTICATED, and "
+            "the Ollama admin routes (/ollama/{setup,start,stop,pull}) and feedback "
+            "admin routes (GET /feedback/export, DELETE /feedback[/{id}]) refuse every "
+            "request (403). Set FOLIO_ENRICH_ADMIN_TOKEN to gate them.",
         )
 
 

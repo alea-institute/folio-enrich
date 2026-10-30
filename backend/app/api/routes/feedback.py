@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from app.api.routes.ollama import require_admin_fail_closed
+from app.api.auth import require_admin_fail_closed
 from app.models.annotation import FeedbackItem
 from app.models.feedback import FeedbackEntry, InsightsSummary
 from app.storage.feedback_store import FeedbackStore
