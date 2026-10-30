@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -11,6 +12,11 @@ from app.services.llm.prompts.concept_identification import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Max concept-identification requests in flight per batch. A 1 MB document is
+# ~350 chunks; firing them all at once trips provider rate limits (429), and a
+# failed chunk silently contributes no concepts.
+MAX_CONCURRENT_CHUNK_REQUESTS = 8
 
 
 class LLMConceptIdentifier:
@@ -64,9 +70,13 @@ class LLMConceptIdentifier:
     async def identify_concepts_batch(
         self, chunks: list[TextChunk], ontology_id: str = "folio"
     ) -> dict[int, list[ConceptMatch]]:
-        import asyncio
+        semaphore = asyncio.Semaphore(MAX_CONCURRENT_CHUNK_REQUESTS)
 
-        tasks = [self.identify_concepts(chunk, ontology_id) for chunk in chunks]
+        async def bounded(chunk: TextChunk) -> list[ConceptMatch]:
+            async with semaphore:
+                return await self.identify_concepts(chunk, ontology_id)
+
+        tasks = [bounded(chunk) for chunk in chunks]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         output: dict[int, list[ConceptMatch]] = {}
         for chunk, result in zip(chunks, results):

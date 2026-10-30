@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 
 from app.models.job import Job, JobStatus
@@ -14,7 +15,8 @@ class IngestionStage(PipelineStage):
 
     async def execute(self, job: Job) -> Job:
         job.status = JobStatus.INGESTING
-        raw_text, elements = ingestion.ingest_with_elements(job.input)
+        # PDF/DOCX/HTML parsing is CPU-bound — keep it off the event loop.
+        raw_text, elements = await asyncio.to_thread(ingestion.ingest_with_elements, job.input)
         # Store raw text temporarily for next stage
         job.result.metadata["_raw_text"] = raw_text
         # Store text elements for structural tracking

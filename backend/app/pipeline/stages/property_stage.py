@@ -9,6 +9,7 @@ Split into two stages following the Individual extraction pattern:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 
@@ -52,16 +53,18 @@ class EarlyPropertyStage(PipelineStage):
 
         # Build matcher and scan text (property labels for the active ontology)
         try:
-            from app.services.folio.folio_service import FolioService
-            pattern_count = self._matcher.build(FolioService.get_instance(job.ontology))
-            raw_properties = self._matcher.match(full_text)
+            # Automaton build (incl. spaCy lemmatization) and the scan are
+            # CPU-bound — run them off the event loop.
+            raw_properties, pattern_count = await asyncio.to_thread(
+                self._build_and_match, job.ontology, full_text
+            )
         except Exception:
             logger.warning("Property matching failed", exc_info=True)
             raw_properties = []
             pattern_count = 0
 
         # Deduplicate overlapping spans
-        properties = deduplicate_properties(raw_properties)
+        properties = await asyncio.to_thread(deduplicate_properties, raw_properties)
 
         log.append({
             "ts": datetime.now(timezone.utc).isoformat(),
@@ -77,6 +80,11 @@ class EarlyPropertyStage(PipelineStage):
         )
 
         return job
+
+    def _build_and_match(self, ontology_id: str, full_text: str):
+        from app.services.folio.folio_service import FolioService
+        pattern_count = self._matcher.build(FolioService.get_instance(ontology_id))
+        return self._matcher.match(full_text), pattern_count
 
 
 class LLMPropertyStage(PipelineStage):

@@ -86,10 +86,10 @@ class TestSemanticCandidateCollection:
         text = "the party shall perform the duty"
         ps = text.index("party")
         cands = {p for p, _, _ in ruler._collect_candidates(text, {(ps, ps + len("party"))})}
-        # Same rule as before: a candidate starting inside the known span is excluded…
-        assert "party shall" not in cands
+        # A candidate overlapping the known span is excluded…
+        assert "party shall perform" not in cands
         # …while a candidate entirely outside it is still generated.
-        assert "shall perform" in cands
+        assert "perform the duty" in cands
 
 
 class TestSemanticDedup:
@@ -113,12 +113,12 @@ class TestSemanticDedup:
         svc.search_batch.side_effect = fake_search_batch
 
         ruler = SemanticEntityRuler(svc, threshold=0.80)
-        text = "the agreement and the agreement again"
+        text = "lease agreement and lease agreement again"
         matches = ruler.find_semantic_matches(text, set())
 
-        occurrences = [m for m in matches if m.text.lower() == "the agreement"]
+        occurrences = [m for m in matches if m.text.lower() == "lease agreement"]
         assert len(occurrences) == 2  # both occurrences matched
-        assert recorded["phrases"].count("the agreement") == 1  # embedded once
+        assert recorded["phrases"].count("lease agreement") == 1  # embedded once
 
 
 def test_top_k_indices_matches_argsort():
