@@ -201,7 +201,17 @@ async def lifespan(app: FastAPI):
     await _stop_ollama()
 
 
-app = FastAPI(title=app_settings.app_name, version="0.4.11", lifespan=lifespan)
+def _app_version() -> str:
+    """Installed folio-enrich version (pyproject is the single source of truth)."""
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return version("folio-enrich")
+    except PackageNotFoundError:
+        return "0.0.0+unknown"
+
+
+app = FastAPI(title=app_settings.app_name, version=_app_version(), lifespan=lifespan)
 
 # Middleware (order matters: outermost first)
 app.add_middleware(
