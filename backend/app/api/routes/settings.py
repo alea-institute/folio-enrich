@@ -93,6 +93,12 @@ class SettingsUpdate(BaseModel):
     llm_synthetic_model: str | None = None
     llm_proposition_provider: str | None = None
     llm_proposition_model: str | None = None
+    llm_individual_provider: str | None = None
+    llm_individual_model: str | None = None
+    llm_property_provider: str | None = None
+    llm_property_model: str | None = None
+    llm_document_type_provider: str | None = None
+    llm_document_type_model: str | None = None
     # Ollama tier models
     ollama_auto_manage: bool | None = None
     ollama_model_simple: str | None = None
@@ -110,8 +116,11 @@ class SettingsUpdate(BaseModel):
     post_job_push_default: bool | None = None
 
 
+# Every task in orchestrator.LLM_TASKS (settings attrs use the task name, e.g.
+# llm_property_provider — the property_llm rename applies only to TaskLLMs).
 _TASK_LLM_FIELDS = (
-    "classifier", "extractor", "concept", "branch_judge", "area_of_law", "synthetic", "proposition",
+    "classifier", "extractor", "concept", "branch_judge", "area_of_law", "synthetic",
+    "individual", "property", "proposition", "document_type",
 )
 
 

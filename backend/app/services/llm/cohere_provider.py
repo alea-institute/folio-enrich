@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
 
@@ -8,6 +7,7 @@ import httpx
 
 from app.models.llm_models import ModelInfo
 from app.services.llm.base import LLMProvider
+from app.services.llm.json_utils import parse_json_response, with_schema_instruction
 
 logger = logging.getLogger(__name__)
 
@@ -59,18 +59,8 @@ class CohereProvider(LLMProvider):
     async def structured(
         self, prompt: str, schema: dict, **kwargs: Any
     ) -> dict:
-        prompt_with_json = (
-            f"{prompt}\n\nRespond ONLY with valid JSON matching this schema:\n"
-            f"{json.dumps(schema, indent=2)}"
-        )
-        text = await self.complete(prompt_with_json, **kwargs)
-        text = text.strip()
-        if text.startswith("```"):
-            lines = text.split("\n")
-            text = "\n".join(
-                lines[1:-1] if lines[-1].startswith("```") else lines[1:]
-            )
-        return json.loads(text)
+        text = await self.complete(with_schema_instruction(prompt, schema), **kwargs)
+        return parse_json_response(text)
 
     async def test_connection(self) -> bool:
         model = self.model or "command-r-plus"
