@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+
+from app.models.annotation import UNION_CONCEPT_FIELDS
 from app.models.job import Job
 from app.services.export.base import ExporterBase
 from folio_propositions import Proposition
@@ -43,6 +46,12 @@ class BratExporter(ExporterBase):
                     lines.append(f"A{a_idx}\tFOLIO_Label T{t_idx} {_field(concept.folio_label)}")
                     a_idx += 1
 
+                if job.result.ontology_id == "both":
+                    for key in UNION_CONCEPT_FIELDS:
+                        value = getattr(concept, key)
+                        if value is not None:
+                            lines.append(f"A{a_idx}\t{key} T{t_idx} {json.dumps(value)}")
+                            a_idx += 1
             t_idx += 1
 
         # Individual annotations
@@ -97,6 +106,8 @@ class BratExporter(ExporterBase):
             if proposition_lines:
                 lines.extend(proposition_lines.splitlines())
 
+        if job.result.ontology_id == "both":
+            lines.append(f"#1\tAnnotatorNotes T1\tbridges {json.dumps(job.result.bridges or [])}")
         return "\n".join(lines)
 
     @staticmethod

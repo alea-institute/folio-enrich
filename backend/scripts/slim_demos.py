@@ -153,7 +153,7 @@ def main(argv: list[str]) -> int:
         print(f"demos dir not found: {DEMOS_DIR}")
         return 1
 
-    files = sorted(DEMOS_DIR.glob("*.json"))
+    files = sorted(DEMOS_DIR.rglob("*.json"))
     if not files:
         print(f"no demo files in {DEMOS_DIR}")
         return 1

@@ -60,7 +60,7 @@ class BranchJudgeStage(PipelineStage):
             for concept, result in zip(ambiguous, results):
                 if isinstance(result, dict):
                     branch = result.get("branch", "")
-                    branch = self._canonicalize_branch(branch, job.ontology)
+                    branch = self._canonicalize_branch(branch, job.ontology, concept.get("folio_iri", ""))
                     concept["branches"] = [branch] if branch else []
                     # Weighted blend: 70% pipeline score + 30% judge score
                     existing_conf = concept.get("confidence", 0)
@@ -98,7 +98,7 @@ class BranchJudgeStage(PipelineStage):
         return job
 
     @staticmethod
-    def _canonicalize_branch(branch: str, ontology_id: str) -> str:
+    def _canonicalize_branch(branch: str, ontology_id: str, iri: str = "") -> str:
         """Snap the judge's free-text branch label to the ontology's canonical root.
 
         The LLM judge emits a branch string that may be a stripped form of the
@@ -114,6 +114,8 @@ class BranchJudgeStage(PipelineStage):
                 canonicalize_branch_label,
             )
             service = FolioService.get_instance(ontology_id)
+            if ontology_id == "both":
+                service = service.service_for_iri(iri)
             spec = service.spec
             if not _implicit_root_discovery_enabled(spec):
                 return branch

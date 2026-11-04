@@ -3,7 +3,7 @@ from __future__ import annotations
 import io
 
 from app.models.job import Job
-from app.services.export.base import ExporterBase
+from app.services.export.base import ExporterBase, union_fields
 
 
 class ParquetExporter(ExporterBase):
@@ -79,6 +79,7 @@ class ParquetExporter(ExporterBase):
                     "span_end": ann.span.end,
                     "span_text": ann.span.text,
                     "concept_text": concept.concept_text,
+                    **(union_fields(concept) if job.result.ontology_id == "both" else {}),
                     "folio_iri": concept.folio_iri or "",
                     "folio_label": concept.folio_label or "",
                     "branch": concept.branches[0] if concept.branches else "",
@@ -145,6 +146,16 @@ class ParquetExporter(ExporterBase):
                 "source": t.source,
             })
 
+        if job.result.ontology_id == "both":
+            import json
+            schema = pa.schema([
+                *schema,
+                ("peer_iri", pa.string()),
+                ("peer_label", pa.string()),
+                ("peer_branches", pa.list_(pa.string())),
+                ("region", pa.string()),
+                ("drifted", pa.bool_()),
+            ], metadata={b"bridges": json.dumps(job.result.bridges or []).encode()})
         table = pa.Table.from_pylist(rows, schema=schema)
         buf = io.BytesIO()
         pq.write_table(table, buf)

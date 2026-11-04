@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import csv
+import json
 import io
 
+from app.models.annotation import UNION_CONCEPT_FIELDS
 from app.models.job import Job
-from app.services.export.base import ExporterBase
+from app.services.export.base import ExporterBase, union_cells
 
 
 class CSVExporter(ExporterBase):
@@ -26,7 +28,7 @@ class CSVExporter(ExporterBase):
             "concept_text", "folio_iri", "folio_label",
             "branch", "branch_color", "confidence", "source",
             "hierarchy_path", "definition",
-        ])
+        ] + ([*UNION_CONCEPT_FIELDS] if job.result.ontology_id == "both" else []))
 
         # Rows
         for ann in job.result.annotations:
@@ -45,7 +47,7 @@ class CSVExporter(ExporterBase):
                     concept.source,
                     hierarchy,
                     concept.folio_definition or "",
-                ])
+                ] + (union_cells(concept) if job.result.ontology_id == "both" else []))
 
         # Individuals section (blank row separator)
         if job.result.individuals:
@@ -120,4 +122,8 @@ class CSVExporter(ExporterBase):
                     f"{t.confidence:.4f}",
                 ])
 
+        if job.result.ontology_id == "both":
+            writer.writerow([])
+            writer.writerow(["bridges"])
+            writer.writerow([json.dumps(job.result.bridges or [])])
         return output.getvalue()

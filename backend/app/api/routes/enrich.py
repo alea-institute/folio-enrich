@@ -144,6 +144,21 @@ async def create_enrichment(req: EnrichRequest, request: Request) -> dict:
             detail=f"Too many concurrent jobs ({active}/{app_settings.max_concurrent_jobs}). Try again later.",
         )
 
+    if req.ontology == "both":
+        from app.services.ontology.registry import get_registry
+
+        registry = get_registry()
+        for oid in ("folio", "canon"):
+            try:
+                await asyncio.to_thread(registry.get_service(oid)._get_folio)
+            except Exception as exc:
+                name = registry.get_spec(oid).display_name
+                logger.warning("Cannot start union: %s unavailable", name, exc_info=True)
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Cannot enrich against both: {name} is unavailable.",
+                ) from exc
+
     # An explicit push request needs annotation access; the server push
     # default silently does not apply to callers without it.
     can_push = push_permitted(request)
@@ -161,6 +176,8 @@ async def create_enrichment(req: EnrichRequest, request: Request) -> dict:
             req.review_before_continuing, req.push_to_insights, push_allowed=can_push,
         ),
     )
+    if req.ontology == "both":
+        PipelineOrchestrator.stamp_ontology(job)
     await _job_store.save(job)
 
     # Build pipeline with per-task LLMs (task-specific overrides > request > global)

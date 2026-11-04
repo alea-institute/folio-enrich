@@ -27,7 +27,7 @@ from typing import Any
 from folio_propositions import GeneratorInfo, PropositionDocumentRecord
 
 from app.models.job import Job
-from app.services.export.base import ExporterBase
+from app.services.export.base import ExporterBase, union_fields
 from app.services.proposition.source import (
     job_document_id,
     job_source_uri,
@@ -55,6 +55,15 @@ def build_proposition_record(job: Job) -> PropositionDocumentRecord:
         "filename": job.input.filename if job.input is not None else None,
     }
     document_metadata = {k: v for k, v in document_metadata.items() if v is not None}
+    if job.result.ontology_id == "both":
+        document_metadata["ontology_id"] = "both"
+        document_metadata["base_iri"] = job.result.base_iri
+        document_metadata["peer_base_iri"] = job.result.peer_base_iri
+        document_metadata["concepts"] = [
+            {"folio_iri": concept.folio_iri, **union_fields(concept)}
+            for ann in job.result.annotations for concept in ann.concepts
+        ]
+        document_metadata["bridges"] = job.result.bridges or []
     return PropositionDocumentRecord(
         document_id=job_document_id(job),
         source_uri=source_uri,

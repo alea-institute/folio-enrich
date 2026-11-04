@@ -414,3 +414,46 @@ class EmbeddingService:
     @property
     def index_size(self) -> int:
         return len(self._labels)
+
+
+class CompositeEmbeddingService:
+    """Query resident indexes without retaining a third index or either service."""
+
+    def __init__(self, registry):
+        self._registry = registry
+
+    def _get_provider(self):
+        return self._registry.get_embedding_service("folio")._get_provider()
+
+    def matches_ontology(self, ontology_id):
+        return ontology_id == "both"
+
+    @property
+    def index_size(self):
+        return sum(self._registry.get_embedding_service(oid).index_size for oid in ("folio", "canon"))
+
+    @staticmethod
+    def _merge(hits, top_k):
+        by_hash = {}
+        for hit in hits:
+            key = hit.metadata.get("iri", "").rsplit("/", 1)[-1]
+            if key not in by_hash or hit.score > by_hash[key].score:
+                by_hash[key] = hit
+        return sorted(by_hash.values(), key=lambda hit: hit.score, reverse=True)[:top_k]
+
+    def search(self, query, top_k=5):
+        hits = []
+        for oid in ("folio", "canon"):
+            hits.extend(self._registry.get_embedding_service(oid).search(query, top_k=top_k))
+        return self._merge(hits, top_k)
+
+    def search_batch(self, queries, top_k=5):
+        sides = [self._registry.get_embedding_service(oid).search_batch(queries, top_k=top_k)
+                 for oid in ("folio", "canon")]
+        return [self._merge(folio + canon, top_k) for folio, canon in zip(*sides)]
+
+    def similarity(self, text_a, text_b):
+        return self._registry.get_embedding_service("folio").similarity(text_a, text_b)
+
+    def similarity_batch(self, pairs):
+        return self._registry.get_embedding_service("folio").similarity_batch(pairs)

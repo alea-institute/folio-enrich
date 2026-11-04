@@ -148,3 +148,12 @@ class TestConceptRecord:
     def test_shape(self):
         rec = ConceptRecord(iri="x", label="L", definition="d", examples=["e"])
         assert (rec.iri, rec.label, rec.definition, rec.examples) == ("x", "L", "d", ["e"])
+
+
+def test_union_is_virtual_not_an_enabled_spec():
+    registry = OntologyRegistry({'folio': FOLIO_SPEC, 'canon': CANON_SPEC})
+    assert registry.enabled_ids() == ['folio', 'canon']
+    assert registry.has('both')
+    assert registry.get_service('both').ontology_id == 'both'
+    with pytest.raises(UnknownOntologyError):
+        registry.get_spec('both')

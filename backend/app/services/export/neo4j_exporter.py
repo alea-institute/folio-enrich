@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import csv
+import json
 import io
 
+from app.models.annotation import UNION_CONCEPT_FIELDS
 from app.models.job import Job
-from app.services.export.base import ExporterBase
+from app.services.export.base import ExporterBase, union_cells
 
 
 class Neo4jExporter(ExporterBase):
@@ -25,14 +27,15 @@ class Neo4jExporter(ExporterBase):
         rels_writer = csv.writer(rels_buf)
 
         # Nodes header
-        nodes_writer.writerow([":ID", "name", "iri", "branch", ":LABEL"])
+        extra = list(UNION_CONCEPT_FIELDS) + ["bridges"] if job.result.ontology_id == "both" else []
+        nodes_writer.writerow([":ID", "name", "iri", "branch", ":LABEL"] + extra)
 
         seen_concepts: set[str] = set()
         concept_id = 0
 
         # Document node
         doc_id = f"doc_{job.id}"
-        nodes_writer.writerow([doc_id, str(job.id), "", "", "Document"])
+        nodes_writer.writerow([doc_id, str(job.id), "", "", "Document"] + (["", "", "", "", "", json.dumps(job.result.bridges or [])] if extra else []))
 
         # Relationships header
         rels_writer.writerow([":START_ID", ":END_ID", ":TYPE", "confidence", "span_start", "span_end"])
@@ -48,7 +51,7 @@ class Neo4jExporter(ExporterBase):
                         concept.folio_iri or "",
                         concept.branches[0] if concept.branches else "",
                         "Concept",
-                    ])
+                    ] + (union_cells(concept) + [""] if extra else []))
                 # Relationship
                 rels_writer.writerow([
                     doc_id, iri, "CONTAINS_CONCEPT",
@@ -65,7 +68,7 @@ class Neo4jExporter(ExporterBase):
                 "",
                 "",
                 "Individual",
-            ])
+            ] + [""] * len(extra))
             # Link individual to document
             rels_writer.writerow([
                 doc_id, ind_id, "CONTAINS_INDIVIDUAL",
@@ -91,7 +94,7 @@ class Neo4jExporter(ExporterBase):
                 prop.folio_iri or "",
                 "",
                 "Property",
-            ])
+            ] + [""] * len(extra))
             # Link property to document
             rels_writer.writerow([
                 doc_id, prop_id, "CONTAINS_PROPERTY",

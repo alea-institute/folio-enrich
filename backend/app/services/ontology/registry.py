@@ -23,6 +23,7 @@ from app.services.ontology.spec import BUILTIN_SPECS, OntologySpec
 if TYPE_CHECKING:
     from app.services.embedding.service import EmbeddingService
     from app.services.folio.folio_service import FolioService
+    from app.services.ontology.union_service import UnionService
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,8 @@ class OntologyRegistry:
         # ONE SentenceTransformer shared by every per-ontology EmbeddingService, so
         # enabling Canon does not load a second copy of the model.
         self._shared_provider = None
+        self._composite_embedding_service = None
+        self._union_service = None
 
     @classmethod
     def from_settings(cls) -> OntologyRegistry:
@@ -70,6 +73,8 @@ class OntologyRegistry:
         return list(self._specs.keys())
 
     def has(self, ontology_id: str) -> bool:
+        if ontology_id == "both":
+            return {"folio", "canon"} <= self._specs.keys()
         return ontology_id in self._specs
 
     def get_spec(self, ontology_id: str) -> OntologySpec:
@@ -108,13 +113,28 @@ class OntologyRegistry:
                     lru, len(non_default) + 1, ceiling,
                 )
 
-    def get_service(self, ontology_id: str | None = None) -> "FolioService":
+    def _validate_union(self, oid: str) -> bool:
+        if oid != "both":
+            return False
+        if not self.has(oid):
+            raise UnknownOntologyError(oid)
+        return True
+
+    def get_service(self, ontology_id: str | None = None) -> "FolioService | UnionService":
         """Return the (lazily built, cached) ontology read service for an id.
 
         Per-key double-checked locking: the fast path is a lock-free dict read; the
         build runs once under a per-ontology lock.
         """
         oid = ontology_id or self._default_id
+        if self._validate_union(oid):
+            from app.services.ontology.union_service import UnionService
+
+            if self._union_service is None:
+                with self._lock_for(oid):
+                    if self._union_service is None:
+                        self._union_service = UnionService(self)
+            return self._union_service
         svc = self._services.get(oid)  # fast path, lock-free
         if svc is not None:
             self._touch(oid)
@@ -158,6 +178,14 @@ class OntologyRegistry:
         the two builds never nest on the same lock.
         """
         oid = ontology_id or self._default_id
+        if self._validate_union(oid):
+            from app.services.embedding.service import CompositeEmbeddingService
+
+            if self._composite_embedding_service is None:
+                with self._lock_for(oid):
+                    if self._composite_embedding_service is None:
+                        self._composite_embedding_service = CompositeEmbeddingService(self)
+            return self._composite_embedding_service
         es = self._embedding_services.get(oid)  # fast path, lock-free
         if es is not None:
             self._touch(oid)
@@ -225,9 +253,7 @@ def get_embedding_service(ontology_id: str | None = None) -> "EmbeddingService":
 
 def reset_registry() -> None:
     """Test hook: drop the process-global registry so it rebuilds from settings."""
-    global _registry
-    with _registry_lock:
-        _registry = None
+    set_registry(None)
 
 
 def set_registry(registry: OntologyRegistry | None) -> None:
@@ -238,5 +264,10 @@ def set_registry(registry: OntologyRegistry | None) -> None:
     get_instance``, ``get_embedding_service``) returns. Pass ``None`` to clear.
     """
     global _registry
+    from app.services.ontology.overlap import reset_overlap_index
+
     with _registry_lock:
+        if registry is not None:
+            registry._union_service = None
         _registry = registry
+    reset_overlap_index()

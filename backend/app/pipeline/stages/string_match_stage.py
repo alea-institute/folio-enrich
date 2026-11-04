@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from app.models.annotation import Annotation, ConceptMatch, Span, StageEvent
+from app.models.annotation import Annotation, ConceptMatch, stamp_union_concept, stamp_union_dict, Span, StageEvent
 from app.models.job import Job, JobStatus
 from app.pipeline.stages.base import PipelineStage, record_lineage
 from app.services.matching.aho_corasick import AhoCorasickMatcher
@@ -71,7 +71,11 @@ class StringMatchStage(PipelineStage):
         # Label index used to refuse expanding an alt-label that is another concept's
         # canonical (primary/lemma-primary) label — see _alt_label_owned_by_other_primary.
         from app.services.folio.folio_service import FolioService
-        folio_labels = FolioService.get_instance(job.ontology).get_all_labels()
+        service = FolioService.get_instance(job.ontology)
+        folio_labels = service.get_all_labels()
+        stamp_cache = {}
+        if job.ontology == "both":
+            resolved_concepts = [stamp_union_dict(rc, service, cache=stamp_cache) for rc in resolved_concepts]
 
         for rc in resolved_concepts:
             rc_iri = rc.get("folio_iri", "")
@@ -161,6 +165,9 @@ class StringMatchStage(PipelineStage):
                     folio_deprecated=concept_dict.get("folio_deprecated"),
                 )
 
+                if job.ontology == "both":
+                    stamp_union_concept(concept, service, cache=stamp_cache)
+
                 # Build backup ConceptMatch objects from runner-up candidates
                 backup_concepts: list[ConceptMatch] = []
                 for bc in concept_dict.get("_backup_candidates", []):
@@ -177,6 +184,10 @@ class StringMatchStage(PipelineStage):
                         iri_hash=bc.get("iri_hash"),
                         folio_alt_labels=bc.get("folio_alt_labels"),
                     ))
+
+                if job.ontology == "both":
+                    for backup in backup_concepts:
+                        stamp_union_concept(backup, service, cache=stamp_cache)
 
                 # Materialize upstream _lineage_events from resolved concept dicts
                 upstream_events: list[StageEvent] = []

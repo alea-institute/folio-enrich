@@ -197,14 +197,14 @@ def build_pipeline_config(
     config.post_parallel.append(TripleEnrichmentStage())
 
     # MetadataStage runs absolute last — it uses all pipeline outputs as context
-    if task_llms_resolved.classifier is not None or task_llms_resolved.extractor is not None:
-        config.post_parallel.append(
-            MetadataStage(
-                task_llms_resolved.classifier or task_llms_resolved.extractor,
-                classifier_llm=task_llms_resolved.classifier,
-                extractor_llm=task_llms_resolved.extractor,
-            )
+    # Metadata also attaches deterministic bridges without an LLM.
+    config.post_parallel.append(
+        MetadataStage(
+            task_llms_resolved.classifier or task_llms_resolved.extractor,
+            classifier_llm=task_llms_resolved.classifier,
+            extractor_llm=task_llms_resolved.extractor,
         )
+    )
 
     return config
 
@@ -267,14 +267,14 @@ def build_stages(
     stages.append(TripleEnrichmentStage())
 
     # MetadataStage runs absolute last — it uses all pipeline outputs as context
-    if task_llms_resolved.classifier is not None or task_llms_resolved.extractor is not None:
-        stages.append(
-            MetadataStage(
-                task_llms_resolved.classifier or task_llms_resolved.extractor,
-                classifier_llm=task_llms_resolved.classifier,
-                extractor_llm=task_llms_resolved.extractor,
-            )
+    # Metadata also attaches deterministic bridges without an LLM.
+    stages.append(
+        MetadataStage(
+            task_llms_resolved.classifier or task_llms_resolved.extractor,
+            classifier_llm=task_llms_resolved.classifier,
+            extractor_llm=task_llms_resolved.extractor,
         )
+    )
 
     return stages
 
@@ -443,7 +443,7 @@ class PipelineOrchestrator:
             self.stages = build_stages(llm, task_llms=task_llms)  # kept for backward compat
 
     @staticmethod
-    def _stamp_ontology(job: Job) -> None:
+    def stamp_ontology(job: Job) -> None:
         """Stamp the result with which ontology this job is enriched against.
 
         Read from job.input.ontology (the request already validated it against the
@@ -453,6 +453,14 @@ class PipelineOrchestrator:
 
         registry = get_registry()
         ontology_id = job.ontology or registry.default_id
+        if ontology_id == "both":
+            folio = registry.get_spec("folio")
+            canon = registry.get_spec("canon")
+            job.result.ontology_id = "both"
+            job.result.ontology_name = f"{folio.display_name} + {canon.display_name}"
+            job.result.base_iri = folio.base_iri
+            job.result.peer_base_iri = canon.base_iri
+            return
         try:
             spec = registry.get_spec(ontology_id)
         except UnknownOntologyError:
@@ -483,7 +491,7 @@ class PipelineOrchestrator:
             logger.exception("Post-job hook failed for job %s", job.id)
 
     async def run(self, job: Job) -> Job:
-        self._stamp_ontology(job)
+        self.stamp_ontology(job)
         if self._config is not None:
             return await self._run_parallel(job)
         return await self._run_flat(job)

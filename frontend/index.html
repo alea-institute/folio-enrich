@@ -3602,6 +3602,35 @@
     z-index: 10000;
   }
   .demo-toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .region-legend { display:flex; flex-wrap:wrap; gap:8px 14px; font-size:12px; color:var(--text); margin-bottom:12px; }
+  .region-legend[hidden], .overlap-panel[hidden] { display:none; }
+  .region-legend small { flex-basis:100%; }
+  .annotation-span[data-region] { position:relative; }
+  .annotation-span[data-region]::after { content:attr(data-region-glyph); position:absolute; right:-3px; top:-0.65em; font-size:10px; line-height:1; color:var(--text); background:var(--bg); padding:1px; border-radius:2px; pointer-events:none; }
+  .overlap-panel { min-width:0; padding:12px; border:1px solid var(--border); border-radius:8px; color:var(--text); background:var(--bg); font-size:12px; margin-bottom:14px; overflow-wrap:anywhere; }
+  .overlap-panel summary { cursor:pointer; font-weight:600; }
+  .overlap-panel h3 { font-size:13px; margin:12px 0 6px; }
+  .overlap-panel p { margin:8px 0; }
+  .overlap-counts { display:grid; grid-template-columns:1fr auto; gap:5px; }
+  .overlap-counts dd { margin:0; }
+  .overlap-bridge { display:block; width:100%; min-width:0; white-space:normal; overflow-wrap:anywhere; text-align:left; color:var(--text); background:var(--bg); border:1px solid var(--border); padding:8px; margin-top:8px; border-radius:5px; font:inherit; cursor:pointer; }
+  .overlap-bridge:hover { border-color:var(--accent); }
+  .overlap-bridge:focus-visible, .region-legend span:focus-visible, .overlap-panel summary:focus-visible { outline:2px solid var(--text); outline-offset:3px; }
+  .annotation-span.bridge-highlight { outline:2px solid var(--text); outline-offset:2px; }
+  .overlap-concept { margin:10px 0; overflow-wrap:anywhere; }
+  .overlap-concept p { margin:5px 0; }
+  #resultBody:has(> #overlapPanel:not([hidden])) { display:grid; grid-template-columns:minmax(0, 1fr) minmax(200px, 30%); gap:0 16px; align-content:start; }
+  #resultBody:has(> #overlapPanel:not([hidden])) > #overlapPanel { grid-column:2; grid-row:1 / 4; align-self:start; }
+  #resultBody:has(> #overlapPanel:not([hidden])) > .region-legend { grid-column:1; grid-row:1; }
+  #resultBody:has(> #overlapPanel:not([hidden])) > .tab-content { grid-column:1; grid-row:2; min-width:0; }
+  .overlap-summary-compact { display:none; }
+  @media (max-width:700px) {
+    .overlap-summary-wide { display:none; }
+    .overlap-summary-compact { display:inline; font-size:11px; }
+    #resultBody:has(> #overlapPanel:not([hidden])) { display:block; }
+    .overlap-panel:not([open]) summary { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  }
+
 </style>
 <script>
 (function() {
@@ -3614,16 +3643,17 @@
   // Resolve ontology BEFORE first paint so the palette/brand never flash.
   // Precedence: ?ontology= query param > localStorage > 'folio'. Allowlist only
   // the ontologies we ship a palette for; anything else falls back to 'folio'.
-  var allow = { folio: 1, canon: 1 };
+  var allow = { folio: 1, canon: 1, both: 1 };
   var o = null;
   try { o = new URLSearchParams(location.search).get('ontology'); } catch (e) {}
-  if (!o) { try { o = localStorage.getItem('ontology'); } catch (e) {} }
+  if (!o) { try { o = localStorage.getItem('ontology'); if (o === 'both') o = 'folio'; } catch (e) {} }
   if (!o || !allow[o]) o = 'folio';
   document.documentElement.setAttribute('data-ontology', o);
 })();
 </script>
 <!-- Canon exemplar source texts → window.CANON_SAMPLES (served from frontend/demos/) -->
 <script src="/static/demos/canon_samples.js"></script>
+<script src="/static/demos/overlap_samples.js"></script>
 </head>
 <body>
 
@@ -3739,6 +3769,7 @@
         <span class="ont-check" aria-hidden="true">&#10003;</span>
         <span class="ont-name">Catholic Semantic Canon</span>
       </button>
+      <button class="ontology-option" type="button" role="menuitemradio" aria-checked="false" data-ontology-id="both" tabindex="-1"><span class="ont-check" aria-hidden="true">✓</span><span class="ont-name">Enrich against both</span></button>
     </div>
     <button class="header-btn" id="themeToggleBtn" onclick="cycleTheme()" title="Theme: Mixed (click for Dark)">&#9681;</button>
     <label class="toggle">
@@ -3920,6 +3951,16 @@
           <button class="secondary sample-btn" onclick="loadSample('patent')">Patent Application</button>
         </div>
       </div>
+      <section style="margin-top:12px" aria-label="Law &amp; Morals">
+        <h3 style="font-size:13px">Law &amp; Morals</h3>
+        <div class="sample-grid">
+          <button type="button" class="secondary sample-btn" onclick="loadDemoExemplar('lm_encyclopedia_theft')">Catholic Encyclopedia: Theft</button>
+          <button type="button" class="secondary sample-btn" onclick="loadDemoExemplar('lm_aquinas_robbery')">Aquinas: Robbery</button>
+          <button type="button" class="secondary sample-btn" onclick="loadDemoExemplar('lm_aquinas_just_price')">Aquinas: The Just Price</button>
+          <button type="button" class="secondary sample-btn" onclick="loadDemoExemplar('lm_exodus_restitution')">Exodus: Restitution</button>
+          <button type="button" class="secondary sample-btn" onclick="loadDemoExemplar('lm_catechism_seventh_eighth')">Catechism: 7th &amp; 8th Commandments</button>
+        </div>
+      </section>
       </div><!-- /#demoExemplars -->
 
       <div id="demoExemplarsCanon" hidden>
@@ -3945,7 +3986,24 @@
         <div class="sample-grid" style="margin-top:3px">
           <button class="secondary sample-btn" onclick="loadCanonSample('rerum_novarum')" title="Leo XIII, 1891 — labour, property, justice">Rerum Novarum</button>
         </div>
+
+        <label style="font-size:10px;font-weight:600;letter-spacing:0.3px;color:var(--text-dim);margin-top:6px;display:block">Breadth</label>
+        <div class="sample-grid" style="margin-top:3px">
+          <button class="secondary sample-btn" onclick="loadCanonSample('canon_liturgical_year')" title="Synthetic — a parish bulletin on the liturgical year (feasts, sacraments, ministries, places, and teaching)">Liturgical Year</button>
+          <button class="secondary sample-btn" onclick="loadCanonSample('canon_diocesan_governance')" title="Synthetic — a chancery memo on canon-law governance (appointments, tribunal, marriage nullity, penalties, and property)">Diocesan Governance</button>
+          <button class="secondary sample-btn" onclick="loadCanonSample('canon_saints_and_orders')" title="Synthetic — a short history of religious orders and saints (founders, rules, monasteries, councils, and pilgrimage places)">Saints and Religious Orders</button>
+        </div>
       </div>
+      <section style="margin-top:12px" aria-label="Law &amp; Morals">
+        <h3 style="font-size:13px">Law &amp; Morals</h3>
+        <div class="sample-grid">
+          <button type="button" class="secondary sample-btn" onclick="loadDemoExemplar('lm_encyclopedia_theft')">Catholic Encyclopedia: Theft</button>
+          <button type="button" class="secondary sample-btn" onclick="loadDemoExemplar('lm_aquinas_robbery')">Aquinas: Robbery</button>
+          <button type="button" class="secondary sample-btn" onclick="loadDemoExemplar('lm_aquinas_just_price')">Aquinas: The Just Price</button>
+          <button type="button" class="secondary sample-btn" onclick="loadDemoExemplar('lm_exodus_restitution')">Exodus: Restitution</button>
+          <button type="button" class="secondary sample-btn" onclick="loadDemoExemplar('lm_catechism_seventh_eighth')">Catechism: 7th &amp; 8th Commandments</button>
+        </div>
+      </section>
       </div><!-- /#demoExemplarsCanon -->
 
       <div style="margin-top:8px">
@@ -4009,6 +4067,15 @@
       <div class="tab" data-tab="insights" role="tab" id="tabbtn-insights" aria-controls="tab-insights" aria-selected="false" tabindex="-1" onclick="switchTab(this, 'insights'); loadInsights()">Insights</div>
     </div>
     <div class="panel-body" id="resultBody">
+      <details id="overlapPanel" class="overlap-panel" hidden open>
+        <summary id="overlapSummary">Document overlap</summary>
+        <div id="overlapContent"></div>
+      </details>
+      <div id="regionLegend" class="region-legend" hidden aria-label="Concept tag regions">
+        <span tabindex="0">● FOLIO only</span><span tabindex="0">▲ Canon only</span>
+        <span tabindex="0">■ In both</span><span tabindex="0">▣ In both, drifted</span>
+        <small>Overlap covers concept tags only.</small>
+      </div>
       <div class="tab-content active" id="tab-annotated" role="tabpanel" aria-labelledby="tabbtn-annotated">
         <div class="doc-type-banner" id="docTypeBanner">
           <span class="doc-type-label" id="docTypeLabel"></span>
@@ -4178,6 +4245,7 @@
       <div id="detailEmpty" class="detail-empty">Click an annotation to view concept details</div>
       <div id="detailLoading" class="detail-loading" style="display:none"><span class="spinner"></span> Loading concept...</div>
       <div id="detailContent" style="display:none">
+        <div id="detailOverlap" class="detail-section"></div>
         <div id="detailAncestry" class="detail-section"></div>
         <div id="detailSource" class="detail-section"></div>
         <div id="detailInfo" class="detail-section"></div>
@@ -4584,10 +4652,11 @@ function resetPropositionSessionState() {
 // re-fetch so an ontology switch can cancel it.
 let activeOntology = document.documentElement.getAttribute('data-ontology') || 'folio';
 let ONTOLOGIES = {
-  folio: { display_name: 'FOLIO', default: true },
-  canon: { display_name: 'Catholic Semantic Canon', default: false },
+  folio: { display_name: 'FOLIO', default: true, iri_roots: ['https://folio.openlegalstandard.org/'] },
+  canon: { display_name: 'Catholic Semantic Canon', default: false, iri_roots: ['https://ontology.catholicos.catholic/', 'http://webprotege.stanford.edu/'] },
+  both: { display_name: 'Enrich against both', default: false },
 };
-let ONTOLOGY_ALLOW = new Set(['folio', 'canon']);
+let ONTOLOGY_ALLOW = new Set(['folio', 'canon', 'both']);
 let _canonFontInjected = false;
 let _ontologyPopoverOpen = false;
 let _ontologyOutsideClickHandler = null;
@@ -4639,6 +4708,8 @@ let currentDemoSlug = null;
 let originalDemoCache = null;    // deep clone of the loaded demo (for clean re-hydrate)
 let currentDemoMeta = null;      // the demo's {title,…} block, persisted so a reload keeps the title
 
+const OVERLAP_EXEMPLAR_DEMO_SLUGS = new Set(['lm_encyclopedia_theft', 'lm_aquinas_robbery', 'lm_aquinas_just_price', 'lm_exodus_restitution', 'lm_catechism_seventh_eighth']);
+
 // The 22 exemplars (Rich Enrichment + Quick Start) that have pre-baked demo JSON.
 const EXEMPLAR_DEMO_SLUGS = new Set([
   'rich_lit_timekeeping','rich_ma_timekeeping','rich_re_timekeeping',
@@ -4655,7 +4726,7 @@ const EXEMPLAR_DEMO_SLUGS = new Set([
 function cacheState() {
   if (!currentJob || !currentJobId) return;
   const cacheKey = isDemoMode && currentDemoSlug
-    ? 'folio_demo_cache_' + currentDemoSlug
+    ? 'folio_demo_cache_' + activeOntology + '_' + currentDemoSlug
     : 'folio_enrich_cache';
   try {
     sessionStorage.setItem(cacheKey, JSON.stringify({
@@ -4686,6 +4757,7 @@ function restoreState() {
     if (!raw) return false;
     const cache = JSON.parse(raw);
     if (!cache.jobId || !cache.job) return false;
+    if (cache.job.result?.ontology_id === 'both' && new URLSearchParams(location.search).get('ontology') !== 'both') return false;
 
     // Carry the restored job's ontology so its results render under the right brand.
     // Applied BEFORE currentJob* are set (below) so a differing cached ontology can't
@@ -4828,7 +4900,7 @@ function updateThemeSwatches(theme) {
 // shareable URLs.
 
 function ontologyBrand(id) { return id === 'canon' ? 'CatholicOS' : 'FOLIO'; }
-function ontologyShortName(id) { return id === 'canon' ? 'Canon' : 'FOLIO'; }
+function ontologyShortName(id) { return id === 'both' ? 'Both' : id === 'canon' ? 'Canon' : 'FOLIO'; }
 function ontologyDisplayName(id) {
   return (ONTOLOGIES[id] && ONTOLOGIES[id].display_name)
     || (id === 'canon' ? 'Catholic Semantic Canon' : 'FOLIO');
@@ -4913,8 +4985,7 @@ function applyOntology(id, { push = true, persist = true } = {}) {
   // the global CSS vars never recolor stale spans for a frame. clearAll() is the
   // existing New/Clear path (also cancels timers + closes the SSE stream).
   if (switching && hasRenderedResults()) clearAll();
-  // Concept detail cache is keyed by iri_hash only (no ontology) — drop it on a real
-  // switch so FOLIO hierarchy/graph never bleeds into a Canon session (and vice versa).
+  // Release cached details when leaving the current document's ontology.
   if (switching && typeof _conceptDetailCache !== 'undefined') {
     for (const k in _conceptDetailCache) delete _conceptDetailCache[k];
   }
@@ -4922,7 +4993,7 @@ function applyOntology(id, { push = true, persist = true } = {}) {
   if (id === 'canon') injectCanonFont();
   activeOntology = id;
   syncOntologyUI();
-  if (persist) { try { localStorage.setItem('ontology', id); } catch (e) {} }
+  if (persist && id !== 'both') { try { localStorage.setItem('ontology', id); } catch (e) {} }
   if (push) {
     try {
       const u = new URL(window.location.href);
@@ -5063,11 +5134,12 @@ async function loadOntologies() {
   if (data) {
     ONTOLOGIES = {};
     ONTOLOGY_ALLOW = new Set();
-    data.ontologies.forEach(o => {
-      ONTOLOGIES[o.id] = { display_name: o.display_name || o.id, default: !!o.default };
+    const choices = [...data.ontologies, ...(data.modes || [])];
+    choices.forEach(o => {
+      ONTOLOGIES[o.id] = { ...o, display_name: o.display_name || o.id, default: !!o.default };
       ONTOLOGY_ALLOW.add(o.id);
     });
-    buildOntologyMenu(data.ontologies);
+    buildOntologyMenu(choices);
   }
   // The pre-paint resolver silently maps an unknown ?ontology= to 'folio' (no toast
   // is possible before paint). Surface it now so a bad shared link is explained.
@@ -5295,8 +5367,10 @@ function demoUrl(slug, ontology = activeOntology) {
 
 // Fetch and hydrate a pre-baked exemplar; fall back to lean prefill on any failure.
 async function loadDemoExemplar(slug, { pushUrl = true } = {}) {
+  const target = OVERLAP_EXEMPLAR_DEMO_SLUGS.has(slug) ? 'both' : (activeOntology === 'both' ? 'folio' : activeOntology);
+  if (target !== activeOntology) applyOntology(target, { push: false, persist: false });
   try {
-    const resp = await fetch(demoUrl(slug));
+    const resp = await fetch(demoUrl(slug, target));
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const payload = await resp.json();
     const cache = payload.cache;
@@ -5334,13 +5408,14 @@ async function tryLoadDemo() {
 
   // Resolve the ontology from the URL BEFORE building the demo URL, so a Canon
   // deep-link fetches from the Canon dir and renders under Canon branding.
-  const urlOntology = params.get('ontology') || 'folio';
+  const requestedOntology = params.get('ontology') || 'folio';
+  const urlOntology = OVERLAP_EXEMPLAR_DEMO_SLUGS.has(slug) ? 'both' : (requestedOntology === 'both' ? 'folio' : requestedOntology);
   if (ONTOLOGY_ALLOW.has(urlOntology) && urlOntology !== activeOntology) {
     applyOntology(urlOntology, { push: false, persist: true });
   }
 
   // Try sessionStorage first (refresh support)
-  const cacheKey = 'folio_demo_cache_' + slug;
+  const cacheKey = 'folio_demo_cache_' + urlOntology + '_' + slug;
   let demoData = null;
   try {
     const cached = sessionStorage.getItem(cacheKey);
@@ -5393,6 +5468,7 @@ async function tryLoadJob() {
     if (ONTOLOGY_ALLOW.has(jobOntology) && jobOntology !== activeOntology) {
       applyOntology(jobOntology, { push: false, persist: true });
     }
+    if (jobOntology === 'both') params.set('ontology', 'both');
 
     resetPropositionSessionState();
     currentJobId = job.id || jobId;
@@ -5454,6 +5530,8 @@ async function tryLoadJob() {
 }
 
 function hydrateFromDemo(cache, slug) {
+  const mode = cache.job?.result?.ontology_id;
+  if (mode && mode !== activeOntology) applyOntology(mode, { push: false, persist: false });
   isDemoMode = true;
   currentDemoSlug = slug;
   originalDemoCache = JSON.parse(JSON.stringify(cache));  // deep clone
@@ -5502,6 +5580,8 @@ function hydrateFromDemo(cache, slug) {
 // Reset rendered output while preserving the document text (used when a user starts
 // editing a demo's text — the baked annotations no longer match, so clear them).
 function clearResultsOnly() {
+  document.getElementById('overlapPanel').hidden = true;
+  document.getElementById('regionLegend').hidden = true;
   document.getElementById('annotatedText').innerHTML = '';
   document.getElementById('annotatedText').style.display = 'none';
   document.getElementById('emptyState').style.display = 'block';
@@ -7885,6 +7965,116 @@ function hideDocTypeBanner() {
 // Results Rendering
 // ==============================================
 
+function regionName(c) {
+  if (!c?.region) return '';
+  return c.region === 'shared' ? (c.drifted ? 'In both, drifted' : 'In both')
+    : c.region === 'canon_only' ? 'Canon only' : 'FOLIO only';
+}
+
+function regionGlyph(c) {
+  return c?.region === 'shared' ? (c.drifted ? '▣' : '■') : c?.region === 'canon_only' ? '▲' : '●';
+}
+
+function overlapCounts(annotations) {
+  const concepts = new Map();
+  for (const ann of annotations) {
+    const c = ann.concepts?.[0];
+    if (!c?.folio_iri || !c.region) continue;
+    const key = c.region === 'shared' ? [c.folio_iri, c.peer_iri || ''].sort().join('|') : c.folio_iri;
+    const previous = concepts.get(key);
+    concepts.set(key, previous?.drifted ? previous : c);
+  }
+  const counts = { shared: 0, canon_only: 0, folio_only: 0, drifted: 0, total: concepts.size };
+  for (const c of concepts.values()) {
+    counts[c.region]++;
+    if (c.region === 'shared' && c.drifted) counts.drifted++;
+  }
+  return counts;
+}
+
+function renderOverlapPanel(job) {
+  const both = job.result?.ontology_id === 'both';
+  const panel = document.getElementById('overlapPanel');
+  document.getElementById('regionLegend').hidden = !both;
+  panel.hidden = !both;
+  if (!both) return;
+  const counts = overlapCounts(job.result.annotations || []);
+  const share = counts.total ? `${Math.round(counts.shared / counts.total * 100)}% in both` : 'No concepts tagged';
+  const summary = document.getElementById('overlapSummary');
+  summary.setAttribute('aria-label', `${share}; ${counts.folio_only} FOLIO only; ${counts.canon_only} Canon only; ${counts.shared} in both; ${counts.drifted} drifted`);
+  summary.innerHTML = `<span class="overlap-summary-wide">Document overlap · ${escapeHtml(share)}</span><span class="overlap-summary-compact">${escapeHtml(share)} · ● ${counts.folio_only} ▲ ${counts.canon_only} ■ ${counts.shared} ▣ ${counts.drifted}</span>`;
+  const skipped = (job.result.metadata?.activity_log || []).some(e => /LLM stages skipped/i.test(e.msg || ''));
+  const content = document.getElementById('overlapContent');
+  content.innerHTML = `<p><strong>${escapeHtml(share)}</strong></p>${skipped ? '<p>LLM stages were skipped: no visitor LLM key supplied. Regions use rule-based concept tags.</p>' : ''}
+    <p>${counts.shared} shared / ${counts.total} distinct concepts</p>
+    <dl class="overlap-counts"><dt>FOLIO only</dt><dd>${counts.folio_only}</dd><dt>Canon only</dt><dd>${counts.canon_only}</dd><dt>In both (including drifted)</dt><dd>${counts.shared}</dd><dt>In both, drifted</dt><dd>${counts.drifted}</dd></dl>
+    <h3>Moral-to-legal bridges</h3>`;
+  const bridges = job.result.bridges || [];
+  if (!bridges.length) content.insertAdjacentHTML('beforeend', '<p>No bridges found in this text.</p>');
+  bridges.forEach(bridge => {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'overlap-bridge';
+    const matched = bridge.matched_on || [];
+    row.textContent = `${bridge.canon_label}${matched.includes('canon') ? '' : ' (not in this text)'} → ${bridge.folio_label}${matched.includes('folio') ? '' : ' (not in this text)'} · ${bridge.match_type} · ${bridge.review_status === 'damien' ? 'Reviewed by Damien' : 'Model passes only'}`;
+    row.addEventListener('click', () => openOverlapBridge(bridge));
+    content.appendChild(row);
+  });
+  // Keep the mobile disclosure compact on first render, without overriding taps on updates.
+  if (!panel.dataset.initialized) {
+    panel.open = !window.matchMedia('(max-width: 700px)').matches;
+    panel.dataset.initialized = 'true';
+  }
+}
+
+async function openOverlapBridge(bridge) {
+  const annotations = currentJob?.result?.annotations || [];
+  const isEndpoint = iri => iri && ((ontologyForIri(iri) === 'canon' && iri.split('/').pop() === bridge.canon_hash) || (ontologyForIri(iri) === 'folio' && iri.split('/').pop() === bridge.folio_hash));
+  const matches = annotations.filter(a => a.concepts?.some(c => isEndpoint(c.folio_iri) || isEndpoint(c.peer_iri)));
+  const ids = new Set(matches.map(a => a.id));
+  document.querySelectorAll('#annotatedText .annotation-span').forEach(el => {
+    el.classList.toggle('bridge-highlight', (el.dataset.annIds || '').split(',').some(id => ids.has(id)));
+  });
+  document.querySelector('#annotatedText .bridge-highlight')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  const canon = matches.flatMap(a => a.concepts || []).find(c => [c.folio_iri, c.peer_iri].some(iri => ontologyForIri(iri || '') === 'canon' && iri?.split('/').pop() === bridge.canon_hash));
+  const iri = [canon?.folio_iri, canon?.peer_iri].find(value => value && ontologyForIri(value) === 'canon') || (currentJob.result.peer_base_iri || ONTOLOGIES.canon?.base_iri || 'https://ontology.catholicos.catholic/') + bridge.canon_hash;
+  await loadConceptDetail(iri);
+  if (_currentDetailIriHash !== iri) return;
+  if (!_conceptDetailCache[iri]) {
+    document.querySelectorAll('#detailContent .detail-section').forEach(section => { section.textContent = ''; });
+    renderDetailInfo({ iri, label: bridge.canon_label });
+  }
+  const detail = document.getElementById('detailOverlap');
+  detail.innerHTML = `<h3>${escapeHtml(bridge.canon_label)}</h3><p>${escapeHtml(bridge.rationale || '')}</p><p>${escapeHtml(bridge.match_type)} · ${bridge.review_status === 'damien' ? 'Reviewed by Damien' : 'Model passes only'}</p>`;
+  // The bridge rationale remains available even when its endpoint is absent from the text.
+  document.getElementById('detailEmpty').style.display = 'none';
+  document.getElementById('detailContent').style.display = 'block';
+}
+
+async function renderOverlapDetail(annId, primaryDetail) {
+  const c = _annotationDataById[annId]?.concepts?.[0];
+  if (c?.region !== 'shared' || !c.peer_iri) return;
+  const host = document.getElementById('detailOverlap');
+  const branchText = (detail, branches) => {
+    const paths = detail?.hierarchy_paths?.length ? detail.hierarchy_paths : detail?.hierarchy_path?.length ? [detail.hierarchy_path] : [];
+    return paths.length ? paths.map(path => path.map(node => node.label || node.iri || '').join(' → ')).join('; ') : (branches || []).map(branch => typeof branch === 'string' ? branch : branch.label || '').join(' → ') || 'Branch path unavailable';
+  };
+  function draw(peer) {
+    host.innerHTML = `<h3>${c.drifted ? 'Shared, drifted' : 'In both'}</h3>` + [
+      { iri: c.folio_iri, label: c.folio_label || primaryDetail.label, detail: primaryDetail, branches: c.branches },
+      { iri: c.peer_iri, label: c.peer_label || peer?.label || '', detail: peer, branches: c.peer_branches },
+    ].map(item => `<section class="overlap-concept"><strong>${ontologyForIri(item.iri) === 'canon' ? 'Canon' : 'FOLIO'}: ${escapeHtml(item.label)}</strong><p><a href="${escapeAttr(item.iri)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.iri)}</a></p><p>${escapeHtml(branchText(item.detail, item.branches))}</p></section>`).join('');
+  }
+  draw(_conceptDetailCache[c.peer_iri]);
+  if (!_conceptDetailCache[c.peer_iri]) {
+    try {
+      const resp = await fetch(conceptEndpoint(c.peer_iri));
+      if (resp.ok) _conceptDetailCache[c.peer_iri] = await resp.json();
+    } catch { /* Baked peer labels and branches remain available offline. */ }
+  }
+  if (_currentDetailAnnId === annId && _currentDetailIriHash === c.folio_iri) draw(_conceptDetailCache[c.peer_iri]);
+}
+
 function renderResults(job) {
   const text = job.result?.canonical_text?.full_text || '';
   const annotations = job.result?.annotations || [];
@@ -7893,6 +8083,7 @@ function renderResults(job) {
   accumulatedPropositions = job.result?.propositions || accumulatedPropositions;
   const metadata = job.result?.metadata || {};
 
+  renderOverlapPanel(job);
   _seedDismissedCache(annotations);
   if (metadata.document_type) {
     showDocTypeBanner(metadata.document_type, metadata.document_type_confidence);
@@ -8139,8 +8330,11 @@ function _buildAnnotationSpan(ann, innerHtml, rawInner, allCoveringAnns) {
     confStyle += `--multi-dots:${branchColors.join(',')};`;
   }
 
+  const regionConcept = [...multiAnns].sort((a, b) => (a.span.end - a.span.start) - (b.span.end - b.span.start))[0]?.concepts?.[0];
+  const regions = [...new Set(multiAnns.map(a => regionName(a.concepts?.[0])).filter(Boolean))];
+  const regionAttrs = regions.length ? ` data-region="${escapeAttr(regionConcept.region)}" data-drifted="${!!regionConcept.drifted}" data-region-glyph="${regionGlyph(regionConcept)}" aria-label="${escapeAttr(regions.join('; ') + ': ' + (c.folio_label || c.concept_text || ''))}"` : '';
   const extraCls = multiCount >= 2 ? ' multi-branch' : '';
-  return `<span class="annotation-span${extraCls}" ${dataAttrs}${confStyle ? ` style="${confStyle}"` : ''}>${innerHtml}</span>`;
+  return `<span class="annotation-span${extraCls}" ${dataAttrs}${regionAttrs}${confStyle ? ` style="${confStyle}"` : ''}>${innerHtml}</span>`;
 }
 
 function _buildPropertySpan(prop, innerHtml) {
@@ -9622,13 +9816,28 @@ document.addEventListener('click', (e) => {
 // Detail Panel — Right panel for concept details
 // ==============================================
 
-const _conceptDetailCache = {};  // iri_hash → detail object
+const _conceptDetailCache = {};  // full IRI → detail object
 
 // Append the active ontology to a concept endpoint path so tooltips / detail / graph
 // hydrate against the ontology the user is viewing (path may already carry a query).
+function ontologyForIri(iri) {
+  for (const [id, spec] of Object.entries(ONTOLOGIES)) {
+    if (id !== 'both' && (spec.iri_roots || []).some(root => iri.startsWith(root))) return id;
+  }
+  return activeOntology === 'both' ? 'folio' : activeOntology;
+}
+
+function fullConceptIri(ident, annId) {
+  if (!ident || ident.includes('://')) return ident;
+  const concept = _annotationDataById[annId]?.concepts?.find(c => c.folio_iri?.split('/').pop() === ident);
+  if (concept) return concept.folio_iri;
+  return (currentJob?.result?.base_iri || ONTOLOGIES[activeOntology]?.base_iri || (activeOntology === 'canon' ? 'https://ontology.catholicos.catholic/' : 'https://folio.openlegalstandard.org/')) + ident;
+}
+
 function conceptUrl(path) {
   const sep = path.includes('?') ? '&' : '?';
-  return `${API}${path}${sep}ontology=${encodeURIComponent(activeOntology)}`;
+  const iri = new URLSearchParams(path.split('?')[1] || '').get('iri') || '';
+  return `${API}${path}${sep}ontology=${encodeURIComponent(ontologyForIri(iri))}`;
 }
 
 // Build a /concepts endpoint URL that resolves for ANY ontology.
@@ -9760,6 +9969,11 @@ function fallbackDetailFromBaked(annId) {
 
 async function loadConceptDetail(iriHash, annId) {
   if (!iriHash) return;
+  iriHash = fullConceptIri(iriHash, annId);
+  if (!annId && currentJob?.result?.ontology_id === 'both') {
+    annId = (currentJob.result.annotations || []).find(a => a.concepts?.[0]?.folio_iri === iriHash)?.id;
+  }
+  document.getElementById('detailOverlap').textContent = '';
 
   // Show the detail panel
   showDetailPanel();
@@ -9794,6 +10008,7 @@ async function loadConceptDetail(iriHash, annId) {
 
     renderAncestryTree(detail);
     renderDetailInfo(detail);
+    renderOverlapDetail(annId, detail);
     renderDetailAlternatives(annId);
     renderDetailLineage(annId);
     renderDetailIndividuals(annId);
@@ -9817,6 +10032,7 @@ async function loadConceptDetail(iriHash, annId) {
       content.style.display = 'block';
       renderAncestryTree(fallback);   // no hierarchy paths → empty, no error
       renderDetailInfo(fallback);
+      renderOverlapDetail(annId, fallback);
       renderDetailAlternatives(annId);
       renderDetailLineage(annId);
       renderDetailIndividuals(annId);
@@ -9857,7 +10073,7 @@ async function toggleAltsInHierarchy(event) {
     const annData = _annotationDataById[_currentDetailAnnId];
     const alts = (annData && annData.concepts) ? annData.concepts.slice(1) : [];
     const missing = alts.filter(a => {
-      const h = a.folio_iri ? a.folio_iri.split('/').pop() : null;
+      const h = a.folio_iri || null;
       return h && !_conceptDetailCache[h];
     });
 
@@ -9868,7 +10084,7 @@ async function toggleAltsInHierarchy(event) {
         renderAncestryTree(_conceptDetailCache[_currentDetailIriHash]);
       }
       await Promise.all(missing.map(async (alt) => {
-        const h = alt.folio_iri.split('/').pop();
+        const h = alt.folio_iri;
         try {
           const resp = await fetch(conceptEndpoint(alt.folio_iri));
           if (resp.ok) _conceptDetailCache[h] = await resp.json();
@@ -10182,7 +10398,7 @@ function buildMergedTree(primaryDetail, annData) {
 
   // Insert alternatives
   annData.concepts.slice(1).forEach((alt, idx) => {
-    const iriHash = alt.folio_iri ? alt.folio_iri.split('/').pop() : null;
+    const iriHash = alt.folio_iri || null;
     if (!iriHash || !_conceptDetailCache[iriHash]) return;
     insertPath(_conceptDetailCache[iriHash], false, idx + 1, alt.confidence);
   });
@@ -10296,15 +10512,14 @@ const _conceptsTabCollapsed = {};  // pathKey → boolean
 let _conceptsTabTreeCache = null;  // cached tree result
 
 async function buildConceptsTabTree(annotations, individuals) {
-  // Map bare hash -> full IRI so the batch fetch can resolve non-FOLIO ontologies
-  // (folio-python only indexes classes by bare hash for FOLIO).
+  // Keep full IRIs throughout: the same hash may exist in both ontologies.
   const hashToFullIri = new Map();
-  // 1. Dedup concepts from annotations by IRI hash (primary concept only)
-  const conceptMap = new Map();  // iri_hash → { label, count, confidence, branch, branches, source }
+  // 1. Dedup concepts from annotations by full IRI (primary concept only)
+  const conceptMap = new Map();  // full IRI → { label, count, confidence, branch, branches, source }
   for (const ann of annotations) {
     if (!ann.concepts || ann.concepts.length === 0) continue;
     const c = ann.concepts[0];
-    const iriHash = c.folio_iri ? c.folio_iri.split('/').pop() : null;
+    const iriHash = c.folio_iri || null;
     if (!iriHash) continue;
     if (c.folio_iri) hashToFullIri.set(iriHash, c.folio_iri);
     if (conceptMap.has(iriHash)) {
@@ -10329,7 +10544,7 @@ async function buildConceptsTabTree(annotations, individuals) {
     if (!ind.class_links) continue;
     for (const cl of ind.class_links) {
       const clIri = cl.folio_iri || '';
-      const clHash = clIri ? clIri.split('/').pop() : null;
+      const clHash = clIri || null;
       if (!clHash) continue;
       if (clIri) hashToFullIri.set(clHash, clIri);
       individualClassHashes.add(clHash);
@@ -10342,36 +10557,36 @@ async function buildConceptsTabTree(annotations, individuals) {
     }
   }
 
-  // 3. Batch-fetch hierarchy details for all unique hashes.
-  // Send FULL IRIs (falling back to bare hash for old cached data) so non-FOLIO
-  // ontologies resolve; the backend keys its response by whatever we send, but we
-  // re-key the cache by the backend-provided detail.iri_hash (true bare hash), so
-  // downstream lookups by bare hash keep working (FOLIO byte-neutral).
+  // 3. Batch-fetch full IRIs, grouped by their owning ontology.
   const allHashes = new Set([...conceptMap.keys(), ...individualClassHashes]);
-  // Filter out already-cached hashes; map each to a full IRI for the request.
+  // Filter out details already cached for this IRI.
   const needed = [...allHashes].filter(h => !_conceptDetailCache[h]);
   const neededIdents = needed.map(h => hashToFullIri.get(h) || h);
   async function fetchBatch(idents) {
-    const resp = await fetch(`${API}/concepts/batch`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ iri_hashes: idents, ontology: activeOntology }),
-    });
-    if (resp.ok) {
-      const data = await resp.json();
-      for (const detail of Object.values(data)) {
-        // Key by the backend's true bare hash so bare-hash lookups resolve.
-        if (detail && detail.iri_hash) _conceptDetailCache[detail.iri_hash] = detail;
-      }
+    const groups = new Map();
+    for (const iri of idents) {
+      const ontology = ontologyForIri(iri);
+      if (!groups.has(ontology)) groups.set(ontology, []);
+      groups.get(ontology).push(iri);
     }
+    await Promise.all([...groups].map(async ([ontology, iris]) => {
+      for (let i = 0; i < iris.length; i += 100) {
+        const resp = await fetch(`${API}/concepts/batch`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ iri_hashes: iris.slice(i, i + 100), ontology }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          for (const [iri, detail] of Object.entries(data)) {
+            if (detail) _conceptDetailCache[detail.iri || fullConceptIri(iri)] = detail;
+          }
+        }
+      }
+    }));
   }
   if (neededIdents.length > 0) {
     try {
-      await fetchBatch(neededIdents.slice(0, 100));
-      // Fetch remaining if > 100
-      if (neededIdents.length > 100) {
-        await fetchBatch(neededIdents.slice(100, 200));
-      }
+      await fetchBatch(neededIdents);
     } catch (e) {
       console.error('Batch concept fetch failed:', e);
     }
@@ -10463,7 +10678,7 @@ async function buildConceptsTabTree(annotations, individuals) {
 
   for (const [clHash, inds] of individualsByClass) {
     for (const [, branch] of branches) {
-      const node = findNode(branch.children, clHash);
+      const node = findNode(branch.children, clHash.split('/').pop());
       if (node) {
         for (const ind of inds) {
           if (!node.individuals.some(e => e.id === ind.id)) {
@@ -12592,7 +12807,7 @@ async function propositionValidationAccess(session) {
 }
 
 async function ensurePropositionSession(force, { lookupOnly = false } = {}) {
-  if ((!propositionAnnotationMode && !lookupOnly) || !currentJobId || currentJob?.status !== 'completed') {
+  if (currentJob?.result?.ontology_id === 'both' || (!propositionAnnotationMode && !lookupOnly) || !currentJobId || currentJob?.status !== 'completed') {
     renderPropositionsTab();
     return;
   }
@@ -13287,6 +13502,7 @@ function renderPropositionsTab() {
   if (document.getElementById('tab-propositions')?.classList.contains('active')) ensureInsightsStatus(false);
   renderInsightsBanner();
   const toggle = document.getElementById('propositionModeToggle');
+  toggle.closest('label').hidden = currentJob?.result?.ontology_id === 'both';
   toggle.checked = propositionAnnotationMode;
   const validationBanner = document.getElementById('propositionValidationBanner');
   validationBanner.style.display = propositionSession?.validation_of ? '' : 'none';
@@ -13296,7 +13512,7 @@ function renderPropositionsTab() {
   document.getElementById('propositionModeStatus').textContent = propositionAnnotationMode
     ? `On · ${propositionSession?.validation_of ? 'gold validation' : propositionSession?.baseline ? 'lexicon-only baseline' : llm?.provider && llm?.model ? `lexicon + ${llm.provider}/${llm.model}` : 'lexicon only'}` : 'Off';
   const complete = currentJob?.status === 'completed';
-  document.getElementById('startPropositionSessionBtn').style.display = propositionAnnotationMode && complete && !propositionSession ? '' : 'none';
+  document.getElementById('startPropositionSessionBtn').style.display = currentJob?.result?.ontology_id !== 'both' && propositionAnnotationMode && complete && !propositionSession ? '' : 'none';
   document.getElementById('addPropositionSpanBtn').disabled = !propositionAnnotationMode || !propositionSession;
   document.getElementById('blindSegmentBtn').disabled = !propositionAnnotationMode || !propositionSession || Boolean(propositionSession?.blind_segment);
   document.getElementById('exportGoldBtn').disabled = !propositionAnnotationMode || !propositionSession;
@@ -14157,7 +14373,7 @@ function toggleUncertain() {
 
 function prefillSample(name) {
   const ta = document.getElementById('docInput');
-  ta.value = SAMPLES[name] || '';
+  ta.value = window.OVERLAP_SAMPLES?.[name] || window.CANON_SAMPLES?.[name] || SAMPLES[name] || '';
   uploadedFilename = null;
   applyDebugTruncation();
 }
@@ -14172,7 +14388,7 @@ function loadSample(name) {
 }
 
 // Canon exemplars have their own pre-baked demos + source texts (window.CANON_SAMPLES).
-const CANON_EXEMPLAR_DEMO_SLUGS = new Set(['nativity','sacraments','trent_eucharist','rerum_novarum']);
+const CANON_EXEMPLAR_DEMO_SLUGS = new Set(['nativity','sacraments','trent_eucharist','rerum_novarum','canon_liturgical_year','canon_diocesan_governance','canon_saints_and_orders']);
 function loadCanonSample(slug) {
   // In demo mode, load the instant pre-baked Canon result (mirrors loadSample).
   if (demoModeOn && CANON_EXEMPLAR_DEMO_SLUGS.has(slug)) {
@@ -14208,6 +14424,8 @@ function clearAll() {
   const ta = document.getElementById('docInput');
   ta.value = '';
   ta.placeholder = 'Paste your legal document text here...';
+  document.getElementById('overlapPanel').hidden = true;
+  document.getElementById('regionLegend').hidden = true;
   document.getElementById('annotatedText').innerHTML = '';
   document.getElementById('annotatedText').style.display = 'none';
   document.getElementById('emptyState').style.display = 'block';

@@ -42,6 +42,17 @@ class JobResult(BaseModel):
     ontology_id: str = DEFAULT_ONTOLOGY
     ontology_name: str = "FOLIO"
     base_iri: str = "https://folio.openlegalstandard.org/"
+    peer_base_iri: str | None = None
+    bridges: list[dict] | None = None
+
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler):
+        data = handler(self)
+        if self.peer_base_iri is None:
+            data.pop("peer_base_iri", None)
+        if self.bridges is None:
+            data.pop("bridges", None)
+        return data
 
     @field_validator("propositions", mode="before")
     @classmethod

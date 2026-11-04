@@ -109,10 +109,15 @@ class LLMPropertyStage(PipelineStage):
         if not job.result.canonical_text:
             return job
 
-        if settings.property_regex_only:
+        if self.llm is None:
+            if job.ontology == "both":
+                job.result.metadata.setdefault("activity_log", []).append({
+                    "ts": datetime.now(timezone.utc).isoformat(), "stage": self.name,
+                    "msg": "LLM stages skipped: no visitor LLM key supplied",
+                })
             return job
 
-        if self.llm is None:
+        if settings.property_regex_only:
             return job
 
         log = job.result.metadata.setdefault("activity_log", [])
