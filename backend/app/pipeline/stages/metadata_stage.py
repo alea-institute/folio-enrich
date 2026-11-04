@@ -10,6 +10,8 @@ from app.services.llm.base import LLMProvider
 from app.services.metadata.classifier import DocumentClassifier
 from app.services.metadata.extractor import MetadataExtractor
 from app.services.metadata.promoter import MetadataPromoter
+from app.services.ontology.bridges import load_bridges
+from app.services.ontology.spec import CANON_SPEC, FOLIO_SPEC
 
 logger = logging.getLogger(__name__)
 
@@ -155,13 +157,13 @@ def _individual_type_label(ind) -> str:
 class MetadataStage(PipelineStage):
     def __init__(
         self,
-        llm: LLMProvider,
+        llm: LLMProvider | None,
         *,
         classifier_llm: LLMProvider | None = None,
         extractor_llm: LLMProvider | None = None,
     ) -> None:
-        self.classifier = DocumentClassifier(classifier_llm or llm)
-        self.extractor = MetadataExtractor(extractor_llm or llm)
+        self.classifier = DocumentClassifier(classifier_llm or llm) if classifier_llm or llm else None
+        self.extractor = MetadataExtractor(extractor_llm or llm) if extractor_llm or llm else None
         self.promoter = MetadataPromoter()
 
     @property
@@ -169,6 +171,27 @@ class MetadataStage(PipelineStage):
         return "metadata"
 
     async def execute(self, job: Job) -> Job:
+        if job.result.ontology_id == "both":
+            endpoints = {"canon": set(), "folio": set()}
+            for ann in job.result.annotations:
+                for concept in ann.concepts:
+                    if concept.state in {"backup", "rejected"}:
+                        continue
+                    for iri in (concept.folio_iri, concept.peer_iri):
+                        if not iri:
+                            continue
+                        for spec in (CANON_SPEC, FOLIO_SPEC):
+                            if iri.startswith(spec.base_iri):
+                                endpoints[spec.id].add(iri[len(spec.base_iri):])
+            job.result.bridges = []
+            for bridge in load_bridges()["bridges"]:
+                matched = [oid for oid in ("canon", "folio")
+                           if bridge[f"{oid}_hash"] in endpoints[oid]]
+                if matched:
+                    job.result.bridges.append({**bridge, "matched_on": matched})
+
+        if self.classifier is None and self.extractor is None:
+            return job
         if job.result.canonical_text is None:
             return job
 

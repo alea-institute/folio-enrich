@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 
 from app.models.job import Job
-from app.services.export.base import ExporterBase
+from app.services.export.base import ExporterBase, union_fields
 
 
 class JSONLDExporter(ExporterBase):
@@ -20,7 +20,7 @@ class JSONLDExporter(ExporterBase):
         # FOLIO base IRI (byte-identical output); Canon jobs use "canon" bound to the
         # Canon base IRI. Both the @context entry and every payload key derive from
         # these so no ontology's base IRI leaks into another ontology's export.
-        p = job.result.ontology_id  # e.g. "folio" | "canon"
+        p = "enrich" if job.result.ontology_id == "both" else job.result.ontology_id  # e.g. "folio" | "canon"
 
         annotations_ld = []
         for ann in job.result.annotations:
@@ -40,6 +40,7 @@ class JSONLDExporter(ExporterBase):
                         k: v
                         for k, v in {
                             "@type": "skos:Concept",
+                            **({f"{p}:{k}": v for k, v in union_fields(concept).items()} if job.result.ontology_id == "both" else {}),
                             "@id": concept.folio_iri or "",
                             "skos:prefLabel": concept.folio_label or concept.concept_text,
                             "skos:definition": concept.folio_definition or "",
@@ -169,4 +170,9 @@ class JSONLDExporter(ExporterBase):
             "properties": properties_ld,
             "triples": triples_ld,
         }
+        if job.result.ontology_id == "both":
+            output["@context"].update({"folio": job.result.base_iri,
+                                       "canon": job.result.peer_base_iri,
+                                       "enrich": "urn:folio-enrich:"})
+            output["enrich:bridges"] = job.result.bridges or []
         return json.dumps(output, indent=2)

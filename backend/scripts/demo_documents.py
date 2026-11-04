@@ -13,6 +13,7 @@ the frontend's inline ``SAMPLES`` object — the single source of truth for exem
 
 from __future__ import annotations
 
+from scripts.overlap_exemplars import OVERLAP_EXEMPLAR_SLUGS, OVERLAP_META, extract_overlap_texts
 from scripts.canon_exemplars import CANON_EXEMPLAR_SLUGS, CANON_META, extract_canon_texts
 from scripts.extract_exemplars import EXEMPLAR_META, EXEMPLAR_SLUGS, extract_exemplar_texts
 
@@ -25,8 +26,10 @@ def load_demo_documents(ontology: str = "folio") -> dict[str, dict]:
 
     - ``folio`` (default): the 22 FOLIO exemplars, text extracted from the frontend
       inline SAMPLES object (requires Node).
-    - ``canon``: the four Catholic Semantic Canon exemplars, text extracted from
+    - ``canon``: the Catholic Semantic Canon exemplars, text extracted from
       ``frontend/demos/canon_samples.js`` (requires Node).
+
+    - ``both``: public-domain overlap excerpts from ``overlap_samples.js``.
 
     Any other ontology id raises ``ValueError``.
     """
@@ -41,5 +44,11 @@ def load_demo_documents(ontology: str = "folio") -> dict[str, dict]:
         return {
             slug: {**CANON_META[slug], "text": texts[slug]}
             for slug in CANON_EXEMPLAR_SLUGS
+        }
+    if ontology == "both":
+        texts = extract_overlap_texts()
+        return {
+            slug: {**OVERLAP_META[slug], "text": texts[slug]}
+            for slug in OVERLAP_EXEMPLAR_SLUGS
         }
     raise ValueError(f"No demo documents defined for ontology '{ontology}'")

@@ -21,6 +21,20 @@ class ResolvedConcept:
     iri_hash: str = ""
 
 
+class _CanonSearchGraph:
+    """Keep fork-search ancestor lookups in the Canon namespace."""
+
+    def __init__(self, graph, base_iri):
+        self._graph = graph
+        self._base_iri = base_iri
+
+    def __getitem__(self, iri):
+        return self._graph[iri if "://" in iri else self._base_iri + iri]
+
+    def __getattr__(self, name):
+        return getattr(self._graph, name)
+
+
 class ConceptResolver:
     """Resolve-Once-Use-Many: caches resolution of concept text to FOLIO IRIs."""
 
@@ -28,7 +42,7 @@ class ConceptResolver:
         self.folio = folio_service or FolioService.get_instance()
         self._cache: dict[tuple[str, str], ResolvedConcept | None] = {}
 
-    def _canonicalize_branches(self, branches: list[str]) -> list[str]:
+    def _canonicalize_branches(self, branches: list[str], iri: str = "") -> list[str]:
         """Snap LLM-guessed fallback branch labels to canonical root labels.
 
         Only used for the fallback path (concept resolved with NO ontology-derived
@@ -39,14 +53,15 @@ class ConceptResolver:
         if not branches:
             return branches
         try:
-            spec = getattr(self.folio, "spec", None)
+            service = self.folio.service_for_iri(iri) if getattr(self.folio, "ontology_id", None) == "both" else self.folio
+            spec = getattr(service, "spec", None)
             from app.services.folio.concept_detail import (
                 _implicit_root_discovery_enabled,
                 canonicalize_branch_label,
             )
             if spec is None or not _implicit_root_discovery_enabled(spec):
                 return branches
-            folio_raw = self.folio._get_folio()
+            folio_raw = service._get_folio()
             return [canonicalize_branch_label(b, folio_raw, spec) for b in branches]
         except Exception:  # pragma: no cover - defensive; never fail resolution
             return branches
@@ -66,6 +81,8 @@ class ConceptResolver:
         """
         branch = branches[0] if branches else ""
         cache_key = (concept_text.lower(), branch.lower())
+        if getattr(self.folio, "ontology_id", None) == "both":
+            cache_key = (concept_text.lower(), branch.lower(), folio_iri)
         if cache_key in self._cache:
             return self._cache[cache_key]
 
@@ -101,7 +118,7 @@ class ConceptResolver:
         resolved_branches = (
             [best_concept.branch]
             if best_concept.branch
-            else self._canonicalize_branches(branches or [])
+            else self._canonicalize_branches(branches or [], best_concept.iri)
         )
 
         # Defense-in-depth: reject concepts from excluded branches
@@ -155,7 +172,7 @@ class ConceptResolver:
             except Exception:
                 pass
             resolved_branches = (
-                [fc.branch] if fc.branch else self._canonicalize_branches(branches or [])
+                [fc.branch] if fc.branch else self._canonicalize_branches(branches or [], fc.iri)
             )
             resolved_list.append(ResolvedConcept(
                 concept_text=concept_text,
@@ -180,6 +197,8 @@ class ConceptResolver:
         key = (concept_text.lower(), (branch or "").lower(), top_n)
         if cache is not None and key in cache:
             return list(cache[key])
+        if self.folio.ontology_id == "canon":
+            folio_raw = _CanonSearchGraph(folio_raw, self.folio.spec.base_iri)
         results = multi_strategy_search(
             folio_raw, concept_text, branch=branch or None, top_n=top_n,
             get_branch_fn=get_branch_fn,
@@ -256,11 +275,22 @@ class ConceptResolver:
         self, concept_text: str, branch: str, top_n: int = 5
     ) -> list[tuple[FOLIOConcept, float]]:
         """Recall-fallback: the folio-python 7-strategy search (multi_strategy_search)."""
+        if getattr(self.folio, "ontology_id", None) == "both":
+            merged = {}
+            for oid in ("folio", "canon"):
+                side = self.folio._registry.get_service(oid)
+                for fc, score in ConceptResolver(side)._fork_resolve_all(concept_text, branch, top_n):
+                    primary = self.folio.get_concept(fc.iri)
+                    if primary is not None:
+                        key = primary.iri.rsplit("/", 1)[-1]
+                        if key not in merged or score > merged[key][1]:
+                            merged[key] = (primary, score)
+            return sorted(merged.values(), key=lambda pair: pair[1], reverse=True)[:top_n]
         try:
             folio_raw = self.folio._get_folio()
 
             def _get_branch(folio_inst, iri_hash: str) -> str:
-                owl_class = folio_inst[iri_hash]
+                owl_class = folio_inst[self.folio.spec.base_iri + iri_hash]
                 if owl_class and hasattr(owl_class, "iri"):
                     return self.folio._get_branch(owl_class.iri, [])
                 return ""
@@ -317,12 +347,15 @@ class ConceptResolver:
         self, concept_text: str, branch: str
     ) -> tuple[FOLIOConcept | None, float]:
         """Recall-fallback single-best: the folio-python 7-strategy search."""
+        if getattr(self.folio, "ontology_id", None) == "both":
+            results = self._fork_resolve_all(concept_text, branch)
+            return results[0] if results else (None, 0.0)
         try:
             folio_raw = self.folio._get_folio()
 
             def _get_branch(folio_inst, iri_hash: str) -> str:
                 """Resolve branch for a concept IRI hash."""
-                owl_class = folio_inst[iri_hash]
+                owl_class = folio_inst[self.folio.spec.base_iri + iri_hash]
                 if owl_class and hasattr(owl_class, "iri"):
                     return self.folio._get_branch(owl_class.iri, [])
                 return ""

@@ -3,6 +3,7 @@
 Usage:
     cd backend && .venv/bin/python scripts/generate_demos.py
     cd backend && .venv/bin/python scripts/generate_demos.py --check
+    cd backend && .venv/bin/python scripts/generate_demos.py --provider codex-cli --model gpt-6.1-sol --effort medium
 """
 
 from __future__ import annotations
@@ -93,6 +94,17 @@ def _compute_canon_samples_hash() -> str | None:
         from scripts.canon_exemplars import CANON_SAMPLES_JS
 
         return hashlib.sha256(CANON_SAMPLES_JS.read_bytes()).hexdigest()[:16]
+    except Exception:
+        return None
+
+
+def _compute_overlap_samples_hash() -> str | None:
+    """Stable hash of the overlap source module, matching the Canon convention."""
+    try:
+        import hashlib
+        from scripts.overlap_exemplars import OVERLAP_SAMPLES_JS
+
+        return hashlib.sha256(OVERLAP_SAMPLES_JS.read_bytes()).hexdigest()[:16]
     except Exception:
         return None
 
@@ -192,6 +204,21 @@ async def init_services(ontology: str = "folio") -> None:
     from app.services.folio.folio_service import FolioService
     from app.services.embedding.service import EmbeddingService
 
+    if ontology == "both":
+        from app.services.folio.owl_cache import ensure_owl_fresh
+        from app.services.ontology.registry import get_registry
+
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, ensure_owl_fresh)
+        registry = get_registry()
+        for oid in ("folio", "canon"):
+            await loop.run_in_executor(None, registry.get_service, oid)
+            try:
+                await loop.run_in_executor(None, registry.get_embedding_service, oid)
+            except Exception as e:
+                logger.warning("Embedding index build failed for %s (non-fatal): %s", oid, e)
+        return
+
     loop = asyncio.get_event_loop()
 
     if ontology == "folio":
@@ -224,13 +251,22 @@ async def init_services(ontology: str = "folio") -> None:
         logger.warning("FAISS index build failed (non-fatal): %s", e)
 
 
-def build_generation_llm(provider_name: str | None, model: str | None, explicit_key: str | None):
+def build_generation_llm(
+    provider_name: str | None, model: str | None, explicit_key: str | None,
+    *, effort: str | None = None,
+):
     """Build an LLM provider for demo generation (mirrors the /enrich request path).
 
     Defaults to the app's configured provider (``settings.llm_provider`` = google →
     Gemini 3 Flash). ``model`` left empty lets each provider resolve its own default —
     never hardcode a provider-specific model id here. Raises if a required key is absent.
     """
+    # Bake-only: never route this name through the web registry or API-key lookup.
+    if provider_name == "codex-cli":
+        from app.services.llm.codex_cli_provider import CodexCLIProvider
+
+        return CodexCLIProvider(model=model, effort=effort or "medium")
+
     from app.config import settings
     from app.services.llm.registry import REQUIRES_API_KEY, get_provider
     from app.api.routes.settings import _get_api_key_for_provider
@@ -275,7 +311,7 @@ def build_cache_payload(job: Job, doc_text: str) -> dict:
 
 async def generate_demo(
     slug: str, doc_info: dict, tmp_dir: Path, llm, task_llms: TaskLLMs,
-    ontology: str = "folio",
+    ontology: str = "folio", provider_name: str | None = None,
 ) -> None:
     """Run one document through the pipeline and save demo JSON."""
     logger.info("Generating demo: %s (%s)", slug, doc_info["title"])
@@ -314,6 +350,8 @@ async def generate_demo(
             "title": doc_info["title"],
             "description": doc_info["description"],
             "generated_at": datetime.now(timezone.utc).isoformat(),
+            "provider": provider_name,
+            "model": llm.model if llm else None,
         },
         "cache": cache,
     }
@@ -350,7 +388,8 @@ def _write_sidecars(ontology: str) -> None:
     """Write the freshness sidecars for an ontology into its demo dir.
 
     FOLIO keeps the flat ``frontend/demos`` dir and its OWL/exemplar hashes. Non-FOLIO
-    ontologies use their per-ontology subdir; ``.owl-version`` uses the pinned spec
+    ontologies use their per-ontology subdir. Both records a JSON mapping of the
+    FOLIO content hash and Canon pin; single ontologies use the pinned spec
     ``owl_sha256`` (the FOLIO-only ``get_owl_content_hash()`` does not apply), and
     ``.samples-version`` hashes that ontology's samples module.
     """
@@ -367,6 +406,15 @@ def _write_sidecars(ontology: str) -> None:
         except Exception:
             logger.warning("Could not write .owl-version sidecar", exc_info=True)
         samples_hash = _compute_samples_hash()
+    elif ontology == "both":
+        from app.services.folio.owl_cache import get_owl_content_hash
+        from app.services.ontology.spec import CANON_SPEC
+
+        (sidecar_dir / ".owl-version").write_text(json.dumps({
+            "folio": get_owl_content_hash(),
+            "canon": CANON_SPEC.coords.owl_sha256,
+        }, sort_keys=True))
+        samples_hash = _compute_overlap_samples_hash()
     else:
         try:
             from app.services.ontology.spec import BUILTIN_SPECS
@@ -396,12 +444,22 @@ async def main() -> None:
         provider = _arg_value("--provider")
         model = _arg_value("--model")
         api_key = _arg_value("--api-key")
-        llm = build_generation_llm(provider, model, api_key)
-        task_llms = TaskLLMs.from_settings(fallback=llm)
+        llm = build_generation_llm(provider, model, api_key, effort=_arg_value("--effort"))
+        if provider == "codex-cli":
+            # Every bake task uses the subscription, regardless of app task settings.
+            from dataclasses import fields
+
+            task_llms = TaskLLMs(**{field.name: llm for field in fields(TaskLLMs)})
+        else:
+            task_llms = TaskLLMs.from_settings(fallback=llm)
+            from app.config import settings
+
+            provider = provider or settings.llm_provider
         logger.info("LLM generation ENABLED (provider=%s, model=%s)",
-                    provider or "default", model or "default")
+                    provider, llm.model)
     else:
         llm = None
+        provider = None
         task_llms = TaskLLMs()
         logger.info("LLM generation DISABLED (--no-llm): rule-based only")
 
@@ -419,7 +477,10 @@ async def main() -> None:
     with tempfile.TemporaryDirectory(prefix="folio_demo_") as tmp_dir:
         tmp_path = Path(tmp_dir)
         for slug, doc_info in docs.items():
-            await generate_demo(slug, doc_info, tmp_path, llm, task_llms, ontology=ontology)
+            await generate_demo(
+                slug, doc_info, tmp_path, llm, task_llms,
+                ontology=ontology, provider_name=provider,
+            )
 
     # Record the input versions these demos were generated against (freshness check).
     _write_sidecars(ontology)

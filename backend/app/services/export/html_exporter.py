@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import html
+import json
 
+from app.models.annotation import UNION_CONCEPT_FIELDS
 from app.models.job import Job
 from app.services.export.base import ExporterBase
 from app.services.export.sanitize import strip_xml_illegal
@@ -152,6 +154,15 @@ class HTMLExporter(ExporterBase):
 <tr style="background:#f5f5f5;"><th>Subject</th><th>Predicate</th><th>Object</th><th>Voice</th><th>Confidence</th><th>FOLIO</th></tr>
 {triples_rows}</table>"""
 
+        both_html = ""
+        if job.result.ontology_id == "both":
+            both_html = "<h2>Concept regions and peers</h2><ul>"
+            for ann in job.result.annotations:
+                for concept in ann.concepts:
+                    details = {k: v for k, v in concept.model_dump().items()
+                               if k in ("folio_iri", *UNION_CONCEPT_FIELDS)}
+                    both_html += "<li>" + html.escape(json.dumps(details)) + "</li>"
+            both_html += "</ul><h2>bridges</h2><pre>" + html.escape(json.dumps(job.result.bridges or [], indent=2)) + "</pre>"
         return f"""<!DOCTYPE html>
 <html>
 <head>
@@ -170,6 +181,6 @@ body {{ font-family: 'Georgia', serif; line-height: 1.6; max-width: 800px; margi
 </head>
 <body>
 <pre style="white-space: pre-wrap; font-family: inherit;">{body}</pre>
-{triples_html}
+{triples_html}{both_html}
 </body>
 </html>"""

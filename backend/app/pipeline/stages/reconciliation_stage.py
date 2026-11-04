@@ -275,7 +275,7 @@ class ReconciliationStage(PipelineStage):
             return 0, 0
 
         affinity = _NER_BRANCH_AFFINITY_BY_ONTOLOGY.get(job.ontology)
-        if not affinity:
+        if not affinity and job.ontology != "both":
             return 0, 0  # Unknown / unmapped ontology → safe no-op
 
         boost_val = settings.ner_agreement_boost
@@ -283,6 +283,7 @@ class ReconciliationStage(PipelineStage):
         boosted = 0
         penalized = 0
 
+        service = None
         for ann in job.result.annotations:
             if ann.state == "rejected" or not ann.concepts:
                 continue
@@ -297,7 +298,19 @@ class ReconciliationStage(PipelineStage):
             if ner_label is None:
                 continue  # No NER signal on this span → preserve recall, no change.
 
-            compatible_branches = affinity.get(ner_label)
+            concept_affinity = affinity
+            if job.ontology == "both":
+                from app.services.folio.folio_service import FolioService
+                if service is None:
+                    service = FolioService.get_instance(job.ontology)
+                if not concept.folio_iri:
+                    continue
+                try:
+                    owner = service.service_for_iri(concept.folio_iri)
+                except ValueError:
+                    continue
+                concept_affinity = _NER_BRANCH_AFFINITY_BY_ONTOLOGY.get(owner.spec.id, {})
+            compatible_branches = concept_affinity.get(ner_label)
             if not compatible_branches:
                 continue  # NER label not in this ontology's map → do nothing.
 

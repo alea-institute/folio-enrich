@@ -81,6 +81,8 @@ def build_branch_detail(
     rather than crashing a prompt build.
     """
     ontology_id = ontology_id or "folio"
+    if ontology_id == "both":
+        return "FOLIO branches:\n" + get_branch_detail("folio") + "\n\nCanon branches:\n" + get_branch_detail("canon")
     if ontology_id == "folio":
         return _build_folio_branch_detail(max_concepts_per_branch, max_total_chars)
     return _build_nonfolio_branch_detail(ontology_id, max_concepts_per_branch, max_total_chars)

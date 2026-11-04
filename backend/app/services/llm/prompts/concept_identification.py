@@ -34,8 +34,11 @@ TEXT:
 
 def build_concept_identification_prompt(text: str, ontology_id: str = "folio") -> str:
     branch_info = get_branch_detail(ontology_id)
+    template = _CONCEPT_IDENTIFICATION_TEMPLATE
+    if ontology_id == "both":
+        template = template.replace("FOLIO ontology branches", "union ontology branches")
     return (
-        _CONCEPT_IDENTIFICATION_TEMPLATE
+        template
         .replace("{branch_info}", branch_info)
         .replace("{text}", text)
     )

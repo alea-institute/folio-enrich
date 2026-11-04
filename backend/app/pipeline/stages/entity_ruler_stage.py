@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 import spacy
 
-from app.models.annotation import Annotation, ConceptMatch, Span
+from app.models.annotation import Annotation, ConceptMatch, stamp_union_annotations, stamp_union_dict, Span
 from app.models.job import Job, JobStatus
 from app.pipeline.stages.base import PipelineStage, record_lineage
 from app.services.entity_ruler.pattern_builder import build_patterns
@@ -153,13 +153,13 @@ def _build_fast_ruler(all_labels: dict) -> FOLIOEntityRuler:
     return ruler
 
 
-def _get_ruler_bundle(ontology_id: str) -> _RulerBundle:
+def _get_ruler_bundle(ontology_id: str, *, shared: bool = True) -> _RulerBundle:
     folio_service = FolioService.get_instance(ontology_id)
     all_labels = folio_service.get_all_labels()
     all_labels_multi = folio_service.get_all_labels_multi()
     key = folio_service.ontology_id
     with _RULER_CACHE_LOCK:
-        bundle = _RULER_CACHE.get(key)
+        bundle = _RULER_CACHE.get(key) if shared else None
         if (
             bundle is not None
             and bundle.labels is all_labels
@@ -196,7 +196,8 @@ def _get_ruler_bundle(ontology_id: str) -> _RulerBundle:
             labels_multi=all_labels_multi,
             max_label_chars=max((len(k) for k in all_labels), default=0),
         )
-        _RULER_CACHE[key] = bundle
+        if shared:
+            _RULER_CACHE[key] = bundle
         return bundle
 
 
@@ -223,16 +224,17 @@ class EntityRulerStage(PipelineStage):
         # semantic (embedding) pass runs. When None, no early flush happens.
         self._job_store = job_store
         self._patterns_loaded = False
+        self._patterns_ontology = None
         self._iri_to_branch: dict[str, str] = {}
         self._iri_to_concept: dict[str, object] = {}  # IRI → FOLIOConcept
 
     def _ensure_patterns_loaded(self, ontology_id: str = "folio") -> None:
         """Load ontology patterns into the EntityRuler on first use."""
-        if self._patterns_loaded:
+        if self._patterns_loaded and self._patterns_ontology in (None, ontology_id):
             return
         if self._owns_ruler:
             try:
-                bundle = _get_ruler_bundle(ontology_id)
+                bundle = _get_ruler_bundle(ontology_id, shared=ontology_id != "both")
             except Exception:
                 logger.warning("Failed to load FOLIO patterns into EntityRuler", exc_info=True)
                 self._patterns_loaded = True
@@ -243,7 +245,11 @@ class EntityRulerStage(PipelineStage):
             self._iri_to_concept = bundle.iri_to_concept
             self._label_to_concepts = bundle.label_to_concepts
             self._patterns_loaded = True
+            self._patterns_ontology = ontology_id
             return
+        self._bundle = None
+        self._iri_to_branch = {}
+        self._iri_to_concept = {}
         try:
             folio_service = FolioService.get_instance(ontology_id)
             all_labels = folio_service.get_all_labels()
@@ -268,6 +274,7 @@ class EntityRulerStage(PipelineStage):
         except Exception:
             logger.warning("Failed to load FOLIO patterns into EntityRuler", exc_info=True)
         self._patterns_loaded = True
+        self._patterns_ontology = ontology_id
 
     @property
     def name(self) -> str:
@@ -403,6 +410,10 @@ class EntityRulerStage(PipelineStage):
         deterministic_annotations = self._dedupe_annotations(
             self._build_preliminary_annotations(matches, full_text, sentence_index)
         )
+        if ontology_id == "both":
+            service = FolioService.get_instance(ontology_id)
+            ruler_concepts = [stamp_union_dict(c, service) for c in ruler_concepts]
+            stamp_union_annotations(deterministic_annotations, service)
         return matches, sentence_index, ruler_concepts, match_types, deterministic_annotations
 
     async def _finish(self, job, matches, sentence_index, ruler_concepts, semantic_matches) -> Job:
@@ -452,6 +463,11 @@ class EntityRulerStage(PipelineStage):
             job.result.annotations = await asyncio.to_thread(
                 self._dedupe_annotations, list(job.result.annotations) + semantic_annotations
             )
+
+        if job.ontology == "both":
+            service = FolioService.get_instance(job.ontology)
+            stamp_union_annotations(job.result.annotations, service)
+            job.result.metadata["ruler_concepts"] = [stamp_union_dict(c, service) for c in ruler_concepts]
 
         # Activity log
         preferred = sum(1 for m in matches if m.match_type == "preferred")

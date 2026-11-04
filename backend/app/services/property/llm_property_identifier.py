@@ -77,6 +77,10 @@ class LLMPropertyIdentifier:
             document_type=document_type,
         )
 
+        if self._ontology_id == "both":
+            from app.services.llm.prompts.templates import get_branch_detail
+            prompt += "\n\nUnion ontology branches:\n" + get_branch_detail("both")
+
         try:
             result = await self.llm.structured(
                 prompt,
