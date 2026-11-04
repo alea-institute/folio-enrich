@@ -119,7 +119,8 @@ async def test_each_stage_uses_requested_union(union_registry, monkeypatch, tmp_
         active.set(stage.name)
         job = await stage.execute(job)
     assert wanted <= seen.keys(), seen
-    assert all(set(seen[name]) == {'both'} for name in wanted), seen
+    assert set(seen['entity_ruler']) == {'folio', 'both'}, seen
+    assert all(set(seen[name]) == {'both'} for name in wanted - {'entity_ruler'}), seen
 
 
 def test_union_resolver_collapses_shared_and_searches_canon_fork(union_registry, monkeypatch):

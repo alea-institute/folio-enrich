@@ -97,6 +97,44 @@ class _RulerBundle:
         return matches
 
 
+@dataclass
+class _UnionRulerBundle:
+    """Borrow FOLIO's compiled patterns and compile only labels absent from it."""
+
+    folio_bundle: _RulerBundle
+    delta_bundle: _RulerBundle
+    iri_to_branch: dict[str, str]
+    iri_to_concept: dict[str, object]
+    label_to_concepts: dict[str, list]
+    labels: object
+    labels_multi: object
+
+    @property
+    def ruler(self) -> FOLIOEntityRuler:
+        return self.delta_bundle.ruler
+
+    def find_matches(self, text: str) -> list[EntityRulerMatch]:
+        from app.services.ontology.overlap import get_overlap_index
+
+        overlap = get_overlap_index()
+        matches = [
+            m for m in self.folio_bundle.find_matches(text)
+            if overlap.lookup(m.entity_id.rsplit("/", 1)[-1]) is not None
+        ]
+        matches.extend(self.delta_bundle.find_matches(text))
+        # Like spaCy filter_spans: longest first, earliest start breaks ties.
+        # Containment is also overlap; adjacent spans may both survive.
+        matches.sort(key=lambda m: (-(m.end_char - m.start_char), m.start_char))
+        occupied: set[int] = set()
+        kept = []
+        for match in matches:
+            span = range(match.start_char, match.end_char)
+            if occupied.isdisjoint(span):
+                kept.append(match)
+                occupied.update(span)
+        return sorted(kept, key=lambda m: m.start_char)
+
+
 _WINDOW_CHARS = 2000
 _WINDOW_MARGIN_SLACK = 50
 
@@ -121,6 +159,7 @@ def _snap_back(text: str, i: int) -> int:
 # not once per job.
 _RULER_CACHE: dict[str, _RulerBundle] = {}
 _RULER_CACHE_LOCK = threading.Lock()
+_UNION_RULER_CACHE: dict[str, _UnionRulerBundle] = {}
 
 
 def _build_fast_ruler(all_labels: dict) -> FOLIOEntityRuler:
@@ -153,7 +192,9 @@ def _build_fast_ruler(all_labels: dict) -> FOLIOEntityRuler:
     return ruler
 
 
-def _get_ruler_bundle(ontology_id: str, *, shared: bool = True) -> _RulerBundle:
+def _get_ruler_bundle(ontology_id: str, *, shared: bool = True) -> _RulerBundle | _UnionRulerBundle:
+    if ontology_id == "both":
+        return _get_union_ruler_bundle()
     folio_service = FolioService.get_instance(ontology_id)
     all_labels = folio_service.get_all_labels()
     all_labels_multi = folio_service.get_all_labels_multi()
@@ -201,6 +242,47 @@ def _get_ruler_bundle(ontology_id: str, *, shared: bool = True) -> _RulerBundle:
         return bundle
 
 
+def _get_union_ruler_bundle() -> _UnionRulerBundle:
+    # Obtain the shared bundle before taking the non-reentrant cache lock.
+    folio_bundle = _get_ruler_bundle("folio")
+    union = FolioService.get_instance("both")
+    labels = union.get_all_labels()
+    labels_multi = union.get_all_labels_multi()
+    with _RULER_CACHE_LOCK:
+        bundle = _UNION_RULER_CACHE.get("both")
+        if (
+            bundle is not None
+            and bundle.folio_bundle is folio_bundle
+            and bundle.labels is labels
+            and bundle.labels_multi is labels_multi
+        ):
+            return bundle
+
+        delta_labels = {k: v for k, v in labels.items() if k not in folio_bundle.labels}
+        delta = _RulerBundle(
+            ruler=_build_fast_ruler(delta_labels),
+            iri_to_branch={}, iri_to_concept={}, label_to_concepts={},
+            labels=delta_labels, labels_multi={},
+            max_label_chars=max((len(k) for k in delta_labels), default=0),
+        )
+        iri_to_branch: dict[str, str] = {}
+        iri_to_concept: dict[str, object] = {}
+        for entries in labels_multi.values():
+            for entry in entries:
+                fc = entry.concept
+                if fc.iri:
+                    if fc.branch:
+                        iri_to_branch[fc.iri] = fc.branch
+                    iri_to_concept[fc.iri] = fc
+        bundle = _UnionRulerBundle(
+            folio_bundle=folio_bundle, delta_bundle=delta,
+            iri_to_branch=iri_to_branch, iri_to_concept=iri_to_concept,
+            label_to_concepts=labels_multi, labels=labels, labels_multi=labels_multi,
+        )
+        _UNION_RULER_CACHE["both"] = bundle
+        return bundle
+
+
 class EntityRulerStage(PipelineStage):
     def __init__(
         self,
@@ -212,7 +294,7 @@ class EntityRulerStage(PipelineStage):
         # An injected ruler (tests/scripts) is used verbatim and loaded per stage;
         # otherwise the stage borrows the shared, cached ruler for the job's ontology.
         self._owns_ruler = ruler is None
-        self._bundle: _RulerBundle | None = None
+        self._bundle: _RulerBundle | _UnionRulerBundle | None = None
         self.ruler = ruler or FOLIOEntityRuler()
         self._embedding_service = embedding_service
         # When True (production), fetch the per-ontology embedding service from the
@@ -234,7 +316,8 @@ class EntityRulerStage(PipelineStage):
             return
         if self._owns_ruler:
             try:
-                bundle = _get_ruler_bundle(ontology_id, shared=ontology_id != "both")
+                bundle = (_get_union_ruler_bundle() if ontology_id == "both"
+                          else _get_ruler_bundle(ontology_id))
             except Exception:
                 logger.warning("Failed to load FOLIO patterns into EntityRuler", exc_info=True)
                 self._patterns_loaded = True
