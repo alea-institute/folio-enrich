@@ -97,6 +97,17 @@ def _compute_canon_samples_hash() -> str | None:
         return None
 
 
+def _compute_overlap_samples_hash() -> str | None:
+    """Stable hash of the overlap source module, matching the Canon convention."""
+    try:
+        import hashlib
+        from scripts.overlap_exemplars import OVERLAP_SAMPLES_JS
+
+        return hashlib.sha256(OVERLAP_SAMPLES_JS.read_bytes()).hexdigest()[:16]
+    except Exception:
+        return None
+
+
 def _compute_pipeline_hash() -> str | None:
     """Content hash of enrichment-affecting pipeline code.
 
@@ -191,6 +202,21 @@ async def init_services(ontology: str = "folio") -> None:
     """
     from app.services.folio.folio_service import FolioService
     from app.services.embedding.service import EmbeddingService
+
+    if ontology == "both":
+        from app.services.folio.owl_cache import ensure_owl_fresh
+        from app.services.ontology.registry import get_registry
+
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, ensure_owl_fresh)
+        registry = get_registry()
+        for oid in ("folio", "canon"):
+            await loop.run_in_executor(None, registry.get_service, oid)
+            try:
+                await loop.run_in_executor(None, registry.get_embedding_service, oid)
+            except Exception as e:
+                logger.warning("Embedding index build failed for %s (non-fatal): %s", oid, e)
+        return
 
     loop = asyncio.get_event_loop()
 
@@ -350,7 +376,8 @@ def _write_sidecars(ontology: str) -> None:
     """Write the freshness sidecars for an ontology into its demo dir.
 
     FOLIO keeps the flat ``frontend/demos`` dir and its OWL/exemplar hashes. Non-FOLIO
-    ontologies use their per-ontology subdir; ``.owl-version`` uses the pinned spec
+    ontologies use their per-ontology subdir. Both records a JSON mapping of the
+    FOLIO content hash and Canon pin; single ontologies use the pinned spec
     ``owl_sha256`` (the FOLIO-only ``get_owl_content_hash()`` does not apply), and
     ``.samples-version`` hashes that ontology's samples module.
     """
@@ -367,6 +394,15 @@ def _write_sidecars(ontology: str) -> None:
         except Exception:
             logger.warning("Could not write .owl-version sidecar", exc_info=True)
         samples_hash = _compute_samples_hash()
+    elif ontology == "both":
+        from app.services.folio.owl_cache import get_owl_content_hash
+        from app.services.ontology.spec import CANON_SPEC
+
+        (sidecar_dir / ".owl-version").write_text(json.dumps({
+            "folio": get_owl_content_hash(),
+            "canon": CANON_SPEC.coords.owl_sha256,
+        }, sort_keys=True))
+        samples_hash = _compute_overlap_samples_hash()
     else:
         try:
             from app.services.ontology.spec import BUILTIN_SPECS

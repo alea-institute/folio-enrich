@@ -1,6 +1,13 @@
+// Additional breadth samples include three synthetic texts and a public-domain excerpt.
+// canon_ce_abbot_1907
+// work: The Catholic Encyclopedia, Vol. 1 ("Abbot")
+// author: Thomas Oestereich
+// year: 1907
+// url: https://www.newadvent.org/cathen/01015c.htm
+// pd_basis: Published 1907 in the United States (Robert Appleton Company); US public domain (published before 1929).
 // Canon (Catholic Semantic Canon) demo source texts.
 //
-// All four are public-domain excerpts (pre-1929 US public domain), chosen to be
+// The original four are public-domain excerpts (pre-1929 US public domain), chosen to be
 // "enrich-heavy" — dense with Canon-ontology concepts (Scripture/persons/places,
 // sacraments/doctrine, councils/canon-law, social doctrine) so the enrichment is
 // impressive against the Catholic Semantic Canon.
@@ -63,6 +70,64 @@ The great mistake made in regard to the matter now under consideration is to tak
 Every man has by nature the right to possess property as his own. To labour is to exert oneself for the sake of procuring what is necessary for the various purposes of life, and chief of all for self-preservation. The first and most fundamental principle, therefore, if one would undertake to alleviate the condition of the masses, must be the inviolability of private property.
 
 Religion teaches the working man and the artisan to carry out honestly and well all equitable agreements freely made, never to injure the property nor to outrage the person of an employer. And the wealthy owner and the employer: their great and principal obligation is to give every one what is just. Neither justice nor humanity can countenance the exaction of so much labour as to stupefy the mind and wear out the body. It is neither justice nor mercy to grind men down with excessive toil so as to blunt their intellects and wear out their strength.`,
+  canon_liturgical_year: `THE LITURGICAL YEAR AT SAINT JOSEPH PARISH
+Our parish community keeps the liturgical year through liturgy, devotion, worship, adoration, and charity, guided by church law and papal law. Pastor, parish vicar, deacon, catechist, sponsor, and laity share each Mass and rite.
+
+Advent devotions begin the year. Each catechist prepares every child, parent, and student for baptism, confirmation, and Eucharist, while our permanent deacon leads the Divine Office, Angelus, litany, and novena in the chapel.
+
+Christmas devotions honor the Incarnation and Nativity of the Messiah, born of Mary in Bethlehem. On the Baptism of the Lord, our pastor baptizes infants with chrism.
+
+Lenten devotions call clergy and laity to repentance, contrition, humility, and penance. A priest hears sacramental confession, grants absolution, and assigns acts of penance. The Way of the Cross recalls the Crucifixion and entombment; a Palm Sunday entry and religious procession open Holy Week, and the Last Supper recalls the institution of the Eucharist.
+
+Easter devotions proclaim the Resurrection, Ascension of Christ, and Pentecost, when the Paraclete descended. Through RCIA, adults receive baptism, chrismation, and Holy Communion. Our diocesan bishop confers confirmation at the cathedral; an auxiliary bishop ordains a transitional deacon through Holy Orders.
+
+Healing sacraments continue year-round. Our chaplain brings last anointing to the hospital chapel, and reconciliation restores communion. Matrimony unites each spouse in Christian marriage. A funeral ends with burial, interment, or cremation in a consecrated cemetery.
+
+This bulletin cites Scripture, the Decalogue, the Beatitudes, and Catholic social teaching on faith, hope, chastity, prudence, justice, and forgiveness, so that patience, meekness, and compassion guide every family. We pray the Holy Rosary, Hail Mary, Memorare, and Glory Be during Eucharistic adoration of the Blessed Sacrament, honoring the Trinity.
+
+Every volunteer, donor, benefactor, trustee, secretary, and treasurer helps. A religious sister, prior, and nun from a nearby monastery, abbey, convent, and friary join our youth minister, church rector, and lay minister at the basilica and shrine. Our seminary, college, and parish church welcome each immigrant and refugee from Italy, Ireland, Mexico, and Poland. We remain in communion with the Pope, the Holy See, our archbishop, and the universal church.`,
+
+  canon_diocesan_governance: `CHANCERY MEMORANDUM ON CANONICAL GOVERNANCE
+To every pastor, parish vicar, dean, vicar forane, deacon, and trustee: our diocesan bishop, as local ordinary, issues this letter under church law, papal law, and each canonical provision. A coadjutor bishop, auxiliary bishop, and consultor assist him; our metropolitan archbishop presides over the church province.
+
+Appointment and vacancy. On the retirement of a diocesan priest, the bishop announces each vacancy and appointment after election or vote. A secular priest or religious priest may serve; each appointment requires a certificate, license, and signed charter.
+
+Hearing and appeal. Our curial tribunal hears every canonical dispute. Each judge, auditor, investigator, and judicial clerk observes impartiality, fairness, equity, confidentiality, and secrecy. A petitioner or respondent may engage a lawyer, expert, interpreter, and witness. Evidence arrives by interview, deposition, filing, or submission.
+
+Annulment. For each sacramental marriage, judges weigh informed consent, intention, deceit, duress, fear, and incapacity. Annulment differs from divorce and marriage dissolution. After deliberation, the tribunal issues a sentence stating its judgment and conclusion. Either spouse may appeal to an apostolic tribunal of the Holy See.
+
+Penalty. Ecclesiastical discipline treats heresy, schism, sacrilege, blasphemy, embezzlement, fraud, malfeasance, and negligence as grave sin. After a penalty proceeding, sanctions may include suspension, probation, or expulsion; repentance and reconciliation may bring pardon or amnesty. Clergy sex abuse demands transparency, accountability, and responsibility.
+
+Religious property. Each parish, as a canonical juridic person, files its budget, lease, deed, loan, and testament; every bequest, legacy, donation, grant, and endowment remains held in trust. An annual audit and assessment protect each cemetery, seminary, chapel, and parish church.
+
+Canonical norm. Every policy, directive, guideline, requirement, and amendment follows the canon law system, divine law, natural law, statutes, and precedent, with each obligation, duty, right, privilege, and prohibition stated plainly.
+
+Visitation of each parish continues this year across Minnesota, beginning at our cathedral in Saint Paul. Each meeting, hearing, and proposal stays on record; questions go to our chancellor, secretary, or treasurer.`,
+
+  canon_saints_and_orders: `SAINTS AND RELIGIOUS ORDERS: A SHORT HISTORY
+Religious life grew from the apostolic mission. After persecution, martyrdom, and the baptism of blood, hermits in Egypt and Greece sought humility, chastity, temperance, sobriety, and self-mastery.
+
+Benedict wrote his Rule in Italy. Each Benedictine monk and monastic nun keeps its charter of worship, study, and hospitality; abbess, prior, novice, and brother share one monastery, abbey, or priory, where devotion, liturgy, and works of charity fill each day.
+
+In Ireland, Saint Patrick and his successors founded schools where each author, writer, translator, and publisher copied a manuscript, book, commentary, or Scripture edition, preserving every testament, tome, and marginalia across England, France, Germany, and Europe.
+
+Mendicant orders followed. Francis of Umbria gathered each Franciscan friar into a friary devoted to charity, peace, and care for the poor. His companion Clare formed a convent for every cloistered nun. Dominic sent each preaching friar and Dominican priest from Spain to teach doctrine against each heretic, while Saint Catherine, a woman religious, counseled the Pope, cardinal, and archbishop, urging peacemaking, forgiveness, and solidarity.
+
+Councils shaped every order. Each ecumenical council and synod of bishops confirmed its constitutions under church law and papal law. After crusade, warfare, conflict, and schism, reform restored obedience of love, patience, and perseverance.
+
+From Spain, a Jesuit priest, once a soldier and student, professed obedience to the Bishop of Rome; missionaries carried the faith to India, Japan, China, Mexico, Peru, and Africa. Each consecrated woman, apostolic sister, and religious sister served as physician, catechist, or patron to every refugee, widow, and immigrant.
+
+Today, pilgrims seek holy ground. Each shrine, basilica, cathedral, and chapel in Jerusalem, Bethlehem, Canterbury, Santiago, Portugal, and Poland welcomes clergy, laity, and religious. Each novena and litany honors a saint's birth, death, burial, and visitation. Every order still practices faith, hope, charity, prudence, and justice, and each abbess, prior, and novice renews that vocation in every religious house.`,
+
+  canon_ce_abbot_1907: `ABBOT
+
+The Black Monks of St. Benedict have at present seven Abbots nullius dioecesis, located as follows: Italy, 4; Switzerland, 1; Hungary, 1; and West Australia, 1; 86 Abbots exercising actual jurisdiction over their monasteries: Austria, 19; United States, 14; France, 9 (before the Law of Associations); Italy, 9; Germany, 7; England, 6; Hungary, 5; Switzerland, 4; Brazil, S.A., 3; Holland, 3; Spain, 3; Belgium, 2; Scotland l; West Australia 1. They have also nine titular, and three resigned Abbots.
+
+The Cistercian Abbots of the Three Observances number fifty-seven. Of these the Cistercians of the Common and of the Lesser Observance have nineteen: Italy, 3; Belgium, 2; Austro-Hungarian Province, 8; and the Swiss-German Congregation 3. The Congregation of Sénanque, to which the three Abbots of the Lesser Observance belong, is now dispersed by the Associations Law of France. The Cistercians of the Strict Observance (Trappists) have thirty-eight: France, 18 (not expelled); Belgium, 4; Italy, 3; United States, Austria, and Ireland, two each; Canada, China, England, Germany, Holland, and Spain, one each. The Cistercians have also two Abbots nullius dioecesis.
+
+In Italy, the Camaldolese, Vallombrosans, Silvestrines, and Olivetans, all branches of the Benedictine Order, have each a small number of Abbots. Monte Oliveto Maggiore, belonging to the Olivetans, is an abbey nullius dioecesis. Some few houses of the various Congregations of Canons Regular, of the Antonians, of the Armenian Benedictines, and of the Basilians, are also under the direction of Abbots. Mitred Abbots in the United States are the Abbots of St. Vincent's Arch-Abbey, Beatty, Pennsylvania; St. John's Abbey, Collegeville, Minnesota; St. Benedict's Abbey, Atchison, Kansas; St. Mary's Abbey, Newark, New Jersey; Maryhelp Abbey, Belmont, North Carolina; St. Bernard's Abbey, St. Bernard, Alabama; St. Procopius's Abbey, Chicago, Illinois; St. Leo's Abbey, St. Leo, Florida; St. Meinrad's Abbey, St. Meinrad, Indiana; Immaculate Conception Abbey, Conception, Missouri; New Subiaco Abbey, Spielerville, Arkansas; St. Joseph's Abbey, Covington, Louisiana; St. Mary's Abbey, Richardton, North Dakota; St. Benedict's Abbey, Mount Angel, Oregon; Gethsemani Abbey, Kentucky; New Melleray Abbey, near Dubuque, Iowa; and the Sacred Heart Abbey, Oklahoma.`,
+
+
 };
 
 if (typeof window !== 'undefined') {
