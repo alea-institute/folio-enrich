@@ -3425,6 +3425,7 @@
 </script>
 <!-- Canon exemplar source texts → window.CANON_SAMPLES (served from frontend/demos/) -->
 <script src="/static/demos/canon_samples.js"></script>
+<script src="/static/demos/overlap_samples.js"></script>
 </head>
 <body>
 
@@ -3743,7 +3744,7 @@
 
         <label style="font-size:10px;font-weight:600;letter-spacing:0.3px;color:var(--text-dim);margin-top:6px;display:block">Breadth</label>
         <div class="sample-grid" style="margin-top:3px">
-          <button class="secondary sample-btn" onclick="loadCanonSample('canon_liturgical_year')" title="Synthetic — a parish bulletin on the liturgical year (feasts, sacraments, ministries, places, and teaching)">The Liturgical Year</button>
+          <button class="secondary sample-btn" onclick="loadCanonSample('canon_liturgical_year')" title="Synthetic — a parish bulletin on the liturgical year (feasts, sacraments, ministries, places, and teaching)">Liturgical Year</button>
           <button class="secondary sample-btn" onclick="loadCanonSample('canon_diocesan_governance')" title="Synthetic — a chancery memo on canon-law governance (appointments, tribunal, marriage nullity, penalties, and property)">Diocesan Governance</button>
           <button class="secondary sample-btn" onclick="loadCanonSample('canon_saints_and_orders')" title="Synthetic — a short history of religious orders and saints (founders, rules, monasteries, councils, and pilgrimage places)">Saints and Religious Orders</button>
           <button class="secondary sample-btn" onclick="loadCanonSample('canon_ce_abbot_1907')" title="Catholic Encyclopedia (1907), &quot;Abbot&quot; by Thomas Oestereich: census of abbots nullius and mitred abbeys by country and state.">Abbot (Catholic Encyclopedia, 1907)</button>
@@ -4953,9 +4954,10 @@ function demoUrl(slug, ontology = activeOntology) {
 
 // Fetch and hydrate a pre-baked exemplar; fall back to lean prefill on any failure.
 async function loadDemoExemplar(slug, { pushUrl = true } = {}) {
-  if (OVERLAP_EXEMPLAR_DEMO_SLUGS.has(slug)) applyOntology('both', { push: false, persist: false });
+  const target = OVERLAP_EXEMPLAR_DEMO_SLUGS.has(slug) ? 'both' : (activeOntology === 'both' ? 'folio' : activeOntology);
+  if (target !== activeOntology) applyOntology(target, { push: false, persist: false });
   try {
-    const resp = await fetch(demoUrl(slug));
+    const resp = await fetch(demoUrl(slug, target));
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const payload = await resp.json();
     const cache = payload.cache;
@@ -4993,7 +4995,8 @@ async function tryLoadDemo() {
 
   // Resolve the ontology from the URL BEFORE building the demo URL, so a Canon
   // deep-link fetches from the Canon dir and renders under Canon branding.
-  const urlOntology = OVERLAP_EXEMPLAR_DEMO_SLUGS.has(slug) ? 'both' : params.get('ontology') || 'folio';
+  const requestedOntology = params.get('ontology') || 'folio';
+  const urlOntology = OVERLAP_EXEMPLAR_DEMO_SLUGS.has(slug) ? 'both' : (requestedOntology === 'both' ? 'folio' : requestedOntology);
   if (ONTOLOGY_ALLOW.has(urlOntology) && urlOntology !== activeOntology) {
     applyOntology(urlOntology, { push: false, persist: true });
   }
@@ -5052,6 +5055,7 @@ async function tryLoadJob() {
     if (ONTOLOGY_ALLOW.has(jobOntology) && jobOntology !== activeOntology) {
       applyOntology(jobOntology, { push: false, persist: true });
     }
+    if (jobOntology === 'both') params.set('ontology', 'both');
 
     resetPropositionSessionState();
     currentJobId = job.id || jobId;
@@ -12720,7 +12724,7 @@ function toggleUncertain() {
 
 function prefillSample(name) {
   const ta = document.getElementById('docInput');
-  ta.value = SAMPLES[name] || '';
+  ta.value = window.OVERLAP_SAMPLES?.[name] || window.CANON_SAMPLES?.[name] || SAMPLES[name] || '';
   uploadedFilename = null;
   applyDebugTruncation();
 }
