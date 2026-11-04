@@ -123,7 +123,7 @@ class ParquetExporter(ExporterBase):
             combined = [{key: row.get(key) for key in columns} for row in combined]
             table = pa.Table.from_pylist(combined).replace_schema_metadata(table.schema.metadata)
             buf = io.BytesIO()
-            pq.write_table(table, buf, row_group_size=len(combined))
+            pq.write_table(table, buf, row_group_size=len(combined) or 1)
             return buf.getvalue()
 
         buf = io.BytesIO()

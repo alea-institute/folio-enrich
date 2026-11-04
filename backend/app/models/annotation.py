@@ -207,10 +207,10 @@ def stamp_union_concept(concept: ConceptMatch, service, *, cache=None) -> Concep
         return concept
     concept.folio_iri = primary.iri
     concept.iri_hash = primary.iri.rsplit("/", 1)[-1]
-    concept.region = primary.region
-    concept.peer_iri = primary.peer_iri
-    concept.peer_label = primary.peer_label
-    concept.drifted = primary.drifted
+    concept.region = getattr(primary, "region", None)
+    concept.peer_iri = getattr(primary, "peer_iri", None)
+    concept.peer_label = getattr(primary, "peer_label", None)
+    concept.drifted = getattr(primary, "drifted", None)
     keys = ("folio_iri", "iri_hash", "region", "peer_iri", "peer_label", "drifted")
     if concept.peer_iri:
         peer = service.service_for_iri(concept.peer_iri).get_concept(concept.peer_iri)

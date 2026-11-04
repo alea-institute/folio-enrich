@@ -55,6 +55,11 @@ class UnionService:
             concept.drifted = record.drifted
             concept.peer_iri = record.canon_iri if record.region == 'shared' else None
             concept.peer_label = record.canon_label if record.region == 'shared' else None
+        else:
+            concept.region = None
+            concept.drifted = None
+            concept.peer_iri = None
+            concept.peer_label = None
         return concept
 
     def get_concept(self, iri: str):
@@ -76,11 +81,16 @@ class UnionService:
         cached = self._cached_labels("multi")
         if cached is not None:
             return cached
+        from app.services.ontology.overlap import get_overlap_index
+
+        index = get_overlap_index()
         labels = {}
         for oid in ('folio', 'canon'):
             for label, entries in self._registry.get_service(oid).get_all_labels_multi().items():
-                bucket = labels.setdefault(label, [])
                 for entry in entries:
+                    if index.lookup(entry.concept.iri.rsplit('/', 1)[-1]) is None:
+                        continue
+                    bucket = labels.setdefault(label, [])
                     concept = self.get_concept(entry.concept.iri)
                     if concept is not None and all(e.concept.iri != concept.iri for e in bucket):
                         bucket.append(replace(entry, concept=concept))

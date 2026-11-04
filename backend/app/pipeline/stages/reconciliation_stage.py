@@ -303,7 +303,12 @@ class ReconciliationStage(PipelineStage):
                 from app.services.folio.folio_service import FolioService
                 if service is None:
                     service = FolioService.get_instance(job.ontology)
-                owner = service.service_for_iri(concept.folio_iri)
+                if not concept.folio_iri:
+                    continue
+                try:
+                    owner = service.service_for_iri(concept.folio_iri)
+                except ValueError:
+                    continue
                 concept_affinity = _NER_BRANCH_AFFINITY_BY_ONTOLOGY.get(owner.spec.id, {})
             compatible_branches = concept_affinity.get(ner_label)
             if not compatible_branches:

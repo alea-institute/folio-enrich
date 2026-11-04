@@ -50,6 +50,7 @@ class OntologyRegistry:
         # enabling Canon does not load a second copy of the model.
         self._shared_provider = None
         self._composite_embedding_service = None
+        self._union_service = None
 
     @classmethod
     def from_settings(cls) -> OntologyRegistry:
@@ -129,7 +130,11 @@ class OntologyRegistry:
         if self._validate_union(oid):
             from app.services.ontology.union_service import UnionService
 
-            return UnionService(self)
+            if self._union_service is None:
+                with self._lock_for(oid):
+                    if self._union_service is None:
+                        self._union_service = UnionService(self)
+            return self._union_service
         svc = self._services.get(oid)  # fast path, lock-free
         if svc is not None:
             self._touch(oid)
@@ -262,5 +267,7 @@ def set_registry(registry: OntologyRegistry | None) -> None:
     from app.services.ontology.overlap import reset_overlap_index
 
     with _registry_lock:
+        if registry is not None:
+            registry._union_service = None
         _registry = registry
     reset_overlap_index()

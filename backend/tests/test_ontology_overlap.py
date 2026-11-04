@@ -138,3 +138,26 @@ def test_cached_real_ontology_overlap(monkeypatch, tmp_path):
     assert counts["label_drifted"] == 12
     assert counts["definition_drifted"] == 7
     assert definition_only == 5
+
+    # Excluded Canon labels must not drop the entire deterministic stage.
+    import asyncio
+    from app.models.document import CanonicalText, DocumentInput
+    from app.models.job import Job
+    from app.pipeline.stages.entity_ruler_stage import EntityRulerStage
+    from app.services.ontology.registry import get_registry
+
+    union = get_registry().get_service('both')
+    labels = union.get_all_labels_multi()
+    entries = [entry for bucket in labels.values() for entry in bucket]
+    with_region = sum(getattr(entry.concept, 'region', None) is not None for entry in entries)
+    print(f'Union labels={len(labels)}; entries with region={with_region}; without region={len(entries) - with_region}')
+    assert with_region == len(entries)
+    assert all(labels.values())
+    text = 'We pray the Marian Rosary. The SALI Ontology describes theft.'
+    job = Job(input=DocumentInput(content=text, ontology='both'))
+    job.result.canonical_text = CanonicalText(full_text=text)
+    asyncio.run(EntityRulerStage().execute(job))
+    concepts = [c for a in job.result.annotations for c in a.concepts]
+    assert concepts
+    assert all(c.region for c in concepts)
+    print(f'EntityRuler completed: {len(concepts)} concepts; matches={[c.concept_text for c in concepts]}')
