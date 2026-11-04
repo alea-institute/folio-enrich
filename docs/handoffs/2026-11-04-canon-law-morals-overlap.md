@@ -5,7 +5,7 @@ Written 2026-11-04 by the brainstorm/planning session; updated when the plan bec
 ## State
 
 - **Plan:** `docs/plans/2026-11-04-0806-feat-canon-law-morals-overlap-plan.md` — U1–U8 built, simplified, code-reviewed (9 reviewers; 7 findings confirmed and fixed), and pushed on this branch.
-- **Blocked:** U9 demo bake. The Gemini key returns 402 Payment Required; Damien chose to restore billing (Cockpit `folio-enrich-2026-11-04-1618-canon-demo-bake-billing`). When billing is back, bake the 5 overlap slugs with `--ontology both --only <slug>` and the 4 breadth slugs with `--ontology canon --only <slug>` (scripts/generate_demos.py), then run `-m demo_regen` (density + overlap gates) and browser UAT. Ship only breadth demos at 35+ concept tags per 100 words; the real "Abbot" text scored 20.6 on exact labels and may miss.
+- **Demos baked** with GPT-6.1 Sol through the bake-only Codex CLI provider (`--provider codex-cli`): 5 overlap demos and 3 synthetic breadth demos (42.6-49.4 tags/100 words). The real Catholic Encyclopedia "Abbot" text scored 24.0 and was dropped. FOLIO demos are stale against the Oct 30 FOLIO release; that predates this work.
 - **PR held:** the branch carries two pre-existing commits not on main (a "WIP: PreCompact auto-save" with `.codex-task/` and `.planning/` files, and an AGENTS.md note). Decide whether they belong before opening the PR.
 - **Residual risks** from review (not blocking): see the plan's review notes in the PR description when opened.
 
