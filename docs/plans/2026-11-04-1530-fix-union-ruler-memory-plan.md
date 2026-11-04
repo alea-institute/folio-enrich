@@ -51,3 +51,17 @@ container restart.
 - Delta ruler: 2,236 labels.
 - Equivalence: across 23 baked demo documents, old and new union rulers return identical matches (3,973 of 3,973).
 - Suite: 1647 passed; the 3 failures are the known env-only ones (insights router path, parquet byte fixture, nupunkt abbreviation split). Slow union tests: 3 passed.
+
+# DEV verification (2026-11-04, main 09b2aa8)
+
+Live both jobs inside propositions-dev (mem_limit 1600m), no restart and no OOM in any:
+
+| document | annotations | secs | container peak |
+|---|---|---|---|
+| advice_litigation (11 KB), cold | 206 (171 shared, 22 folio_only, 13 canon_only) | 19 | 1.39 GiB |
+| same, warm | 206 | 4 | 1.43 GiB |
+| advice_regulatory (16 KB) | 360 (188 / 140 / 32) | 7 | 1.46 GiB |
+
+Headroom stays thin (~100 MB). Resident caches (both graphs, union labels, FOLIO ruler) never
+release, so concurrent both jobs or much larger documents could still reach the limit. Next
+lever, if needed: lazy or shared union label maps (+95 MB) and the Canon graph footprint.
