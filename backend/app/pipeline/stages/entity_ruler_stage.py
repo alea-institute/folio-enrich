@@ -4,7 +4,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-from app.models.annotation import Annotation, ConceptMatch, stamp_union_concept, Span
+from app.models.annotation import Annotation, ConceptMatch, stamp_union_annotations, stamp_union_dict, Span
 from app.models.job import Job, JobStatus
 from app.pipeline.stages.base import PipelineStage, record_lineage
 from app.services.entity_ruler.ruler import EntityRulerMatch, FOLIOEntityRuler
@@ -57,12 +57,13 @@ class EntityRulerStage(PipelineStage):
         # semantic (embedding) pass runs. When None, no early flush happens.
         self._job_store = job_store
         self._patterns_loaded = False
+        self._patterns_ontology = None
         self._iri_to_branch: dict[str, str] = {}
         self._iri_to_concept: dict[str, object] = {}  # IRI → FOLIOConcept
 
     def _ensure_patterns_loaded(self, ontology_id: str = "folio") -> None:
         """Load ontology patterns into the EntityRuler on first use."""
-        if self._patterns_loaded and getattr(self, "_patterns_ontology", ontology_id) == ontology_id:
+        if self._patterns_loaded and self._patterns_ontology in (None, ontology_id):
             return
         if self._patterns_loaded:
             self._iri_to_branch.clear()
@@ -168,7 +169,7 @@ class EntityRulerStage(PipelineStage):
         # embeddings enabled. ---
         if job.ontology == "both":
             service = FolioService.get_instance(job.ontology)
-            ruler_concepts[:] = [stamp_union_concept(ConceptMatch(**c), service).model_dump() for c in ruler_concepts]
+            ruler_concepts[:] = [stamp_union_dict(c, service) for c in ruler_concepts]
         job.result.metadata["ruler_concepts"] = ruler_concepts
         job.result.metadata["ruler_match_types"] = match_types
 
@@ -180,9 +181,7 @@ class EntityRulerStage(PipelineStage):
         # Early flush: persist deterministic tags now so the SSE stream emits them
         # without waiting for the embedding pass.
         if job.ontology == "both":
-            for ann in deterministic_annotations:
-                for concept in ann.concepts:
-                    stamp_union_concept(concept, service)
+            stamp_union_annotations(deterministic_annotations, service)
         if self._job_store is not None:
             job.updated_at = datetime.now(timezone.utc)
             try:
@@ -266,10 +265,8 @@ class EntityRulerStage(PipelineStage):
             )
 
         if job.ontology == "both":
-            for ann in job.result.annotations:
-                for concept in ann.concepts:
-                    stamp_union_concept(concept, service)
-            job.result.metadata["ruler_concepts"] = [stamp_union_concept(ConceptMatch(**c), service).model_dump() for c in ruler_concepts]
+            stamp_union_annotations(job.result.annotations, service)
+            job.result.metadata["ruler_concepts"] = [stamp_union_dict(c, service) for c in ruler_concepts]
 
         # Activity log
         preferred = sum(1 for m in matches if m.match_type == "preferred")

@@ -4,8 +4,9 @@ import csv
 import json
 import io
 
+from app.models.annotation import UNION_CONCEPT_FIELDS
 from app.models.job import Job
-from app.services.export.base import ExporterBase
+from app.services.export.base import ExporterBase, union_cells
 
 
 class CSVExporter(ExporterBase):
@@ -27,7 +28,7 @@ class CSVExporter(ExporterBase):
             "concept_text", "folio_iri", "folio_label",
             "branch", "branch_color", "confidence", "source",
             "hierarchy_path", "definition",
-        ] + (list(('region', 'peer_iri', 'peer_label', 'peer_branches', 'drifted')) if job.result.ontology_id == "both" else []))
+        ] + ([*UNION_CONCEPT_FIELDS] if job.result.ontology_id == "both" else []))
 
         # Rows
         for ann in job.result.annotations:
@@ -46,7 +47,7 @@ class CSVExporter(ExporterBase):
                     concept.source,
                     hierarchy,
                     concept.folio_definition or "",
-                ] + ([json.dumps(getattr(concept, k)) if isinstance(getattr(concept, k), list) else getattr(concept, k) for k in ('region', 'peer_iri', 'peer_label', 'peer_branches', 'drifted')] if job.result.ontology_id == "both" else []))
+                ] + (union_cells(concept) if job.result.ontology_id == "both" else []))
 
         # Individuals section (blank row separator)
         if job.result.individuals:

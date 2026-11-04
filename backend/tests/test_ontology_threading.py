@@ -53,14 +53,14 @@ class TestJobOntologyProperty:
 class TestResultStamping:
     def test_stamps_from_input(self):
         job = Job(input=DocumentInput(content="x", ontology="folio"))
-        PipelineOrchestrator._stamp_ontology(job)
+        PipelineOrchestrator.stamp_ontology(job)
         assert job.result.ontology_id == "folio"
         assert job.result.ontology_name == "FOLIO"
         assert job.result.base_iri == "https://folio.openlegalstandard.org/"
 
     def test_stamps_default_when_input_missing(self):
         job = Job()
-        PipelineOrchestrator._stamp_ontology(job)
+        PipelineOrchestrator.stamp_ontology(job)
         assert job.result.ontology_id == "folio"
 
     def test_jobresult_defaults_are_folio(self):
@@ -114,7 +114,7 @@ class TestEnrichRouteOntologyBoundary:
 async def test_both_request_stamping_and_mode(client):
     assert EnrichRequest(content='x', ontology='both').ontology == 'both'
     job = Job(input=DocumentInput(content='x', ontology='both'))
-    PipelineOrchestrator._stamp_ontology(job)
+    PipelineOrchestrator.stamp_ontology(job)
     assert job.result.ontology_id == 'both'
     assert job.result.ontology_name == 'FOLIO + Catholic Semantic Canon'
     assert job.result.base_iri == 'https://folio.openlegalstandard.org/'
@@ -127,8 +127,7 @@ async def test_both_request_stamping_and_mode(client):
 @pytest.mark.parametrize('ontology', ['folio', 'canon'])
 def test_single_ontology_omits_peer_base_iri(ontology):
     job = Job(input=DocumentInput(content='x', ontology=ontology))
-    PipelineOrchestrator._stamp_ontology(job)
-    assert 'peer_base_iri' not in job.model_dump(mode='json')
+    PipelineOrchestrator.stamp_ontology(job)
     assert 'peer_base_iri' not in job.model_dump(mode='json')['result']
     assert 'peer_base_iri' not in job.model_dump_json()
 
@@ -153,7 +152,7 @@ async def test_both_start_boundary(monkeypatch, tmp_path, unavailable, client):
     monkeypatch.setattr(enrich, '_job_store', JobStore(base_dir=tmp_path))
     # Keep the test at the request boundary; later pipeline wiring is separate.
     async def run(self, job):
-        self._stamp_ontology(job)
+        self.stamp_ontology(job)
     monkeypatch.setattr(PipelineOrchestrator, 'run', run)
     try:
         response = await client.post('/enrich', json={'content': 'x', 'ontology': 'both'})

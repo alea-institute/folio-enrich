@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from app.models.annotation import Annotation, ConceptMatch, stamp_union_concept, Span, StageEvent
+from app.models.annotation import Annotation, ConceptMatch, stamp_union_concept, stamp_union_dict, Span, StageEvent
 from app.models.job import Job, JobStatus
 from app.pipeline.stages.base import PipelineStage, record_lineage
 from app.services.matching.aho_corasick import AhoCorasickMatcher
@@ -73,8 +73,9 @@ class StringMatchStage(PipelineStage):
         from app.services.folio.folio_service import FolioService
         service = FolioService.get_instance(job.ontology)
         folio_labels = service.get_all_labels()
+        stamp_cache = {}
         if job.ontology == "both":
-            resolved_concepts = [dict(rc, **stamp_union_concept(ConceptMatch(**rc), service).model_dump()) for rc in resolved_concepts]
+            resolved_concepts = [stamp_union_dict(rc, service, cache=stamp_cache) for rc in resolved_concepts]
 
         for rc in resolved_concepts:
             rc_iri = rc.get("folio_iri", "")
@@ -165,7 +166,7 @@ class StringMatchStage(PipelineStage):
                 )
 
                 if job.ontology == "both":
-                    stamp_union_concept(concept, service)
+                    stamp_union_concept(concept, service, cache=stamp_cache)
 
                 # Build backup ConceptMatch objects from runner-up candidates
                 backup_concepts: list[ConceptMatch] = []
@@ -186,7 +187,7 @@ class StringMatchStage(PipelineStage):
 
                 if job.ontology == "both":
                     for backup in backup_concepts:
-                        stamp_union_concept(backup, service)
+                        stamp_union_concept(backup, service, cache=stamp_cache)
 
                 # Materialize upstream _lineage_events from resolved concept dicts
                 upstream_events: list[StageEvent] = []

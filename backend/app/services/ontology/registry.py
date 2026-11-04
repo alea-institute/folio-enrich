@@ -49,6 +49,7 @@ class OntologyRegistry:
         # ONE SentenceTransformer shared by every per-ontology EmbeddingService, so
         # enabling Canon does not load a second copy of the model.
         self._shared_provider = None
+        self._composite_embedding_service = None
 
     @classmethod
     def from_settings(cls) -> OntologyRegistry:
@@ -111,6 +112,13 @@ class OntologyRegistry:
                     lru, len(non_default) + 1, ceiling,
                 )
 
+    def _validate_union(self, oid: str) -> bool:
+        if oid != "both":
+            return False
+        if not self.has(oid):
+            raise UnknownOntologyError(oid)
+        return True
+
     def get_service(self, ontology_id: str | None = None) -> "FolioService | UnionService":
         """Return the (lazily built, cached) ontology read service for an id.
 
@@ -118,9 +126,7 @@ class OntologyRegistry:
         build runs once under a per-ontology lock.
         """
         oid = ontology_id or self._default_id
-        if oid == "both":
-            if not self.has(oid):
-                raise UnknownOntologyError(oid)
+        if self._validate_union(oid):
             from app.services.ontology.union_service import UnionService
 
             return UnionService(self)
@@ -167,12 +173,14 @@ class OntologyRegistry:
         the two builds never nest on the same lock.
         """
         oid = ontology_id or self._default_id
-        if oid == "both":
-            if not self.has(oid):
-                raise UnknownOntologyError(oid)
+        if self._validate_union(oid):
             from app.services.embedding.service import CompositeEmbeddingService
 
-            return CompositeEmbeddingService(self)
+            if self._composite_embedding_service is None:
+                with self._lock_for(oid):
+                    if self._composite_embedding_service is None:
+                        self._composite_embedding_service = CompositeEmbeddingService(self)
+            return self._composite_embedding_service
         es = self._embedding_services.get(oid)  # fast path, lock-free
         if es is not None:
             self._touch(oid)

@@ -3,7 +3,7 @@ from __future__ import annotations
 import io
 
 from app.models.job import Job
-from app.services.export.base import ExporterBase
+from app.services.export.base import ExporterBase, union_fields
 
 
 class ParquetExporter(ExporterBase):
@@ -34,7 +34,7 @@ class ParquetExporter(ExporterBase):
                     "span_end": ann.span.end,
                     "span_text": ann.span.text,
                     "concept_text": concept.concept_text,
-                    **({k: v for k, v in concept.model_dump().items() if k in ('region', 'peer_iri', 'peer_label', 'peer_branches', 'drifted')} if job.result.ontology_id == "both" else {}),
+                    **(union_fields(concept) if job.result.ontology_id == "both" else {}),
                     "folio_iri": concept.folio_iri or "",
                     "folio_label": concept.folio_label or "",
                     "branch": concept.branches[0] if concept.branches else "",
@@ -116,7 +116,6 @@ class ParquetExporter(ExporterBase):
             })
 
         if job.result.ontology_id == "both":
-            # One table keeps annotations and other record types readable together.
             combined = [{**row, "record_type": "concept"} for row in rows]
             for kind, records in (("individual", ind_rows), ("property", prop_rows), ("triple", tri_rows)):
                 combined.extend({**row, "record_type": kind} for row in records)

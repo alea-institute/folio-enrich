@@ -4,8 +4,9 @@ import csv
 import json
 import io
 
+from app.models.annotation import UNION_CONCEPT_FIELDS
 from app.models.job import Job
-from app.services.export.base import ExporterBase
+from app.services.export.base import ExporterBase, union_cells
 
 
 class Neo4jExporter(ExporterBase):
@@ -26,7 +27,7 @@ class Neo4jExporter(ExporterBase):
         rels_writer = csv.writer(rels_buf)
 
         # Nodes header
-        extra = list(('region', 'peer_iri', 'peer_label', 'peer_branches', 'drifted')) + ["bridges"] if job.result.ontology_id == "both" else []
+        extra = list(UNION_CONCEPT_FIELDS) + ["bridges"] if job.result.ontology_id == "both" else []
         nodes_writer.writerow([":ID", "name", "iri", "branch", ":LABEL"] + extra)
 
         seen_concepts: set[str] = set()
@@ -50,7 +51,7 @@ class Neo4jExporter(ExporterBase):
                         concept.folio_iri or "",
                         concept.branches[0] if concept.branches else "",
                         "Concept",
-                    ] + ([json.dumps(getattr(concept, k)) if isinstance(getattr(concept, k), list) else getattr(concept, k) for k in ('region', 'peer_iri', 'peer_label', 'peer_branches', 'drifted')] + [""] if extra else []))
+                    ] + (union_cells(concept) + [""] if extra else []))
                 # Relationship
                 rels_writer.writerow([
                     doc_id, iri, "CONTAINS_CONCEPT",

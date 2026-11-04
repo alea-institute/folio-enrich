@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 
 from app.models.job import Job
-from app.services.export.base import ExporterBase
+from app.services.export.base import ExporterBase, union_fields
 
 
 class ElasticsearchExporter(ExporterBase):
@@ -29,7 +29,7 @@ class ElasticsearchExporter(ExporterBase):
                     "span_end": ann.span.end,
                     "span_text": ann.span.text,
                     "concept_text": concept.concept_text,
-                    **({k: v for k, v in concept.model_dump().items() if k in ('region', 'peer_iri', 'peer_label', 'peer_branches', 'drifted')} if job.result.ontology_id == "both" else {}),
+                    **(union_fields(concept) if job.result.ontology_id == "both" else {}),
                     "folio_iri": concept.folio_iri,
                     "folio_label": concept.folio_label,
                     "branch": concept.branches[0] if concept.branches else "",

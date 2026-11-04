@@ -12,11 +12,12 @@ Public-domain and synthetic breadth exemplars are pre-baked as Canon demos.
 
 from __future__ import annotations
 
-import json
-import shutil
-import subprocess
-import tempfile
 from pathlib import Path
+
+if __package__:
+    from .module_exemplars import extract_module_texts
+else:
+    from module_exemplars import extract_module_texts
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 CANON_SAMPLES_JS = BACKEND_ROOT.parent / "frontend" / "demos" / "canon_samples.js"
@@ -87,52 +88,11 @@ def extract_canon_texts() -> dict[str, str]:
     module with ``module.exports = CANON_SAMPLES``, the driver just ``require``s it.
     Raises if Node is unavailable or any expected slug is missing/empty.
     """
-    node = shutil.which("node")
-    if not node:
-        raise RuntimeError(
-            "Node.js is required to extract Canon exemplar texts from "
-            "frontend/demos/canon_samples.js (template literals). Install Node and retry."
-        )
-    if not CANON_SAMPLES_JS.is_file():
-        raise RuntimeError(f"Canon samples module not found: {CANON_SAMPLES_JS}")
-
-    wanted = json.dumps(CANON_EXEMPLAR_SLUGS)
-    # JSON.stringify of the abs path yields a safe, quote-escaped JS string literal.
-    samples_path = json.dumps(str(CANON_SAMPLES_JS))
-    script = (
-        f"const CANON_SAMPLES = require({samples_path});\n"
-        f"const __wanted = {wanted};\n"
-        "const __out = {};\n"
-        "for (const k of __wanted) {\n"
-        "  if (!(k in CANON_SAMPLES)) { console.error('MISSING_SLUG:' + k); process.exit(2); }\n"
-        "  __out[k] = CANON_SAMPLES[k];\n"
-        "}\n"
-        "process.stdout.write(JSON.stringify(__out));\n"
+    return extract_module_texts(
+        CANON_SAMPLES_JS, CANON_EXEMPLAR_SLUGS, "CANON_SAMPLES", "Canon", "Canon",
+        "Node.js is required to extract Canon exemplar texts from "
+        "frontend/demos/canon_samples.js (template literals). Install Node and retry.",
     )
-
-    with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as fh:
-        fh.write(script)
-        tmp_path = Path(fh.name)
-    try:
-        proc = subprocess.run(
-            [node, str(tmp_path)],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-    finally:
-        tmp_path.unlink(missing_ok=True)
-
-    if proc.returncode != 0:
-        raise RuntimeError(
-            f"Node extraction failed (exit {proc.returncode}): {proc.stderr.strip()}"
-        )
-
-    texts: dict[str, str] = json.loads(proc.stdout)
-    missing = [s for s in CANON_EXEMPLAR_SLUGS if not texts.get(s, "").strip()]
-    if missing:
-        raise RuntimeError(f"Extracted empty/missing Canon exemplar text for: {missing}")
-    return texts
 
 
 if __name__ == "__main__":

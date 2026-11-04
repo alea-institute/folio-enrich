@@ -114,7 +114,7 @@ async def create_enrichment(req: EnrichRequest) -> dict:
     doc = DocumentInput(content=req.content, format=fmt, filename=req.filename, ontology=req.ontology)
     job = Job(input=doc)
     if req.ontology == "both":
-        PipelineOrchestrator._stamp_ontology(job)
+        PipelineOrchestrator.stamp_ontology(job)
     await _job_store.save(job)
 
     # Build pipeline with per-task LLMs (task-specific overrides > request > global)

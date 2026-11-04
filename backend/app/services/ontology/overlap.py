@@ -62,19 +62,18 @@ class OverlapIndex:
         self.entries: dict[str, OverlapRecord] = {}
         for key in folio.keys() | canon.keys():
             f, c = folio.get(key), canon.get(key)
-            shared = (f is not None and c is not None
+            shared_in_fork = (f is not None and c is not None
                       and f.iri.startswith(folio_service.spec.base_iri)
                       and c.iri.startswith(canon_service.spec.base_iri))
-            # External Canon identifiers never participate in the fork join.
-            region = "shared" if shared else "canon_only" if c is not None else "folio_only"
+            region = "shared" if shared_in_fork else "canon_only" if c is not None else "folio_only"
             self.entries[key] = OverlapRecord(
                 iri_hash=key, region=region,
                 folio_iri=f.iri if f is not None else None,
                 canon_iri=c.iri if c is not None else None,
                 folio_label=(f.label or "") if f is not None else None,
                 canon_label=(c.label or "") if c is not None else None,
-                label_drift=bool(shared and _normalized(f.label) != _normalized(c.label)),
-                definition_drift=bool(shared and _normalized(f.definition) != _normalized(c.definition)),
+                label_drift=bool(shared_in_fork and _normalized(f.label) != _normalized(c.label)),
+                definition_drift=bool(shared_in_fork and _normalized(f.definition) != _normalized(c.definition)),
             )
 
     def lookup(self, iri_hash: str) -> OverlapRecord | None:
@@ -108,6 +107,8 @@ def get_overlap_index() -> OverlapIndex:
     """Build once per installed registry, only when overlap is requested."""
     global _index, _index_registry
     registry = get_registry()
+    if _index is not None and _index_registry is registry:
+        return _index
     with _lock:
         if _index is None or _index_registry is not registry:
             _index = OverlapIndex(registry)

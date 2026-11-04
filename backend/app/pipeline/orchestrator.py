@@ -387,7 +387,7 @@ class PipelineOrchestrator:
             self.stages = build_stages(llm, task_llms=task_llms)  # kept for backward compat
 
     @staticmethod
-    def _stamp_ontology(job: Job) -> None:
+    def stamp_ontology(job: Job) -> None:
         """Stamp the result with which ontology this job is enriched against.
 
         Read from job.input.ontology (the request already validated it against the
@@ -414,7 +414,7 @@ class PipelineOrchestrator:
         job.result.base_iri = spec.base_iri
 
     async def run(self, job: Job) -> Job:
-        self._stamp_ontology(job)
+        self.stamp_ontology(job)
         if self._config is not None:
             return await self._run_parallel(job)
         return await self._run_flat(job)

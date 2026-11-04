@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 
 from app.models.job import Job
-from app.services.export.base import ExporterBase
+from app.services.export.base import ExporterBase, union_fields
 
 
 class JSONLExporter(ExporterBase):
@@ -25,7 +25,7 @@ class JSONLExporter(ExporterBase):
                 "concepts": [
                     {
                         "concept_text": c.concept_text,
-                        **({k: v for k, v in c.model_dump().items() if k in ('region', 'peer_iri', 'peer_label', 'peer_branches', 'drifted')} if job.result.ontology_id == "both" else {}),
+                        **(union_fields(c) if job.result.ontology_id == "both" else {}),
                         "folio_iri": c.folio_iri,
                         "folio_label": c.folio_label,
                         "branch": c.branches[0] if c.branches else "",

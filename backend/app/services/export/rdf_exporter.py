@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.models.annotation import UNION_CONCEPT_FIELDS
 from app.models.job import Job
 from app.services.export.base import ExporterBase
 
@@ -18,6 +19,11 @@ class RDFExporter(ExporterBase):
         from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, SKOS, XSD
 
         g = Graph()
+
+        def add_value(subject, key, value, as_iri=False):
+            for v in value if isinstance(value, list) else [value]:
+                g.add((subject, NS[key], URIRef(v) if as_iri else Literal(v)))
+
         # Derive the ontology namespace + prefix from the job result so exports are
         # ontology-neutral (FOLIO for FOLIO jobs, Canon for Canon jobs, etc.) rather
         # than hardcoding the FOLIO base IRI. The urn:folio-enrich: URN below is the
@@ -55,12 +61,10 @@ class RDFExporter(ExporterBase):
                     g.add((ann_uri, OA.hasBody, concept_uri))
                     g.add((concept_uri, RDF.type, SKOS.Concept))
                     if job.result.ontology_id == "both":
-                        for key in ("region", "peer_iri", "peer_label", "peer_branches", "drifted"):
+                        for key in UNION_CONCEPT_FIELDS:
                             value = getattr(concept, key)
                             if value is not None:
-                                values = value if isinstance(value, list) else [value]
-                                for v in values:
-                                    g.add((concept_uri, NS[key], URIRef(v) if key == "peer_iri" else Literal(v)))
+                                add_value(concept_uri, key, value, as_iri=key == "peer_iri")
                     if concept.folio_label:
                         g.add((concept_uri, SKOS.prefLabel, Literal(concept.folio_label)))
 
@@ -131,6 +135,5 @@ class RDFExporter(ExporterBase):
                 node = BNode()
                 g.add((doc_uri, NS.bridges, node))
                 for key, value in bridge.items():
-                    for v in value if isinstance(value, list) else [value]:
-                        g.add((node, NS[key], Literal(v)))
+                    add_value(node, key, value)
         return g.serialize(format="turtle")

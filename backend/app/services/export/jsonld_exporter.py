@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 
 from app.models.job import Job
-from app.services.export.base import ExporterBase
+from app.services.export.base import ExporterBase, union_fields
 
 
 class JSONLDExporter(ExporterBase):
@@ -40,7 +40,7 @@ class JSONLDExporter(ExporterBase):
                         k: v
                         for k, v in {
                             "@type": "skos:Concept",
-                            **({f"{p}:{k}": v for k, v in concept.model_dump().items() if k in ('region', 'peer_iri', 'peer_label', 'peer_branches', 'drifted')} if job.result.ontology_id == "both" else {}),
+                            **({f"{p}:{k}": v for k, v in union_fields(concept).items()} if job.result.ontology_id == "both" else {}),
                             "@id": concept.folio_iri or "",
                             "skos:prefLabel": concept.folio_label or concept.concept_text,
                             "skos:definition": concept.folio_definition or "",

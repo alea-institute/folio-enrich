@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 
+from app.models.annotation import UNION_CONCEPT_FIELDS
 from app.models.job import Job
 from app.services.export.base import ExporterBase
 from folio_propositions import Proposition
@@ -41,7 +42,7 @@ class BratExporter(ExporterBase):
                     a_idx += 1
 
                 if job.result.ontology_id == "both":
-                    for key in ("region", "peer_iri", "peer_label", "peer_branches", "drifted"):
+                    for key in UNION_CONCEPT_FIELDS:
                         value = getattr(concept, key)
                         if value is not None:
                             lines.append(f"A{a_idx}\t{key} T{t_idx} {json.dumps(value)}")

@@ -6,6 +6,9 @@ from uuid import uuid4
 from pydantic import BaseModel, Field, model_serializer, model_validator
 
 
+UNION_CONCEPT_FIELDS = ("region", "peer_iri", "peer_label", "peer_branches", "drifted")
+
+
 class StageEvent(BaseModel):
     stage: str  # "entity_ruler", "reconciliation", "resolution", etc.
     action: str  # "created", "confirmed", "rejected", "enriched", "branch_assigned"
@@ -68,7 +71,7 @@ class ConceptMatch(BaseModel):
     @model_serializer(mode="wrap")
     def _omit_union_defaults(self, handler):
         data = handler(self)
-        for key in ("region", "peer_iri", "peer_label", "peer_branches", "drifted"):
+        for key in UNION_CONCEPT_FIELDS:
             if getattr(self, key) is None:
                 data.pop(key, None)
         return data
@@ -188,12 +191,19 @@ class PropertyAnnotation(BaseModel):
     feedback: list[FeedbackItem] = Field(default_factory=list)
 
 
-def stamp_union_concept(concept: ConceptMatch, service) -> ConceptMatch:
+def stamp_union_concept(concept: ConceptMatch, service, *, cache=None) -> ConceptMatch:
     """Attach overlap metadata only when resolving through the virtual union."""
     if getattr(service, "ontology_id", None) != "both" or not concept.folio_iri:
         return concept
-    primary = service.get_concept(concept.folio_iri)
+    iri = concept.folio_iri
+    if cache is not None and iri in cache:
+        for key, value in cache[iri].items():
+            setattr(concept, key, value.copy() if isinstance(value, list) else value)
+        return concept
+    primary = service.get_concept(iri)
     if primary is None:
+        if cache is not None:
+            cache[iri] = {}
         return concept
     concept.folio_iri = primary.iri
     concept.iri_hash = primary.iri.rsplit("/", 1)[-1]
@@ -201,7 +211,26 @@ def stamp_union_concept(concept: ConceptMatch, service) -> ConceptMatch:
     concept.peer_iri = primary.peer_iri
     concept.peer_label = primary.peer_label
     concept.drifted = primary.drifted
+    keys = ("folio_iri", "iri_hash", "region", "peer_iri", "peer_label", "drifted")
     if concept.peer_iri:
         peer = service.service_for_iri(concept.peer_iri).get_concept(concept.peer_iri)
         concept.peer_branches = [peer.branch] if peer and peer.branch else []
+        keys += ("peer_branches",)
+    if cache is not None:
+        fields = {}
+        for key in keys:
+            value = getattr(concept, key)
+            fields[key] = value.copy() if isinstance(value, list) else value
+        cache[iri] = fields
     return concept
+
+
+def stamp_union_dict(d: dict, service, *, cache=None) -> dict:
+    """Return the stamped model fields, retaining extra dictionary metadata."""
+    return dict(d, **stamp_union_concept(ConceptMatch(**d), service, cache=cache).model_dump())
+
+
+def stamp_union_annotations(annotations, service) -> None:
+    for annotation in annotations:
+        for concept in annotation.concepts:
+            stamp_union_concept(concept, service)

@@ -8,8 +8,9 @@ import json
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 
+from app.models.annotation import UNION_CONCEPT_FIELDS
 from app.models.job import Job
-from app.services.export.base import ExporterBase
+from app.services.export.base import ExporterBase, union_cells
 
 
 def _hex_to_rgb(hex_color: str) -> str:
@@ -51,7 +52,7 @@ class ExcelExporter(ExporterBase):
             "Hierarchy Path", "Definition",
         ]
         if job.result.ontology_id == "both":
-            headers.extend(('region', 'peer_iri', 'peer_label', 'peer_branches', 'drifted'))
+            headers.extend(UNION_CONCEPT_FIELDS)
         ws.append(headers)
         for cell in ws[1]:
             cell.font = Font(bold=True)
@@ -78,7 +79,7 @@ class ExcelExporter(ExporterBase):
                     concept.folio_definition or "",
                 ]
                 if job.result.ontology_id == "both":
-                    row_data.extend(json.dumps(getattr(concept, k)) if isinstance(getattr(concept, k), list) else getattr(concept, k) for k in ('region', 'peer_iri', 'peer_label', 'peer_branches', 'drifted'))
+                    row_data.extend(union_cells(concept))
                 ws.append(row_data)
 
                 # Apply branch color to the Branch cell

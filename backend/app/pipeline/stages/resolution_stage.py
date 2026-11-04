@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from app.models.annotation import ConceptMatch, stamp_union_concept
+from app.models.annotation import ConceptMatch, stamp_union_dict
 from app.models.job import Job, JobStatus
 from app.pipeline.stages.base import PipelineStage
 from app.services.folio.branch_config import (
@@ -345,9 +345,9 @@ class ResolutionStage(PipelineStage):
 
         if job.ontology == "both":
             for rc in resolved_concepts:
-                rc.update(stamp_union_concept(ConceptMatch(**rc), self.resolver.folio).model_dump())
+                rc.update(stamp_union_dict(rc, self.resolver.folio))
                 for backup in rc.get("_backup_candidates", []):
-                    backup.update(stamp_union_concept(ConceptMatch(**backup), self.resolver.folio).model_dump())
+                    backup.update(stamp_union_dict(backup, self.resolver.folio))
         job.result.metadata["resolved_concepts"] = resolved_concepts
 
         log = job.result.metadata.setdefault("activity_log", [])

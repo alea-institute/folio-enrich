@@ -3,6 +3,7 @@ from __future__ import annotations
 import html
 import json
 
+from app.models.annotation import UNION_CONCEPT_FIELDS
 from app.models.job import Job
 from app.services.export.base import ExporterBase
 
@@ -142,7 +143,7 @@ class HTMLExporter(ExporterBase):
             for ann in job.result.annotations:
                 for concept in ann.concepts:
                     details = {k: v for k, v in concept.model_dump().items()
-                               if k in ("folio_iri", "region", "peer_iri", "peer_label", "peer_branches", "drifted")}
+                               if k in ("folio_iri", *UNION_CONCEPT_FIELDS)}
                     both_html += "<li>" + html.escape(json.dumps(details)) + "</li>"
             both_html += "</ul><h2>bridges</h2><pre>" + html.escape(json.dumps(job.result.bridges or [], indent=2)) + "</pre>"
         return f"""<!DOCTYPE html>

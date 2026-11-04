@@ -4,6 +4,7 @@ from __future__ import annotations
 from copy import copy
 from dataclasses import replace
 from typing import TYPE_CHECKING
+from weakref import ref
 
 if TYPE_CHECKING:
     from app.services.ontology.registry import OntologyRegistry
@@ -13,8 +14,9 @@ class UnionService:
     ontology_id = 'both'
 
     def __init__(self, registry: OntologyRegistry):
-        # Never retain services, graphs, or label caches: LRU owns their lifetime.
+        # Cache records may outlive eviction; service identities must be weak references.
         self._registry = registry
+        self._label_cache = {}
 
     @property
     def spec(self):
@@ -31,14 +33,22 @@ class UnionService:
     def graph_for_iri(self, iri: str):
         return self.service_for_iri(iri)._get_folio()
 
-    def _get_folio(self, iri: str):
-        """Raw graph access requires an IRI so it preserves per-side behavior."""
-        return self.graph_for_iri(iri)
+    def _cached_labels(self, name):
+        cached = self._label_cache.get(name)
+        if cached is not None:
+            identities, labels = cached
+            if all(identity() is self._registry._services.get(oid) and identity() is not None
+                   for oid, identity in zip(('folio', 'canon'), identities)):
+                return labels
+        return None
 
-    def _decorate(self, concept):
-        from app.services.ontology.overlap import get_overlap_index
+    def _cache_labels(self, name, labels):
+        services = [self._registry._services.get(oid) for oid in ('folio', 'canon')]
+        if all(service is not None for service in services):
+            self._label_cache[name] = (tuple(ref(service) for service in services), labels)
+        return labels
 
-        record = get_overlap_index().lookup(concept.iri.rsplit('/', 1)[-1])
+    def _decorate(self, concept, record):
         concept = copy(concept)
         if record:
             concept.region = record.region
@@ -60,9 +70,12 @@ class UnionService:
             concept = self.service_for_iri(iri).get_concept(iri)
         else:
             concept = None
-        return self._decorate(concept) if concept is not None else None
+        return self._decorate(concept, record) if concept is not None else None
 
     def get_all_labels_multi(self):
+        cached = self._cached_labels("multi")
+        if cached is not None:
+            return cached
         labels = {}
         for oid in ('folio', 'canon'):
             for label, entries in self._registry.get_service(oid).get_all_labels_multi().items():
@@ -71,11 +84,14 @@ class UnionService:
                     concept = self.get_concept(entry.concept.iri)
                     if concept is not None and all(e.concept.iri != concept.iri for e in bucket):
                         bucket.append(replace(entry, concept=concept))
-        return labels
+        return self._cache_labels("multi", labels)
 
     def get_all_labels(self):
-        # Preserve FolioService's label-keyed public API, with shared hashes merged.
-        return {label: entries[0] for label, entries in self.get_all_labels_multi().items() if entries}
+        cached = self._cached_labels("single")
+        if cached is not None:
+            return cached
+        labels = {label: entries[0] for label, entries in self.get_all_labels_multi().items() if entries}
+        return self._cache_labels("single", labels)
 
     def search_by_label(self, label: str, top_k: int = 5):
         matches = {}
@@ -101,8 +117,11 @@ class UnionService:
         return None
 
     def get_all_property_labels(self):
+        cached = self._cached_labels("property")
+        if cached is not None:
+            return cached
         labels = {}
         for oid in ('folio', 'canon'):
             for label, entry in self._registry.get_service(oid).get_all_property_labels().items():
                 labels.setdefault(label, replace(entry, prop=self.get_property(entry.prop.iri)))
-        return labels
+        return self._cache_labels("property", labels)

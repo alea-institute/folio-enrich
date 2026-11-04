@@ -283,6 +283,7 @@ class ReconciliationStage(PipelineStage):
         boosted = 0
         penalized = 0
 
+        service = None
         for ann in job.result.annotations:
             if ann.state == "rejected" or not ann.concepts:
                 continue
@@ -300,7 +301,8 @@ class ReconciliationStage(PipelineStage):
             concept_affinity = affinity
             if job.ontology == "both":
                 from app.services.folio.folio_service import FolioService
-                service = FolioService.get_instance(job.ontology)
+                if service is None:
+                    service = FolioService.get_instance(job.ontology)
                 owner = service.service_for_iri(concept.folio_iri)
                 concept_affinity = _NER_BRANCH_AFFINITY_BY_ONTOLOGY.get(owner.spec.id, {})
             compatible_branches = concept_affinity.get(ner_label)
