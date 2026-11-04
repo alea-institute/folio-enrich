@@ -3747,7 +3747,6 @@
           <button class="secondary sample-btn" onclick="loadCanonSample('canon_liturgical_year')" title="Synthetic — a parish bulletin on the liturgical year (feasts, sacraments, ministries, places, and teaching)">Liturgical Year</button>
           <button class="secondary sample-btn" onclick="loadCanonSample('canon_diocesan_governance')" title="Synthetic — a chancery memo on canon-law governance (appointments, tribunal, marriage nullity, penalties, and property)">Diocesan Governance</button>
           <button class="secondary sample-btn" onclick="loadCanonSample('canon_saints_and_orders')" title="Synthetic — a short history of religious orders and saints (founders, rules, monasteries, councils, and pilgrimage places)">Saints and Religious Orders</button>
-          <button class="secondary sample-btn" onclick="loadCanonSample('canon_ce_abbot_1907')" title="Catholic Encyclopedia (1907), &quot;Abbot&quot; by Thomas Oestereich: census of abbots nullius and mitred abbeys by country and state.">Abbot (Catholic Encyclopedia, 1907)</button>
         </div>
       </div>
       <section style="margin-top:12px" aria-label="Law &amp; Morals">
@@ -12739,7 +12738,7 @@ function loadSample(name) {
 }
 
 // Canon exemplars have their own pre-baked demos + source texts (window.CANON_SAMPLES).
-const CANON_EXEMPLAR_DEMO_SLUGS = new Set(['nativity','sacraments','trent_eucharist','rerum_novarum','canon_liturgical_year','canon_diocesan_governance','canon_saints_and_orders','canon_ce_abbot_1907']);
+const CANON_EXEMPLAR_DEMO_SLUGS = new Set(['nativity','sacraments','trent_eucharist','rerum_novarum','canon_liturgical_year','canon_diocesan_governance','canon_saints_and_orders']);
 function loadCanonSample(slug) {
   // In demo mode, load the instant pre-baked Canon result (mirrors loadSample).
   if (demoModeOn && CANON_EXEMPLAR_DEMO_SLUGS.has(slug)) {

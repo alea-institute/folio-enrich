@@ -8,7 +8,7 @@ from scripts.generate_demos import DEMOS_DIR
 
 BREADTH_SLUGS = [
     "canon_liturgical_year", "canon_diocesan_governance",
-    "canon_saints_and_orders", "canon_ce_abbot_1907",
+    "canon_saints_and_orders",
 ]
 OVERLAP_SLUGS = [
     "lm_encyclopedia_theft", "lm_aquinas_robbery", "lm_aquinas_just_price",

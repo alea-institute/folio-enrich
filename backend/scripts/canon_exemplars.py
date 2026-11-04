@@ -32,7 +32,6 @@ CANON_EXEMPLAR_SLUGS: list[str] = [
     'canon_liturgical_year',
     'canon_diocesan_governance',
     'canon_saints_and_orders',
-    'canon_ce_abbot_1907',
 ]
 
 # Title + description + group per slug, used for the demo JSON's `demo` metadata block.
@@ -70,11 +69,6 @@ CANON_META: dict[str, dict[str, str]] = {
     "canon_saints_and_orders": {
         "title": "Saints and Religious Orders",
         "description": "Synthetic — a short history of religious orders and saints (founders, rules, monasteries, councils, and pilgrimage places)",
-        "group": "Breadth",
-    },
-    "canon_ce_abbot_1907": {
-        "title": "Abbot (Catholic Encyclopedia, 1907)",
-        "description": "Catholic Encyclopedia (1907), \"Abbot\" by Thomas Oestereich: census of abbots nullius and mitred abbeys by country and state.",
         "group": "Breadth",
     },
 }

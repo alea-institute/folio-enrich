@@ -1,10 +1,4 @@
-// Additional breadth samples include three synthetic texts and a public-domain excerpt.
-// canon_ce_abbot_1907
-// work: The Catholic Encyclopedia, Vol. 1 ("Abbot")
-// author: Thomas Oestereich
-// year: 1907
-// url: https://www.newadvent.org/cathen/01015c.htm
-// pd_basis: Published 1907 in the United States (Robert Appleton Company); US public domain (published before 1929).
+// Additional breadth samples are three synthetic texts.
 // Canon (Catholic Semantic Canon) demo source texts.
 //
 // The original four are public-domain excerpts (pre-1929 US public domain), chosen to be
@@ -119,13 +113,6 @@ From Spain, a Jesuit priest, once a soldier and student, professed obedience to 
 
 Today, pilgrims seek holy ground. Each shrine, basilica, cathedral, and chapel in Jerusalem, Bethlehem, Canterbury, Santiago, Portugal, and Poland welcomes clergy, laity, and religious. Each novena and litany honors a saint's birth, death, burial, and visitation. Every order still practices faith, hope, charity, prudence, and justice, and each abbess, prior, and novice renews that vocation in every religious house.`,
 
-  canon_ce_abbot_1907: `ABBOT
-
-The Black Monks of St. Benedict have at present seven Abbots nullius dioecesis, located as follows: Italy, 4; Switzerland, 1; Hungary, 1; and West Australia, 1; 86 Abbots exercising actual jurisdiction over their monasteries: Austria, 19; United States, 14; France, 9 (before the Law of Associations); Italy, 9; Germany, 7; England, 6; Hungary, 5; Switzerland, 4; Brazil, S.A., 3; Holland, 3; Spain, 3; Belgium, 2; Scotland l; West Australia 1. They have also nine titular, and three resigned Abbots.
-
-The Cistercian Abbots of the Three Observances number fifty-seven. Of these the Cistercians of the Common and of the Lesser Observance have nineteen: Italy, 3; Belgium, 2; Austro-Hungarian Province, 8; and the Swiss-German Congregation 3. The Congregation of Sénanque, to which the three Abbots of the Lesser Observance belong, is now dispersed by the Associations Law of France. The Cistercians of the Strict Observance (Trappists) have thirty-eight: France, 18 (not expelled); Belgium, 4; Italy, 3; United States, Austria, and Ireland, two each; Canada, China, England, Germany, Holland, and Spain, one each. The Cistercians have also two Abbots nullius dioecesis.
-
-In Italy, the Camaldolese, Vallombrosans, Silvestrines, and Olivetans, all branches of the Benedictine Order, have each a small number of Abbots. Monte Oliveto Maggiore, belonging to the Olivetans, is an abbey nullius dioecesis. Some few houses of the various Congregations of Canons Regular, of the Antonians, of the Armenian Benedictines, and of the Basilians, are also under the direction of Abbots. Mitred Abbots in the United States are the Abbots of St. Vincent's Arch-Abbey, Beatty, Pennsylvania; St. John's Abbey, Collegeville, Minnesota; St. Benedict's Abbey, Atchison, Kansas; St. Mary's Abbey, Newark, New Jersey; Maryhelp Abbey, Belmont, North Carolina; St. Bernard's Abbey, St. Bernard, Alabama; St. Procopius's Abbey, Chicago, Illinois; St. Leo's Abbey, St. Leo, Florida; St. Meinrad's Abbey, St. Meinrad, Indiana; Immaculate Conception Abbey, Conception, Missouri; New Subiaco Abbey, Spielerville, Arkansas; St. Joseph's Abbey, Covington, Louisiana; St. Mary's Abbey, Richardton, North Dakota; St. Benedict's Abbey, Mount Angel, Oregon; Gethsemani Abbey, Kentucky; New Melleray Abbey, near Dubuque, Iowa; and the Sacred Heart Abbey, Oklahoma.`,
 
 
 };
