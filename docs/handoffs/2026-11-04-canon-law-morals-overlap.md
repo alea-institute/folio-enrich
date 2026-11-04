@@ -1,16 +1,21 @@
-# Handoff: Canon law-and-morals overlap — brainstorm done, planning in progress
+# Handoff: Canon law-and-morals overlap — PR #53 open
 
-Written 2026-11-04 by the brainstorm/planning session; updated when the plan became implementation-ready. Receiving session: retire this per the three-condition rule once the plan executes and learnings are captured.
+Written 2026-11-04 by the brainstorm/plan/build session. Receiving session: retire this per the three-condition rule once PR #53 merges and DEV is verified.
 
 ## State
 
-- **Plan:** `docs/plans/2026-11-04-0806-feat-canon-law-morals-overlap-plan.md` — U1–U8 built, simplified, code-reviewed (9 reviewers; 7 findings confirmed and fixed), and pushed on this branch.
-- **Demos baked** with GPT-6.1 Sol through the bake-only Codex CLI provider (`--provider codex-cli`): 5 overlap demos and 3 synthetic breadth demos (42.6-49.4 tags/100 words). The real Catholic Encyclopedia "Abbot" text scored 24.0 and was dropped. FOLIO demos are stale against the Oct 30 FOLIO release; that predates this work.
-- **PR held:** the branch carries two pre-existing commits not on main (a "WIP: PreCompact auto-save" with `.codex-task/` and `.planning/` files, and an AGENTS.md note). Decide whether they belong before opening the PR.
-- **Residual risks** from review (not blocking): see the plan's review notes in the PR description when opened.
+- **PR:** https://github.com/alea-institute/folio-enrich/pull/53 from `feat/canon-law-morals-overlap` (one integration commit on main 264fc1c). CI `backend-tests` was pending at handoff.
+- **Plan:** `docs/plans/2026-11-04-0806-feat-canon-law-morals-overlap-plan.md` — all units built; demos baked with GPT-6.1 Sol via the bake-only Codex CLI provider.
+- **Old branch:** `session/1104-0708` holds the original 18-commit history plus two pre-existing commits (an Aug 17 WIP auto-save and an AGENTS.md note) that Damien chose to keep OFF the PR. Leave that branch alone.
 
-## Facts the plan already encodes (don't re-derive)
+## Next steps
 
-- The Canon is a FOLIO fork: 14,407 of 14,972 Canon classes reuse a FOLIO local identifier; 12 differ in label, 7 in definition.
-- Label matching is unsafe: 659 Canon labels match more than one FOLIO class.
-- 47 model-curated bridges ship in `backend/data/bridges/canon_folio_bridges.json`, validated against the pins.
+1. Wait for CI on PR #53. If green, merge (standing authorization). If red, reproduce locally and fix on the PR branch.
+2. Deploy to DEV (Hetzner, propositions-dev) per the repo's DEV procedure and verify an overlap demo and a live "both" run there. PROD is not a gate (SSH broken since 2026-10-30).
+3. Follow-ups, not in this PR: re-bake the FOLIO demos against the Oct 30 FOLIO release; fix the three env-version test failures that also fail on pure main (router attribute, parquet byte, nupunkt split).
+
+## Facts encoded in the plan and PR (don't re-derive)
+
+- The Canon is a FOLIO fork: 14,407 shared classes, 12 label-drifted, 7 definition-drifted; 659 Canon labels are ambiguous in FOLIO, so regions use the local identifier.
+- 47 model-curated bridges validate against the pins; `backend/scripts/bridge_queue.py` lists new Canon-only concepts after a pin bump.
+- Codex CLI workers cannot run git (their sandbox mounts .git read-only); the orchestrator must run git.
