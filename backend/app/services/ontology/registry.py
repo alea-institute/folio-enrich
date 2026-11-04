@@ -225,9 +225,7 @@ def get_embedding_service(ontology_id: str | None = None) -> "EmbeddingService":
 
 def reset_registry() -> None:
     """Test hook: drop the process-global registry so it rebuilds from settings."""
-    global _registry
-    with _registry_lock:
-        _registry = None
+    set_registry(None)
 
 
 def set_registry(registry: OntologyRegistry | None) -> None:
@@ -238,5 +236,8 @@ def set_registry(registry: OntologyRegistry | None) -> None:
     get_instance``, ``get_embedding_service``) returns. Pass ``None`` to clear.
     """
     global _registry
+    from app.services.ontology.overlap import reset_overlap_index
+
     with _registry_lock:
         _registry = registry
+    reset_overlap_index()
