@@ -184,14 +184,14 @@ def build_pipeline_config(
     config.post_parallel.append(TripleEnrichmentStage())
 
     # MetadataStage runs absolute last — it uses all pipeline outputs as context
-    if task_llms_resolved.classifier is not None or task_llms_resolved.extractor is not None:
-        config.post_parallel.append(
-            MetadataStage(
-                task_llms_resolved.classifier or task_llms_resolved.extractor,
-                classifier_llm=task_llms_resolved.classifier,
-                extractor_llm=task_llms_resolved.extractor,
-            )
+    # Metadata also attaches deterministic bridges without an LLM.
+    config.post_parallel.append(
+        MetadataStage(
+            task_llms_resolved.classifier or task_llms_resolved.extractor,
+            classifier_llm=task_llms_resolved.classifier,
+            extractor_llm=task_llms_resolved.extractor,
         )
+    )
 
     return config
 
@@ -254,14 +254,14 @@ def build_stages(
     stages.append(TripleEnrichmentStage())
 
     # MetadataStage runs absolute last — it uses all pipeline outputs as context
-    if task_llms_resolved.classifier is not None or task_llms_resolved.extractor is not None:
-        stages.append(
-            MetadataStage(
-                task_llms_resolved.classifier or task_llms_resolved.extractor,
-                classifier_llm=task_llms_resolved.classifier,
-                extractor_llm=task_llms_resolved.extractor,
-            )
+    # Metadata also attaches deterministic bridges without an LLM.
+    stages.append(
+        MetadataStage(
+            task_llms_resolved.classifier or task_llms_resolved.extractor,
+            classifier_llm=task_llms_resolved.classifier,
+            extractor_llm=task_llms_resolved.extractor,
         )
+    )
 
     return stages
 

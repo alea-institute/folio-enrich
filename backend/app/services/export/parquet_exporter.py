@@ -34,6 +34,7 @@ class ParquetExporter(ExporterBase):
                     "span_end": ann.span.end,
                     "span_text": ann.span.text,
                     "concept_text": concept.concept_text,
+                    **({k: v for k, v in concept.model_dump().items() if k in ('region', 'peer_iri', 'peer_label', 'peer_branches', 'drifted')} if job.result.ontology_id == "both" else {}),
                     "folio_iri": concept.folio_iri or "",
                     "folio_label": concept.folio_label or "",
                     "branch": concept.branches[0] if concept.branches else "",
@@ -49,6 +50,10 @@ class ParquetExporter(ExporterBase):
                      "source": "", "document_type": ""}]
 
         table = pa.Table.from_pylist(rows)
+
+        if job.result.ontology_id == "both":
+            import json
+            table = table.replace_schema_metadata({b"bridges": json.dumps(job.result.bridges or []).encode()})
 
         # Individuals table
         ind_rows = []
@@ -109,6 +114,18 @@ class ParquetExporter(ExporterBase):
                 "predicate_iri": pred_iri,
                 "confidence": t.confidence,
             })
+
+        if job.result.ontology_id == "both":
+            # One table keeps annotations and other record types readable together.
+            combined = [{**row, "record_type": "concept"} for row in rows]
+            for kind, records in (("individual", ind_rows), ("property", prop_rows), ("triple", tri_rows)):
+                combined.extend({**row, "record_type": kind} for row in records)
+            columns = dict.fromkeys(key for row in combined for key in row)
+            combined = [{key: row.get(key) for key in columns} for row in combined]
+            table = pa.Table.from_pylist(combined).replace_schema_metadata(table.schema.metadata)
+            buf = io.BytesIO()
+            pq.write_table(table, buf, row_group_size=len(combined))
+            return buf.getvalue()
 
         buf = io.BytesIO()
         pq.write_table(table, buf, row_group_size=len(rows) or 1)

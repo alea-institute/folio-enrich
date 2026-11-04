@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import io
 
 from app.models.job import Job
@@ -26,7 +27,7 @@ class CSVExporter(ExporterBase):
             "concept_text", "folio_iri", "folio_label",
             "branch", "branch_color", "confidence", "source",
             "hierarchy_path", "definition",
-        ])
+        ] + (list(('region', 'peer_iri', 'peer_label', 'peer_branches', 'drifted')) if job.result.ontology_id == "both" else []))
 
         # Rows
         for ann in job.result.annotations:
@@ -45,7 +46,7 @@ class CSVExporter(ExporterBase):
                     concept.source,
                     hierarchy,
                     concept.folio_definition or "",
-                ])
+                ] + ([json.dumps(getattr(concept, k)) if isinstance(getattr(concept, k), list) else getattr(concept, k) for k in ('region', 'peer_iri', 'peer_label', 'peer_branches', 'drifted')] if job.result.ontology_id == "both" else []))
 
         # Individuals section (blank row separator)
         if job.result.individuals:
@@ -120,4 +121,8 @@ class CSVExporter(ExporterBase):
                     f"{t.confidence:.4f}",
                 ])
 
+        if job.result.ontology_id == "both":
+            writer.writerow([])
+            writer.writerow(["bridges"])
+            writer.writerow([json.dumps(job.result.bridges or [])])
         return output.getvalue()

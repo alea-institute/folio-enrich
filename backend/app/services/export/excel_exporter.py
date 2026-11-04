@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import json
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
@@ -49,6 +50,8 @@ class ExcelExporter(ExporterBase):
             "Branch", "Branch Color", "Confidence", "Source",
             "Hierarchy Path", "Definition",
         ]
+        if job.result.ontology_id == "both":
+            headers.extend(('region', 'peer_iri', 'peer_label', 'peer_branches', 'drifted'))
         ws.append(headers)
         for cell in ws[1]:
             cell.font = Font(bold=True)
@@ -74,6 +77,8 @@ class ExcelExporter(ExporterBase):
                     hierarchy,
                     concept.folio_definition or "",
                 ]
+                if job.result.ontology_id == "both":
+                    row_data.extend(json.dumps(getattr(concept, k)) if isinstance(getattr(concept, k), list) else getattr(concept, k) for k in ('region', 'peer_iri', 'peer_label', 'peer_branches', 'drifted'))
                 ws.append(row_data)
 
                 # Apply branch color to the Branch cell
@@ -223,6 +228,12 @@ class ExcelExporter(ExporterBase):
                 max_len = max(len(str(cell.value or "")) for cell in col)
                 ws_tri.column_dimensions[col[0].column_letter].width = min(max_len + 2, 50)
 
+        if job.result.ontology_id == "both":
+            bridges = wb.create_sheet("bridges")
+            keys = list(dict.fromkeys(k for b in job.result.bridges or [] for k in b))
+            bridges.append(keys or ["bridges"])
+            for bridge in job.result.bridges or []:
+                bridges.append([json.dumps(bridge.get(k)) if isinstance(bridge.get(k), list) else bridge.get(k) for k in keys])
         output = io.BytesIO()
         wb.save(output)
         return output.getvalue()

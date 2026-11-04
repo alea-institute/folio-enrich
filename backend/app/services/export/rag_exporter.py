@@ -29,6 +29,7 @@ class RAGExporter(ExporterBase):
                         "span_text": ann.span.text,
                         "concepts": [
                             {
+                                **({k: v for k, v in c.model_dump().items() if k in ('region', 'peer_iri', 'peer_label', 'peer_branches', 'drifted')} if job.result.ontology_id == "both" else {}),
                                 "folio_iri": c.folio_iri,
                                 "folio_label": c.folio_label,
                                 "branch": c.branches[0] if c.branches else "",
@@ -84,6 +85,7 @@ class RAGExporter(ExporterBase):
                     })
 
             chunks.append({
+                **({"bridges": job.result.bridges or []} if job.result.ontology_id == "both" else {}),
                 "chunk_index": chunk.chunk_index,
                 "text": chunk.text,
                 "start_offset": chunk.start_offset,

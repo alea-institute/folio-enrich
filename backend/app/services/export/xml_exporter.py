@@ -52,6 +52,16 @@ class XMLExporter(ExporterBase):
                     ET.SubElement(c_elem, "branch").text = concept.branches[0]
                 ET.SubElement(c_elem, "confidence").text = str(concept.confidence)
                 ET.SubElement(c_elem, "source").text = concept.source
+                if job.result.ontology_id == "both":
+                    for key in ("region", "peer_iri", "peer_label", "peer_branches", "drifted"):
+                        value = getattr(concept, key)
+                        if value is not None:
+                            elem = ET.SubElement(c_elem, key)
+                            if isinstance(value, list):
+                                for v in value:
+                                    ET.SubElement(elem, "item").text = str(v)
+                            else:
+                                elem.text = str(value)
 
         # Individuals
         inds_elem = ET.SubElement(root, "individuals")
@@ -125,5 +135,16 @@ class XMLExporter(ExporterBase):
                     if link.folio_iri:
                         ET.SubElement(t_elem, "object_iri").text = link.folio_iri
 
+        if job.result.ontology_id == "both":
+            bridges = ET.SubElement(root, "bridges")
+            for bridge in job.result.bridges or []:
+                node = ET.SubElement(bridges, "bridge")
+                for key, value in bridge.items():
+                    elem = ET.SubElement(node, key)
+                    if isinstance(value, list):
+                        for v in value:
+                            ET.SubElement(elem, "item").text = str(v)
+                    else:
+                        elem.text = str(value)
         ET.indent(root)
         return ET.tostring(root, encoding="unicode", xml_declaration=True)

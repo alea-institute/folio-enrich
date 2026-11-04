@@ -40,6 +40,7 @@ class JSONExporter(ExporterBase):
                             k: v
                             for k, v in {
                                 "concept_text": c.concept_text,
+                                **({k: v for k, v in c.model_dump().items() if k in ('region', 'peer_iri', 'peer_label', 'peer_branches', 'drifted')} if job.result.ontology_id == "both" else {}),
                                 "folio_iri": c.folio_iri,
                                 "folio_label": c.folio_label,
                                 "folio_definition": c.folio_definition,
@@ -167,4 +168,6 @@ class JSONExporter(ExporterBase):
                 ),
             },
         }
+        if job.result.ontology_id == "both":
+            output["bridges"] = job.result.bridges or []
         return json.dumps(output, indent=2)

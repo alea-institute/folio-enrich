@@ -22,9 +22,14 @@ class RDFExporter(ExporterBase):
         # ontology-neutral (FOLIO for FOLIO jobs, Canon for Canon jobs, etc.) rather
         # than hardcoding the FOLIO base IRI. The urn:folio-enrich: URN below is the
         # app name (not the ontology) and stays as-is.
-        NS = Namespace(job.result.base_iri)
+        NS = Namespace("urn:folio-enrich:" if job.result.ontology_id == "both" else job.result.base_iri)
         OA = Namespace("http://www.w3.org/ns/oa#")
-        g.bind(job.result.ontology_id, NS)
+        if job.result.ontology_id == "both":
+            g.bind("folio", Namespace(job.result.base_iri))
+            g.bind("canon", Namespace(job.result.peer_base_iri))
+            g.bind("enrich", NS)
+        else:
+            g.bind(job.result.ontology_id, NS)
         g.bind("oa", OA)
         g.bind("skos", SKOS)
 
@@ -49,6 +54,13 @@ class RDFExporter(ExporterBase):
                     concept_uri = URIRef(concept.folio_iri)
                     g.add((ann_uri, OA.hasBody, concept_uri))
                     g.add((concept_uri, RDF.type, SKOS.Concept))
+                    if job.result.ontology_id == "both":
+                        for key in ("region", "peer_iri", "peer_label", "peer_branches", "drifted"):
+                            value = getattr(concept, key)
+                            if value is not None:
+                                values = value if isinstance(value, list) else [value]
+                                for v in values:
+                                    g.add((concept_uri, NS[key], URIRef(v) if key == "peer_iri" else Literal(v)))
                     if concept.folio_label:
                         g.add((concept_uri, SKOS.prefLabel, Literal(concept.folio_label)))
 
@@ -114,4 +126,11 @@ class RDFExporter(ExporterBase):
                 if link.folio_iri:
                     g.add((stmt_uri, NS.predicateRef, URIRef(link.folio_iri)))
 
+        if job.result.ontology_id == "both":
+            for bridge in job.result.bridges or []:
+                node = BNode()
+                g.add((doc_uri, NS.bridges, node))
+                for key, value in bridge.items():
+                    for v in value if isinstance(value, list) else [value]:
+                        g.add((node, NS[key], Literal(v)))
         return g.serialize(format="turtle")

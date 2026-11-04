@@ -157,7 +157,10 @@ class TestBuildWithTaskLLMs:
 
         assert "llm_concept_identification" not in stage_names
         assert "branch_judge" not in stage_names
-        assert "metadata" not in stage_names
+        assert "metadata" in stage_names
+        metadata = next(s for s in stages if s.name == "metadata")
+        assert metadata.classifier is None
+        assert metadata.extractor is None
 
     def test_build_stages_fallback_to_global(self):
         """When task_llms is None, global llm is used for all stages."""

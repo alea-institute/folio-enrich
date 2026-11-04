@@ -660,12 +660,12 @@
       "review_status": "model"
     },
     {
-      "canon_hash": "R7tbcdDPcsMNHgeJlYsftWL",
-      "canon_label": "Commandment 06: You shall not commit adultery.",
-      "folio_hash": "R71myrzyb5umpWxumHNzbEk",
-      "folio_label": "Fault Divorce",
-      "match_type": "related",
-      "rationale": "Fault divorce makes marital infidelity a ground for dissolving the marriage, tying the commandment's wrong to a legal consequence.",
+      "canon_hash": "R7qIxdwQJremplPz5qw2WYj",
+      "canon_label": "Commandment 07: You shall not steal.",
+      "folio_hash": "R4DhauAKgAkWtnyFXhCePi",
+      "folio_label": "Larceny",
+      "match_type": "close",
+      "rationale": "Larceny directly corresponds to the commandment’s prohibition of wrongfully taking another person’s property.",
       "review_status": "model"
     },
     {
