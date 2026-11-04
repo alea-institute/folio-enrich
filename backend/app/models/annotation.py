@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_serializer, model_validator
 
 
 class StageEvent(BaseModel):
@@ -58,6 +58,20 @@ class ConceptMatch(BaseModel):
     folio_history_note: str | None = None
     folio_country: str | None = None
     folio_deprecated: bool | None = None
+
+    region: str | None = None
+    peer_iri: str | None = None
+    peer_label: str | None = None
+    peer_branches: list[str] | None = None
+    drifted: bool | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_union_defaults(self, handler):
+        data = handler(self)
+        for key in ("region", "peer_iri", "peer_label", "peer_branches", "drifted"):
+            if getattr(self, key) is None:
+                data.pop(key, None)
+        return data
 
     @model_validator(mode="before")
     @classmethod
@@ -172,3 +186,22 @@ class PropertyAnnotation(BaseModel):
     match_type: str | None = None  # "preferred" or "alternative"
     lineage: list[StageEvent] = Field(default_factory=list)
     feedback: list[FeedbackItem] = Field(default_factory=list)
+
+
+def stamp_union_concept(concept: ConceptMatch, service) -> ConceptMatch:
+    """Attach overlap metadata only when resolving through the virtual union."""
+    if getattr(service, "ontology_id", None) != "both" or not concept.folio_iri:
+        return concept
+    primary = service.get_concept(concept.folio_iri)
+    if primary is None:
+        return concept
+    concept.folio_iri = primary.iri
+    concept.iri_hash = primary.iri.rsplit("/", 1)[-1]
+    concept.region = primary.region
+    concept.peer_iri = primary.peer_iri
+    concept.peer_label = primary.peer_label
+    concept.drifted = primary.drifted
+    if concept.peer_iri:
+        peer = service.service_for_iri(concept.peer_iri).get_concept(concept.peer_iri)
+        concept.peer_branches = [peer.branch] if peer and peer.branch else []
+    return concept

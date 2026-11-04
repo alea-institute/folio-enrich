@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from app.models.annotation import ConceptMatch
+from app.models.annotation import ConceptMatch, stamp_union_concept
 from app.models.job import Job, JobStatus
 from app.pipeline.stages.base import PipelineStage
 from app.services.folio.branch_config import (
@@ -257,6 +257,8 @@ class ResolutionStage(PipelineStage):
         # default service at construction; rebind per-job so a Canon document
         # resolves against Canon concepts, not FOLIO's.
         from app.services.folio.folio_service import FolioService
+        if getattr(self.resolver.folio, "ontology_id", None) != job.ontology:
+            self.resolver._cache.clear()
         self.resolver.folio = FolioService.get_instance(job.ontology)
 
         # Bind the embedding service built for THIS job's ontology (Canon jobs score
@@ -341,6 +343,11 @@ class ResolutionStage(PipelineStage):
                 resolved_concepts, full_text, ontology_id=job.ontology
             )
 
+        if job.ontology == "both":
+            for rc in resolved_concepts:
+                rc.update(stamp_union_concept(ConceptMatch(**rc), self.resolver.folio).model_dump())
+                for backup in rc.get("_backup_candidates", []):
+                    backup.update(stamp_union_concept(ConceptMatch(**backup), self.resolver.folio).model_dump())
         job.result.metadata["resolved_concepts"] = resolved_concepts
 
         log = job.result.metadata.setdefault("activity_log", [])

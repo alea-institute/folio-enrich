@@ -167,6 +167,12 @@ class OntologyRegistry:
         the two builds never nest on the same lock.
         """
         oid = ontology_id or self._default_id
+        if oid == "both":
+            if not self.has(oid):
+                raise UnknownOntologyError(oid)
+            from app.services.embedding.service import CompositeEmbeddingService
+
+            return CompositeEmbeddingService(self)
         es = self._embedding_services.get(oid)  # fast path, lock-free
         if es is not None:
             self._touch(oid)

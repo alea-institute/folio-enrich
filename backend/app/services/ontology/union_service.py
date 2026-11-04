@@ -94,7 +94,10 @@ class UnionService:
             if prop is not None:
                 return prop
         if '://' in iri:
-            return self.service_for_iri(iri).get_property(iri)
+            for oid in ('folio', 'canon'):
+                prop = self._registry.get_service(oid).get_property(iri)
+                if prop is not None:
+                    return prop
         return None
 
     def get_all_property_labels(self):

@@ -78,8 +78,11 @@ class BranchJudge:
         if document_type:
             dt_section = f"\n## Document Type\nThis document is: {document_type}\n - use that as context when doing your tasks.\n"
 
+        template = _BRANCH_JUDGE_TEMPLATE
+        if ontology_id == "both":
+            template = template.replace("FOLIO", "union ontology")
         prompt = (
-            _BRANCH_JUDGE_TEMPLATE
+            template
             .replace("{branch_info}", branch_info)
             .replace("{document_type_section}", dt_section)
             .replace("{concept_text}", concept_text)

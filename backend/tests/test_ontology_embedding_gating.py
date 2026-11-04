@@ -258,3 +258,20 @@ class TestNoCrossOntologyContamination:
         # guarantee that resolved Canon concepts can't carry FOLIO IRIs.
         assert folio.spec.base_iri == "https://folio.openlegalstandard.org/"
         assert canon.spec.base_iri == "https://ontology.catholicos.catholic/"
+
+
+def test_union_embeddings_merge_hashes_keep_highest_score(monkeypatch):
+    from app.services.embedding.service import SearchResult
+    reg = OntologyRegistry({'folio': FOLIO_SPEC, 'canon': CANON_SPEC})
+    for oid, score in [('folio', .6), ('canon', .9)]:
+        svc = EmbeddingService()
+        svc._ontology_id = oid
+        monkeypatch.setattr(svc, 'search', lambda query, top_k=5, oid=oid, score=score: [SearchResult('theft', score, {'iri': reg.get_spec(oid).base_iri+'shared'})])
+        reg._embedding_services[oid] = svc
+        monkeypatch.setattr(svc, 'search_batch', lambda queries, top_k=5, svc=svc: [svc.search(q, top_k) for q in queries])
+    union = reg.get_embedding_service('both')
+    assert union.matches_ontology('both')
+    hits = union.search('theft')
+    assert len(hits) == 1
+    assert hits[0].score == .9
+    assert union.search_batch(['theft'])[0][0].score == .9
