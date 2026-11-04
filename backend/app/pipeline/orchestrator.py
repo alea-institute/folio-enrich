@@ -397,6 +397,14 @@ class PipelineOrchestrator:
 
         registry = get_registry()
         ontology_id = job.ontology or registry.default_id
+        if ontology_id == "both":
+            folio = registry.get_spec("folio")
+            canon = registry.get_spec("canon")
+            job.result.ontology_id = "both"
+            job.result.ontology_name = f"{folio.display_name} + {canon.display_name}"
+            job.result.base_iri = folio.base_iri
+            job.result.peer_base_iri = canon.base_iri
+            return
         try:
             spec = registry.get_spec(ontology_id)
         except UnknownOntologyError:

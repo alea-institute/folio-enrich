@@ -23,6 +23,7 @@ from app.services.ontology.spec import BUILTIN_SPECS, OntologySpec
 if TYPE_CHECKING:
     from app.services.embedding.service import EmbeddingService
     from app.services.folio.folio_service import FolioService
+    from app.services.ontology.union_service import UnionService
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +71,8 @@ class OntologyRegistry:
         return list(self._specs.keys())
 
     def has(self, ontology_id: str) -> bool:
+        if ontology_id == "both":
+            return {"folio", "canon"} <= self._specs.keys()
         return ontology_id in self._specs
 
     def get_spec(self, ontology_id: str) -> OntologySpec:
@@ -108,13 +111,19 @@ class OntologyRegistry:
                     lru, len(non_default) + 1, ceiling,
                 )
 
-    def get_service(self, ontology_id: str | None = None) -> "FolioService":
+    def get_service(self, ontology_id: str | None = None) -> "FolioService | UnionService":
         """Return the (lazily built, cached) ontology read service for an id.
 
         Per-key double-checked locking: the fast path is a lock-free dict read; the
         build runs once under a per-ontology lock.
         """
         oid = ontology_id or self._default_id
+        if oid == "both":
+            if not self.has(oid):
+                raise UnknownOntologyError(oid)
+            from app.services.ontology.union_service import UnionService
+
+            return UnionService(self)
         svc = self._services.get(oid)  # fast path, lock-free
         if svc is not None:
             self._touch(oid)

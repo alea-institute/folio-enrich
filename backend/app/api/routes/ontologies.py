@@ -36,6 +36,8 @@ async def list_ontologies() -> dict:
         "default": reg.default_id,
         "embeddings_available": not settings.embedding_disabled,
         "ontologies": [_spec_payload(oid) for oid in reg.enabled_ids()],
+        "modes": ([{"id": "both", "display_name": "Enrich against both", "default": False}]
+                  if reg.has("both") else []),
     }
 
 

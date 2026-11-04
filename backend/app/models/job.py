@@ -4,7 +4,7 @@ import enum
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_serializer
 from folio_propositions import Proposition
 
 from app.models.annotation import Annotation, Individual, PropertyAnnotation, SPOTriple
@@ -41,6 +41,14 @@ class JobResult(BaseModel):
     ontology_id: str = DEFAULT_ONTOLOGY
     ontology_name: str = "FOLIO"
     base_iri: str = "https://folio.openlegalstandard.org/"
+    peer_base_iri: str | None = None
+
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler):
+        data = handler(self)
+        if self.peer_base_iri is None:
+            data.pop("peer_base_iri", None)
+        return data
 
 
 class Job(BaseModel):
