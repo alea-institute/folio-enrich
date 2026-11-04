@@ -4,18 +4,17 @@ Written 2026-11-04 by the brainstorm/plan/build session. Receiving session: reti
 
 ## State
 
-- **PR:** https://github.com/alea-institute/folio-enrich/pull/53 from `feat/canon-law-morals-overlap` (one integration commit on main 264fc1c). CI `backend-tests` was pending at handoff.
+- **PR:** https://github.com/alea-institute/folio-enrich/pull/53 from `feat/canon-law-morals-overlap` (one integration commit on main 264fc1c). CI passed; MERGED as 9b77ee9 and deployed to DEV (propositions-dev on hetzner-dev, healthy).
 - **Plan:** `docs/plans/2026-11-04-0806-feat-canon-law-morals-overlap-plan.md` — all units built; demos baked with GPT-6.1 Sol via the bake-only Codex CLI provider.
 - **Old branch:** `session/1104-0708` holds the original 18-commit history plus two pre-existing commits (an Aug 17 WIP auto-save and an AGENTS.md note) that Damien chose to keep OFF the PR. Leave that branch alone.
 
 ## Next steps
 
-1. Wait for CI on PR #53. If green, merge (standing authorization). If red, reproduce locally and fix on the PR branch.
-2. Deploy to DEV (Hetzner, propositions-dev) per the repo's DEV procedure and verify an overlap demo and a live "both" run there. PROD is not a gate (SSH broken since 2026-10-30).
-3. Follow-ups, not in this PR: re-bake the FOLIO demos against the Oct 30 FOLIO release; fix the three env-version test failures that also fail on pure main (router attribute, parquet byte, nupunkt split).
+1. **Fix live "both" memory before PROD (blocking for live use).** On DEV, a live "both" job pushes propositions-dev (mem_limit 1600m, idles ~470-1000 MB) past its limit; the container is killed and auto-restarts. Measured locally: a both job adds ~900 MB peak, mostly the union EntityRuler duplicating FOLIO's 69,368 patterns. Fix in code: build the union ruler as FOLIO's cached shared ruler plus a Canon-delta ruler (only Canon labels not already identical in FOLIO), merging matches by local identifier; add a peak-RSS regression check. Do NOT raise mem_limit as the fix: the host has ~1.3 GB available.
+2. Re-verify on DEV with a live both job inside the container (docker exec python urllib against 127.0.0.1:8000; the public URL is behind Cloudflare Access).
+3. Follow-ups: re-bake FOLIO demos against the Oct 30 FOLIO release; three env-version test failures that also fail on pure main.
 
-## Facts encoded in the plan and PR (don't re-derive)
+## Verified on DEV (9b77ee9)
 
-- The Canon is a FOLIO fork: 14,407 shared classes, 12 label-drifted, 7 definition-drifted; 659 Canon labels are ambiguous in FOLIO, so regions use the local identifier.
-- 47 model-curated bridges validate against the pins; `backend/scripts/bridge_queue.py` lists new Canon-only concepts after a pin bump.
-- Codex CLI workers cannot run git (their sandbox mounts .git read-only); the orchestrator must run git.
+- /ontologies lists the "both" mode; baked overlap and breadth demos serve (e.g. lm_exodus_restitution: 79 tags; canon_diocesan_governance: 161 tags).
+- DEV logs show pre-existing missing sentence-transformers/faiss modules (embeddings disabled on DEV); unrelated to this work.
