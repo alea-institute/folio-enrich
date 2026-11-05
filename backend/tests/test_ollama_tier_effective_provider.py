@@ -8,11 +8,9 @@ Ollama tier models the caller never asked for.
 from __future__ import annotations
 
 import pytest
-from fastapi.testclient import TestClient
 
 from app.api.routes import enrich as enrich_mod
 from app.config import settings
-from app.main import app
 from app.pipeline.orchestrator import LLM_TASKS, TaskLLMs, _TASK_FIELD_MAP
 from app.storage.job_store import JobStore
 
@@ -55,7 +53,7 @@ def test_ollama_request_with_explicit_model_is_not_retiered(ollama_tier_settings
     assert all(getattr(task_llms, f) is fallback for f in _fields())
 
 
-def test_enrich_route_passes_request_provider(ollama_tier_settings, tmp_path, monkeypatch):
+async def test_enrich_route_passes_request_provider(ollama_tier_settings, tmp_path, monkeypatch, client):
     """End to end through POST /enrich: an Anthropic request with no key must
     build an orchestrator with no LLMs, not Ollama tier models."""
     monkeypatch.setattr(enrich_mod, "_job_store", JobStore(base_dir=tmp_path / "jobs"))
@@ -69,11 +67,11 @@ def test_enrich_route_passes_request_provider(ollama_tier_settings, tmp_path, mo
             return job
 
     monkeypatch.setattr(enrich_mod, "PipelineOrchestrator", _CapturingOrchestrator)
-    with TestClient(app) as client:
-        r = client.post("/enrich", json={
-            "content": "The tenant shall pay rent.", "format": "plain_text",
-            "llm_provider": "anthropic",
-        })
+    # The ASGI client fixture skips lifespan; this route needs no startup state.
+    r = await client.post("/enrich", json={
+        "content": "The tenant shall pay rent.", "format": "plain_text",
+        "llm_provider": "anthropic",
+    })
     assert r.status_code == 202, r.text
     assert captured["llm"] is None
     assert all(getattr(captured["task_llms"], f) is None for f in _fields())
