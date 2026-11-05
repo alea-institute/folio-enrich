@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -215,7 +216,15 @@ class Settings(BaseSettings):
     # Job management
     job_retention_days: int = 30
     max_concurrent_jobs: int = 10
+    # Admission ceiling above is separate from executing pipelines below.
+    # FOLIO_ENRICH_MAX_PARALLEL_PIPELINES bounds memory use; excess jobs queue.
+    max_parallel_pipelines: int = 2
     stale_job_timeout_minutes: int = 30
+
+    @field_validator("max_parallel_pipelines")
+    @classmethod
+    def clamp_parallel_pipelines(cls, value: int) -> int:
+        return max(1, value)
 
     # Rate limiting
     rate_limit_requests: int = 200

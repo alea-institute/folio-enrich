@@ -5,6 +5,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+from app.config import settings
 from app.models.job import Job, JobStatus
 from app.pipeline.stages.base import PipelineStage
 from app.pipeline.stages.branch_judge_stage import BranchJudgeStage
@@ -30,6 +31,21 @@ from app.services.llm.base import LLMProvider
 from app.storage.job_store import JobStore
 
 logger = logging.getLogger(__name__)
+
+# Shared by all orchestrators in the server process. Recreate for a fresh
+# running loop: a contended asyncio.Semaphore is bound to its original loop.
+_pipeline_loop: asyncio.AbstractEventLoop | None = None
+_pipeline_slots: asyncio.Semaphore | None = None
+
+
+def _get_pipeline_slots() -> asyncio.Semaphore:
+    global _pipeline_loop, _pipeline_slots
+    loop = asyncio.get_running_loop()
+    if _pipeline_slots is None or _pipeline_loop is not loop:
+        _pipeline_loop = loop
+        _pipeline_slots = asyncio.Semaphore(max(1, settings.max_parallel_pipelines))
+    return _pipeline_slots
+
 
 # Task names for per-task LLM configuration
 LLM_TASKS = ("classifier", "extractor", "concept", "branch_judge", "area_of_law", "synthetic", "individual", "property", "proposition", "document_type")
@@ -491,10 +507,18 @@ class PipelineOrchestrator:
             logger.exception("Post-job hook failed for job %s", job.id)
 
     async def run(self, job: Job) -> Job:
-        self.stamp_ontology(job)
-        if self._config is not None:
-            return await self._run_parallel(job)
-        return await self._run_flat(job)
+        slots = _get_pipeline_slots()
+        if slots.locked():
+            _log_activity(job, "queue", "Queued: waiting for a free pipeline slot")
+            await self.job_store.save(job)
+        await slots.acquire()
+        try:
+            self.stamp_ontology(job)
+            if self._config is not None:
+                return await self._run_parallel(job)
+            return await self._run_flat(job)
+        finally:
+            slots.release()
 
     async def _run_parallel(self, job: Job) -> Job:
         """Three-phase pipeline: pre-parallel → parallel(EntityRuler ∥ LLM) → post-parallel."""
