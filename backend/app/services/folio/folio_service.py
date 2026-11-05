@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
+import tempfile
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -147,9 +149,9 @@ class FolioService:
         # search for the legal terms that recur across documents. Bounded; cleared
         # on ontology reload.
         self._search_cache: dict[tuple[str, str, int], list] = {}
-        # Serializes concurrent _reload() swaps so two overlapping OWL reloads can't
-        # interleave their field rebinds. Readers do not take it (see _reload docstring).
-        self._reload_lock = threading.Lock()
+        # Shared by cold initialization and reload. Neither path calls this
+        # instance's _get_folio while holding it, so a plain Lock is sufficient.
+        self._load_lock = threading.Lock()
 
     @classmethod
     def get_instance(cls, ontology_id: str | None = None) -> FolioService:
@@ -216,9 +218,18 @@ class FolioService:
         cache_hash = hashlib.blake2b(coords.owl_url.encode()).hexdigest()
         cache_file = Path.home() / ".folio" / "cache" / "http" / f"{cache_hash}.owl"
         cache_file.parent.mkdir(parents=True, exist_ok=True)
-        tmp = cache_file.with_name(cache_file.name + ".tmp")
-        tmp.write_bytes(data)
-        tmp.replace(cache_file)  # atomic
+        tmp = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                dir=cache_file.parent, prefix=cache_file.name + ".",
+                suffix=".tmp", delete=False,
+            ) as stream:
+                tmp = Path(stream.name)
+                stream.write(data)
+            os.replace(tmp, cache_file)  # atomic; each writer owns its temp file
+        finally:
+            if tmp is not None:
+                tmp.unlink(missing_ok=True)
 
         # FAIL CLOSED: only construct FOLIO if it will read our pre-seeded cache.
         # folio-python's load_owl falls back to an UN-hardened http fetch on a cache
@@ -234,12 +245,21 @@ class FolioService:
 
     def _get_folio(self):
         if self._folio is None:
-            self._folio = self._load_folio()
-            self._build_branch_map()
-            logger.info(
-                "Ontology '%s' loaded with %d concepts",
-                self._spec.id, len(self._folio.classes),
-            )
+            with self._load_lock:
+                if self._folio is None:
+                    folio = self._load_folio()
+                    # Build privately, as in reload, so the fast path cannot see
+                    # a folio until its branch map is ready. No second graph load.
+                    scratch = FolioService(self._spec)
+                    with scratch._load_lock:
+                        scratch._folio = folio
+                        scratch._build_branch_map()
+                    self._branch_map = scratch._branch_map
+                    self._folio = folio
+                    logger.info(
+                        "Ontology '%s' loaded with %d concepts",
+                        self._spec.id, len(folio.classes),
+                    )
         return self._folio
 
     def _reload(self) -> dict:
@@ -248,36 +268,34 @@ class FolioService:
         All derived state — the new folio object, branch map, and the three label
         caches — is built on a throwaway scratch service FIRST, touching none of
         this instance's live fields. Only once everything is built do we rebind all
-        fields in a single lock-guarded block. A concurrent reader therefore sees
-        the old ontology fully, then the new ontology fully, never a half-rebuilt
-        mix. ``_reload_lock`` serializes overlapping reloads; readers stay lock-free
-        (individual attribute reads are atomic under the GIL).
+        fields in a single lock-guarded block, publishing the folio last.
+        ``_load_lock`` serializes the entire rebuild with cold loads and
+        other reloads. Already-loaded readers stay lock-free; this is not a
+        transactional snapshot across multiple attribute reads.
 
         Embedding re-indexing is intentionally NOT done here — the OWL updater owns
         that step (it rebuilds the shared FOLIO embedding service after this returns).
         """
-        old_count = len(self._folio.classes) if self._folio else 0
+        with self._load_lock:
+            old_count = len(self._folio.classes) if self._folio else 0
 
-        # Build everything on a scratch instance so live fields are untouched until
-        # the swap. Constructing a FolioService is lazy (no fetch); we reuse our own
-        # load path for the new folio object, then run the unchanged cache builders.
-        scratch = FolioService(self._spec)
-        scratch._folio = self._load_folio()
-        scratch._build_branch_map()
-        scratch.get_all_labels()
-        scratch.get_all_labels_multi()
-        scratch.get_all_property_labels()
-        # _lemma_map stays None (rebuilt lazily, re-keyed to the new owl_hash on
-        # demand); _search_cache resets to empty — both match the prior behavior.
+            # Build on a private instance; its cache builders may call its own
+            # _get_folio, which returns the already-loaded object without locking.
+            scratch = FolioService(self._spec)
+            with scratch._load_lock:
+                scratch._folio = self._load_folio()
+                scratch._build_branch_map()
+                scratch.get_all_labels()
+                scratch.get_all_labels_multi()
+                scratch.get_all_property_labels()
 
-        with self._reload_lock:
-            self._folio = scratch._folio
             self._branch_map = scratch._branch_map
             self._labels_cache = scratch._labels_cache
             self._labels_multi_cache = scratch._labels_multi_cache
             self._property_labels_cache = scratch._property_labels_cache
             self._lemma_map = None
             self._search_cache = {}  # stale after an ontology swap
+            self._folio = scratch._folio
 
         # Derived LLM branch-detail string is built from this ontology's concepts,
         # so it goes stale after a reload — drop it (lazy rebuild on next request).
