@@ -6,12 +6,9 @@ import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-import spacy
-
 from app.models.annotation import Annotation, ConceptMatch, stamp_union_annotations, stamp_union_dict, Span
 from app.models.job import Job, JobStatus
 from app.pipeline.stages.base import PipelineStage, record_lineage
-from app.services.entity_ruler.pattern_builder import build_patterns
 from app.services.entity_ruler.ruler import EntityRulerMatch, FOLIOEntityRuler
 from app.services.entity_ruler.semantic_ruler import SemanticEntityRuler, can_encode
 from app.services.folio.branch_config import get_branch_color
@@ -155,7 +152,7 @@ def _snap_back(text: str, i: int) -> int:
 
 
 # Built rulers keyed by ontology id. Building one compiles every ontology label
-# into a spaCy EntityRuler (seconds), so it happens once per ontology version,
+# into a token-aligned automaton, so it happens once per ontology version,
 # not once per job.
 _RULER_CACHE: dict[str, _RulerBundle] = {}
 _RULER_CACHE_LOCK = threading.Lock()
@@ -163,32 +160,9 @@ _UNION_RULER_CACHE: dict[str, _UnionRulerBundle] = {}
 
 
 def _build_fast_ruler(all_labels: dict) -> FOLIOEntityRuler:
-    """Build a FOLIOEntityRuler whose patterns match exactly as
-    ``FOLIOEntityRuler.load_patterns`` would, but mostly via the PhraseMatcher.
-
-    ``build_patterns`` emits every multi-word label as a token pattern
-    (``[{"LOWER": w}, ...]``). spaCy's token Matcher scans all of them at every
-    token — ~19k FOLIO patterns made a 64 KB document a ~10 s, GIL-holding call.
-    When the tokenizer splits a label's lowercase text into exactly those words,
-    the token pattern and a LOWER phrase pattern match the same spans, so it is
-    added as a phrase pattern (hash lookup) instead. Labels the tokenizer would
-    split differently stay token patterns, preserving their behavior.
-    """
-    nlp = spacy.blank("en")
-    ruler = FOLIOEntityRuler(nlp=nlp)
-    if not all_labels:
-        return ruler
-    ruler.load_patterns({})  # creates the (empty) entity_ruler pipe; marks loaded
-    patterns = []
-    for pattern in build_patterns(all_labels):
-        spec = pattern["pattern"]
-        if isinstance(spec, list) and all(set(tok) == {"LOWER"} for tok in spec):
-            words = [tok["LOWER"] for tok in spec]
-            phrase = " ".join(words)
-            if [t.lower_ for t in nlp.make_doc(phrase)] == words:
-                pattern = {**pattern, "pattern": phrase}
-        patterns.append(pattern)
-    nlp.get_pipe("entity_ruler").add_patterns(patterns)
+    """Build the token-aligned Aho-Corasick ruler for both pattern kinds."""
+    ruler = FOLIOEntityRuler()
+    ruler.load_patterns(all_labels)
     return ruler
 
 
