@@ -12,6 +12,7 @@ from app.services.folio.branch_config import (
     get_branch_color,
     get_branch_display_name,
 )
+from app.services.folio.labels import true_alternative_labels
 from app.services.folio.match_tier import is_higher_priority, lemma_type_for
 from app.services.ontology.records import ConceptRecord
 from app.services.ontology.spec import FOLIO_SPEC, OntologyCoords, OntologySpec
@@ -857,7 +858,7 @@ class FolioService:
     def _to_folio_concept(self, concept) -> FOLIOConcept:
         # preferred_label may be None; fall back to label
         pref_label = getattr(concept, "label", None) or getattr(concept, "preferred_label", "") or ""
-        alt_labels = getattr(concept, "alternative_labels", []) or []
+        alt_labels = true_alternative_labels(self._get_folio(), concept)
         definition = getattr(concept, "definition", "") or ""
         iri = getattr(concept, "iri", "") or ""
         parent_iris = getattr(concept, "sub_class_of", []) or []
@@ -877,10 +878,6 @@ class FolioService:
         country = getattr(concept, "country", "") or ""
         raw_translations = getattr(concept, "translations", {}) or {}
         translations = dict(raw_translations) if raw_translations else None
-        # Newer folio-python duplicates translations into alternative_labels;
-        # translations have their own matching switch.
-        translation_values = set(raw_translations.values())
-        alt_labels = [alt for alt in alt_labels if alt not in translation_values]
 
         branch = self._get_branch(iri, list(parent_iris))
 

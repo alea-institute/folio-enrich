@@ -109,6 +109,7 @@ def _build_folio_branch_detail(
         return BRANCH_LIST
 
     from app.services.folio.branch_config import get_branch_display_name
+    from app.services.folio.labels import true_alternative_labels
 
     lines: list[str] = []
     total_chars = 0
@@ -140,7 +141,7 @@ def _build_folio_branch_detail(
             if examples:
                 entry += f" (e.g., {', '.join(examples[:3])})"
             # Add alt labels if available
-            alt_labels = getattr(cls, "alternative_labels", []) or []
+            alt_labels = true_alternative_labels(folio_obj, cls)
             if alt_labels:
                 entry += f"\n    Also known as: {', '.join(alt_labels[:4])}"
             concept_entries.append(entry)

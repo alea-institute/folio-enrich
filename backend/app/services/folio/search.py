@@ -36,6 +36,7 @@ from app.services.folio.branch_config import (
     EXCLUDED_BRANCHES,
     get_branch_color,
 )
+from app.services.folio.labels import true_alternative_labels
 
 logger = logging.getLogger(__name__)
 
@@ -174,7 +175,7 @@ def multi_strategy_search(
             text,
             owl_class.label or iri_hash,
             owl_class.definition,
-            owl_class.alternative_labels or [],
+            true_alternative_labels(folio, owl_class),
             preferred_label=owl_class.preferred_label,
         )
         if score >= min_score:
@@ -198,7 +199,7 @@ def multi_strategy_search(
                     eq_full,
                     owl_class.label or iri_hash,
                     owl_class.definition,
-                    owl_class.alternative_labels or [],
+                    true_alternative_labels(folio, owl_class),
                     preferred_label=owl_class.preferred_label,
                 )
                 if exp_score >= min_score and exp_score > best_scores.get(iri_hash, 0):
@@ -272,7 +273,7 @@ def multi_strategy_search(
             "iri": owl_class.iri,
             "iri_hash": iri_hash,
             "definition": owl_class.definition,
-            "synonyms": owl_class.alternative_labels or [],
+            "synonyms": true_alternative_labels(folio, owl_class),
             "branch": branch_name,
             "branch_color": get_branch_color(branch_name) if branch_name else "",
             "score": score,

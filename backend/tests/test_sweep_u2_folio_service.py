@@ -14,6 +14,7 @@ import sys
 from types import SimpleNamespace
 
 import pytest
+from lxml import etree
 
 from app.services.folio.folio_service import FolioService
 
@@ -91,10 +92,20 @@ def test_translation_alternatives_respect_matching_switch(monkeypatch, enabled, 
     from app.config import settings
 
     concept = _owl_class("https://folio.openlegalstandard.org/SHARES", "Shares")
-    concept.alternative_labels = ["Stock", "Actions", "Aktien"]
-    concept.translations = {"fr-fr": "Actions", "de-de": "Aktien"}
+    concept.alternative_labels = ["Stock", "Actions", "Actes", "Aktien"]
+    concept.translations = {"en-gb": "Stock", "fr-fr": "Actions", "de-de": "Aktien"}
     svc = FolioService()
-    svc._folio = SimpleNamespace(classes=[concept])
+    svc._folio = SimpleNamespace(classes=[concept], tree=etree.fromstring(f'''<rdf:RDF
+        xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+        xmlns:owl="http://www.w3.org/2002/07/owl#"
+        xmlns:skos="http://www.w3.org/2004/02/skos/core#">
+        <owl:Class rdf:about="{concept.iri}">
+          <skos:altLabel>Stock</skos:altLabel>
+          <skos:altLabel xml:lang="en-gb">Stock</skos:altLabel>
+          <skos:altLabel xml:lang="fr-fr">Actes</skos:altLabel>
+          <skos:altLabel xml:lang="fr-fr">Actions</skos:altLabel>
+          <skos:altLabel xml:lang="de-de">Aktien</skos:altLabel>
+        </owl:Class></rdf:RDF>'''))
     svc._branch_map = {}
     svc._lemma_map = {}  # No NLP models or disk caches needed for label types.
     monkeypatch.setattr(settings, "translation_matching_enabled", enabled)
@@ -108,21 +119,23 @@ def test_translation_alternatives_respect_matching_switch(monkeypatch, enabled, 
         assert [info.label_type for info in entries.get(text, [])] == (
             ["translation"] if enabled else []
         )
+    assert "actes" not in entries
     converted = svc._to_folio_concept(concept)
     assert converted.alternative_labels == ["Stock"]
     assert converted.translations == concept.translations
 
 
-def test_translation_filter_preserves_exact_match_rule_and_order():
+def test_translation_fallback_normalizes_comparisons_and_preserves_order():
     concept = _owl_class("https://folio.openlegalstandard.org/SHARES", "Shares")
     concept.alternative_labels = ["Stock", "Actions", "actions", "Shares", "Equity", "Stock"]
     concept.translations = {"fr-fr": "Actions", "en-gb": "Shares"}
     svc = FolioService()
     svc._branch_map = {}
+    svc._folio = SimpleNamespace()
 
     converted = svc._to_folio_concept(concept)
 
-    assert converted.alternative_labels == ["Stock", "actions", "Equity", "Stock"]
+    assert converted.alternative_labels == ["Stock", "Equity", "Stock"]
     assert converted.preferred_label == "Shares"
     assert converted.translations == concept.translations
     assert concept.alternative_labels == ["Stock", "Actions", "actions", "Shares", "Equity", "Stock"]
