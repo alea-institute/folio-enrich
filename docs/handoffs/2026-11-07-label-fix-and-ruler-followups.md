@@ -17,11 +17,12 @@ branch: "docs/ac-ruler-receipt"
 ## Next steps
 1. **Tailscale:** when Mike's Tailscale lands, switch the PROD SSH aliases to tailnet names and drop the jump through hetzner-dev.
 2. **Rollback assets:** after a quiet week (about 2026-11-14), delete the dated pre-deploy backups and venv copies on the enrich box, plus the superseded label-embedding cache files (the old 69k-label ones). Delete only after confirming nothing live references them.
-3. **Damien's decisions:** two are filed in Cockpit:
-   - a Coolify API token for the `*.dev.openlegalstandard.org` previews (the token on the box returns 401). The folio-api DEV preview still answers 421, and the Coolify folio-enrich DEV app is stale.
-   - required CI checks on main.
-4. **DEV parallel cap:** DEV runs with a pipeline cap of 1. A cold both job now peaks at 908 MiB of 1.56 GiB, so 2 likely fits. Raising it is a DEV `.env` change; test two concurrent cold both jobs before and after.
-5. **hetzner-dev memory:** the 8 GB box sits near its ceiling. Coolify previews for folio-enrich PRs #48 and #49 and a folio-insights PR preview hold about 1.6 GB, and a `postgres` container has been restart-looping for 11 days. Never build images on it; build DEV images on the home box and `docker load` them (see the label-fix plan).
+3. **Coolify token (deferred, Damien 2026-11-07):** the token on hetzner-dev returns 401, and Damien chose not to mint one yet. The folio-api DEV preview still answers MCP 421, and the Coolify folio-enrich DEV app is stale.
+4. **Done 2026-11-07** (`docs/plans/2026-11-07-1415-chore-dev-headroom-and-required-checks-plan.md`):
+   - required CI checks on main for folio-enrich and folio-api.
+   - the DEV pipeline cap raised to 2 (two concurrent cold both jobs peak at 1,302 of 1,600 MiB).
+   - the stale previews on hetzner-dev stopped. Never build images on that box; build DEV images on the home box and `docker load` them (see the label-fix plan).
+5. **hetzner-dev headroom:** watch swap, which still holds 3.4 of 4 GB.
 6. **Drawdown PRs:** #48–#50 are left to the Chief drawdown campaign's merge gate (halted on an unanswered spend decision).
 7. **Smaller follow-ups:**
    - property altLabels may still carry translations, because folio-python keeps no language for property altLabels.
