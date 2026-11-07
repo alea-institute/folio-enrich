@@ -2,7 +2,6 @@
 session: "dd62c4fe-b574-42ae-a010-5ccb7952810d"
 written_at: "2026-11-07T09:38:00.813Z"
 head: "61a1ccdc7f221a483783f910ea2442582c87cb60"
-worktree: "/home/damienriehl/worktrees/folio-enrich-ruler"
 branch: "docs/ac-ruler-receipt"
 ---
 # Handoff: label fix and Aho-Corasick ruler shipped; follow-ups
