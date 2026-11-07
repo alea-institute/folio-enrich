@@ -40,7 +40,7 @@ async def test_union_ruler_borrows_cached_folio_without_changing_it(union_regist
         return stage, job
 
     first, _ = await run('folio')
-    original_folio_patterns = first.ruler._get_nlp().get_pipe('entity_ruler').patterns
+    original_folio_matches = first.ruler.find_matches('shared canon folio')
     union, job = await run('both')
     second, folio_job = await run('folio')
     another_union, _ = await run('both')
@@ -49,11 +49,10 @@ async def test_union_ruler_borrows_cached_folio_without_changing_it(union_regist
     assert another_union._bundle is union._bundle
     assert union._bundle.folio_bundle is first._bundle
     delta_labels = {k: v for k, v in labels().items() if k not in first._bundle.labels}
-    from app.services.entity_ruler.pattern_builder import build_patterns
-    delta_patterns = union.ruler._get_nlp().get_pipe('entity_ruler').patterns
-    folio_patterns = first.ruler._get_nlp().get_pipe('entity_ruler').patterns
-    assert folio_patterns == original_folio_patterns
-    assert len(delta_patterns) == len(build_patterns(delta_labels)) < len(folio_patterns)
+    assert first.ruler.find_matches('shared canon folio') == original_folio_matches
+    assert len(delta_labels) < len(first._bundle.labels)
+    assert union.ruler.find_matches('shared folio') == []
+    assert [m.text for m in union.ruler.find_matches('canon')] == ['canon']
     assert set(module._RULER_CACHE) == {'folio'}
     assert 'both' not in module._RULER_CACHE
     assert threads and all(t is not threading.main_thread() for t in threads)
