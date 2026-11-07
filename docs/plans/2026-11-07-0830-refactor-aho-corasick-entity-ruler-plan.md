@@ -1,7 +1,7 @@
 ---
 title: "refactor: replace the spaCy EntityRuler with a token-aligned Aho-Corasick matcher"
 type: refactor
-status: active
+status: completed
 date: 2026-11-07
 ---
 
@@ -77,3 +77,20 @@ the label set the equivalence gate measures.
 ## Rollback
 
 Revert the merge commit; nothing persistent changes.
+
+## Results (2026-11-07)
+
+Shipped in PR #63 (`29846fd`), with an explicit tie rule: the preferred label wins an identical token sequence, then the first added; spaCy left this to set order. The real ontologies have one such case, "investigator / examiner": the same concept appears as both preferred and alternative.
+
+- **Equivalence:** across all 34 baked demo texts in folio, canon and both modes, the output is identical to the spaCy ruler (3,934 / 3,625 / 4,438 matches, zero differences).
+- **Local memory:**
+  - FOLIO ruler: 256 → 69 MB.
+  - Process peak (folio + canon + both bundles): 1,004 → 655 MB.
+- **Speed:** matching runs 1.08 → 0.23 s across the 34 texts, about 4.7× faster.
+- **DEV:** a cold both job on the regulatory memo peaks at 908 MiB, inside a 1.56 GiB limit (it was 1.46 GiB on 2026-11-04). The job returned 270 annotations, the same as before the change, in 16 s.
+- **PROD:** service peak 2.18 GB (it was 2.42 GB on the previous build and 2.47 GB on 2026-11-04).
+  - Results are unchanged: the both job returns 280 and the FOLIO job 250.
+  - The admin gate still returns 403, the logs show zero errors, and the neighboring services stay active.
+- **PROD rollback:** a dated `enrich-backup-<ts>-pre29846fd` holds HEAD and `.env`. There were no dependency changes. To roll back, run `git checkout 3dc214d` and restart.
+
+DEV still runs with `FOLIO_ENRICH_MAX_PARALLEL_PIPELINES=1`. The measured headroom (about 650 MB on a cold both job) suggests 2 now fits, but that is a `.env` change, so it waits for a separate okay.
