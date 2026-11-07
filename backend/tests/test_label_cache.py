@@ -1,12 +1,13 @@
 """Tests for EmbeddingService label disk caching."""
 from __future__ import annotations
 
+import hashlib
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
 
-from app.services.embedding.service import EmbeddingService, _LABEL_CACHE_DIR
+from app.services.embedding.service import EmbeddingService
 
 
 @pytest.fixture
@@ -69,7 +70,7 @@ class TestLabelCacheRoundTrip:
             embeddings = mock_provider.encode(labels)
 
             embedding_service._save_label_cache("abc123", labels, metadata, embeddings)
-            loaded = embedding_service._load_label_cache("abc123")
+            loaded = embedding_service._load_label_cache("abc123", labels)
 
         assert loaded["labels"] == labels
         assert loaded["metadata"] == metadata
@@ -87,20 +88,21 @@ class TestLabelCacheRoundTrip:
 
             # Rename the cache file to match a "different-model" slug so
             # _load_label_cache finds it, then change the provider model name
-            old_path = tmp_path / "test-model_labels_abc123.pkl"
-            new_path = tmp_path / "different-model_labels_abc123.pkl"
+            digest = hashlib.sha256("\n".join(labels).encode("utf-8")).hexdigest()[:12]
+            old_path = tmp_path / f"test-model_labels_abc123_{digest}.pkl"
+            new_path = tmp_path / f"different-model_labels_abc123_{digest}.pkl"
             old_path.rename(new_path)
 
             mock_provider.model_name = "different-model"
             with pytest.raises(ValueError, match="Model mismatch"):
-                embedding_service._load_label_cache("abc123")
+                embedding_service._load_label_cache("abc123", labels)
 
     def test_missing_cache_raises(self, embedding_service, mock_provider, tmp_path):
         """Loading a nonexistent cache raises FileNotFoundError."""
         with patch.object(embedding_service, "_get_provider", return_value=mock_provider), \
              patch("app.services.embedding.service._LABEL_CACHE_DIR", tmp_path):
             with pytest.raises(FileNotFoundError):
-                embedding_service._load_label_cache("nonexistent")
+                embedding_service._load_label_cache("nonexistent", [])
 
 
 class TestIndexFolioLabelsWithCache:
@@ -109,7 +111,8 @@ class TestIndexFolioLabelsWithCache:
     ):
         """Second index_folio_labels() with same hash skips encoding."""
         with patch.object(embedding_service, "_get_provider", return_value=mock_provider), \
-             patch("app.services.embedding.service._LABEL_CACHE_DIR", tmp_path):
+             patch("app.services.embedding.service._LABEL_CACHE_DIR", tmp_path), \
+             patch.object(mock_provider, "encode", wraps=mock_provider.encode) as encode:
             # First call: builds + caches
             embedding_service.index_folio_labels(mock_folio_service, owl_hash="hash1")
             assert embedding_service.index_size == 2
@@ -120,11 +123,12 @@ class TestIndexFolioLabelsWithCache:
             embedding_service._metadata = []
             embedding_service._embeddings = None
 
-            # Second call: should load from cache, not call get_all_labels again
+            # Second call checks labels again but reuses cached vectors.
             embedding_service.index_folio_labels(mock_folio_service, owl_hash="hash1")
             assert embedding_service.index_size == 2
-            # get_all_labels still called only once (from first call)
-            mock_folio_service.get_all_labels.assert_called_once()
+            # Both calls inspect labels; only the first encodes them.
+            assert mock_folio_service.get_all_labels.call_count == 2
+            assert encode.call_count == 1
 
     def test_no_hash_skips_caching(
         self, embedding_service, mock_provider, mock_folio_service, tmp_path,
@@ -136,3 +140,28 @@ class TestIndexFolioLabelsWithCache:
             assert embedding_service.index_size == 2
             # No cache files written
             assert list(tmp_path.glob("*.pkl")) == []
+
+    def test_changed_labels_rebuild_for_same_owl(
+        self, embedding_service, mock_provider, mock_folio_service, tmp_path,
+    ):
+        with patch.object(embedding_service, "_get_provider", return_value=mock_provider), \
+             patch("app.services.embedding.service._LABEL_CACHE_DIR", tmp_path), \
+             patch.object(mock_provider, "encode", wraps=mock_provider.encode) as encode:
+            embedding_service.index_folio_labels(mock_folio_service, owl_hash="hash1")
+            mock_folio_service.get_all_labels.return_value.pop("motion")
+            with pytest.raises(FileNotFoundError):
+                embedding_service._load_label_cache("hash1", ["court"])
+            embedding_service.index_folio_labels(mock_folio_service, owl_hash="hash1")
+            assert embedding_service._labels == ["court"]
+            assert encode.call_count == 2
+            first_path = embedding_service._label_cache_path("hash1", ["court", "motion"])
+            second_path = embedding_service._label_cache_path("hash1", ["court"])
+            assert first_path != second_path
+            assert first_path.exists() and second_path.exists()
+
+    def test_cache_paths_include_label_order(self, embedding_service, mock_provider, tmp_path):
+        with patch.object(embedding_service, "_get_provider", return_value=mock_provider), \
+             patch("app.services.embedding.service._LABEL_CACHE_DIR", tmp_path):
+            assert embedding_service._label_cache_path("hash1", ["court", "motion"]) != (
+                embedding_service._label_cache_path("hash1", ["motion", "court"])
+            )

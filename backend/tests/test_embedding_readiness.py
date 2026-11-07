@@ -28,8 +28,10 @@ def _cache_loaded_service(monkeypatch) -> EmbeddingService:
         "metadata": [{"iri": "a"}, {"iri": "b"}],
         "embeddings": np.ones((2, 4), dtype=np.float32),
     }
-    monkeypatch.setattr(svc, "_load_label_cache", lambda owl_hash: cached)
-    svc.index_folio_labels(folio_service=None, owl_hash="hash")
+    monkeypatch.setattr(svc, "_load_label_cache", lambda owl_hash, labels: cached)
+    folio = MagicMock()
+    folio.get_all_labels.return_value = dict.fromkeys(cached["labels"])
+    svc.index_folio_labels(folio_service=folio, owl_hash="hash")
     assert svc.index_size == 2
     return svc
 

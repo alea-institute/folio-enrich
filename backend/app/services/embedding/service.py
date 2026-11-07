@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import logging
 import pickle
@@ -331,10 +332,12 @@ class EmbeddingService:
         the index so per-ontology jobs only use vectors built for their ontology.
         """
         self._ontology_id = ontology_id or "folio"
+        labels_dict = folio_service.get_all_labels()
+        labels = list(labels_dict.keys())
         # Try loading from cache
         if owl_hash:
             try:
-                cached = self._load_label_cache(owl_hash)
+                cached = self._load_label_cache(owl_hash, labels)
                 self._labels = cached["labels"]
                 self._metadata = cached["metadata"]
                 self._embeddings = cached["embeddings"]
@@ -350,8 +353,6 @@ class EmbeddingService:
                 logger.warning("Label cache load failed, rebuilding: %s", exc)
 
         # Build fresh
-        labels_dict = folio_service.get_all_labels()
-        labels = list(labels_dict.keys())
         metadata = [
             {
                 "iri": info.concept.iri,
@@ -370,17 +371,18 @@ class EmbeddingService:
             except Exception as exc:
                 logger.warning("Failed to save label cache: %s", exc)
 
-    def _label_cache_path(self, owl_hash: str) -> Path:
+    def _label_cache_path(self, owl_hash: str, labels: list[str]) -> Path:
         """Return cache file path for label embeddings."""
         provider = self._get_provider()
         model_slug = provider.model_name.replace("/", "_").replace("\\", "_")
-        return _LABEL_CACHE_DIR / f"{model_slug}_labels_{owl_hash}.pkl"
+        digest = hashlib.sha256("\n".join(labels).encode("utf-8")).hexdigest()[:12]
+        return _LABEL_CACHE_DIR / f"{model_slug}_labels_{owl_hash}_{digest}.pkl"
 
     def _save_label_cache(
         self, owl_hash: str, labels: list[str], metadata: list[dict], embeddings: np.ndarray,
     ) -> None:
         """Persist label embeddings to disk."""
-        path = self._label_cache_path(owl_hash)
+        path = self._label_cache_path(owl_hash, labels)
         path.parent.mkdir(parents=True, exist_ok=True)
         provider = self._get_provider()
         data = {
@@ -393,13 +395,13 @@ class EmbeddingService:
             pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
         logger.info("Saved label embedding cache: %s", path.name)
 
-    def _load_label_cache(self, owl_hash: str) -> dict:
+    def _load_label_cache(self, owl_hash: str, labels: list[str]) -> dict:
         """Load label embeddings from disk cache.
 
         Raises FileNotFoundError if cache doesn't exist.
         Raises ValueError if model name doesn't match.
         """
-        path = self._label_cache_path(owl_hash)
+        path = self._label_cache_path(owl_hash, labels)
         if not path.exists():
             raise FileNotFoundError(f"No label cache at {path}")
         with open(path, "rb") as f:

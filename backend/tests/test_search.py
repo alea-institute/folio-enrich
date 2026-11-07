@@ -145,3 +145,31 @@ class TestCandidateVetoed:
 
     def test_non_place_not_vetoed(self):
         assert not candidate_vetoed("arbitration", "Arbitration Practice", "Service", "iri", 92.0)
+
+
+def test_result_synonyms_exclude_tagged_alternatives():
+    from lxml import etree
+
+    concept = FakeOWLClass(
+        "https://example.org/Claims", "Claims",
+        alt_labels=["Dependency Claims", "Gasto A", "Gasto B", "Claims Alias"],
+    )
+    concept.translations = {"en-gb": "Dependency Claims", "es-mx": "Gasto B"}
+    folio = FakeFOLIO([concept])
+    folio.tree = etree.fromstring(f'''<rdf:RDF
+        xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+        xmlns:owl="http://www.w3.org/2002/07/owl#"
+        xmlns:skos="http://www.w3.org/2004/02/skos/core#">
+      <owl:Class rdf:about="{concept.iri}">
+        <skos:altLabel>Dependency Claims</skos:altLabel>
+        <skos:altLabel xml:lang="en-gb">Dependency Claims</skos:altLabel>
+        <skos:altLabel xml:lang="es-mx">Gasto A</skos:altLabel>
+        <skos:altLabel xml:lang="es-mx">Gasto B</skos:altLabel>
+        <skos:altLabel>Claims Alias</skos:altLabel>
+      </owl:Class>
+    </rdf:RDF>''')
+
+    results = multi_strategy_search(folio, "Claims")
+
+    assert len(results) == 1
+    assert results[0]["synonyms"] == ["Dependency Claims", "Claims Alias"]

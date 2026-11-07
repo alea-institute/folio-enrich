@@ -1,5 +1,8 @@
 """Tests for concept_detail module: lookup_concept_detail and build_entity_graph."""
 
+import sys
+from types import SimpleNamespace
+
 import pytest
 
 from app.services.folio.concept_detail import (
@@ -11,6 +14,13 @@ from app.services.folio.concept_detail import (
     build_entity_graph,
     lookup_concept_detail,
 )
+
+
+@pytest.fixture(autouse=True)
+def fake_folio_constants(monkeypatch):
+    # These tests discover branch roots from tiny fake classes; importing the
+    # real folio package also initializes unrelated third-party file logging.
+    monkeypatch.setitem(sys.modules, "folio", SimpleNamespace(FOLIO_TYPE_IRIS={}))
 
 
 class FakeOWLClass:
@@ -191,8 +201,9 @@ class TestLookupConceptDetail:
 
 class TestTrueSynonyms:
     def test_commercial_finance_law_example(self):
-        result = _true_synonyms(
-            alternative_labels=[
+        concept = FakeOWLClass(
+            iri="iri",
+            alt_labels=[
                 "Commercial Finance",
                 "Commercial Finance Law",
                 "Derecho de Finanzas Comerciales",
@@ -209,46 +220,55 @@ class TestTrueSynonyms:
             hidden_label="COMF",
             label="Commercial Finance Law",
         )
+        result = _true_synonyms(FakeFOLIO([]), concept)
         assert result == ["Commercial Finance"]
 
     def test_normalized_comparison_excludes_casing_and_whitespace_variants(self):
-        result = _true_synonyms(
-            alternative_labels=["commercial  finance  law", "Real Synonym"],
+        concept = FakeOWLClass(
+            iri="iri",
+            alt_labels=["commercial  finance  law", "Real Synonym"],
             translations={},
             hidden_label="",
             label="Commercial Finance Law",
         )
+        result = _true_synonyms(FakeFOLIO([]), concept)
         assert result == ["Real Synonym"]
 
     def test_preserves_original_text_and_order(self):
-        result = _true_synonyms(
-            alternative_labels=["Beta", "Alpha", "Gamma"],
+        concept = FakeOWLClass(
+            iri="iri",
+            alt_labels=["Beta", "Alpha", "Gamma"],
             translations={},
             hidden_label="",
             label="Concept",
         )
+        result = _true_synonyms(FakeFOLIO([]), concept)
         assert result == ["Beta", "Alpha", "Gamma"]
 
     def test_drops_normalized_duplicates(self):
-        result = _true_synonyms(
-            alternative_labels=["Foo Bar", "foo bar", "Baz"],
+        concept = FakeOWLClass(
+            iri="iri",
+            alt_labels=["Foo Bar", "foo bar", "Baz"],
             translations={},
             hidden_label="",
             label="Concept",
         )
+        result = _true_synonyms(FakeFOLIO([]), concept)
         assert result == ["Foo Bar", "Baz"]
 
     def test_all_excluded_returns_empty(self):
-        result = _true_synonyms(
-            alternative_labels=["Translation", "CODE", "Self Label"],
+        concept = FakeOWLClass(
+            iri="iri",
+            alt_labels=["Translation", "CODE", "Self Label"],
             translations={"es-es": "Translation"},
             hidden_label="CODE",
             label="Self Label",
         )
+        result = _true_synonyms(FakeFOLIO([]), concept)
         assert result == []
 
     def test_empty_inputs(self):
-        assert _true_synonyms([], {}, "", "") == []
+        assert _true_synonyms(FakeFOLIO([]), FakeOWLClass("iri", "")) == []
 
 
 class TestBuildEntityGraph:
@@ -502,3 +522,26 @@ class TestBuildAllHierarchyPaths:
         assert detail is not None
         assert len(detail.hierarchy_paths) == 1
         assert detail.hierarchy_path == detail.hierarchy_paths[0]
+
+
+def test_detail_preserves_untagged_alias_shared_with_translation(mock_folio):
+    from lxml import etree
+
+    concept = mock_folio["CHILD1"]
+    concept.alternative_labels = ["Dependency Claims", "Gasto A", "Gasto B", "X1"]
+    concept.translations = {"en-gb": "Dependency Claims", "es-mx": "Gasto B"}
+    concept.hidden_label = "X1"
+    mock_folio.tree = etree.fromstring(f'''<rdf:RDF
+        xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+        xmlns:owl="http://www.w3.org/2002/07/owl#"
+        xmlns:skos="http://www.w3.org/2004/02/skos/core#">
+        <owl:Class rdf:about="{concept.iri}">
+          <skos:altLabel>Dependency Claims</skos:altLabel>
+          <skos:altLabel xml:lang="en-gb">Dependency Claims</skos:altLabel>
+          <skos:altLabel xml:lang="es-mx">Gasto A</skos:altLabel>
+          <skos:altLabel xml:lang="es-mx">Gasto B</skos:altLabel>
+          <skos:hiddenLabel>X1</skos:hiddenLabel>
+        </owl:Class></rdf:RDF>''')
+    result = lookup_concept_detail(mock_folio, "CHILD1")
+    assert result.synonyms == ["Dependency Claims"]
+    assert result.translations == concept.translations
