@@ -1,7 +1,7 @@
 ---
 title: "fix: translations leak into alternative labels under folio-python >= 0.3.5"
 type: fix
-status: active
+status: completed
 date: 2026-11-07
 ---
 
@@ -88,3 +88,38 @@ fix removes this drift's effect on labels.
 
 Revert the merge commit and redeploy; restore the previous embedding cache files
 (kept under their old names).
+
+## Results (2026-11-07)
+
+Shipped in PR #60 (`5c62e88`): labels by OWL tag, rescored label search, label-digest cache keys, and the `folio-python==0.4.0` pin. PR #61 (`3dc214d`) added the demo replay plus two replay-script fixes: the replay now preserves job status and remaps class links. Three focused reviews, each with an independent cross-model read, found three P2s, all fixed before merge.
+
+Same memo (`advice_regulatory`, 16,206 chars), both mode:
+
+| | ruler preferred | ruler alternative | semantic | annotations |
+|---|---|---|---|---|
+| DEV before (0.4.0, no fix, no embeddings) | 131 | 229 | n/a | 360 |
+| PROD before (0.3.3, embeddings) | 131 | 129 | 23 | 281 |
+| DEV after (no embeddings) | 131 | 139 | n/a | 270 |
+| PROD after | 131 | 139 | 11 | 280 |
+
+- **DEV/PROD gap:** DEV and PROD now differ only by PROD's semantic (embedding) matches, because DEV's image has no sentence-transformers. FOLIO-only mode on the same memo gives an identical ruler (115 preferred + 125 alternative) on both servers.
+- **Both-mode alternatives (+10 vs PROD before):** these are Canon lemma matches. PROD's old Canon lemma cache collided with FOLIO's file.
+- **Semantic matches (23 → 11):** translation strings left the embedding index (69,368 → 28,331 FOLIO vectors).
+
+## PROD deploy receipt (2026-11-07, `3dc214d`)
+
+- **Backup:** HEAD and `.env` in a dated `enrich-backup-<ts>-pre3dc214d` directory, and a dated venv copy, both in the ubuntu home on the enrich box.
+- **Dependencies:** `uv pip install -e .` changed only folio-python 0.3.3 → 0.4.0 and lxml 6.0.2 → 6.1.3; a smoke import passed.
+- **Caches:** the new FOLIO and Canon label-embedding caches and the lemma caches were built locally under the same pin. They were staged with verified checksums before restart; both loaded from cache with no re-encode.
+- **Verification:**
+  - **Health:** `/health` 200 within seconds of the restart.
+  - **Jobs:** both job 280 annotations in 35 s; FOLIO job 250.
+  - **Admin gate:** settings PUT without token → 403.
+  - **Memory:** peak 2.42 GB; box 3.3 GB available.
+  - **Neighbors:** folio-mapper, ontokit and Caddy active.
+  - **Public demo and browser:** the public demo JSON is the replayed one (NDA 343 annotations), and a browser render of the NDA exemplar showed no page errors.
+- **Rollback:** stop the service; restore the dated venv copy and `.env`; `git checkout 9a28361`; start. The old cache files are untouched.
+
+## DEV deploy note
+
+Building the DEV image on hetzner-dev (8 GB, shared with Coolify apps and previews) drove the box out of memory: swap full, about 15 minutes unreachable, recovered on its own with no container lost. DEV images are now built on the home box and shipped with `docker save | ssh docker load`, then `docker compose up -d --no-deps --no-build propositions-dev`.
