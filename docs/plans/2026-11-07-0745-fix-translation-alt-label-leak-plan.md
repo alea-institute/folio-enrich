@@ -44,11 +44,22 @@ invalidates the cache.
 
 ## Approach
 
-1. In `FolioService._to_folio_concept`, drop from `alternative_labels` every value
-   that equals one of the concept's `translations` values, unless the same text is
-   also the concept's preferred label. Translations keep flowing through the
-   existing `translation_matching_enabled` path. This makes label sets identical
-   across folio-python versions and restores the documented switch.
+1. Decide alternative labels by OWL language tag. folio-python keeps the parsed OWL
+   tree (`folio.tree`) in every version. A class's true alternative labels are its
+   untagged `skos:altLabel` literals plus its `skos:hiddenLabel`, in folio-python's
+   order (`app/services/folio/labels.py`). The label builder, search scoring and
+   synonyms, the LLM prompt's "Also known as" line, and the concept-detail synonyms
+   all use it. Translations keep flowing through the existing
+   `translation_matching_enabled` path.
+   - **Revised after review (2026-11-07):** an earlier version subtracted
+     `translations` values by text. An independent review proved that wrong both
+     ways. It dropped an untagged English alias that also exists as an en-gb
+     translation ("Dependency Claims"). It also kept a second translation in one
+     language, because `translations` holds only the last value per language.
+   - **Measured:** under folio-python 0.4.0, the tag rule reproduces 0.3.3's
+     alternative labels exactly for all 18,326 FOLIO and 14,973 Canon classes.
+1b. Pin `folio-python[search]==0.4.0` (lock updated), so DEV's `pip install .` and
+   PROD's `uv pip install -e .` resolve the same parser and the same label digests.
 2. Key the label-embedding cache by a digest of the indexed label list as well as
    the OWL hash, so a label-set change rebuilds (or loads a matching) cache instead
    of reusing stale vectors.
@@ -58,7 +69,7 @@ invalidates the cache.
    them to PROD before restart, as on 2026-11-04, so the 2-core box does not
    re-encode at startup.
 
-Not in scope: changing how deploys install dependencies (lockfile-driven installs)
+Not in scope: lockfile-driven installs (the exact pin covers folio-python)
 and adding sentence-transformers to DEV. Both are recorded as follow-ups; the code
 fix removes this drift's effect on labels.
 
