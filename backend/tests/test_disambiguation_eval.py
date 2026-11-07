@@ -80,10 +80,10 @@ class FakeLemmaFolioService(FolioService):
     def _to_folio_concept(self, concept):  # type: ignore[override]
         return concept
 
-    def _load_lemma_cache(self):  # bypass disk
+    def _load_lemma_cache(self, labels):  # bypass disk
         return None
 
-    def _save_lemma_cache(self, lemma_map):  # bypass disk
+    def _save_lemma_cache(self, lemma_map, labels):  # bypass disk
         return None
 
 

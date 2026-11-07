@@ -19,7 +19,7 @@ from app.services.ontology.spec import FOLIO_SPEC, OntologyCoords, OntologySpec
 logger = logging.getLogger(__name__)
 
 # Bump when the lemma rules or denylist change, so the disk cache (keyed by
-# owl_hash + this version) is not served stale after a logic change.
+# owl_hash + label digest + this version) is not served stale after a logic change.
 LEMMA_VERSION = "1"
 _LEMMA_CACHE_DIR = Path.home() / ".folio-enrich" / "cache" / "lemmas"
 
@@ -489,14 +489,15 @@ class FolioService:
             if alt:
                 yield alt, "alternative"
 
-    def _lemma_cache_path(self) -> Path:
+    def _lemma_cache_path(self, labels: list[str]) -> Path:
         from app.services.folio.owl_cache import get_owl_content_hash
         h = get_owl_content_hash() or "nohash"
-        return _LEMMA_CACHE_DIR / f"labels_{h}_v{LEMMA_VERSION}.pkl"
+        digest = hashlib.sha256("\n".join(labels).encode("utf-8")).hexdigest()[:12]
+        return _LEMMA_CACHE_DIR / f"labels_{h}_{digest}_v{LEMMA_VERSION}.pkl"
 
-    def _load_lemma_cache(self) -> dict[str, str] | None:
+    def _load_lemma_cache(self, labels: list[str]) -> dict[str, str] | None:
         try:
-            path = self._lemma_cache_path()
+            path = self._lemma_cache_path(labels)
             if path.exists():
                 import pickle
                 with open(path, "rb") as f:
@@ -508,9 +509,9 @@ class FolioService:
             logger.debug("Lemma cache load failed", exc_info=True)
         return None
 
-    def _save_lemma_cache(self, lemma_map: dict[str, str]) -> None:
+    def _save_lemma_cache(self, lemma_map: dict[str, str], labels: list[str]) -> None:
         try:
-            path = self._lemma_cache_path()
+            path = self._lemma_cache_path(labels)
             path.parent.mkdir(parents=True, exist_ok=True)
             import pickle
             with open(path, "wb") as f:
@@ -521,19 +522,14 @@ class FolioService:
     def _compute_label_lemmas(self) -> dict[str, str]:
         """Map single-word label (lowercased) -> its lemma, for reachability.
 
-        Computed once per ontology version (disk-cached by owl_hash + LEMMA_VERSION)
-        and memoized in-process. Only single-word labels (>3 chars, lemma >2 chars,
+        Disk-cached by owl_hash, label digest, and LEMMA_VERSION, and memoized
+        in-process. Only single-word labels (>3 chars, lemma >2 chars,
         not on the legal terms-of-art denylist) whose lemma differs are included.
         This is what lets the singular surface form "Agreement" reach the
         plural-labelled concept "Agreements".
         """
         if self._lemma_map is not None:
             return self._lemma_map
-
-        cached = self._load_lemma_cache()
-        if cached is not None:
-            self._lemma_map = cached
-            return cached
 
         folio = self._get_folio()
         denylist = self._spec.behavior.lemma_denylist
@@ -551,6 +547,12 @@ class FolioService:
             except Exception:
                 continue
 
+        labels = sorted(candidates)
+        cached = self._load_lemma_cache(labels)
+        if cached is not None:
+            self._lemma_map = cached
+            return cached
+
         lemma_map: dict[str, str] = {}
         try:
             from app.services.nlp.spacy_singleton import get_spacy_tokenizer
@@ -564,7 +566,7 @@ class FolioService:
                 )
                 self._lemma_map = {}
                 return {}
-            for doc in nlp.pipe(sorted(candidates), batch_size=512):
+            for doc in nlp.pipe(labels, batch_size=512):
                 original = doc.text.lower()
                 lemma = (doc[0].lemma_.lower() if len(doc) else original)
                 if lemma != original and len(lemma) > 2 and lemma not in denylist:
@@ -575,7 +577,7 @@ class FolioService:
             return {}
 
         self._lemma_map = lemma_map
-        self._save_lemma_cache(lemma_map)
+        self._save_lemma_cache(lemma_map, labels)
         logger.info("Computed %d label lemmas for reachability", len(lemma_map))
         return lemma_map
 
@@ -875,6 +877,10 @@ class FolioService:
         country = getattr(concept, "country", "") or ""
         raw_translations = getattr(concept, "translations", {}) or {}
         translations = dict(raw_translations) if raw_translations else None
+        # Newer folio-python duplicates translations into alternative_labels;
+        # translations have their own matching switch.
+        translation_values = set(raw_translations.values())
+        alt_labels = [alt for alt in alt_labels if alt not in translation_values]
 
         branch = self._get_branch(iri, list(parent_iris))
 

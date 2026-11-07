@@ -119,7 +119,9 @@ class TestRegistryPerOntologyEmbeddingService:
         canon_es = reg.get_embedding_service("canon")
         canon_sha16 = CANON_SPEC.coords.owl_sha256[:16]
         # The Canon vectors are cached on disk keyed by the pinned Canon OWL sha.
-        cache_path = canon_es._label_cache_path(canon_sha16)
+        cache_path = canon_es._label_cache_path(
+            canon_sha16, list(reg.get_service("canon").get_all_labels())
+        )
         assert canon_sha16 in cache_path.name
         assert cache_path.exists(), "warm Canon cache should have been written under the pinned sha"
 

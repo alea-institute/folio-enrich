@@ -10,9 +10,10 @@
 from __future__ import annotations
 
 import logging
+import sys
 from types import SimpleNamespace
 
-import folio as folio_pkg
+import pytest
 
 from app.services.folio.folio_service import FolioService
 
@@ -33,7 +34,7 @@ class _FakeFOLIO:
 
 
 def test_folio_load_suppresses_llm_init_traceback(monkeypatch, caplog):
-    monkeypatch.setattr(folio_pkg, "FOLIO", _FakeFOLIO)
+    monkeypatch.setitem(sys.modules, "folio", SimpleNamespace(FOLIO=_FakeFOLIO))
     caplog.set_level(logging.WARNING, logger="folio.graph")
 
     instance = FolioService()._load_folio()
@@ -82,3 +83,82 @@ def test_search_by_prefix_returns_concepts():
     results = svc.search_by_prefix("contr", top_k=1)
     assert [c.preferred_label for c in results] == ["Contract Law"]
     assert len(svc.search_by_prefix("contr")) == 2
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+@pytest.mark.parametrize("multi", [False, True])
+def test_translation_alternatives_respect_matching_switch(monkeypatch, enabled, multi):
+    from app.config import settings
+
+    concept = _owl_class("https://folio.openlegalstandard.org/SHARES", "Shares")
+    concept.alternative_labels = ["Stock", "Actions", "Aktien"]
+    concept.translations = {"fr-fr": "Actions", "de-de": "Aktien"}
+    svc = FolioService()
+    svc._folio = SimpleNamespace(classes=[concept])
+    svc._branch_map = {}
+    svc._lemma_map = {}  # No NLP models or disk caches needed for label types.
+    monkeypatch.setattr(settings, "translation_matching_enabled", enabled)
+
+    labels = svc.get_all_labels_multi() if multi else svc.get_all_labels()
+    entries = labels if multi else {key: [info] for key, info in labels.items()}
+    assert [(info.concept.iri, info.label_type) for info in entries["stock"]] == [
+        (concept.iri, "alternative")
+    ]
+    for text in ("actions", "aktien"):
+        assert [info.label_type for info in entries.get(text, [])] == (
+            ["translation"] if enabled else []
+        )
+    converted = svc._to_folio_concept(concept)
+    assert converted.alternative_labels == ["Stock"]
+    assert converted.translations == concept.translations
+
+
+def test_translation_filter_preserves_exact_match_rule_and_order():
+    concept = _owl_class("https://folio.openlegalstandard.org/SHARES", "Shares")
+    concept.alternative_labels = ["Stock", "Actions", "actions", "Shares", "Equity", "Stock"]
+    concept.translations = {"fr-fr": "Actions", "en-gb": "Shares"}
+    svc = FolioService()
+    svc._branch_map = {}
+
+    converted = svc._to_folio_concept(concept)
+
+    assert converted.alternative_labels == ["Stock", "actions", "Equity", "Stock"]
+    assert converted.preferred_label == "Shares"
+    assert converted.translations == concept.translations
+    assert concept.alternative_labels == ["Stock", "Actions", "actions", "Shares", "Equity", "Stock"]
+
+
+def test_lemma_cache_tracks_alternative_labels(monkeypatch, tmp_path):
+    from app.services.folio import folio_service as module
+    from app.services.folio import owl_cache
+    from app.services.nlp import spacy_singleton
+
+    monkeypatch.setattr(module, "_LEMMA_CACHE_DIR", tmp_path)
+    monkeypatch.setattr(owl_cache, "get_owl_content_hash", lambda: "same-owl")
+
+    class FakeNLP:
+        pipe_names = ["tagger", "attribute_ruler"]
+
+        def pipe(self, texts, batch_size):
+            for text in texts:
+                class Doc(list):
+                    pass
+                doc = Doc([SimpleNamespace(lemma_=text.removesuffix("s"))])
+                doc.text = text
+                yield doc
+
+    monkeypatch.setattr(spacy_singleton, "get_spacy_tokenizer", FakeNLP)
+
+    def service(alts):
+        concept = _owl_class("https://folio.openlegalstandard.org/SHARES", "Shares")
+        concept.alternative_labels = alts
+        svc = FolioService()
+        svc._folio = SimpleNamespace(classes=[concept])
+        svc._branch_map = {}
+        return svc
+
+    assert service(["Stocks"])._compute_label_lemmas().get("stocks") == "stock"
+    changed = service(["Bonds"])._compute_label_lemmas()
+    assert "stocks" not in changed
+    assert changed.get("bonds") == "bond"
+    assert len(list(tmp_path.glob("*.pkl"))) == 2
