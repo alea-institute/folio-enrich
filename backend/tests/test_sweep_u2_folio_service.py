@@ -126,6 +126,43 @@ def test_search_by_label_rescores_translation_hits(monkeypatch, enabled):
 
 
 @pytest.mark.parametrize("enabled", [False, True])
+def test_search_by_label_rescores_earlier_same_language_alias(monkeypatch, enabled):
+    from app.config import settings
+
+    concept = _owl_class("https://folio.openlegalstandard.org/SHARES", "Shares")
+    concept.alternative_labels = ["Actes", "Actions"]
+    concept.translations = {"fr-fr": "Actions"}
+
+    class FakeFolio:
+        tree = etree.fromstring(f'''<rdf:RDF
+            xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+            xmlns:owl="http://www.w3.org/2002/07/owl#"
+            xmlns:skos="http://www.w3.org/2004/02/skos/core#">
+            <owl:Class rdf:about="{concept.iri}">
+              <skos:altLabel xml:lang="fr-fr">Actes</skos:altLabel>
+              <skos:altLabel xml:lang="fr-fr">Actions</skos:altLabel>
+            </owl:Class></rdf:RDF>''')
+
+        def search_by_label(self, label, include_alt_labels=True, limit=10):
+            return [(concept, 100.0)]
+
+    svc = FolioService()
+    svc._folio = FakeFolio()
+    svc._branch_map = {}
+    monkeypatch.setattr(settings, "translation_matching_enabled", enabled)
+
+    results = svc.search_by_label("actes")
+
+    assert len(results) == 1
+    assert results[0][0].iri == concept.iri
+    score = results[0][1]
+    if enabled:
+        assert score == 100.0
+    else:
+        assert score < 60
+
+
+@pytest.mark.parametrize("enabled", [False, True])
 @pytest.mark.parametrize("multi", [False, True])
 def test_translation_alternatives_respect_matching_switch(monkeypatch, enabled, multi):
     from app.config import settings

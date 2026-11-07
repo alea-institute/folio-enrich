@@ -449,7 +449,7 @@ class FolioService:
                 *true_alternative_labels(folio, concept),
             ]
             if include_translations:
-                labels.extend((getattr(concept, "translations", None) or {}).values())
+                labels.extend(getattr(concept, "alternative_labels", None) or [])
             score = max(
                 (fuzz.WRatio(label, candidate, processor=utils.default_process)
                  for candidate in labels if candidate),
