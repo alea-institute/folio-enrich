@@ -42,6 +42,18 @@ The 2026-11-07 label-fix and Aho-Corasick ruler work left four decisions for the
 - **Kept at 2.** The revert gate (exceeding the limit) did not trip.
 - **Rollback:** restore the dated env backup, then recreate `propositions-dev`.
 
+## 4. Coolify token and stuck deploy queue (later on 2026-11-07)
+
+- **Token:** Damien minted a Coolify API token (read and deploy only) and installed it on hetzner-dev through a prompting command. Coolify had no API tokens left, so the old one had been revoked. The token value never entered a transcript.
+- **Panel access:** the Coolify panel accepts only the home IP and the tailnet. The home IP entry is stale, and a browser behind an HTTP proxy cannot reach the tailnet address. Damien reset the root login with Coolify's `root:change-email` and `root:reset-password` commands.
+- **Queue jam:** a folio-mapper PR #15 deploy died on 2026-10-26 (data disk full) but stayed `in_progress`. Coolify runs a server's deploys one at a time, so 25 more queued behind it, and no DEV preview had deployed since.
+  - **Fix (Damien's call):** all 26 were cancelled through the API (`cancelled-by-user`; Coolify 4.1.2 answers 500 but records the cancel). There was no Coolify restart, and every app kept its running container.
+  - **Not replayed:** folio-insights `main` and PRs #70, #78 and #79, folio-mapper PR #15, and folio-enrich PR #50. Their owners can re-trigger them. Each would build on hetzner-dev.
+- **Deploys without building on the box:** both images were built on the home box from `main`, tagged `<app-uuid>:<full commit sha>`, and `docker load`ed onto hetzner-dev. A Coolify deploy then skips the build ("image found with the same Git Commit SHA") and only rolls the container.
+  - **folio-api DEV (`008ae8b`):** `POST /mcp` initialize returns 200 (421 before), and a foreign Origin still gets 403.
+  - **folio-enrich DEV (`382fce0`):** health returns 200, the container runs folio-python 0.4.0, and a FOLIO job completed with 7 annotations.
+
 ## Deferred
 
-- **Coolify token:** the folio-api DEV preview still answers MCP 421, and the folio-enrich DEV Coolify app stays stale until a token is minted.
+- **Stale panel IP:** the home-IP entry in the Coolify panel's IP lock no longer matches the home IP. It needs a refresh, or switch to tailnet-only access.
+- **Box headroom:** hetzner-dev swap stays near full. Re-triggered builds on the box risk another out-of-memory stall, so build elsewhere and load the image as above.
