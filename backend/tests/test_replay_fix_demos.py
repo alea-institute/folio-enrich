@@ -37,7 +37,7 @@ class ReplayStatusTest(unittest.IsolatedAsyncioTestCase):
         modules["scripts.slim_demos"] = SimpleNamespace(slim_demo_cache=lambda raw: None)
 
         for status in (JobStatus.COMPLETED, JobStatus.FAILED):
-            with self.subTest(status=status), tempfile.TemporaryDirectory() as directory:
+            with self.subTest(status=status.value), tempfile.TemporaryDirectory() as directory:
                 job = Job(status=status)
                 # Clearing this annotation makes replay take the payload/write path.
                 job.result.annotations = [Annotation(span=Span(start=0, end=4, text="test"))]
