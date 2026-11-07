@@ -87,6 +87,45 @@ def test_search_by_prefix_returns_concepts():
 
 
 @pytest.mark.parametrize("enabled", [False, True])
+def test_search_by_label_rescores_translation_hits(monkeypatch, enabled):
+    from app.config import settings
+
+    shares = _owl_class("https://folio.openlegalstandard.org/SHARES", "Shares")
+    shares.alternative_labels = ["Actions"]
+    shares.translations = {"fr-fr": "Actions"}
+    action = _owl_class("https://folio.openlegalstandard.org/ACTION", "Corporate Action")
+    action.alternative_labels = ["Corporate Actions"]
+
+    class FakeFolio:
+        calls = []
+
+        def search_by_label(self, label, include_alt_labels=True, limit=10):
+            self.calls.append((label, include_alt_labels, limit))
+            return [(shares, 100.0), (action, 90.0)][:limit]
+
+    svc = FolioService()
+    svc._folio = FakeFolio()  # No tree: use the translation-subtraction fallback.
+    svc._branch_map = {}
+    monkeypatch.setattr(settings, "translation_matching_enabled", enabled)
+
+    results = svc.search_by_label("actions", top_k=2)
+
+    assert results[0][0].iri == (shares.iri if enabled else action.iri)
+    scores = {concept.iri: score for concept, score in results}
+    if enabled:
+        assert scores[shares.iri] == 100.0
+    else:
+        assert scores[shares.iri] < 60
+    assert svc.search_by_label("actions", top_k=1) == results[:1]
+    assert svc.search_by_label("actions", top_k=6) == results
+    assert svc._folio.calls == [
+        ("actions", True, 20),
+        ("actions", True, 20),
+        ("actions", True, 24),
+    ]
+
+
+@pytest.mark.parametrize("enabled", [False, True])
 @pytest.mark.parametrize("multi", [False, True])
 def test_translation_alternatives_respect_matching_switch(monkeypatch, enabled, multi):
     from app.config import settings

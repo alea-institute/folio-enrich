@@ -8,6 +8,8 @@ import threading
 from dataclasses import dataclass
 from pathlib import Path
 
+from rapidfuzz import fuzz, utils
+
 from app.services.folio.branch_config import (
     get_branch_color,
     get_branch_display_name,
@@ -431,14 +433,34 @@ class FolioService:
     def search_by_label(self, label: str, top_k: int = 5) -> list[tuple[FOLIOConcept, float]]:
         folio = self._get_folio()
         try:
-            results = folio.search_by_label(label, include_alt_labels=True)
+            results = folio.search_by_label(
+                label, include_alt_labels=True, limit=max(top_k * 4, 20)
+            )
         except Exception:
             logger.warning("search_by_label failed for '%s'", label, exc_info=True)
             return []
-        output = []
-        for concept, score in results[:top_k]:
-            output.append((self._to_folio_concept(concept), score))
-        return output
+        # The library indexes translations; label eligibility follows our translation switch.
+        include_translations = _translation_matching_enabled()
+        rescored = []
+        for concept, _ in results:
+            labels = [
+                getattr(concept, "label", None),
+                getattr(concept, "preferred_label", None),
+                *true_alternative_labels(folio, concept),
+            ]
+            if include_translations:
+                labels.extend((getattr(concept, "translations", None) or {}).values())
+            score = max(
+                (fuzz.WRatio(label, candidate, processor=utils.default_process)
+                 for candidate in labels if candidate),
+                default=0,
+            )
+            rescored.append((concept, score))
+        rescored.sort(key=lambda hit: hit[1], reverse=True)
+        return [
+            (self._to_folio_concept(concept), score)
+            for concept, score in rescored[:top_k]
+        ]
 
     def search_by_prefix(self, prefix: str, top_k: int = 10) -> list[FOLIOConcept]:
         folio = self._get_folio()
