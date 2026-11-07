@@ -60,10 +60,12 @@ class FOLIOEntityRuler:
             if not words:
                 continue
             key = _TOKEN_SEP.join(_encode_token(word) for word in words)
-            # spaCy leaves equal-span ties to set iteration rather than defining
-            # a priority. Use first-added order for identical token sequences.
-            if key not in automaton:
-                iri, match_type = decode_pattern_id(pattern["id"])
+            # Preferred label wins an identical token sequence, then first added;
+            # spaCy left it to set order.
+            iri, match_type = decode_pattern_id(pattern["id"])
+            if key not in automaton or (
+                match_type == "preferred" and automaton.get(key)[2] != "preferred"
+            ):
                 automaton.add_word(key, (len(key), iri, match_type))
         if len(automaton):
             automaton.make_automaton()

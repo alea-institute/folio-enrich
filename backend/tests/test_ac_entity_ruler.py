@@ -96,6 +96,33 @@ def test_equal_span_keeps_first_added_pattern():
     assert ruler.find_matches("Contract")[0].entity_id == "iri/0"
 
 
+@pytest.mark.parametrize("second_type,expected_iri,expected_type", [
+    ("preferred", "iri/B", "preferred"),
+    ("alternative", "iri/A", "alternative"),
+])
+def test_identical_tokens_prefer_preferred_then_first_added(
+    second_type, expected_iri, expected_type,
+):
+    entries = {
+        name: LabelInfo(
+            concept=FOLIOConcept(iri, name, [], "", "", []),
+            label_type=label_type,
+            matched_label=name,
+        )
+        for name, iri, label_type in [
+            ("breach  of  contract", "iri/A", "alternative"),
+            ("breach of contract", "iri/B", second_type),
+        ]
+    }
+    assert [decode_pattern_id(p["id"]) for p in build_patterns(entries)] == [
+        ("iri/A", "alternative"), ("iri/B", second_type),
+    ]
+    matches = _build_fast_ruler(entries).find_matches("breach of contract")
+    assert matches == [EntityRulerMatch(
+        "breach of contract", 0, 18, "FOLIO_CONCEPT", expected_iri, expected_type,
+    )]
+
+
 def test_unloaded_empty_and_reload():
     ruler = FOLIOEntityRuler()
     assert ruler.find_matches("contract") == []
