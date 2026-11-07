@@ -98,6 +98,33 @@ def _concept_summary(job) -> dict:
     }
 
 
+def _remap_class_link_annotation_ids(job, old_annotations) -> None:
+    """Repair preserved class links because replay mints new annotation ids."""
+    for individual in job.result.individuals:
+        for link in individual.class_links:
+            if link.annotation_id is None:
+                continue
+            old = old_annotations.get(link.annotation_id)
+            if old is None:
+                link.annotation_id = None
+                continue
+            same_span = [
+                a for a in job.result.annotations
+                if (a.span.start, a.span.end) == (old.span.start, old.span.end)
+            ]
+            iri_matches = [
+                a for a in job.result.annotations
+                if link.folio_iri is not None
+                and any(c.folio_iri == link.folio_iri for c in a.concepts)
+            ]
+            match = next((a for a in same_span if a in iri_matches), None)
+            if match is None and same_span:
+                match = same_span[0]
+            if match is None and iri_matches:
+                match = min(iri_matches, key=lambda a: abs(a.span.start - old.span.start))
+            link.annotation_id = match.id if match is not None else None
+
+
 async def replay_one(slug: str, folio, emb, dry_run: bool, ontology: str = "folio") -> bool:
     """Recompute one demo's deterministic concepts. Returns True if it changed."""
     from app.models.job import Job
@@ -111,11 +138,13 @@ async def replay_one(slug: str, folio, emb, dry_run: bool, ontology: str = "foli
     path = _demos_dir(ontology) / f"{slug}.json"
     raw = json.loads(path.read_text())
     job = Job.model_validate(raw["cache"]["job"])
+    original_status = job.status
     before = _concept_summary(job)
 
     # Reset concept annotations so the semantic ruler's "known spans" starts clean
     # (mirrors the original bake, where EntityRuler ran first). metadata.llm_concepts
     # is preserved and consumed by ReconciliationStage.
+    old_annotations = {a.id: a.model_copy(deep=True) for a in job.result.annotations}
     job.result.annotations = []
 
     await EntityRulerStage(embedding_service=emb).execute(job)
@@ -127,6 +156,7 @@ async def replay_one(slug: str, folio, emb, dry_run: bool, ontology: str = "foli
 
     # Deterministic individual class-link IRIs (reuses the preserved individuals).
     _resolve_class_link_iris(job.result.individuals, folio)
+    _remap_class_link_annotation_ids(job, old_annotations)
     # Refresh triple cross-links to the (possibly changed) concept/individual IRIs.
     try:
         await TripleEnrichmentStage().execute(job)
@@ -150,6 +180,8 @@ async def replay_one(slug: str, folio, emb, dry_run: bool, ontology: str = "foli
     if changed and not dry_run:
         from scripts.generate_demos import build_cache_payload
         from scripts.slim_demos import slim_demo_cache
+        # Replay stages change status; preserve the baked demo's original status.
+        job.status = original_status
         raw["cache"] = build_cache_payload(job, raw["cache"].get("docInput", ""))
         # Preserve original demo wrapper (name/title/description); note the replay.
         raw.setdefault("demo", {})["replayed_at"] = __import__("datetime").datetime.now(
