@@ -32,7 +32,8 @@ from rapidfuzz import fuzz, utils
 from app.services.folio.folio_service import FolioService, _construct_folio
 from app.services.folio.labels import true_alternative_labels
 from app.config import settings
-from app.services.ontology.spec import FOLIO_SPEC
+from app.services.ontology.registry import OntologyRegistry
+from app.services.ontology.spec import BUILTIN_SPECS, FOLIO_SPEC
 
 POOLS = (20, 40, 80, 160)
 KS = (3, 5, 10)
@@ -115,9 +116,11 @@ def top_k_improvements(queries, pool, k, baseline_pool):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--output', type=Path,
-                        default=BACKEND / 'eval/results/label_search_pool_2026-11-08.json')
+    parser.add_argument('--ontology', choices=('folio', 'canon'), default='folio')
+    parser.add_argument('--output', type=Path)
     args = parser.parse_args()
+    if args.output is None:
+        args.output = BACKEND / f'eval/results/label_search_pool_{args.ontology}_2026-11-08.json'
     queries, files = queries_from_demos()
     print(f'{len(queries)} case-insensitive unique queries from {len(files)} demos', flush=True)
     # alea-llm-client opens a home-directory log at import time. Redirect only
@@ -129,21 +132,30 @@ def main():
                 filename = str(Path(log_dir) / 'alea_llm_client.log')
             return handler(filename, *a, **kw)
         with patch('logging.handlers.RotatingFileHandler', local_handler):
-            from folio import FOLIO
-            # Use production's branch for both cache identity and construction;
-            # folio-python's default branch is a different ontology snapshot.
-            repo_branch = FOLIO_SPEC.coords.repo_branch
-            owl = FOLIO.load_cache(github_repo_branch=repo_branch)
-            if not owl:
-                raise RuntimeError(f'FOLIO OWL cache for production branch {repo_branch!r} is absent or empty; '
-                                   'populate that branch cache first; refusing fallback or network access')
-            # load_owl otherwise rewrites even a cache hit in the read-only home.
-            with patch.object(FOLIO, 'load_owl', return_value=owl):
-                folio = _construct_folio(github_repo_branch=repo_branch)
-    service = FolioService()
-    service._folio = folio
-    # Build the same branch map as production before warming conversion.
-    service._build_branch_map()
+            if args.ontology == 'canon':
+                # Explicit selection works even when Canon is not enabled in settings.
+                registry = OntologyRegistry({'canon': BUILTIN_SPECS['canon']}, default_id='canon')
+                service = registry.get_service('canon')
+                folio = service._get_folio()
+                repo_branch = service.spec.coords.repo_branch
+                owl_sha256 = service.spec.coords.owl_sha256
+            else:
+                from folio import FOLIO
+                # Use production's branch for both cache identity and construction;
+                # folio-python's default branch is a different ontology snapshot.
+                repo_branch = FOLIO_SPEC.coords.repo_branch
+                owl = FOLIO.load_cache(github_repo_branch=repo_branch)
+                if not owl:
+                    raise RuntimeError(f'FOLIO OWL cache for production branch {repo_branch!r} is absent or empty; '
+                                       'populate that branch cache first; refusing fallback or network access')
+                # load_owl otherwise rewrites even a cache hit in the read-only home.
+                with patch.object(FOLIO, 'load_owl', return_value=owl):
+                    folio = _construct_folio(github_repo_branch=repo_branch)
+                service = FolioService()
+                service._folio = folio
+                # Build the same branch map as production before warming conversion.
+                service._build_branch_map()
+                owl_sha256 = hashlib.sha256(owl.encode()).hexdigest()
     settings.translation_matching_enabled = False
     raw_search = folio.search_by_label
     print('Warm-up: all queries and all pools', flush=True)
@@ -225,7 +237,7 @@ def main():
                 }
     for key in ('below_pool_cutoff', 'below_own_raw_score'):
         crowding[key + '_fraction'] = crowding[key] / crowding['raw_hits']
-    output = {'repo_branch': repo_branch, 'owl_sha256': hashlib.sha256(owl.encode()).hexdigest(), 'query_count': len(queries), 'demo_files': files, 'folio_python_version':
+    output = {'ontology_id': args.ontology, 'repo_branch': repo_branch, 'owl_sha256': owl_sha256, 'query_count': len(queries), 'demo_files': files, 'folio_python_version':
               importlib.metadata.version('folio-python'), 'translation_matching_enabled': False,
               'threshold_note': 'No configured cutoff: process.extract defaults to score_cutoff=None (effective 0). '
               'below_pool_cutoff uses min returned raw score for each query; below_own_raw_score identifies '
