@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 from app.config import settings
 from app.services.folio.court_names import (
-    canonical_court_keys, concept_labels, exact_label, is_case_caption, jurisdiction_mismatch,
+    canonical_court_keys, concept_labels, exact_label, is_case_caption, is_deictic_court, jurisdiction_mismatch,
 )
 from app.services.folio.branch_config import EXCLUDED_BRANCHES
 from app.services.folio.folio_service import FOLIOConcept, FolioService
@@ -85,6 +85,8 @@ class ConceptResolver:
         If folio_iri is provided, look up the concept directly by IRI (fast path).
         Otherwise, search by label text (slow path with potential mismatches).
         """
+        if not folio_iri and is_deictic_court(concept_text):
+            return None
         branch = branches[0] if branches else ""
         cache_key = (concept_text.lower(), branch.lower())
         if folio_iri or getattr(self.folio, "ontology_id", None) == "both":
@@ -108,6 +110,8 @@ class ConceptResolver:
 
         # Slow path: multi-strategy search
         if best_concept is None:
+            if is_deictic_court(concept_text):
+                return None
             exact = self._exact_court_or_caption(concept_text)
             if exact:
                 best_concept, score = exact
@@ -174,6 +178,8 @@ class ConceptResolver:
         max_candidates: int = 5,
     ) -> list[ResolvedConcept]:
         """Resolve a concept to multiple FOLIO candidates (up to max_candidates)."""
+        if is_deictic_court(concept_text):
+            return []
         branch = branches[0] if branches else ""
         all_results = self._multi_strategy_resolve_all(concept_text, branch, max_candidates)
         resolved_list: list[ResolvedConcept] = []

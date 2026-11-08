@@ -419,8 +419,17 @@ class ResolutionStage(PipelineStage):
             concept for i, concept in enumerate(resolved_concepts) if i not in dropped_indices
         ]
 
+        # Score before coreference so rejected courts cannot supply an antecedent.
+        before_context_gate = len(resolved_concepts)
+        if full_text:
+            self._apply_embedding_context_scores(
+                resolved_concepts, full_text, ontology_id=job.ontology
+            )
+
+        dropped_forks = before_context_gate - len(resolved_concepts)
+
         # Resolve generic court mentions only from unambiguous courts in this job.
-        from app.services.folio.court_names import normalize_court_text
+        from app.services.folio.court_names import is_deictic_court, normalize_court_text
         court_types = {
             "district court": ("district court",),
             "court of appeals": ("ct. app.", "court of appeals"),
@@ -432,12 +441,14 @@ class ResolutionStage(PipelineStage):
         document_courts = list(resolved_concepts)
         for mention in unresolved_mentions:
             text = mention.get("concept_text", "")
-            types = court_types.get(normalize_court_text(text))
+            deictic = is_deictic_court(text)
+            types = ("court", "ct.", "circuit") if deictic else court_types.get(normalize_court_text(text))
             if not types or text.casefold() in resolved_texts:
                 continue
             candidates = {
                 c["folio_iri"]: c for c in document_courts
                 if any(t in c.get("folio_label", "").casefold() for t in types)
+                and (not deictic or {"Forums and Venues", "Governmental Body"}.intersection(c.get("branches", [])))
             }
             if len(candidates) != 1:
                 continue
@@ -455,18 +466,6 @@ class ResolutionStage(PipelineStage):
                 }]
                 resolved_concepts.append(rd)
                 resolved_texts.add(text.casefold())
-
-        # Apply embedding-based context scoring when available
-        full_text = ""
-        if job.result.canonical_text:
-            full_text = job.result.canonical_text.full_text
-        before_context_gate = len(resolved_concepts)
-        if full_text:
-            self._apply_embedding_context_scores(
-                resolved_concepts, full_text, ontology_id=job.ontology
-            )
-
-        dropped_forks = before_context_gate - len(resolved_concepts)
 
         if job.ontology == "both":
             for rc in resolved_concepts:
