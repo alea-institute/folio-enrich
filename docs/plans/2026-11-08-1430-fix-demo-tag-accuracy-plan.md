@@ -154,3 +154,24 @@ results and the narrowed U1, both closed above. Residual items kept as follow-up
 - **One-word ruler alt labels:** 158 correct vs 159 wrong occurrences; the wrong ones concentrate in a
   few generic alt labels ("party" → Legal Services Buyer ×69, "SOVEREIGN" → Monarch ×46) and section
   headings ("ARTICLE" → Article ×47). A targeted label-quality pass fits better than a rule.
+
+## Ship receipts (2026-11-08)
+
+- **PR #76:** merged as `34a8e3c` after green CI (`backend-tests`, `eval`); local suite 1,926 passed.
+- **DEV propositions-dev:** the image was built on the home box from `git archive 34a8e3c`, shipped
+  with `docker load`, and switched with `compose up --no-deps --no-build`; rollback tag `:pre-34a8e3c…`.
+  `/health` 200; demos at pipeline version `442898615a503b53`.
+- **DEV Coolify app:** the same image, tagged `<app-uuid>:34a8e3c…`. Coolify skipped the build, the
+  deployment finished, and `/health` returned 200.
+- **PROD (enrich.openlegalstandard.org):**
+  - **Backup:** a dated `enrich-backup-<ts>-pre34a8e3c` holds HEAD (`fc3c8fe`) and `.env`.
+  - **Deploy:** `git merge --ff-only`, with no dependency or cache-key changes. The smoke import
+    passed and the restart reached `/health` 200 in about 16 s.
+  - **Startup:** label and concept embeddings loaded from cache (hash `44657b4ed844f5f9`), with no
+    re-encode. Mapper, OntoKit (api, web) and Caddy stayed active.
+  - **Rollback:** `git checkout fc3c8fe` and restart.
+- **Browser checks:** Playwright ran on DEV and PROD against advice_regulatory, appellate, opinion and
+  merger, with 0 page errors. None of the reported bad labels (Bananas, Nepali, Syriac, Arapaho, Family
+  Court, Jail, Schizophrenia, Electoral System) appear. The opinion demo keeps Excessive Force Claim.
+  Concept counts match local exactly (72 / 58 / 35 / 90).
+
