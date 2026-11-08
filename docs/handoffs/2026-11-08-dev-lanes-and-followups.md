@@ -22,18 +22,34 @@ completed).
 - **Closed with no code change:** property altLabels (no language tags exist), and the label-search
   pool (0 rescues across 2,350 queries).
 
+## Done later on 2026-11-08
+- **Coolify panel:** Tailscale only (Damien, answer 1.1). The stale home-IP entry was removed from
+  the Traefik panel lock, and a backup sits beside it. The public UI still answers 403, `/webhooks`
+  still answers 302 for GitHub, and the tailnet panel answers 302.
+- **Drawdown campaign:** resumed (Damien, answer 2.2) on this week's quota only, with no banked resets
+  and no paid credits.
+  - **chief #31:** shipped the `use_banked_resets` switch and the resume.
+  - **chief #34:** made the switch fail closed and set the 92%/94% stops, which leave headroom for
+    cloud tasks that are already running.
+  - **Live:** release `5cac8ca`. At this writing the campaign sat in `pacing-hold` because the home
+    box had less than about 24 GiB of free memory.
+- **folio-enrich #68:** two tests now pass on pyarrow 26 and nupunkt 0.8, so the lockfile caution is
+  retired.
+- **folio-enrich #69:** CI retries the pinned spaCy model download, which had failed twice with 504s.
+- **folio-enrich #72:** the Canon label-search pool was measured, with no change (see the plan).
+- **folio-insights #70:** not replayed. Preview deploys rebuild on hetzner-dev, which the
+  never-build-there rule forbids.
+
 ## Next steps
-1. **Owner decisions:**
-   - **Coolify panel access:** Cockpit ask `folio-enrich-2026-11-08-0908-coolify-panel-lock`.
-   - **PRs #48–#50:** held by the drawdown spend ask `chief-2026-10-31-2255-drawdown-credit-halt`.
+1. **PRs #48–#50:** the drawdown campaign keeps its folio-enrich mandate disabled ("gate cannot run
+   the suite in the sandbox"), so these PRs need review and merge outside the campaign.
 2. **Rollback cleanup (about 2026-11-14):** delete the dated PROD pre-deploy backups, the venv copies,
    and the superseded label-embedding cache, after proving nothing live references them. At the same
    time, consider pruning the superseded folio-insights image on hetzner-dev (about 9.4 GB), which
    Coolify keeps for rollback.
 3. **Tailscale aliases:** when the PROD hosts join the tailnet, point the PROD SSH aliases at tailnet
    names.
-4. **Lockfile bump caution:** pyarrow above 23 and nupunkt above 0.6 break the proposition
-   byte-neutral Parquet fixture and one sentence-split test. Regenerate the fixture and check the
-   split expectation in the same PR that bumps `uv.lock`.
-5. **Preview-lane lesson:** prebuilt images skip Coolify's build only for main-branch apps. Preview
+4. **Preview-lane lesson:** prebuilt images skip Coolify's build only for main-branch apps. Preview
    deploys tag images by deployment id, so Coolify rebuilds them on the box.
+5. **Stale branch in chief:** `feat/drawdown-no-banked-resets` (the closed PR #32) still holds one
+   commit that never merged. It can be deleted once Damien approves.
