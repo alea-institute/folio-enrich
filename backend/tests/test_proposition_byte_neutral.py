@@ -182,7 +182,32 @@ async def test_pipeline_is_byte_neutral_when_propositions_are_disabled() -> None
 
     assert FIXTURE_DIR.is_dir(), "regenerate the proposition baseline fixtures"
     for fmt, content in exports.items():
-        assert content == (FIXTURE_DIR / f"export.{fmt}").read_bytes(), fmt
+        expected_content = (FIXTURE_DIR / f"export.{fmt}").read_bytes()
+        if fmt == "parquet":
+            import pyarrow.parquet as pq
+
+            # Writer versions change created_by; payload, metadata and layout must match.
+            actual_table = pq.read_table(BytesIO(content), use_threads=False, pre_buffer=False)
+            expected_table = pq.read_table(BytesIO(expected_content), use_threads=False, pre_buffer=False)
+            assert actual_table.equals(expected_table, check_metadata=True), fmt
+            actual_metadata = pq.read_metadata(BytesIO(content))
+            expected_metadata = pq.read_metadata(BytesIO(expected_content))
+            assert actual_metadata.metadata == expected_metadata.metadata, fmt
+            assert actual_metadata.schema.equals(expected_metadata.schema), fmt
+            assert actual_metadata.num_row_groups == expected_metadata.num_row_groups, fmt
+            for group_index in range(actual_metadata.num_row_groups):
+                actual_group = actual_metadata.row_group(group_index)
+                expected_group = expected_metadata.row_group(group_index)
+                assert actual_group.num_rows == expected_group.num_rows, fmt
+                assert actual_group.num_columns == expected_group.num_columns, fmt
+                for column_index in range(actual_group.num_columns):
+                    actual_column = actual_group.column(column_index)
+                    expected_column = expected_group.column(column_index)
+                    assert actual_column.compression == expected_column.compression, fmt
+                    assert actual_column.physical_type == expected_column.physical_type, fmt
+                    assert actual_column.encodings == expected_column.encodings, fmt
+        else:
+            assert content == expected_content, fmt
     assert sse == (FIXTURE_DIR / "sse.json").read_bytes()
 
     expected = json.loads((FIXTURE_DIR / "job.json").read_bytes())
