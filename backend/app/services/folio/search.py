@@ -9,7 +9,7 @@ adds the library's deterministic precision gates at the boundary:
 
 * ``PlaceNameGate`` — a generic term that fuzzy-latches a short place / governmental-body label
   (``justice`` -> U.S. Dept. of Justice, ``tax`` -> U.S. Tax Court) is vetoed unless the surface
-  term exactly equals the label. Keys on the branch each candidate already carries.
+  term exactly equals a preferred label or a multiword alternative/hidden label. Keys on the branch each candidate already carries.
 * ``AliasBlocklist`` — recorded homonym pairings with real FOLIO IRIs (``Action`` -> *Auction*)
   are dropped regardless of score.
 
@@ -21,6 +21,9 @@ boundary (unchanged).
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
+
+from app.services.folio.court_names import exact_label
 
 from folio_resolve import AliasBlocklist, PlaceNameGate, load_seed_blocklist
 from folio_resolve.scoring import (
@@ -45,7 +48,9 @@ logger = logging.getLogger(__name__)
 __all__ = ["LEGAL_TERM_EXPANSIONS", "SEARCH_STOPWORDS", "candidate_vetoed", "multi_strategy_search"]
 
 # Deterministic precision gates (module singletons; pure/stateless -> safe to share).
-_PLACE_GATE = PlaceNameGate(min_signals=2)
+# Prosecutor is an agency-role concept under Engagement Terms in FOLIO; generic
+# "District" must not fuzzy-match its "District Attorney" preferred spelling.
+_PLACE_GATE = PlaceNameGate(min_signals=2, extra_tokens={"prosecutor"})
 _BLOCKLIST: AliasBlocklist | None = None
 
 
@@ -56,16 +61,22 @@ def _blocklist() -> AliasBlocklist:
     return _BLOCKLIST
 
 
-def candidate_vetoed(query: str, label: str, branch: str, iri: str, score: float) -> bool:
+def candidate_vetoed(
+    query: str, label: str, branch: str, iri: str, score: float, *,
+    labels: Iterable[str] | None = None, preferred_labels: Iterable[str] | None = None,
+) -> bool:
     """True if a candidate is a place/agency mis-map or a blocklisted homonym.
 
     ``multi_strategy_search`` is a single un-corroborated search path, so the place gate sees
     ``corroborating_signals=1`` and vetoes any place/governmental-body candidate whose surface
-    term does not exactly equal the resolved label (score is on the library's 0-100 scale).
+    term does not exactly equal a preferred label or a multiword alternative/hidden label
+    (score is on the library's 0-100 scale).
     """
     if _blocklist().is_blocked(query, iri):
         logger.debug("alias blocklist vetoed %r -> %s", query, iri)
         return True
+    if exact_label(query, preferred_labels if preferred_labels is not None else [label], labels or ()):
+        return False
     decision = _PLACE_GATE.evaluate(
         query=query,
         label=label,
@@ -261,7 +272,10 @@ def multi_strategy_search(
 
         # Deterministic precision gates (place/agency mis-map + alias blocklist). Both key on the
         # branch the candidate now carries, so a generic term can no longer latch a place label.
-        if candidate_vetoed(text, owl_class.label or "", branch_name, owl_class.iri, score):
+        if candidate_vetoed(text, owl_class.label or "", branch_name, owl_class.iri, score,
+                            preferred_labels=[owl_class.label or "", getattr(owl_class, "preferred_label", "") or ""],
+                            labels=[*true_alternative_labels(folio, owl_class),
+                                    getattr(owl_class, "hidden_label", "") or ""]):
             continue
 
         if branch and branch_name and branch.lower() not in branch_name.lower():

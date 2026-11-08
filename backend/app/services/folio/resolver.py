@@ -3,6 +3,10 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
+from app.config import settings
+from app.services.folio.court_names import (
+    canonical_court_keys, concept_labels, exact_label, is_case_caption, jurisdiction_mismatch,
+)
 from app.services.folio.branch_config import EXCLUDED_BRANCHES
 from app.services.folio.folio_service import FOLIOConcept, FolioService
 
@@ -40,7 +44,7 @@ class ConceptResolver:
 
     def __init__(self, folio_service: FolioService | None = None) -> None:
         self.folio = folio_service or FolioService.get_instance()
-        self._cache: dict[tuple[str, str], ResolvedConcept | None] = {}
+        self._cache: dict[tuple, ResolvedConcept | None] = {}
 
     def _canonicalize_branches(self, branches: list[str], iri: str = "") -> list[str]:
         """Snap LLM-guessed fallback branch labels to canonical root labels.
@@ -81,9 +85,9 @@ class ConceptResolver:
         """
         branch = branches[0] if branches else ""
         cache_key = (concept_text.lower(), branch.lower())
-        if getattr(self.folio, "ontology_id", None) == "both":
+        if folio_iri or getattr(self.folio, "ontology_id", None) == "both":
             cache_key = (concept_text.lower(), branch.lower(), folio_iri)
-        if cache_key in self._cache:
+        if not folio_iri and cache_key in self._cache:
             return self._cache[cache_key]
 
         best_concept = None
@@ -100,7 +104,11 @@ class ConceptResolver:
 
         # Slow path: multi-strategy search
         if best_concept is None:
-            best_concept, score = self._multi_strategy_resolve(concept_text, branch)
+            exact = self._exact_court_or_caption(concept_text)
+            if exact:
+                best_concept, score = exact
+            elif not is_case_caption(concept_text):
+                best_concept, score = self._multi_strategy_resolve(concept_text, branch)
             if best_concept is None:
                 self._cache[cache_key] = None
                 return None
@@ -209,6 +217,28 @@ class ConceptResolver:
             cache[key] = results
         return list(results)
 
+    def _exact_court_or_caption(self, text: str) -> tuple[FOLIOConcept, float] | None:
+        # Ordinary phrases retain the library's calibrated resolution path.
+        keys = canonical_court_keys(text)
+        if not is_case_caption(text) and not any("court" in k or "circuit" in k or "cir." in k for k in keys):
+            return None
+        try:
+            labels = self.folio.get_all_labels()
+        except Exception:
+            logger.debug("Exact court label index unavailable", exc_info=True)
+            return None
+        for key in keys:
+            info = labels.get(key)
+            if info is not None:
+                return info.concept, 1.0
+        return None
+
+    @staticmethod
+    def _jurisdiction_veto(text: str, fc: FOLIOConcept) -> bool:
+        return not exact_label(
+            text, [fc.preferred_label, fc.folio_pref_label], concept_labels(fc)
+        ) and jurisdiction_mismatch(text, fc.preferred_label)
+
     def _library_resolve_all(
         self, concept_text: str, branch: str
     ) -> list[tuple[FOLIOConcept, float]]:
@@ -221,6 +251,10 @@ class ConceptResolver:
         as the recall fallback when nothing here clears the bar. Returns ``[(FOLIOConcept,
         score_0_1)]``, best first, deduped by IRI.
         """
+        if is_case_caption(concept_text):
+            exact = self._exact_court_or_caption(concept_text)
+            return [exact] if exact else []
+
         from folio_resolve import LabelResolver
 
         from app.services.folio.search import candidate_vetoed
@@ -238,10 +272,12 @@ class ConceptResolver:
             if not r.iri or r.iri in seen:
                 continue
             # Gates key on the resolved branch (score is on the library's 0-100 scale).
-            if candidate_vetoed(r.surface or concept_text, r.label, r.branch, r.iri, r.score):
-                continue
             fc = self.folio.get_concept(r.iri)
             if fc is None:
+                continue
+            if candidate_vetoed(r.surface or concept_text, fc.preferred_label, r.branch, r.iri, r.score,
+                                labels=concept_labels(fc),
+                                preferred_labels=[fc.preferred_label, fc.folio_pref_label]) or self._jurisdiction_veto(concept_text, fc):
                 continue
             if any(b in EXCLUDED_BRANCHES for b in ([fc.branch] if fc.branch else [])):
                 continue
@@ -257,6 +293,9 @@ class ConceptResolver:
         self, concept_text: str, branch: str, top_n: int = 5
     ) -> list[tuple[FOLIOConcept, float]]:
         """Return all scored candidates: library (primary) then search fork (recall fallback)."""
+        exact = self._exact_court_or_caption(concept_text)
+        if exact or is_case_caption(concept_text):
+            return [exact] if exact else []
         merged: list[tuple[FOLIOConcept, float]] = []
         seen_iris: set[str] = set()
         for fc, score in self._library_resolve_all(concept_text, branch):
@@ -275,6 +314,9 @@ class ConceptResolver:
         self, concept_text: str, branch: str, top_n: int = 5
     ) -> list[tuple[FOLIOConcept, float]]:
         """Recall-fallback: the folio-python 7-strategy search (multi_strategy_search)."""
+        if is_case_caption(concept_text):
+            exact = self._exact_court_or_caption(concept_text)
+            return [exact] if exact else []
         if getattr(self.folio, "ontology_id", None) == "both":
             merged = {}
             for oid in ("folio", "canon"):
@@ -318,7 +360,9 @@ class ConceptResolver:
                     branch=r.get("branch", ""),
                     parent_iris=[],
                 )
-                out.append((fc, r["score"] / 100.0))
+                score = r["score"] / 100.0
+                if score >= settings.resolution_fallback_min_score and not self._jurisdiction_veto(concept_text, fc):
+                    out.append((fc, score))
             return out
         except Exception:
             logger.debug(
@@ -326,7 +370,15 @@ class ConceptResolver:
                 concept_text,
                 exc_info=True,
             )
-            return []
+            results = self.folio.search_by_label(concept_text, top_k=top_n)
+            out = []
+            for fc, score in results:
+                score = score / 100.0 if score > 1 else score
+                if score >= settings.resolution_fallback_min_score and not self._jurisdiction_veto(concept_text, fc):
+                    out.append((fc, score))
+            if branch:
+                out.sort(key=lambda pair: 0 if branch.lower() in pair[0].branch.lower() else 1)
+            return out
 
     def _multi_strategy_resolve(
         self, concept_text: str, branch: str
@@ -347,63 +399,8 @@ class ConceptResolver:
         self, concept_text: str, branch: str
     ) -> tuple[FOLIOConcept | None, float]:
         """Recall-fallback single-best: the folio-python 7-strategy search."""
-        if getattr(self.folio, "ontology_id", None) == "both":
-            results = self._fork_resolve_all(concept_text, branch)
-            return results[0] if results else (None, 0.0)
-        try:
-            folio_raw = self.folio._get_folio()
-
-            def _get_branch(folio_inst, iri_hash: str) -> str:
-                """Resolve branch for a concept IRI hash."""
-                owl_class = folio_inst[self.folio.spec.base_iri + iri_hash]
-                if owl_class and hasattr(owl_class, "iri"):
-                    return self.folio._get_branch(owl_class.iri, [])
-                return ""
-
-            results = self._cached_multi_search(
-                folio_raw, concept_text, branch, 5, _get_branch
-            )
-            if not results:
-                return None, 0.0
-
-            # Convert the best result back to FOLIOConcept
-            best = results[0]
-
-            # If branch hint provided, prefer matches in that branch
-            if branch:
-                for r in results:
-                    if r.get("branch") and branch.lower() in r["branch"].lower():
-                        best = r
-                        break
-
-            concept = FOLIOConcept(
-                iri=best["iri"],
-                preferred_label=best["label"],
-                alternative_labels=best.get("synonyms", []),
-                definition=best.get("definition", "") or "",
-                branch=best.get("branch", ""),
-                parent_iris=[],
-            )
-            # Normalize score: multi-strategy returns 0-100, convert to 0-1
-            score = best["score"] / 100.0
-            return concept, score
-        except Exception:
-            logger.debug(
-                "Multi-strategy search failed for '%s', falling back to label search",
-                concept_text,
-                exc_info=True,
-            )
-            # Fallback to basic label search
-            results = self.folio.search_by_label(concept_text, top_k=3)
-            if not results:
-                return None, 0.0
-            best_concept, score = results[0]
-            if branch:
-                for concept, s in results:
-                    if branch.lower() in concept.branch.lower():
-                        best_concept, score = concept, s
-                        break
-            return best_concept, score
+        results = self._fork_resolve_all(concept_text, branch)
+        return results[0] if results else (None, 0.0)
 
     def resolve_batch(
         self,

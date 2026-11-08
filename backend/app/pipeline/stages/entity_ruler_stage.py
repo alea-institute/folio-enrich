@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
+import string
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -38,6 +40,27 @@ def _match_confidence(match: EntityRulerMatch) -> float:
     """Compute confidence score based on match type and word count."""
     is_multi_word = len(match.text.split()) > 1
     return _CONFIDENCE.get((match.match_type, is_multi_word), 0.50)
+
+
+def _is_roman_enumerator(text: str, start: int, end: int, *, semantic: bool = False) -> bool:
+    """Recognize exact enumerators and semantic spans led by an enumerator."""
+    surface = text[start:end]
+    if semantic and surface:
+        surface = surface.split()[0].rstrip(string.punctuation + "—–")
+        end_of_numeral = start + len(surface)
+    if not surface or not re.fullmatch(r"M{0,3}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})", surface):
+        return False
+    if re.search(
+        r"\b(?:article|section|part|chapter|title|count|book|schedule|exhibit|appendix|volume) \Z",
+        text[:start],
+        re.IGNORECASE,
+    ):
+        return True
+    line_start = text.rfind("\n", 0, start) + 1
+    if not text[line_start:start].strip() and (semantic or text[end:end + 1] in {".", ")"}):
+        return True
+    # Bare semantic numerals plus punctuation have no meaningful phrase to embed.
+    return semantic and not any(c.isalpha() for c in text[end_of_numeral:end])
 
 
 @dataclass
@@ -406,7 +429,8 @@ class EntityRulerStage(PipelineStage):
         """Synchronous exact-match pass; runs on a worker thread."""
         self._ensure_patterns_loaded(ontology_id)
         sentence_index = build_sentence_index(full_text)
-        matches = self._find_matches(full_text)
+        matches = [m for m in self._find_matches(full_text)
+                   if not _is_roman_enumerator(full_text, m.start_char, m.end_char)]
 
         ruler_concepts = []
         match_types = {}
@@ -474,6 +498,9 @@ class EntityRulerStage(PipelineStage):
         return matches, sentence_index, ruler_concepts, match_types, deterministic_annotations
 
     async def _finish(self, job, matches, sentence_index, ruler_concepts, semantic_matches) -> Job:
+        full_text = job.result.canonical_text.full_text
+        semantic_matches = [sm for sm in semantic_matches
+                            if not _is_roman_enumerator(full_text, sm.start, sm.end, semantic=True)]
         semantic_annotations: list[Annotation] = []
         for sm in semantic_matches:
             sm_fc = self._iri_to_concept.get(sm.iri)
@@ -576,6 +603,8 @@ class EntityRulerStage(PipelineStage):
         """Build preliminary Annotation objects from EntityRuler matches."""
         annotations: list[Annotation] = []
         for match in matches:
+            if _is_roman_enumerator(full_text, match.start_char, match.end_char):
+                continue
             confidence = _match_confidence(match)
             branch = self._iri_to_branch.get(match.entity_id, "")
             is_multi = "multi-word" if len(match.text.split()) > 1 else "single-word"

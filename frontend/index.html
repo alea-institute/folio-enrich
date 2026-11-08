@@ -1877,6 +1877,13 @@
     cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
     color: var(--text-dim); transition: all 0.15s ease; line-height: 1; margin-left: 2px;
   }
+  .annotation-span:focus-visible,
+  .concept-tooltip button:focus-visible,
+  .detail-dismiss-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+  .tag-remove-confirm { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .concept-tooltip .tooltip-dismiss-icon:hover {
     border-color: var(--red); background: var(--feedback-negative-bg); color: var(--red);
   }
@@ -4255,13 +4262,17 @@
         <div id="detailLineage" class="detail-section"></div>
         <div id="detailIndividuals" class="detail-section"></div>
         <div id="detailNotes" class="detail-section"></div>
+        <div class="tooltip-remove-row">
+          <button id="detailDismissBtn" class="detail-dismiss-btn" style="display:none">Remove tag</button>
+          <button id="detailBulkDismissBtn" class="detail-dismiss-btn" style="display:none">Remove all</button>
+        </div>
       </div>
     </div>
   </div>
 </main>
 
 <!-- Tooltip -->
-<div class="concept-tooltip" id="tooltip"></div>
+<div class="concept-tooltip" id="tooltip" role="dialog" aria-label="Tag details"></div>
 
 <!-- Ollama Setup Wizard Modal -->
 <div class="modal-overlay" id="ollamaWizardModal">
@@ -7526,6 +7537,13 @@ function rerenderAnnotatedText() {
   });
 }
 
+// Preserve the POS layer whenever annotation state or streamed content rebuilds the text.
+function _renderAnnotatedTextWithPOS(text, annotations, individuals, properties) {
+  renderAnnotatedText(text, annotations, individuals, properties);
+  const meta = currentJob?.result?.metadata;
+  applyPOSTags(meta?.sentence_pos ? meta : (accumulatedPOS ? { sentence_pos: accumulatedPOS } : {}));
+}
+
 function _rerenderAnnotatedTextNow() {
   if (!currentJobId) return;
   // Build annotation objects compatible with renderAnnotatedText
@@ -7551,12 +7569,7 @@ function _rerenderAnnotatedTextNow() {
   if (text) {
     document.getElementById('emptyState').style.display = 'none';
     document.getElementById('annotatedText').style.display = 'block';
-    renderAnnotatedText(text, annotations, individuals, properties);
-
-    // Re-apply POS tags if layer is active (renderAnnotatedText wipes .pos-word spans)
-    if (_activeLayers.has('pos') && accumulatedPOS) {
-      applyPOSTags({ sentence_pos: accumulatedPOS });
-    }
+    _renderAnnotatedTextWithPOS(text, annotations, individuals, properties);
 
     // Show toolbar + header controls as soon as any content arrives (progressive rendering)
     const hasContent = annotations.length > 0 || individuals.length > 0 || properties.length > 0;
@@ -8134,6 +8147,9 @@ function renderAnnotatedText(text, annotations, individuals, properties) {
   for (const ann of sortedAnns) {
     if (!ann.concepts || ann.concepts.length === 0) continue;
     if (ann.id) _annotationDataById[ann.id] = ann;
+    const confidence = ann.concepts[0].confidence;
+    const confPct = confidence > 1 ? confidence : confidence * 100;
+    if (!showUncertain && ((ann.state || ann.concepts[0].state) === 'rejected' || _dismissedCache[ann.id] || confPct < 50)) continue;
     spans.push({ type: 'annotation', start: ann.span.start, end: ann.span.end, data: ann });
   }
 
@@ -8333,8 +8349,9 @@ function _buildAnnotationSpan(ann, innerHtml, rawInner, allCoveringAnns) {
   const regionConcept = [...multiAnns].sort((a, b) => (a.span.end - a.span.start) - (b.span.end - b.span.start))[0]?.concepts?.[0];
   const regions = [...new Set(multiAnns.map(a => regionName(a.concepts?.[0])).filter(Boolean))];
   const regionAttrs = regions.length ? ` data-region="${escapeAttr(regionConcept.region)}" data-drifted="${!!regionConcept.drifted}" data-region-glyph="${regionGlyph(regionConcept)}" aria-label="${escapeAttr(regions.join('; ') + ': ' + (c.folio_label || c.concept_text || ''))}"` : '';
+  const labelAttr = regions.length ? '' : ` aria-label="${escapeAttr(c.folio_label || c.concept_text || 'Concept tag')}"`;
   const extraCls = multiCount >= 2 ? ' multi-branch' : '';
-  return `<span class="annotation-span${extraCls}" ${dataAttrs}${regionAttrs}${confStyle ? ` style="${confStyle}"` : ''}>${innerHtml}</span>`;
+  return `<span class="annotation-span${extraCls}" tabindex="0" role="button" aria-haspopup="dialog" ${dataAttrs}${regionAttrs}${labelAttr}${confStyle ? ` style="${confStyle}"` : ''}>${innerHtml}</span>`;
 }
 
 function _buildPropertySpan(prop, innerHtml) {
@@ -8566,6 +8583,7 @@ function navigateToAnnotation(annId) {
 
 function showTooltip(event, el) {
   const tooltip = document.getElementById('tooltip');
+  _tooltipTrigger = el;
   const label = el.dataset.label;
   const branch = el.dataset.branch;
   const conf = parseFloat(el.dataset.confidence);
@@ -8590,14 +8608,6 @@ function showTooltip(event, el) {
   // Compact tooltip: branch · label · score + thumbs + dismiss · slide-open note
   const existingNote = _noteCache[annId] || '';
   const noteOpen = existingRating ? ' open' : '';
-  const dismissClass = isRejected ? ' is-rejected' : '';
-  const dismissAction = isRejected
-    ? `restoreAnnotation('${escapeAttr(annId)}')`
-    : `dismissAnnotation('${escapeAttr(annId)}')`;
-  const dismissIcon = isRejected ? _restoreTagIcon : _removeTagIcon;
-  const dismissTitle = isRejected ? 'Restore this tag' : 'Remove this tag';
-  const bulkDismissLabel = isRejected ? _restoreTagIcon + ' Restore' : _removeTagIcon + ' Remove';
-
   // Count other non-rejected instances of the same concept for bulk remove option
   const annData = annId ? _annotationDataById[annId] : null;
   const primaryIri = annData?.concepts?.[0]?.folio_iri;
@@ -8611,7 +8621,7 @@ function showTooltip(event, el) {
     }
   }
   const bulkRemoveBtn = sameConceptCount > 0
-    ? `<button class="tooltip-dismiss-btn" onclick="bulkDismiss('${escapeAttr(primaryIri)}')" title="Remove all instances of this concept">${_removeTagIcon} All ${sameConceptCount + 1}</button>`
+    ? `<button class="tooltip-dismiss-btn" onclick="confirmTagRemoval(this, '${escapeAttr(primaryIri)}', true)" title="Remove all instances of this concept">Remove all ${sameConceptCount + 1}</button>`
     : '';
 
   const branchBadge = branch
@@ -8652,9 +8662,14 @@ function showTooltip(event, el) {
           <button class="tooltip-feedback-btn${existingRating === 'down' ? ' active-down' : ''}" data-rating="down" onclick="submitFeedback(this, 'down')">${_thumbDownIcon}</button>
         </div>
       </div>
-      <button class="tooltip-dismiss-icon${dismissClass}" onclick="${dismissAction}" title="${dismissTitle}">${dismissIcon}</button>
+      <button class="tooltip-dismiss-icon" onclick="closeTagPopover()" title="Close" aria-label="Close">&times;</button>
     </div>
-    ${bulkRemoveBtn ? `<div class="tooltip-remove-row">${bulkRemoveBtn}</div>` : ''}
+    <div class="tooltip-remove-row">
+      ${isRejected
+        ? `<button class="tooltip-dismiss-btn is-rejected" onclick="restoreAnnotation('${escapeAttr(annId)}')">Restore tag</button>`
+        : `<button class="tooltip-dismiss-btn" onclick="confirmTagRemoval(this, '${escapeAttr(annId)}')">Remove tag</button>`}
+      ${bulkRemoveBtn}
+    </div>
     <div class="tooltip-note-slide${noteOpen}" id="tooltipNoteSlide">
       <div><textarea id="tooltipNoteInput" data-ann-id="${escapeAttr(annId)}" rows="1" placeholder="Add a note\u2026" onblur="syncTooltipNote(this)">${escapeHtml(existingNote)}</textarea></div>
     </div>
@@ -8811,7 +8826,9 @@ function _showMultiBranchOverlay(tooltip, el, annIds) {
           <div class="multi-pill-actions">
             <button class="tooltip-feedback-btn${existingRating === 'up' ? ' active-up' : ''}" onclick="submitFeedback(this, 'up')" data-rating="up" data-ann-id="${escapeAttr(aid)}">${_thumbUpIcon}</button>
             <button class="tooltip-feedback-btn${existingRating === 'down' ? ' active-down' : ''}" onclick="submitFeedback(this, 'down')" data-rating="down" data-ann-id="${escapeAttr(aid)}">${_thumbDownIcon}</button>
-            <button class="multi-pill-dismiss" onclick="dismissAnnotation('${escapeAttr(aid)}')" title="Remove this branch">${_removeTagIcon}</button>
+            ${aData.state === 'rejected' || _dismissedCache[aid]
+              ? `<button class="multi-pill-dismiss" onclick="restoreAnnotation('${escapeAttr(aid)}')">Restore tag</button>`
+              : `<button class="multi-pill-dismiss" onclick="confirmTagRemoval(this, '${escapeAttr(aid)}')" title="Remove this branch">Remove tag</button>`}
           </div>
         </div>
       </div>`;
@@ -8821,7 +8838,7 @@ function _showMultiBranchOverlay(tooltip, el, annIds) {
   const textPillHtml = `<div class="multi-text-pill">${escapeHtml(matchedText)}</div>`;
   const pillsRowHtml = `<div class="multi-pills-row">${pillsHtml}</div>`;
 
-  tooltip.innerHTML = `<div class="multi-overlay" data-direction="below">
+  tooltip.innerHTML = `<button class="tooltip-dismiss-icon" onclick="closeTagPopover()" title="Close" aria-label="Close">&times;</button><div class="multi-overlay" data-direction="below">
     <svg class="multi-svg"></svg>
     ${textPillHtml}
     ${pillsRowHtml}
@@ -8961,7 +8978,7 @@ function _showIndividualMultiClassOverlay(tooltip, el, ind, uniqueLinks, name, c
   const pillsRowHtml = `<div class="multi-pills-row">${pillsHtml}</div>`;
 
   // Initial render: below orientation (text label on top, pills below)
-  tooltip.innerHTML = `<div class="multi-overlay" data-direction="below">
+  tooltip.innerHTML = `<button class="tooltip-dismiss-icon" onclick="closeTagPopover()" title="Close" aria-label="Close">&times;</button><div class="multi-overlay" data-direction="below">
     <svg class="multi-svg"></svg>
     ${textPillHtml}
     ${pillsRowHtml}
@@ -9035,7 +9052,7 @@ function _showIndividualMultiOverlay(tooltip, el, indIds) {
   const textPillHtml = `<div class="multi-text-pill">${escapeHtml(matchedText)}</div>`;
   const pillsRowHtml = `<div class="multi-pills-row">${pillsHtml}</div>`;
 
-  tooltip.innerHTML = `<div class="multi-overlay" data-direction="below">
+  tooltip.innerHTML = `<button class="tooltip-dismiss-icon" onclick="closeTagPopover()" title="Close" aria-label="Close">&times;</button><div class="multi-overlay" data-direction="below">
     <svg class="multi-svg"></svg>
     ${textPillHtml}
     ${pillsRowHtml}
@@ -9342,6 +9359,7 @@ async function restoreAnnotation(annId) {
 
 async function bulkDismiss(folioIri) {
   if (!folioIri || !currentJobId) return;
+  _hideTooltip();
   _dismissUndoToast();
 
   try {
@@ -9366,14 +9384,15 @@ async function bulkDismiss(folioIri) {
 }
 
 function _updateAnnotationSpanState(annId, newState) {
-  const span = document.querySelector(`.annotation-span[data-ann-id="${annId}"]`);
-  if (span) {
-    span.dataset.state = newState;
-    // Also update the in-memory annotation data
-    const annData = _annotationDataById[annId];
-    if (annData) annData.state = newState;
+  // Refresh counts and the rendered spans from the updated annotation state.
+  const annData = _annotationDataById[annId];
+  if (annData) annData.state = newState;
+  if (currentJob) {
+    const result = currentJob.result || {};
+    _renderAnnotatedTextWithPOS(result.canonical_text?.full_text || '', result.annotations || [], result.individuals || [], result.properties || []);
+    renderConceptsList(result.annotations || [], result.individuals || []);
+    renderMetadata(result.metadata || {}, currentJob);
   }
-  // Apply current filter
   _applyAnnotationFilter();
 }
 
@@ -9395,7 +9414,7 @@ function _showUndoToast(message, undoFn, bulkFn, bulkCount) {
 
   let html = `<span>${escapeHtml(message)}</span>`;
   if (undoFn) html += `<button onclick="document.getElementById('undoToast')._undoFn()">Undo</button>`;
-  if (bulkFn && bulkCount > 0) html += `<button onclick="document.getElementById('undoToast')._bulkFn()">All ${bulkCount + 1}</button>`;
+  if (bulkFn && bulkCount > 0) html += `<button onclick="confirmTagRemoval(this, document.getElementById('undoToast')._bulkFn, true)">Remove all ${bulkCount + 1}</button>`;
   toast.innerHTML = html;
   if (undoFn) toast._undoFn = () => { undoFn(); _dismissUndoToast(); };
   if (bulkFn) toast._bulkFn = () => { bulkFn(); _dismissUndoToast(); };
@@ -9425,6 +9444,45 @@ function _showInfoToast(message) {
     toast.classList.add('toast-out');
     setTimeout(() => toast.remove(), 200);
   }, 8000);
+}
+
+let _tooltipTrigger = null;
+
+function closeTagPopover() {
+  _hideTooltip();
+  if (_tooltipTrigger?.isConnected) _tooltipTrigger.focus({ preventScroll: true });
+}
+
+// Preserve the original control on Cancel so its label, action and focus survive.
+function confirmTagRemoval(button, identifier, bulk = false) {
+  const row = document.createElement('span');
+  row.className = 'tag-remove-confirm tooltip-remove-row';
+  row.setAttribute('role', 'group');
+  row.setAttribute('aria-label', bulk ? 'Remove all tags for this concept?' : 'Remove this tag?');
+  const prompt = document.createElement('span');
+  prompt.textContent = row.getAttribute('aria-label');
+  row.appendChild(prompt);
+  for (const label of ['Remove', 'Cancel']) {
+    const action = document.createElement('button');
+    action.className = button.className;
+    action.textContent = label;
+    action.onclick = event => {
+      event.stopPropagation();
+      row._cancel();
+      if (label === 'Remove') {
+        if (bulk) {
+          if (typeof identifier === 'function') identifier();
+          else bulkDismiss(identifier);
+        } else dismissAnnotation(identifier);
+      } else button.focus();
+    };
+    row.appendChild(action);
+  }
+  const previousDisplay = button.style.display;
+  button.style.display = 'none';
+  button.after(row);
+  row._cancel = () => { row.remove(); button.style.display = previousDisplay; };
+  row.querySelector('button').focus();
 }
 
 function _hideTooltip() {
@@ -10511,13 +10569,17 @@ function renderConceptLeaf(node, concept, annId) {
 const _conceptsTabCollapsed = {};  // pathKey → boolean
 let _conceptsTabTreeCache = null;  // cached tree result
 
+function countedConceptAnnotations(annotations) {
+  return (annotations || []).filter(a => a.concepts?.[0]?.folio_iri
+    && (a.state || a.concepts[0].state) !== 'rejected' && !_dismissedCache[a.id]);
+}
+
 async function buildConceptsTabTree(annotations, individuals) {
   // Keep full IRIs throughout: the same hash may exist in both ontologies.
   const hashToFullIri = new Map();
   // 1. Dedup concepts from annotations by full IRI (primary concept only)
   const conceptMap = new Map();  // full IRI → { label, count, confidence, branch, branches, source }
-  for (const ann of annotations) {
-    if (!ann.concepts || ann.concepts.length === 0) continue;
+  for (const ann of countedConceptAnnotations(annotations)) {
     const c = ann.concepts[0];
     const iriHash = c.folio_iri || null;
     if (!iriHash) continue;
@@ -11373,6 +11435,9 @@ function saveDetailNote(iriHash) {
 }
 
 function renderDetailDismissBtn(annId) {
+  document.querySelectorAll('.tag-remove-confirm').forEach(row => {
+    if (row.previousElementSibling?.classList.contains('detail-dismiss-btn')) row._cancel();
+  });
   const btn = document.getElementById('detailDismissBtn');
   const bulkBtn = document.getElementById('detailBulkDismissBtn');
   if (!btn) return;
@@ -11386,9 +11451,9 @@ function renderDetailDismissBtn(annId) {
   btn.dataset.annId = annId;
   const isRejected = !!_dismissedCache[annId];
   btn.className = 'detail-dismiss-btn' + (isRejected ? ' is-rejected' : '');
-  btn.innerHTML = isRejected ? _restoreTagIcon + ' Restore' : _removeTagIcon + ' Remove';
+  btn.innerHTML = isRejected ? _restoreTagIcon + ' Restore tag' : _removeTagIcon + ' Remove tag';
   btn.title = isRejected ? 'Restore this tag' : 'Remove this tag from the document';
-  btn.onclick = isRejected ? () => restoreAnnotation(annId) : () => dismissAnnotation(annId);
+  btn.onclick = isRejected ? () => restoreAnnotation(annId) : () => confirmTagRemoval(btn, annId);
 
   // Show "Remove all" button if other instances share the same IRI
   if (bulkBtn) {
@@ -11406,9 +11471,9 @@ function renderDetailDismissBtn(annId) {
     if (sameCount > 0) {
       bulkBtn.style.display = '';
       bulkBtn.className = 'detail-dismiss-btn';
-      bulkBtn.innerHTML = _removeTagIcon + ` All ${sameCount + 1}`;
+      bulkBtn.innerHTML = `Remove all ${sameCount + 1}`;
       bulkBtn.title = 'Remove all instances of this concept';
-      bulkBtn.onclick = () => bulkDismiss(primaryIri);
+      bulkBtn.onclick = () => confirmTagRemoval(bulkBtn, primaryIri, true);
     } else {
       bulkBtn.style.display = 'none';
     }
@@ -12211,7 +12276,10 @@ async function clearAllFeedback() {
   }
 }
 
+let _conceptsRenderGeneration = 0;
+
 async function renderConceptsList(annotations, individuals) {
+  const generation = ++_conceptsRenderGeneration;
   const container = document.getElementById('conceptsList');
   if (!annotations.length) {
     container.innerHTML = '<div class="empty-state"><p>No concepts found</p></div>';
@@ -12220,22 +12288,17 @@ async function renderConceptsList(annotations, individuals) {
   }
 
   // Show loading state
-  const conceptCount = new Set(annotations
-    .filter(a => a.concepts && a.concepts.length > 0)
-    .map(a => {
-      const iri = a.concepts[0].folio_iri;
-      return iri ? iri.split('/').pop() : null;
-    })
-    .filter(Boolean)
-  ).size;
+  const conceptCount = new Set(countedConceptAnnotations(annotations).map(a => a.concepts[0].folio_iri)).size;
   container.innerHTML = `<div class="ct-loading">Building hierarchy for ${conceptCount} concepts\u2026<div class="ct-loading-bar"></div></div>`;
 
   try {
     const inds = individuals || accumulatedIndividuals || [];
     const treeData = await buildConceptsTabTree(annotations, inds);
+    if (generation !== _conceptsRenderGeneration) return;
     _conceptsTabTreeCache = treeData;
     container.innerHTML = renderConceptsTabTree(treeData);
   } catch (e) {
+    if (generation !== _conceptsRenderGeneration) return;
     console.error('Concepts tab tree build failed, falling back to flat list:', e);
     _renderConceptsFlatFallback(annotations, container);
   }
@@ -12244,8 +12307,7 @@ async function renderConceptsList(annotations, individuals) {
 function _renderConceptsFlatFallback(annotations, container) {
   // Minimal flat fallback if tree build fails
   const conceptMap = new Map();
-  for (const ann of annotations) {
-    if (!ann.concepts || ann.concepts.length === 0) continue;
+  for (const ann of countedConceptAnnotations(annotations)) {
     const c = ann.concepts[0];
     const key = c.folio_iri || c.concept_text;
     if (conceptMap.has(key)) {
@@ -12488,10 +12550,9 @@ function renderMetadata(metadata, job) {
     html += `<div class="meta-key">Type Confidence</div><div class="meta-value"><span class="confidence-badge ${dtcTier}">${dtcPct}%</span></div>`;
   }
 
-  const resolved = metadata.resolved_concepts || [];
   const ruler = metadata.ruler_concepts || [];
   html += `<div class="meta-key">EntityRuler Matches</div><div class="meta-value">${ruler.length}</div>`;
-  html += `<div class="meta-key">Resolved Concepts</div><div class="meta-value">${resolved.length}</div>`;
+  html += `<div class="meta-key">Unique Concepts</div><div class="meta-value">${new Set(countedConceptAnnotations(job.result?.annotations).map(a => a.concepts[0].folio_iri)).size}</div>`;
   html += `<div class="meta-key">Total Annotations</div><div class="meta-value">${(job.result?.annotations || []).length}</div>`;
 
   const inds = job.result?.individuals || [];
@@ -14367,7 +14428,8 @@ function toggleUncertain() {
   if (currentJob) renderAnnotatedText(
     currentJob.result?.canonical_text?.full_text || '',
     currentJob.result?.annotations || [],
-    currentJob.result?.individuals || []
+    currentJob.result?.individuals || [],
+    currentJob.result?.properties || []
   );
 }
 
@@ -14745,9 +14807,22 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
   });
 });
 
+// Activate focused concept tags with the keyboard, matching their click behavior.
+document.addEventListener('keydown', (e) => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.annotation-span')) {
+    e.preventDefault();
+    showTooltip(e, e.target);
+    document.querySelector('#tooltip button')?.focus();
+  }
+});
+
 // Close modals on Escape
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
+    if (document.getElementById('tooltip')?.classList.contains('visible')) {
+      closeTagPopover();
+      return;
+    }
     // Ontology switcher popover (non-modal disclosure) closes first.
     if (_ontologyPopoverOpen) {
       closeOntologyPopover();

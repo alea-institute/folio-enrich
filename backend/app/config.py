@@ -10,6 +10,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     app_name: str = "FOLIO Enrich"
     debug: bool = False
+    resolution_fallback_min_score: float = 0.40
 
     # Job storage
     jobs_dir: Path = Path(os.path.expanduser("~/.folio-enrich/jobs"))

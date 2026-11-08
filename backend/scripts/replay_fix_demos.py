@@ -22,6 +22,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+from collections import Counter
 import json
 import logging
 import sys
@@ -80,7 +81,7 @@ async def _init_services(ontology: str = "folio"):
 
 
 def _concept_summary(job) -> dict:
-    """IRI-per-Agreement-span + counts, for before/after comparison."""
+    """Annotation identities and display counts for before/after comparison."""
     agree_to = {}
     for a in job.result.annotations:
         txt = (a.span.text if a.span else "") or ""
@@ -89,7 +90,16 @@ def _concept_summary(job) -> dict:
                 a.concepts[0] if a.concepts else None)
             if primary:
                 agree_to[a.span.start] = primary.folio_iri.rsplit("/", 1)[-1]
+    annotation_keys = Counter(
+        (a.span.start, a.span.end, a.concepts[0].folio_iri if a.concepts else None, a.state)
+        for a in job.result.annotations
+    )
+    span_iris = {}
+    for (start, end, iri, _state), count in annotation_keys.items():
+        span_iris.setdefault((start, end), Counter())[iri] += count
     return {
+        "annotation_keys": annotation_keys,
+        "span_iris": span_iris,
         "annotations": len(job.result.annotations),
         "individuals": len(job.result.individuals),
         "properties": len(job.result.properties),
@@ -164,17 +174,18 @@ async def replay_one(slug: str, folio, emb, dry_run: bool, ontology: str = "foli
         logger.warning("  [%s] triple enrichment skipped", slug, exc_info=False)
 
     after = _concept_summary(job)
-    changed = before["agreement_spans"] != after["agreement_spans"] or \
-        before["annotations"] != after["annotations"]
+    changed = before["annotation_keys"] != after["annotation_keys"]
+    iri_changed = sum(before["span_iris"][span] != after["span_iris"][span]
+                      for span in before["span_iris"].keys() & after["span_iris"].keys())
 
     # Report
     fixed = sum(1 for k, v in after["agreement_spans"].items()
                 if before["agreement_spans"].get(k) != v)
     logger.info(
         "  [%s] annotations %d->%d | individuals %d (kept) | properties %d (kept) | "
-        "triples %d | agreement-spans changed: %d",
+        "triples %d | agreement-spans changed: %d | IRI-spans changed: %d",
         slug, before["annotations"], after["annotations"], after["individuals"],
-        after["properties"], after["triples"], fixed,
+        after["properties"], after["triples"], fixed, iri_changed,
     )
 
     if changed and not dry_run:
