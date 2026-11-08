@@ -117,3 +117,30 @@ def test_distinct_unresolved_label_links_are_kept():
         [],
     )
     assert [link.folio_label for link in links] == ["First", "Second"]
+
+
+@pytest.mark.parametrize("field, value", [
+    ("folio_iri", "urn:new"),
+    ("folio_label", "New label"),
+    ("branch", "New branch"),
+    ("relationship", "has_role"),
+])
+def test_concept_summary_detects_class_link_only_change(field, value):
+    job = Job()
+    job.result.annotations = [annotation("class", 10, 15, "urn:old")]
+    link = IndividualClassLink(
+        folio_iri="urn:old", folio_label="Old label", branch="Old branch",
+    )
+    job.result.individuals = [Individual(
+        name="Example", mention_text="Example",
+        span=Span(start=0, end=7, text="Example"), class_links=[link],
+    )]
+    before = replay_fix_demos._concept_summary(job)
+    setattr(job.result.individuals[0].class_links[0], field, value)
+    after = replay_fix_demos._concept_summary(job)
+
+    assert before["annotation_keys"] == after["annotation_keys"]
+    assert before["class_links"] == (
+        ("Example", 0, "urn:old", "Old label", "Old branch", "instance_of"),
+    )
+    assert before["class_links"] != after["class_links"]

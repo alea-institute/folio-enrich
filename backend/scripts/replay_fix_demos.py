@@ -81,7 +81,7 @@ async def _init_services(ontology: str = "folio"):
 
 
 def _concept_summary(job) -> dict:
-    """Annotation identities and display counts for before/after comparison."""
+    """Annotation/link identities and display counts for before/after comparison."""
     agree_to = {}
     for a in job.result.annotations:
         txt = (a.span.text if a.span else "") or ""
@@ -99,6 +99,14 @@ def _concept_summary(job) -> dict:
         span_iris.setdefault((start, end), Counter())[iri] += count
     return {
         "annotation_keys": annotation_keys,
+        "class_links": tuple(sorted(
+            ((individual.name, individual.span.start, link.folio_iri,
+              link.folio_label, link.branch, link.relationship)
+             for individual in job.result.individuals
+             for link in individual.class_links),
+            # Unresolved links may have no IRI or label; preserve those values.
+            key=lambda row: tuple((value is not None, value) for value in row),
+        )),
         "span_iris": span_iris,
         "annotations": len(job.result.annotations),
         "individuals": len(job.result.individuals),
@@ -189,7 +197,14 @@ async def replay_one(slug: str, folio, emb, dry_run: bool, ontology: str = "foli
         logger.warning("  [%s] triple enrichment skipped", slug, exc_info=False)
 
     after = _concept_summary(job)
-    changed = before["annotation_keys"] != after["annotation_keys"]
+    changed = (before["annotation_keys"] != after["annotation_keys"]
+               or before["class_links"] != after["class_links"])
+    before_links = Counter(before["class_links"])
+    after_links = Counter(after["class_links"])
+    individuals_changed = len({
+        row[:2] for row in before_links.keys() | after_links.keys()
+        if before_links[row] != after_links[row]
+    })
     iri_changed = sum(before["span_iris"][span] != after["span_iris"][span]
                       for span in before["span_iris"].keys() & after["span_iris"].keys())
 
@@ -198,9 +213,10 @@ async def replay_one(slug: str, folio, emb, dry_run: bool, ontology: str = "foli
                 if before["agreement_spans"].get(k) != v)
     logger.info(
         "  [%s] annotations %d->%d | individuals %d (kept) | properties %d (kept) | "
-        "triples %d | agreement-spans changed: %d | IRI-spans changed: %d",
+        "triples %d | agreement-spans changed: %d | IRI-spans changed: %d | "
+        "individuals with changed links: %d",
         slug, before["annotations"], after["annotations"], after["individuals"],
-        after["properties"], after["triples"], fixed, iri_changed,
+        after["properties"], after["triples"], fixed, iri_changed, individuals_changed,
     )
 
     if changed and not dry_run:
