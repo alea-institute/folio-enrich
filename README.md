@@ -706,12 +706,17 @@ To reproduce it locally, use **uv 0.9.22** and run from the repository root:
 cd backend
 uv python install 3.13
 uv sync --python 3.13 --frozen --extra dev
-uv pip install --no-cache https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 300 \
+  -o "${TMPDIR:-/tmp}/en_core_web_sm-3.8.0-py3-none-any.whl" \
+  https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+uv pip install --no-cache "${TMPDIR:-/tmp}/en_core_web_sm-3.8.0-py3-none-any.whl"
 uv run --no-sync python -m pytest tests/ -q -n 2 -ra -p no:cacheprovider
 ```
 
-The explicit Python selection matches CI's setup step. Keep `--no-sync` on the
-test command so uv preserves the separately installed model.
+The explicit Python selection matches CI's setup step. The model download uses
+CI's curl retries because GitHub release downloads intermittently return 504;
+`${TMPDIR:-/tmp}` replaces CI's `$RUNNER_TEMP`. Keep `--no-sync` on the test
+command so uv preserves the separately installed model.
 
 - **Default selection:** `backend/pyproject.toml` excludes `slow`, `demo_regen`,
   and `eval`, enforces registered markers, and sets a 30-second per-test timeout

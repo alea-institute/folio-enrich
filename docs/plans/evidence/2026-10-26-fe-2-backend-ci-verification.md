@@ -1,5 +1,15 @@
 # fe-2 backend CI verification — 2026-10-26
 
+## 2026-11-08 addendum
+
+Hosted `backend-tests` passed on PR #49 head `69678d2`
+([run 42486442173](https://github.com/alea-institute/folio-enrich/actions/runs/42486442173)).
+The rebase onto `main` replaced the originally tested revision `32c6afb`.
+The earlier "identical to the workflow" statements describe the workflow before
+PR #69 changed the model installation to curl with retries. The README now
+mirrors the current model-install step. The original receipt below is preserved
+as historical evidence.
+
 ## Result and scope
 
 The existing backend CI promotion is present, and its exact default-suite command
