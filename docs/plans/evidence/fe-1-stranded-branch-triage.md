@@ -21,28 +21,49 @@ plan remains the execution contract; `fe-2` through `fe-5` are separate items.
 The clean starting `HEAD` was `00090d068789ace35746ec4435c23785eda8cb18`, the
 committed fe-1 plan. Its parent is the provided target snapshot
 `26e5c61b44e3165d3f2bfad5214516a6d6dcede3` (PR #47). The sole difference from
-that target at build intake was the plan. There is no local `main`, `origin/main`
-or configured remote; this audit makes no claim about the live default branch.
+that target at build intake was the plan. This evidence and the U2 test results
+were captured at `26e5c61`; the branch was later rebased onto a newer base.
+At review refresh, `HEAD` is `cf8b1ac6690e0724ce4f8eda9516202f3caf3b99`
+and its merge base with `origin/main` is
+`f0accec27b779ea11c87d57dbd58bde2df5666db`, a descendant of `26e5c61`.
+The refreshed ancestry checks below use the available remote-tracking
+`origin/main` at `cffe049c51bc7197a8354c783af3d1843285479d`.
+`git ls-remote origin` failed because DNS resolution was unavailable, so this
+refresh does not verify the live remote head or rerun U2 on the newer base.
 
-`git for-each-ref` found two local heads: `drawdown/fe-1` and
-`codex/proposition-review-workspace-final`. No remote-tracking refs exist. Tags
-are not treated as source-branch inventory. The historical merge parents below
-are available Git objects, even where their branch refs are absent.
+At capture, `git for-each-ref` found two local heads: `drawdown/fe-1` and
+`codex/proposition-review-workspace-final`, with no remote-tracking refs.
+The review refresh now has the remote-tracking refs listed below; both the local
+and origin workspace-final refs currently point to `d9ebbf9`. Tags are not
+source-branch inventory. Historical merge parents remain available Git objects.
 
 | Family / exact known source | Available source identity | Landing on supplied target | Comparison and disposition |
 | --- | --- | --- | --- |
-| `ci/drain-backend-tests` | Ref/tip absent | `fe7f46249ecb19cebda42e7efe509c6dc499ea11` (#45) | Landing is an ancestor. Workflow and both changed tests are byte-identical to that landing. Original tip and squash equivalence remain pending; no demonstrated recovery. |
-| `feat/drain-insights-bridge` | Ref/tip absent | `d42487630c67b2ce7b4723348b105b2ab521f0ed` (#44) | Landing is an ancestor. Shared identity, exports, corpus panel and post-job flow remain present, with subsequent UI changes preserved. Original tip and squash equivalence remain pending; enrich-side evidence only. |
+| `ci/drain-backend-tests` | `origin/ci/drain-backend-tests` at `033f1b9851be413ce1bbf38546c89e8d1c8c4b50` | `fe7f46249ecb19cebda42e7efe509c6dc499ea11` (#45) | Landing remains an ancestor of checked `origin/main`. `git diff --stat fe7f462 033f1b9` is empty (also `--quiet` exit 0): identical trees, fully reconciled; no recovery. |
+| `feat/drain-insights-bridge` | `origin/feat/drain-insights-bridge` at `ba9e8830a39556801c8a95c502f2ad56b668e977` | `d42487630c67b2ce7b4723348b105b2ab521f0ed` (#44) | Landing remains an ancestor of checked `origin/main`. `git diff --stat d424876 ba9e883` is empty (also `--quiet` exit 0): identical trees, fully reconciled. Cross-repository acceptance remains separate. |
 | `codex/scoped-annotation-access-release` | No live ref; historical merged tip `f48ed168eeb30c90f950f97155cb345e8d397bf5` is the second parent of #37 | `f5364365346d93a3aa01fd5fecf219090afe5410` (#37) | Both merged tip and landing are ancestors. That exact historical tip is included. Current auth, route and UI code evolved afterward; scoped access survives. Current tip and other wildcard variants remain unknown. |
-| `codex/proposition-review-workspace-final` | Local ref `a6e713cc289cb833cbced2d71df8f9b9d9e80dd0`; historical merged tip `7ea40ea1d5f42def8c278e6591c07d8ce2bf9938` | `a6e713cc289cb833cbced2d71df8f9b9d9e80dd0` (#40) | Local ref, merged tip and workspace implementation `737ecb5964547092c8e45a2de083c3bebb2b1929` are ancestors. The supplied exact ref is fully included; no replay needed. Other wildcard variants remain unknown. |
-| `fix/u10-deterministic-runner-config` | Ref/tip absent | `bb576ac0830308091623018aa1546559ac4fa1a9` (#38) | Landing is an ancestor. Runner and tests are byte-identical to that landing. Original tip and squash equivalence remain pending; no demonstrated recovery. |
+| `codex/proposition-review-workspace-final` | Local ref at capture: `a6e713cc289cb833cbced2d71df8f9b9d9e80dd0`; current local and `origin/codex/proposition-review-workspace-final`: `d9ebbf92c92730e8aa90bbdbbf77a67b10296531`; historical merged tip `7ea40ea1d5f42def8c278e6591c07d8ce2bf9938` | `a6e713cc289cb833cbced2d71df8f9b9d9e80dd0` (#40) | The local ref supplied at capture (`a6e713c`), merged tip and workspace implementation `737ecb5964547092c8e45a2de083c3bebb2b1929` remain ancestors of checked `origin/main`. Only that historical local ref is fully included. Current tip `d9ebbf9` is a child of `a6e713c`, is not an ancestor, and is auto-save state, not recovery work (see below). Other wildcard variants remain unknown. |
+| `fix/u10-deterministic-runner-config` | `origin/fix/u10-deterministic-runner-config` at `b039a869c8047258c1f984b649d383888b6b8236` | `bb576ac0830308091623018aa1546559ac4fa1a9` (#38) | Landing remains an ancestor of checked `origin/main`. `git diff --stat bb576ac b039a86` is empty (also `--quiet` exit 0): identical trees, fully reconciled; no recovery. |
 
-Every ancestry assertion above was checked with
+At capture, the eight inclusion assertions were checked with
 `git merge-base --is-ancestor <sha> 26e5c61` (exit 0 for all eight distinct
 commits). `git show` established the merge parent relationships;
 `git diff-tree` and `git diff` established the landed files and later evolution.
-Commit subjects alone were not used as equivalence proof. Squash patch comparison
-cannot be performed without the original tips.
+Commit subjects alone were not used as equivalence proof.
+
+At review refresh, `git merge-base --is-ancestor <sha> origin/main` returned
+exit 0 for all eight cited commits: `fe7f462`, `d424876`, `f536436`, `f48ed16`,
+`a6e713c`, `7ea40ea`, `737ecb5` and `bb576ac`, against
+`cffe049c51bc7197a8354c783af3d1843285479d`. The three source/landing tree
+comparisons above are empty, resolving their squash-equivalence questions.
+
+`git show --stat d9ebbf9` identifies `WIP: PreCompact auto-save`;
+`git diff-tree --no-commit-id --name-only -r d9ebbf9` lists only
+`.codex/hooks.json`, `.planning/HANDOFF.json`, `.planning/STATE.md`,
+`.planning/phases/03-consolidated-system-status-chip/.continue-here.md` and
+`AGENTS.md`. This is planning/agent auto-save state, with no application changes.
+Its ancestry check against the same `origin/main` returned exit 1; it is not
+included, but does not establish behavior recovery work.
 
 ### Current implementation examined
 
@@ -167,19 +188,26 @@ regression test, then assign one source branch per recovery PR.
 
 The controller still needs to:
 
-1. Confirm or refresh the intended `main` snapshot before publication. If it
-   differs from `26e5c61`, repeat affected comparisons and checks.
-2. Supply the exact tips for the three absent named branches, the current scoped
-   access release tip, and a complete enumeration of both wildcard families.
-   An authoritative deleted/unavailable disposition may close inventory with a
-   stated limitation; it cannot establish squash equivalence.
+1. Confirm the intended publication target and repeat any affected behavior checks
+   on the newer base. Ancestry was refreshed against `origin/main` at
+   `cffe049c51bc7197a8354c783af3d1843285479d`; U2 remains historical evidence
+   from `26e5c61`.
+2. Supply the current scoped access release tip and a complete enumeration of
+   both wildcard families. The three named squash sources are fully reconciled;
+   their exact tips and equivalence are no longer pending. An authoritative
+   deleted/unavailable disposition may close remaining inventory with a stated
+   limitation; it cannot establish squash equivalence.
 3. Supply the chief plan's Goal Capsule and campaign R11, R15, R16, R17, R19 and
    R20 excerpts. That repository is not mounted here, so agreement with its
    unseen contents remains unverified. The supplied standing lane rules were
    followed.
-4. Supply or explicitly disposition
-   `docs/handoffs/2026-10-26-unified-proposition-engine-brainstorm.md`, absent from
-   both this worktree and available path history. No Phase B scope was inferred.
+
+The origin-context handoff is located at
+`docs/handoffs/2026-10-26-unified-proposition-engine-brainstorm.md` on
+`origin/feat/unified-proposition-engine` (`7b71926`), with path-history commits
+`56b01db`, `d179029`, `7f481a2` and `7b71926`. `git ls-tree` confirms it is
+present on that branch and absent on checked `origin/main`. It is no longer a
+missing-file controller input; this location evidence does not infer Phase B scope.
 
 These are controller inputs, not Damien-only decisions. Palsgraf gold review,
 human U6 validation and deferred proposition fields remain outside this item.

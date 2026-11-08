@@ -73,17 +73,19 @@ Automatic branch deletion is considered and excluded: the mandate asks to land u
 
 ### Verified Starting State
 
-Planning inspected a clean `drawdown/fe-1` at `26e5c61b44e3165d3f2bfad5214516a6d6dcede3`, the merge for PR #47. There is no local `main`, `origin/main` or remote. Treat this as the provided target snapshot, not proof of the live remote's current head. The only other local head is `codex/proposition-review-workspace-final` at `a6e713cc289cb833cbced2d71df8f9b9d9e80dd0`.
+Planning inspected a clean `drawdown/fe-1` at `26e5c61b44e3165d3f2bfad5214516a6d6dcede3`, the merge for PR #47. At that capture there was no local `main`, `origin/main` or remote. This is a historical snapshot, not the current base. The only other local head at capture was `codex/proposition-review-workspace-final` at `a6e713cc289cb833cbced2d71df8f9b9d9e80dd0`.
 
 | Mandate family | Landing in supplied ancestry | Current source evidence | Comparison limit |
 |---|---|---|---|
-| `ci/drain-backend-tests` | `fe7f462` / PR #45 | `.github/workflows/tests.yml`; clock-relative JWKS expiry in `backend/tests/test_cf_access.py`; deterministic DNS fixture in `backend/tests/test_ontology_ingestion.py` | Original source tip absent; squash equivalence unproven |
-| `feat/drain-insights-bridge` | `d424876` / PR #44 | `backend/app/services/proposition/source.py`, `backend/app/services/export/propositions_exporter.py`, `backend/app/services/insights_client.py`, `backend/app/services/post_job/flow.py`, `frontend/index.html` | Original source tip absent; enrich-side landing only, not cross-repo acceptance |
+| `ci/drain-backend-tests` | `fe7f462` / PR #45 | `.github/workflows/tests.yml`; clock-relative JWKS expiry in `backend/tests/test_cf_access.py`; deterministic DNS fixture in `backend/tests/test_ontology_ingestion.py` | `origin/ci/drain-backend-tests` at `033f1b9`: empty `git diff --stat fe7f462 033f1b9` and `--quiet` exit 0; identical trees, fully reconciled |
+| `feat/drain-insights-bridge` | `d424876` / PR #44 | `backend/app/services/proposition/source.py`, `backend/app/services/export/propositions_exporter.py`, `backend/app/services/insights_client.py`, `backend/app/services/post_job/flow.py`, `frontend/index.html` | `origin/feat/drain-insights-bridge` at `ba9e883`: empty `git diff --stat d424876 ba9e883` and `--quiet` exit 0; identical trees, fully reconciled; cross-repo acceptance separate |
 | `codex/scoped-annotation-access*` | `f536436` / PR #37, including `f48ed16` | `backend/app/api/auth.py`, `backend/app/api/routes/gold.py`; later access handling remains present | Merged release parent is available in history; all wildcard tips are not enumerated |
-| `codex/proposition-review-workspace*` | `a6e713c` / PR #40, including `737ecb5` | Context pane and one-item review lens in `frontend/index.html`; later bridge and fast-gold changes remain present | Available `-final` branch is an ancestor; other wildcard variants unknown |
-| `fix/u10-deterministic-runner-config` | `bb576ac` / PR #38 | `PINNED_SCORING` in `backend/eval/synthetic_runner.py`; configuration/restoration checks in `backend/tests/test_synthetic_runner.py` | Original source tip absent; squash equivalence unproven |
+| `codex/proposition-review-workspace*` | `a6e713c` / PR #40, including `737ecb5` | Context pane and one-item review lens in `frontend/index.html`; later bridge and fast-gold changes remain present | Historical local `-final` ref `a6e713c` is included. Current local and origin `-final` refs point to `d9ebbf9`, a non-ancestor auto-save (planning/agent state, including `.codex/hooks.json` and `AGENTS.md`), not recovery work; other wildcard variants unknown |
+| `fix/u10-deterministic-runner-config` | `bb576ac` / PR #38 | `PINNED_SCORING` in `backend/eval/synthetic_runner.py`; configuration/restoration checks in `backend/tests/test_synthetic_runner.py` | `origin/fix/u10-deterministic-runner-config` at `b039a86`: empty `git diff --stat bb576ac b039a86` and `--quiet` exit 0; identical trees, fully reconciled |
 
-These are source and ancestry observations, not fresh test results. No missing implementation was established.
+Review refresh: the branch was later rebased; current `HEAD` is `cf8b1ac6690e0724ce4f8eda9516202f3caf3b99`, with merge base `f0accec27b779ea11c87d57dbd58bde2df5666db` against `origin/main`, newer than `26e5c61`. Against the available `origin/main` at `cffe049c51bc7197a8354c783af3d1843285479d`, `git merge-base --is-ancestor` returned exit 0 for all eight cited commits (`fe7f462`, `d424876`, `f536436`, `f48ed16`, `a6e713c`, `7ea40ea`, `737ecb5`, `bb576ac`) and exit 1 for `d9ebbf9`. `git ls-remote origin` could not resolve DNS, so live origin freshness is unverified.
+
+These are source and ancestry observations, not fresh test results. The receipt's U2 results remain evidence from `26e5c61`, not a rerun on the rebased tree. No missing implementation was established.
 
 ### Key Technical Decisions
 
@@ -97,10 +99,10 @@ These are source and ancestry observations, not fresh test results. No missing i
 
 ### Assumptions and Missing Inputs
 
-- **Unvalidated assumption:** the controller supplied `26e5c61` as the intended `main` snapshot. Refresh its identity at build start and before publication; repeat affected comparisons if the base changes.
+- **Target freshness:** the captured target was `26e5c61`; the newer base and checked `origin/main` are identified above. Ancestry was refreshed; confirm the intended publication target and repeat affected behavior checks before relying on historical U2 results for the newer base.
 - **Missing authority:** the chief campaign plan's Goal Capsule and cited R-ID excerpts are not mounted. The supplied standing rules are usable, but cannot establish agreement with unseen source text.
-- **Missing origin context:** `docs/handoffs/2026-10-26-unified-proposition-engine-brainstorm.md` is absent from the worktree and available history. Do not infer Phase B scope from its filename.
-- **Missing source inventory:** the controller must supply exact refs/SHAs or local source bundles, including wildcard variants. An explicit authoritative record that a source was deleted or unavailable may close inventory with a stated limitation; it cannot prove patch equivalence.
+- **Located origin context:** `docs/handoffs/2026-10-26-unified-proposition-engine-brainstorm.md` exists on `origin/feat/unified-proposition-engine` at `7b71926`, with path-history commits `56b01db`, `d179029`, `7f481a2` and `7b71926`; `git ls-tree` confirms it is absent on checked `origin/main`. No missing-file controller input remains. Do not infer Phase B scope from its filename.
+- **Remaining source inventory:** the three named squash sources are fully reconciled, and the current workspace-final auto-save is accounted for. The controller still needs the current scoped access release tip and a complete enumeration of both wildcard families. An explicit authoritative record that a source was deleted or unavailable may close inventory with a stated limitation; it cannot prove patch equivalence.
 
 These inputs limit exhaustive closure, not the local audit and verification units. No Damien decision is currently needed.
 
