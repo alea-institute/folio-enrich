@@ -91,24 +91,36 @@ all of them.
 
 `backend/scripts/measure_label_search_pool.py` ran 2,350 unique queries, drawn case-insensitively
 from the concept and span texts in all 34 baked demos. It used folio-python 0.4.0 with translations
-off and the production true-label WRatio rescoring, and compared every pool size against a fixed P=20.
+off and the production true-label WRatio rescoring. It loaded the production OWL branch
+(`FOLIO_SPEC` `main`, sha256 prefix `44657b4ed844`) and compared every pool size against a fixed P=20.
 
-| Pool P | Top-1 IRI changes | Top-1 score gain | Rescues (top-1 < 90 → ≥ 90) | Median ms (k=5) | p95 ms (k=5) |
-|---:|---:|---:|---:|---:|---:|
-| 20 | 0 | 0 | 0 | 2.97 | 3.58 |
-| 40 | 86 | 0 | 0 | 3.12 | 3.78 |
-| 80 | 112 | 0 | 0 | 3.41 | 4.14 |
-| 160 | 135 | 0 | 0 | 3.99 | 5.02 |
+| Pool P | Top-1 IRI changes | Top-1 score gain | Rescues (top-1 < 90 → ≥ 90) | Below-top-1 gains (k=5) | Median ms (k=5) | p95 ms (k=5) |
+|---:|---:|---:|---:|---:|---:|---:|
+| 20 | 0 | 0 | 0 | 0 | 2.96 | 4.06 |
+| 40 | 79 | 0 | 0 | 1 | 3.11 | 4.30 |
+| 80 | 107 | 0 | 0 | 2 | 3.41 | 4.74 |
+| 160 | 130 | 0 | 0 | 2 | 3.97 | 5.67 |
 
-- **No gain:** every changed top-1 is a tie, with the same rescored score, broken differently. A
-  larger pool raised no query's top score. Of 15 sampled ties, one is plausibly better and several are
-  clearly worse; for example, "Company" goes from Limited Company to Northern Mariana Islands.
+- **No top-1 gain:** every changed top-1 is a tie, with the same rescored score, broken differently.
+  A larger pool raised no query's top score. Of 15 sampled ties, one is plausibly better and several
+  are clearly worse; for example, "Company" goes from Limited Company to Northern Mariana Islands.
+- **Below top-1, the gains are noise:** a "below-top-1 gain" means a concept newly enters the top_k
+  with a higher score than P=20's lowest kept score.
+  - **k=5:** "voir dire" gains Coir (73), and "nun" gains Articulation Disorder (90).
+  - **k=10:** production already uses P=40 (`max(top_k * 4, 20)`). Against that baseline, P≥80 adds
+    only "apostolic tribunal" → Napo and "nun" → Articulation Disorder.
+  - **Count:** 16 queries gain against a fixed P=20 at k=10, all of the same kind, such as "church" →
+    Uri.
+  - **Meaning:** a larger pool admits lexical look-alikes, not better English matches.
 - **Some crowding exists:** 2.6% of P=20 raw hits reach the pool only through a translation match.
-  None of them displaced a concept that rescores higher.
+  None of them displaced a higher-scoring top-1.
 - **Decision rule failed:** shipping needed rescues on at least 1% of queries and better changed
-  top-1s. Latency would have passed, but no production code changed.
-- **Receipt:** the full per-query JSON (43 MB, sha256 prefix `0a4adfd2dedb6658`) stays out of git.
-  Rerun the script to regenerate it.
+  results. Latency would have passed, but no production code changed.
+- **Scope limit:** the run searches only the FOLIO service, including the 344 queries that come only
+  from Canon demos, so it says nothing about the Canon service's pool.
+- **Receipt:** the full per-query JSON (43 MB, sha256 prefix `115047fdce3e3bd3`) stays out of git.
+  Rerun the script to regenerate it. An earlier run against the `2.0.0` OWL reached the same
+  conclusion; code review caught the branch mismatch.
 
 ## Test evidence
 

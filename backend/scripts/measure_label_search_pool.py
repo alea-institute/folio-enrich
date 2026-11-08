@@ -6,7 +6,7 @@ excluded, matching the default service setting. Times complete production servic
 calls with only the raw limit overridden. Warm includes folio-python's built-in
 _basic_search memoization; this is not a first-time-query latency benchmark.
 
-All comparisons use fixed P=20 as requested. Production's current expression
+Primary comparisons use fixed P=20 as requested; top_k=10 also compares to P=40. Production's current expression
 already requests P=40 at top_k=10. folio-python 0.4.0 sets no score_cutoff;
 the supplemental pool-cutoff crowding metric is not a configured threshold.
 """
@@ -32,6 +32,7 @@ from rapidfuzz import fuzz, utils
 from app.services.folio.folio_service import FolioService, _construct_folio
 from app.services.folio.labels import true_alternative_labels
 from app.config import settings
+from app.services.ontology.spec import FOLIO_SPEC
 
 POOLS = (20, 40, 80, 160)
 KS = (3, 5, 10)
@@ -85,6 +86,33 @@ def percentile95(values):
     return sorted(values)[math.ceil(.95 * len(values)) - 1]
 
 
+def top_k_improvements(queries, pool, k, baseline_pool):
+    """Count queries admitting a new concept strictly above the baseline kth score.
+
+    Existing baseline concepts do not count: otherwise identical pools would
+    score improvements merely because their first hit exceeds their last hit.
+    Ranks are one-based in the larger pool; old is the hit at the same rank.
+    """
+    count = 0
+    examples = []
+    for entry in queries:
+        old = entry['pools'][str(baseline_pool)]['top_k'][str(k)]
+        new = entry['pools'][str(pool)]['top_k'][str(k)]
+        if not old:
+            continue
+        old_iris = {hit['iri'] for hit in old}
+        improved = [(rank, hit) for rank, hit in enumerate(new, 1)
+                    if hit['iri'] not in old_iris and hit['score'] > old[-1]['score']]
+        count += bool(improved)
+        if improved and len(examples) < 10:
+            rank, hit = improved[0]
+            examples.append({'query': entry['query'], 'k': k, 'rank': rank,
+                             'old': old[rank - 1] if rank <= len(old) else None,
+                             'new': hit, 'baseline_cutoff': old[-1],
+                             'baseline_cutoff_score': old[-1]['score']})
+    return {'baseline_pool': baseline_pool, 'query_count': count, 'examples': examples}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path,
@@ -102,12 +130,16 @@ def main():
             return handler(filename, *a, **kw)
         with patch('logging.handlers.RotatingFileHandler', local_handler):
             from folio import FOLIO
-            owl = FOLIO.load_cache()
+            # Use production's branch for both cache identity and construction;
+            # folio-python's default branch is a different ontology snapshot.
+            repo_branch = FOLIO_SPEC.coords.repo_branch
+            owl = FOLIO.load_cache(github_repo_branch=repo_branch)
             if not owl:
-                raise RuntimeError('Default FOLIO OWL must already be cached; refusing network access')
+                raise RuntimeError(f'FOLIO OWL cache for production branch {repo_branch!r} is absent or empty; '
+                                   'populate that branch cache first; refusing fallback or network access')
             # load_owl otherwise rewrites even a cache hit in the read-only home.
             with patch.object(FOLIO, 'load_owl', return_value=owl):
-                folio = _construct_folio()
+                folio = _construct_folio(github_repo_branch=repo_branch)
     service = FolioService()
     service._folio = folio
     # Build the same branch map as production before warming conversion.
@@ -124,8 +156,7 @@ def main():
         if (i + 1) % 100 == 0:
             print(f'  warmed {i + 1}/{len(queries)}', flush=True)
     timings = {(p, k): [] for p in POOLS for k in KS}
-    crowding = {'raw_hits': 0, 'below_pool_cutoff': 0, 'below_own_raw_score': 0,
-                'below_configured_threshold': 0}
+    crowding = {'raw_hits': 0, 'below_pool_cutoff': 0, 'below_own_raw_score': 0}
     print('Measurement: rotating pool and conversion order per query', flush=True)
     for i, entry in enumerate(queries):
         query = entry['query']
@@ -152,8 +183,7 @@ def main():
                 cutoff = min(s for _, s in raw)
                 counts = {'raw_hits': len(raw),
                           'below_pool_cutoff': sum(s < cutoff for _, s, _ in ranked),
-                          'below_own_raw_score': sum(s < r for _, s, r in ranked),
-                          'below_configured_threshold': sum(s < 0 for _, s, _ in ranked)}
+                          'below_own_raw_score': sum(s < r for _, s, r in ranked)}
                 entry['crowding'] = {**counts, 'pool_cutoff': cutoff}
                 for key, value in counts.items():
                     crowding[key] += value
@@ -186,10 +216,16 @@ def main():
                             'max_top1_improvement': max(improvements), 'rescues': rescues,
                             'rescue_fraction': rescues / len(queries),
                             'median_ms': statistics.median(times), 'p95_ms': percentile95(times),
-                            'median_ratio_vs_20': statistics.median(times) / baseline})
-    for key in ('below_pool_cutoff', 'below_own_raw_score', 'below_configured_threshold'):
+                            'median_ratio_vs_20': statistics.median(times) / baseline,
+                            'below_top1_improvement': top_k_improvements(queries, pool, k, 20)})
+            if k == 10:
+                metrics[-1]['vs_production_pool'] = {
+                    'pool': max(k * 4, 20),
+                    'below_top1_improvement': top_k_improvements(queries, pool, k, max(k * 4, 20)),
+                }
+    for key in ('below_pool_cutoff', 'below_own_raw_score'):
         crowding[key + '_fraction'] = crowding[key] / crowding['raw_hits']
-    output = {'owl_sha256': hashlib.sha256(owl.encode()).hexdigest(), 'query_count': len(queries), 'demo_files': files, 'folio_python_version':
+    output = {'repo_branch': repo_branch, 'owl_sha256': hashlib.sha256(owl.encode()).hexdigest(), 'query_count': len(queries), 'demo_files': files, 'folio_python_version':
               importlib.metadata.version('folio-python'), 'translation_matching_enabled': False,
               'threshold_note': 'No configured cutoff: process.extract defaults to score_cutoff=None (effective 0). '
               'below_pool_cutoff uses min returned raw score for each query; below_own_raw_score identifies '
@@ -198,14 +234,21 @@ def main():
               'perf_counter_ns, rotating pool order; raw search + true-label rescore + production conversion '
               'for each k through the unmodified service, forcing only raw limit; normal warmed branch map; '
               'no network, LLM or ontology load in timing. Library _basic_search memoization is warm.',
+              'below_top1_note': 'Queries with a concept newly admitted to top_k whose score strictly exceeds '
+              'the baseline top_k minimum; includes admissions at any rank, not just top-1 changes. '
+              'Count each query once; up to 10 examples per row, first qualifying rank per query. '
+              'P=20 is the primary baseline; top_k=10 also compares to production P=40. '
+              'P=20 vs P=40 is a smaller-pool control, not a larger-pool comparison.',
               'metrics': metrics, 'crowding': crowding, 'changed_top1s': examples, 'queries': queries}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(output, indent=2) + '\n')
-    print(' P   k  top1  setΔ  meanΔ  maxΔ rescues median_ms p95_ms ratio')
+    print(' P   k  top1  setΔ  meanΔ  maxΔ rescues median_ms p95_ms ratio below_top1 vs_P40')
     for m in metrics:
         print(f"{m['pool']:3} {m['top_k']:3} {m['top1_changes']:5} {m['top_k_set_changes']:5} "
               f"{m['mean_top1_improvement']:6.3f} {m['max_top1_improvement']:5.1f} {m['rescues']:7} "
-              f"{m['median_ms']:9.3f} {m['p95_ms']:6.3f} {m['median_ratio_vs_20']:5.2f}")
+              f"{m['median_ms']:9.3f} {m['p95_ms']:6.3f} {m['median_ratio_vs_20']:5.2f} "
+              f"{m['below_top1_improvement']['query_count']:10} "
+              f"{m.get('vs_production_pool', {}).get('below_top1_improvement', {}).get('query_count', '-')}")
     print('Crowding:', json.dumps(crowding))
     # Prefer rescues, then largest score improvements; preserve all changes in JSON.
     sample = sorted(examples, key=lambda e: (not e['rescue'], -(e['new']['score'] - e['old']['score']),
