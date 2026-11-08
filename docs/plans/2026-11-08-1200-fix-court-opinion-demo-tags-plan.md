@@ -123,4 +123,27 @@ opinion demo alone could not show. Each got its own fix and test:
 - **Rollback:** `git checkout 29846fd` and restart (the old v1 caches remain on disk).
 - **Website:** openlegalstandard.org `feat/folio-tools-showcase` commit `685eb23` re-records the hub
   Enrich media; proposed caption text for still 3 is in that repo's
-  `docs/handoffs/2026-11-08-enrich-demo-rerecorded.md`.
+  `docs/handoffs/2026-11-08-enrich-demo-rerecorded.md`. Still 3's counts were updated to 37/9 there
+  (`21a868b`).
+
+## Follow-up backlog: wrong-looking tags in the re-baked PROD demos
+
+Reported 2026-11-08 by the openlegalstandard.org session while recording role-page clips. None appears
+on a clip's final frame. Most look like the semantic-ruler and homonym classes above: a one-word label
+or a branch-blind match with no context check. Triage these with an eval set before tuning.
+
+- **Cross-demo:** "Delaware" tagged as a Language (the Lenape language), in contract, merger, lease,
+  and advice_regulatory. A Location/Language homonym; same family as the "Florida" fix.
+- **advice_regulatory:** "Office of Regulatory Affairs" → OMB's Office of Information and Regulatory
+  Affairs; Motion for Observation on Cross-Examination ×19; Chronic Heart Failure and Myasthenia Gravis
+  as Legal Entity; Jail ×5 and Bananas as Asset Type; Syriac as Language; Data Poisoning; Electoral
+  System; Ejectment.
+- **opinion:** Concussion ×2 as Legal Entity; Residence as Actor/Player; Ethics Claim (in addition to
+  "disturbance call" → Disorderly Conduct).
+- **merger:** Alexander ×2 as Governmental Body; Alford Plea; Freedom of Religion; Bona Fide
+  Occupational Qualification; Jury ×2.
+- **lease:** "earlier termination" (security-deposit text) → Early Termination Clause; Grandparent ×3;
+  Patent Assets; Associational Discrimination Claim; Time Records - Bankruptcy.
+- **settlement:** Santiago Rodriguez as Location; Family Court; Clinical Trial; Futures - Assets.
+- **appellate:** Schizophrenia ×2 as Legal Entity; Nepali ×4 and Arapaho as Language; Family Court ×4;
+  Reverse Mortgage Foreclosure; Wild Animal.
