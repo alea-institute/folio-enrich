@@ -55,6 +55,33 @@ def test_roman_section_enumerators_are_not_suffixes():
     assert len(concepts) == len(annotations) == len(expected)
 
 
+@pytest.mark.parametrize('text', [
+    'ARTICLE III. REPRESENTATIONS',
+    'Article III of the Constitution',
+    'COUNT II',
+    'COUNT II —',
+    'Section IV',
+    'See part III for details',
+    'chapter III)',
+    'title III',
+    'book III',
+    'schedule III',
+    'exhibit III',
+    'appendix III',
+    'volume III',
+])
+def test_roman_enumerators_after_heading_words_are_not_suffixes(text):
+    numeral = re.search(r'\b[IV]+\b', text)
+    match = EntityRulerMatch(numeral.group(), numeral.start(), numeral.end(), 'suffix', 'iri:suffix', 'alternative')
+    stage = EntityRulerStage()
+    stage._iri_to_branch = {}
+    stage._iri_to_concept = {}
+    assert stage._build_preliminary_annotations([match], text) == []
+    with patch.object(stage, '_ensure_patterns_loaded'), patch.object(stage, '_find_matches', return_value=[match]):
+        filtered, _, concepts, _, annotations = stage._run_deterministic('folio', text)
+    assert filtered == concepts == annotations == []
+
+
 @pytest.mark.parametrize(('text', 'surface'), [
     ('Acme LLC.', 'LLC'),
     ('XML data', 'XML'),
@@ -65,6 +92,12 @@ def test_roman_section_enumerators_are_not_suffixes():
     ('XML. heading', 'XML'),
     ('LLM. heading', 'LLM'),
     ('CDC. heading', 'CDC'),
+    ('Article LLC.', 'LLC'),
+    ('Section XML', 'XML'),
+    ('COUNT CDC.', 'CDC'),
+    ('counterpart III', 'III'),
+    ('Article  III', 'III'),
+    ('Article\tIII', 'III'),
 ])
 def test_roman_guard_preserves_acronyms_and_inline_suffixes(text, surface):
     start = text.index(surface)

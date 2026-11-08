@@ -45,6 +45,12 @@ def _is_roman_enumerator(match: EntityRulerMatch, text: str) -> bool:
     surface = text[match.start_char:match.end_char]
     if not surface or not re.fullmatch(r"M{0,3}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})", surface):
         return False
+    if re.search(
+        r"\b(?:article|section|part|chapter|title|count|book|schedule|exhibit|appendix|volume) \Z",
+        text[:match.start_char],
+        re.IGNORECASE,
+    ):
+        return True
     line_start = text.rfind("\n", 0, match.start_char) + 1
     return (not text[line_start:match.start_char].strip()
             and text[match.end_char:match.end_char + 1] in {".", ")"})
