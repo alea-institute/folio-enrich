@@ -40,16 +40,18 @@ completed).
 - **folio-insights #70:** not replayed. Preview deploys rebuild on hetzner-dev, which the
   never-build-there rule forbids.
 
+- **PRs #48–#50 (campaign items fe-1 to fe-3):** reviewed outside the campaign, because the
+  drawdown gate cannot run folio-enrich's suite (`env-blocked`). The doc findings were fixed, and
+  the PRs were squash-merged pinned to their CI-green heads: #50 as `cffe049`, #49 as `b97dda3` and
+  #48 as `168ec54`. CI on `main` passed at `168ec54`.
+- **Stale chief branch:** `feat/drawdown-no-banked-resets` was deleted with Damien's OK.
+
 ## Next steps
-1. **PRs #48–#50:** the drawdown campaign keeps its folio-enrich mandate disabled ("gate cannot run
-   the suite in the sandbox"), so these PRs need review and merge outside the campaign.
-2. **Rollback cleanup (about 2026-11-14):** delete the dated PROD pre-deploy backups, the venv copies,
+1. **Rollback cleanup (about 2026-11-14):** delete the dated PROD pre-deploy backups, the venv copies,
    and the superseded label-embedding cache, after proving nothing live references them. At the same
    time, consider pruning the superseded folio-insights image on hetzner-dev (about 9.4 GB), which
    Coolify keeps for rollback.
-3. **Tailscale aliases:** when the PROD hosts join the tailnet, point the PROD SSH aliases at tailnet
+2. **Tailscale aliases:** when the PROD hosts join the tailnet, point the PROD SSH aliases at tailnet
    names.
-4. **Preview-lane lesson:** prebuilt images skip Coolify's build only for main-branch apps. Preview
+3. **Preview-lane lesson:** prebuilt images skip Coolify's build only for main-branch apps. Preview
    deploys tag images by deployment id, so Coolify rebuilds them on the box.
-5. **Stale branch in chief:** `feat/drawdown-no-banked-resets` (the closed PR #32) still holds one
-   commit that never merged. It can be deleted once Damien approves.
