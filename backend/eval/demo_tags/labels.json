@@ -1,5 +1,5 @@
 {
- "about": "Gold verdicts for confirmed tags in frontend/demos/*.json at fc3c8fe, keyed by (casefolded span text, concept IRI). LLM-assisted annotation (6 labelers, span + context + definition), spot-checked: 11 of 12 known-wrong tags labeled wrong. Verdicts: correct | wrong | unsure.",
+ "about": "Gold verdicts for confirmed tags in frontend/demos/*.json at fc3c8fe, keyed by (casefolded span text, concept IRI). LLM-assisted annotation (6 labelers, span + context + definition), spot-checked: 11 of 12 known-wrong tags labeled wrong. Verdicts: correct | wrong | unsure. 29 pairs added 2026-11-08 after the accuracy-pass replay, labeled by the orchestrator.",
  "created": "2026-11-08",
  "labels": [
   {
@@ -591,6 +591,12 @@
    "verdict": "unsure"
   },
   {
+   "text": "art",
+   "iri": "https://folio.openlegalstandard.org/RCO5FBZfgN8P43sMsRpTesd",
+   "label": "Art",
+   "verdict": "wrong"
+  },
+  {
    "text": "art unit",
    "iri": "https://folio.openlegalstandard.org/RCO5FBZfgN8P43sMsRpTesd",
    "label": "Art",
@@ -823,6 +829,12 @@
    "iri": "https://folio.openlegalstandard.org/R9Zu4SBnAFuZbC4ygrlJQcV",
    "label": "\"Capital Stock\" Definition - Bond Indenture",
    "verdict": "unsure"
+  },
+  {
+   "text": "authorship",
+   "iri": "https://folio.openlegalstandard.org/RlZdd14uUrCvqa8YJ7RzNd",
+   "label": "Authorship",
+   "verdict": "correct"
   },
   {
    "text": "automatic renewal",
@@ -1276,6 +1288,12 @@
   },
   {
    "text": "cause of action",
+   "iri": "https://folio.openlegalstandard.org/R8jYAnNATrfoBxAtIKpf72X",
+   "label": "Civil Claims",
+   "verdict": "correct"
+  },
+  {
+   "text": "cause of action",
    "iri": "https://folio.openlegalstandard.org/R9q7GJc1zsYT0P4Xdp6l9Oz",
    "label": "Litigation Claims",
    "verdict": "correct"
@@ -1296,6 +1314,36 @@
    "text": "cease-and-desist order",
    "iri": "https://folio.openlegalstandard.org/R8WYf37UwnwiWdGzFILxGgT",
    "label": "Demand Letter Practice",
+   "verdict": "wrong"
+  },
+  {
+   "text": "central",
+   "iri": "https://folio.openlegalstandard.org/R0092bb7927eeC30df81B181",
+   "label": "Central",
+   "verdict": "wrong"
+  },
+  {
+   "text": "central",
+   "iri": "https://folio.openlegalstandard.org/R66Ac5cBF4ba94061978F893",
+   "label": "Central",
+   "verdict": "wrong"
+  },
+  {
+   "text": "central",
+   "iri": "https://folio.openlegalstandard.org/R68F678997b5dBBEa8f303b8",
+   "label": "Central",
+   "verdict": "wrong"
+  },
+  {
+   "text": "central",
+   "iri": "https://folio.openlegalstandard.org/R6F7fb29A8f7cC36ccb0E91b",
+   "label": "Central",
+   "verdict": "wrong"
+  },
+  {
+   "text": "central",
+   "iri": "https://folio.openlegalstandard.org/R77E9aeEAB069BD74747591b",
+   "label": "Central",
    "verdict": "wrong"
   },
   {
@@ -1702,6 +1750,12 @@
   },
   {
    "text": "commission",
+   "iri": "https://folio.openlegalstandard.org/RBLodGElBPA4tNq7xpjKA5l",
+   "label": "Commission",
+   "verdict": "wrong"
+  },
+  {
+   "text": "commission",
    "iri": "https://folio.openlegalstandard.org/Ry9hX7PSumXkvA5dFwO49X",
    "label": "Commissions (Pay)",
    "verdict": "wrong"
@@ -2013,6 +2067,12 @@
    "verdict": "correct"
   },
   {
+   "text": "confidentiality no less",
+   "iri": "https://folio.openlegalstandard.org/RBU1MPZclWmAITpDAoWCKm1",
+   "label": "Confidential",
+   "verdict": "unsure"
+  },
+  {
    "text": "confidentiality provisions",
    "iri": "https://folio.openlegalstandard.org/RDOq8HJJl8YdcwBdCZmjlOW",
    "label": "Confidentiality Clause",
@@ -2302,7 +2362,19 @@
   },
   {
    "text": "court",
+   "iri": "https://folio.openlegalstandard.org/HYKR-C2YRNuu8MK0iAyQ-w",
+   "label": "Courts",
+   "verdict": "wrong"
+  },
+  {
+   "text": "court",
    "iri": "https://folio.openlegalstandard.org/ZGJ1mrkqSjyjrR2qxTgCdA",
+   "label": "Courts",
+   "verdict": "unsure"
+  },
+  {
+   "text": "courts",
+   "iri": "https://folio.openlegalstandard.org/HYKR-C2YRNuu8MK0iAyQ-w",
    "label": "Courts",
    "verdict": "unsure"
   },
@@ -2593,6 +2665,12 @@
    "iri": "https://folio.openlegalstandard.org/R7TWc8tQpBqTWnxuyuDVK7Q",
    "label": "Quality Agreement",
    "verdict": "wrong"
+  },
+  {
+   "text": "delaware",
+   "iri": "https://folio.openlegalstandard.org/R17BeebDEB311B355049B9bc",
+   "label": "Delaware",
+   "verdict": "correct"
   },
   {
    "text": "delaware",
@@ -2905,6 +2983,18 @@
    "iri": "https://folio.openlegalstandard.org/R93T7OEmCjkwufvhJAY4ScV",
    "label": "Easement",
    "verdict": "correct"
+  },
+  {
+   "text": "eastern",
+   "iri": "https://folio.openlegalstandard.org/R425eff5AFf0d884b3c9D93f",
+   "label": "Eastern",
+   "verdict": "wrong"
+  },
+  {
+   "text": "eastern",
+   "iri": "https://folio.openlegalstandard.org/RB8618b54Ae3b6E8aa4454af",
+   "label": "Eastern",
+   "verdict": "wrong"
   },
   {
    "text": "eastern",
@@ -3358,6 +3448,12 @@
   },
   {
    "text": "expert report",
+   "iri": "https://folio.openlegalstandard.org/R7l1hC1KL4UsSjBkN6aHFc1",
+   "label": "Expert Report",
+   "verdict": "correct"
+  },
+  {
+   "text": "expert report",
    "iri": "https://folio.openlegalstandard.org/R8IDj7WyH271GZ9doQJUak5",
    "label": "Expert Report Practice",
    "verdict": "unsure"
@@ -3558,6 +3654,12 @@
    "text": "final judgment",
    "iri": "https://folio.openlegalstandard.org/R9jpIjzc10qdgl78jXOZtfm",
    "label": "Judgment",
+   "verdict": "correct"
+  },
+  {
+   "text": "financial account",
+   "iri": "https://folio.openlegalstandard.org/RCqg8Edym0NbyFXA5DXor8w",
+   "label": "Financial Account",
    "verdict": "correct"
   },
   {
@@ -4581,6 +4683,12 @@
    "verdict": "correct"
   },
   {
+   "text": "janitorial services",
+   "iri": "https://folio.openlegalstandard.org/bnBzf24zSFSpgxwo8AjWDQ",
+   "label": "Janitorial Services",
+   "verdict": "correct"
+  },
+  {
    "text": "joinder",
    "iri": "https://folio.openlegalstandard.org/R8eYplvX9rGzbrcplLZFdlw",
    "label": "Joinder",
@@ -4650,6 +4758,12 @@
    "text": "jury demand",
    "iri": "https://folio.openlegalstandard.org/R9pwejG33H0Y9mi74WzE2nb",
    "label": "Jury",
+   "verdict": "correct"
+  },
+  {
+   "text": "jury selection",
+   "iri": "https://folio.openlegalstandard.org/R7at71dGnBZ8kRawoY820u9",
+   "label": "Jury Selection / Voire Dire Practice",
    "verdict": "correct"
   },
   {
@@ -5409,6 +5523,12 @@
    "verdict": "wrong"
   },
   {
+   "text": "monitor",
+   "iri": "https://folio.openlegalstandard.org/RkzeibZyGqJ71RjWdj1Ic0",
+   "label": "Monitor",
+   "verdict": "wrong"
+  },
+  {
    "text": "monitoring",
    "iri": "https://folio.openlegalstandard.org/R7ycrZHHD5JqaYqf3qOIU46",
    "label": "Monitoring",
@@ -6045,6 +6165,12 @@
    "verdict": "correct"
   },
   {
+   "text": "oral argument",
+   "iri": "https://folio.openlegalstandard.org/RNYDfoq9SukIrHmKWwdKSY",
+   "label": "Oral Argument",
+   "verdict": "correct"
+  },
+  {
    "text": "order",
    "iri": "https://folio.openlegalstandard.org/RDmsvdtBrrw46UnCDJ0LKrJ",
    "label": "Order",
@@ -6280,6 +6406,12 @@
   },
   {
    "text": "pension funds",
+   "iri": "https://folio.openlegalstandard.org/0xsU9gpYRkabv5pLh6GvGQ",
+   "label": "Pension Funds",
+   "verdict": "correct"
+  },
+  {
+   "text": "pension funds",
    "iri": "https://folio.openlegalstandard.org/2UU3O83LQWOr41rYmPHrdg",
    "label": "Pension Funds",
    "verdict": "correct"
@@ -6403,6 +6535,12 @@
    "iri": "https://folio.openlegalstandard.org/R7qD861Sfx35d9VnPcZnGQr",
    "label": "Physical Examination Practice",
    "verdict": "unsure"
+  },
+  {
+   "text": "physical examination",
+   "iri": "https://folio.openlegalstandard.org/RChjSc2XuaDiZnlxpusNIxT",
+   "label": "Physical Examination",
+   "verdict": "correct"
   },
   {
    "text": "physician",
@@ -6811,6 +6949,12 @@
    "iri": "https://folio.openlegalstandard.org/RTI29HdGI4AAyxdGoowo4D",
    "label": "Adequate Protection Practice",
    "verdict": "wrong"
+  },
+  {
+   "text": "protective order",
+   "iri": "https://folio.openlegalstandard.org/R7053oNO7Kct0Nr8SexmzuU",
+   "label": "Protective Order",
+   "verdict": "correct"
   },
   {
    "text": "protective order",
@@ -7347,6 +7491,18 @@
    "verdict": "correct"
   },
   {
+   "text": "requests for admission",
+   "iri": "https://folio.openlegalstandard.org/RCHIu81uU41YfTOo5pFfrx7",
+   "label": "Requests for Admission",
+   "verdict": "correct"
+  },
+  {
+   "text": "requests for production",
+   "iri": "https://folio.openlegalstandard.org/RCviQIdzAw8dzCCf1RAvfP5",
+   "label": "Requests for Production",
+   "verdict": "correct"
+  },
+  {
    "text": "requests for production",
    "iri": "https://folio.openlegalstandard.org/RpSRZ5rs3ObDIeUpwdjec9",
    "label": "Requests for Production Practice",
@@ -7720,6 +7876,12 @@
   },
   {
    "text": "separation agreement",
+   "iri": "https://folio.openlegalstandard.org/R83h4k9Hrvl8nKaSH4G3ry6",
+   "label": "Separation Agreement",
+   "verdict": "correct"
+  },
+  {
+   "text": "separation agreement",
    "iri": "https://folio.openlegalstandard.org/RBInEBiBM9AXI15yzeZXun",
    "label": "Separation Agreement  Practice",
    "verdict": "unsure"
@@ -8019,6 +8181,12 @@
    "verdict": "correct"
   },
   {
+   "text": "spouse",
+   "iri": "https://folio.openlegalstandard.org/ReA0gy8mOLrqG7eTtFxnTh",
+   "label": "Spouse",
+   "verdict": "correct"
+  },
+  {
    "text": "staff privileges",
    "iri": "https://folio.openlegalstandard.org/Rxkyjui3De88JNN2ZCqKrt",
    "label": "Privilege",
@@ -8052,6 +8220,12 @@
    "text": "start date",
    "iri": "https://folio.openlegalstandard.org/R93oC7LagxAP0b2nzlVq1ET",
    "label": "Effective Beginning Date",
+   "verdict": "correct"
+  },
+  {
+   "text": "state of delaware",
+   "iri": "https://folio.openlegalstandard.org/R17BeebDEB311B355049B9bc",
+   "label": "Delaware",
    "verdict": "correct"
   },
   {
