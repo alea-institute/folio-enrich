@@ -134,3 +134,25 @@ off and the production true-label WRatio rescoring. It loaded the production OWL
     regression on main.
 - **Follow-up:** before bumping pyarrow past 23 or nupunkt past 0.6 in `uv.lock`, regenerate the
   proposition byte-neutral Parquet fixture and check the sentence-splitting expectation.
+
+## Follow-up: Canon label-search pool (2026-11-08)
+
+`measure_label_search_pool.py --ontology canon` ran the same 2,350 demo queries through the Canon
+service, built by the production registry from the pinned OWL (sha256 prefix `add8b2b140273b19`).
+
+| Pool P | Top-1 IRI changes vs P=20 | Top-1 score gain vs P=20 | Rescues | Below-top-1 gains, k=10 vs production P=40 | Median ms (k=5) | p95 ms (k=5) |
+|---:|---:|---:|---:|---:|---:|---:|
+| 20 | 0 | 0 | 0 | 0 | 1.81 | 2.56 |
+| 40 | 83 | 0 | 0 | 0 | 1.94 | 2.73 |
+| 80 | 112 | 0 | 0 | 6 | 2.19 | 3.20 |
+| 160 | 127 | 0 | 0 | 6 | 2.71 | 4.07 |
+
+- **Same verdict as FOLIO:** no rescues and no top-1 score gain. Every changed top-1 is a tie.
+- **Gains below top-1 are noise:** of the 6 queries that gain at P≥80, 4 gain junk matches: "nun" →
+  Satun, "escrow instructions clause" → Ruse, "specific performance clause" → Ruse, and "amicable
+  resolution clause" → Resolutions. The other 2 swap in a match with the same score.
+- **Decision:** Canon also keeps `max(top_k * 4, 20)`.
+- **Run cost:** the warm-cache timing pass needs more than 4 GB, so run it under an 8 GB cap
+  (`box-run --max 8G`). The 4 GB attempt was OOM-killed during warm-up.
+- **Receipt:** the JSON (44 MB, sha256 prefix `e50eb54915813652`) stays out of git under the existing
+  `label_search_pool_*.json` ignore rule.
