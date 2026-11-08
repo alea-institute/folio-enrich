@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 
 from app.config import settings
@@ -117,6 +118,8 @@ class ConceptResolver:
                 self._cache[cache_key] = None
                 return None
 
+        best_concept = self._prefer_location_homonym(concept_text, best_concept)
+
         # Extract enriched metadata
         iri_hash = best_concept.iri.rsplit("/", 1)[-1] if best_concept.iri else ""
         branch_color = ""
@@ -174,7 +177,12 @@ class ConceptResolver:
         branch = branches[0] if branches else ""
         all_results = self._multi_strategy_resolve_all(concept_text, branch, max_candidates)
         resolved_list: list[ResolvedConcept] = []
+        seen_iris: set[str] = set()
         for fc, score, resolution_path in all_results:
+            fc = self._prefer_location_homonym(concept_text, fc)
+            if fc.iri in seen_iris:
+                continue
+            seen_iris.add(fc.iri)
             if any(b in EXCLUDED_BRANCHES for b in ([fc.branch] if fc.branch else [])):
                 continue
             iri_hash = fc.iri.rsplit("/", 1)[-1] if fc.iri else ""
@@ -199,6 +207,21 @@ class ConceptResolver:
                 resolution_path=resolution_path,
             ))
         return resolved_list[:max_candidates]
+
+    def _prefer_location_homonym(self, text: str, candidate: FOLIOConcept) -> FOLIOConcept:
+        """An exact place label beats a Language homonym, including 'State of …'."""
+        if candidate.branch.casefold() != "language":
+            return candidate
+        get_labels = getattr(self.folio, "get_all_labels_multi", None)
+        if get_labels is None:
+            return candidate
+        key = re.sub(r"^state of\s+", "", " ".join(text.casefold().split()))
+        for info in get_labels().get(key, []):
+            fc = info.concept
+            if (fc.branch.casefold() == "location"
+                    and key in {label.casefold() for label in (fc.preferred_label, fc.folio_pref_label) if label}):
+                return fc
+        return candidate
 
     def _cached_multi_search(self, folio_raw, concept_text, branch, top_n, get_branch_fn):
         """multi_strategy_search with a cross-request result cache on the FolioService

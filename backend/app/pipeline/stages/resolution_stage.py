@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone
 
 from app.models.annotation import ConceptMatch, stamp_union_dict
@@ -286,6 +287,16 @@ class ResolutionStage(PipelineStage):
         resolved_concepts: list[dict] = []
         unresolved_mentions: list[dict] = []
 
+        # Reconciliation may pick the ruler object, whose branch describes a
+        # candidate rather than the LLM's intent. Recover the original hints.
+        llm_hints_by_text: dict[str, list[str]] = {}
+        for concepts in job.result.metadata.get("llm_concepts", {}).values():
+            for concept in concepts:
+                llm_hints_by_text.setdefault(concept.get("concept_text", "").casefold(), []).extend(concept.get("branches", []))
+
+        def branch_hints(concept: dict) -> list[str]:
+            return llm_hints_by_text.get(concept.get("concept_text", "").casefold(), concept.get("branches", []))
+
         if reconciled:
             for concept_data in reconciled:
                 resolved = self.resolver.resolve(
@@ -298,7 +309,7 @@ class ResolutionStage(PipelineStage):
                 if resolved is None:
                     unresolved_mentions.append(concept_data)
                 if resolved and not any(b in EXCLUDED_BRANCHES for b in resolved.branches):
-                    rd = self._to_resolved_dict(resolved, concept_data.get("branches", []))
+                    rd = self._to_resolved_dict(resolved, branch_hints(concept_data))
                     self._resolve_virtual_branches(rd, resolved.folio_concept.branch)
                     self._attach_backup_candidates(rd, concept_data)
                     # Carry forward upstream lineage events
@@ -323,7 +334,7 @@ class ResolutionStage(PipelineStage):
                     folio_iri=concept_data.get("folio_iri"),
                 )
                 if resolved and not any(b in EXCLUDED_BRANCHES for b in resolved.branches):
-                    rd = self._to_resolved_dict(resolved, concept_data.get("branches", []))
+                    rd = self._to_resolved_dict(resolved, branch_hints(concept_data))
                     self._resolve_virtual_branches(rd, resolved.folio_concept.branch)
                     self._attach_backup_candidates(rd, concept_data)
                     resolved_concepts.append(rd)
@@ -347,10 +358,29 @@ class ResolutionStage(PipelineStage):
                     if resolved is None:
                         unresolved_mentions.append(dict(concept_data, source="llm"))
                     if resolved and not any(b in EXCLUDED_BRANCHES for b in resolved.branches):
-                        rd = self._to_resolved_dict(resolved, concept_data.get("branches", []))
+                        rd = self._to_resolved_dict(resolved, branch_hints(concept_data))
                         self._resolve_virtual_branches(rd, resolved.folio_concept.branch)
                         self._attach_backup_candidates(rd, concept_data)
                         resolved_concepts.append(rd)
+
+        full_text = job.result.canonical_text.full_text if job.result.canonical_text else ""
+        locations = {c["concept_text"].casefold() for c in resolved_concepts
+                     if any(b.casefold() == "location" for b in c.get("branches", []))}
+
+        def language_allowed(candidate: dict, mention: dict) -> bool:
+            if not any(b.casefold() == "language" for b in candidate.get("branches", [])):
+                return True
+            text = mention.get("concept_text", "")
+            if text.casefold() in locations:
+                return False
+            hints = mention.get("_branch_hints", []) if mention.get("source") != "entity_ruler" else []
+            return (any(b.casefold() == "language" for b in hints)
+                    or bool(re.search(r"\blanguage\b", self._sentence_context(full_text, text), re.IGNORECASE)))
+
+        resolved_concepts = [c for c in resolved_concepts if language_allowed(c, c)]
+        for rc in resolved_concepts:
+            if rc.get("_backup_candidates"):
+                rc["_backup_candidates"] = [bc for bc in rc["_backup_candidates"] if language_allowed(bc, rc)]
 
         # Prefer RDFS label matches before SKOS preferred labels within each group.
         homonym_groups: dict[tuple[str, str], list[int]] = {}

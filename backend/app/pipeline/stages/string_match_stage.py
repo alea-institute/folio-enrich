@@ -221,7 +221,9 @@ class StringMatchStage(PipelineStage):
                     matched_existing = None
                     match_text = concept.concept_text.lower()
                     for candidate in existing_by_span[(match.start, match.end)]:
-                        if candidate.concepts and candidate.concepts[0].concept_text.lower() == match_text:
+                        if (candidate.concepts
+                                and not candidate.concepts[0].folio_iri
+                                and candidate.concepts[0].concept_text.lower() == match_text):
                             matched_existing = candidate
                             break
                     if matched_existing is not None:
