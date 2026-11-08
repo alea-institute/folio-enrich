@@ -10,6 +10,7 @@ from app.models.job import Job
 from app.pipeline.stages.entity_ruler_stage import EntityRulerStage
 from app.pipeline.stages.string_match_stage import StringMatchStage
 from app.services.entity_ruler.ruler import EntityRulerMatch
+from app.services.entity_ruler.semantic_ruler import SemanticMatch
 from app.services.folio.folio_service import FolioService
 
 
@@ -110,6 +111,43 @@ def test_roman_guard_preserves_acronyms_and_inline_suffixes(text, surface):
         filtered, _, concepts, _, annotations = stage._run_deterministic('folio', text)
     assert filtered == [match]
     assert len(concepts) == len(annotations) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(('text', 'surface', 'keep'), [
+    ('ARTICLE III — FEES', 'III —', False),
+    ('V — FEES', 'V —', False),
+    ('Preamble\n  VI — TERM', 'VI — TERM', False),
+    ('See III — below', 'III —', False),
+    ('ARTICLE III: FEES', 'III: FEES', False),
+    ('V) FEES', 'V) FEES', False),
+    ('VI- TERM', 'VI- TERM', False),
+    ('Confidential Information', 'Confidential Information', True),
+    ('John Smith III', 'John Smith III', True),
+    ('LLC — TERM', 'LLC — TERM', True),
+    ('XML data', 'XML data', True),
+    ('CDC guidance', 'CDC guidance', True),
+    ('iii — TERM', 'iii — TERM', True),
+    ('See VI — TERM', 'VI — TERM', True),
+])
+async def test_semantic_roman_enumerators_are_filtered(text, surface, keep):
+    job = Job()
+    job.result.canonical_text = CanonicalText(full_text=text)
+    stage = EntityRulerStage()
+    stage._iri_to_concept = {}
+    start = text.index(surface)
+    candidate = SemanticMatch(surface, start, start + len(surface), 'Semantic label', .95, 'iri:semantic')
+
+    async def inline(func, *args):
+        return func(*args)
+
+    with patch('app.pipeline.stages.entity_ruler_stage.asyncio.to_thread', side_effect=inline):
+        await stage._finish(job, [], [], [], [candidate])
+
+    assert [a.span.text for a in job.result.annotations] == ([surface] if keep else [])
+    assert [c['concept_text'] for c in job.result.metadata.get('ruler_concepts', [])] == ([surface] if keep else [])
+    if not keep:
+        assert '+ 1 semantic' not in job.result.metadata['activity_log'][-1]['msg']
 
 
 def ann(text, surface, *, branch=None, state='confirmed', mt='preferred', source='entity_ruler'):
