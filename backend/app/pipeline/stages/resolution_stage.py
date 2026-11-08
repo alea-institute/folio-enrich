@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone
 
 from app.models.annotation import ConceptMatch, stamp_union_dict
@@ -36,10 +37,12 @@ class ResolutionStage(PipelineStage):
         return "resolution"
 
     @staticmethod
-    def _to_resolved_dict(resolved) -> dict:
+    def _to_resolved_dict(resolved, branch_hints: list[str] | None = None) -> dict:
         """Convert a ResolvedConcept to a dict with enriched metadata."""
         fc = resolved.folio_concept
         result = {
+            "_resolution_path": resolved.resolution_path,
+            "_branch_hints": list(branch_hints or []),
             "concept_text": resolved.concept_text,
             "folio_iri": fc.iri,
             "folio_label": fc.preferred_label,
@@ -211,9 +214,17 @@ class ResolutionStage(PipelineStage):
         # Primary pairs precede their backups in `plan`, so rd["confidence"] is already
         # the blended value by the time we cap backups against it.
         survivors: dict[int, list[tuple[float, dict]]] = {}
+        dropped: set[int] = set()
         for (rd, kind, bc), sim in zip(plan, sims):
             sim = max(0.0, min(1.0, sim))  # clamp
             if kind == "primary":
+                hints = {b.casefold() for b in rd.get("_branch_hints", [])}
+                shares_hint = any(b.casefold() in hints for b in rd.get("branches", []))
+                if (settings.fork_context_gate_enabled and rd.get("_resolution_path") == "fork"
+                    and (sim < settings.fork_context_min_similarity
+                         or (sim < settings.fork_context_branch_gate_similarity and not shares_hint))):
+                    dropped.add(id(rd))
+                    continue
                 search_score = rd.get("confidence", 0.5)
                 blended = round(search_score * 0.6 + sim * 0.4, 4)
                 rd["confidence"] = blended
@@ -235,6 +246,9 @@ class ResolutionStage(PipelineStage):
                     # primary) — the branch bonus only influences keep/drop, not score.
                     rescored["confidence"] = min(sim, rd.get("confidence", 1.0))
                     survivors.setdefault(id(rd), []).append((sim, rescored))
+
+        # Mutate the list itself: StringMatch must never expand a dropped primary.
+        resolved_concepts[:] = [rd for rd in resolved_concepts if id(rd) not in dropped]
 
         if not filter_backups:
             return
@@ -273,6 +287,16 @@ class ResolutionStage(PipelineStage):
         resolved_concepts: list[dict] = []
         unresolved_mentions: list[dict] = []
 
+        # Reconciliation may pick the ruler object, whose branch describes a
+        # candidate rather than the LLM's intent. Recover the original hints.
+        llm_hints_by_text: dict[str, list[str]] = {}
+        for concepts in job.result.metadata.get("llm_concepts", {}).values():
+            for concept in concepts:
+                llm_hints_by_text.setdefault(concept.get("concept_text", "").casefold(), []).extend(concept.get("branches", []))
+
+        def branch_hints(concept: dict) -> list[str]:
+            return llm_hints_by_text.get(concept.get("concept_text", "").casefold(), concept.get("branches", []))
+
         if reconciled:
             for concept_data in reconciled:
                 resolved = self.resolver.resolve(
@@ -285,7 +309,7 @@ class ResolutionStage(PipelineStage):
                 if resolved is None:
                     unresolved_mentions.append(concept_data)
                 if resolved and not any(b in EXCLUDED_BRANCHES for b in resolved.branches):
-                    rd = self._to_resolved_dict(resolved)
+                    rd = self._to_resolved_dict(resolved, branch_hints(concept_data))
                     self._resolve_virtual_branches(rd, resolved.folio_concept.branch)
                     self._attach_backup_candidates(rd, concept_data)
                     # Carry forward upstream lineage events
@@ -310,7 +334,7 @@ class ResolutionStage(PipelineStage):
                     folio_iri=concept_data.get("folio_iri"),
                 )
                 if resolved and not any(b in EXCLUDED_BRANCHES for b in resolved.branches):
-                    rd = self._to_resolved_dict(resolved)
+                    rd = self._to_resolved_dict(resolved, branch_hints(concept_data))
                     self._resolve_virtual_branches(rd, resolved.folio_concept.branch)
                     self._attach_backup_candidates(rd, concept_data)
                     resolved_concepts.append(rd)
@@ -334,10 +358,29 @@ class ResolutionStage(PipelineStage):
                     if resolved is None:
                         unresolved_mentions.append(dict(concept_data, source="llm"))
                     if resolved and not any(b in EXCLUDED_BRANCHES for b in resolved.branches):
-                        rd = self._to_resolved_dict(resolved)
+                        rd = self._to_resolved_dict(resolved, branch_hints(concept_data))
                         self._resolve_virtual_branches(rd, resolved.folio_concept.branch)
                         self._attach_backup_candidates(rd, concept_data)
                         resolved_concepts.append(rd)
+
+        full_text = job.result.canonical_text.full_text if job.result.canonical_text else ""
+        locations = {c["concept_text"].casefold() for c in resolved_concepts
+                     if any(b.casefold() == "location" for b in c.get("branches", []))}
+
+        def language_allowed(candidate: dict, mention: dict) -> bool:
+            if not any(b.casefold() == "language" for b in candidate.get("branches", [])):
+                return True
+            text = mention.get("concept_text", "")
+            if text.casefold() in locations:
+                return False
+            hints = mention.get("_branch_hints", []) if mention.get("source") != "entity_ruler" else []
+            return (any(b.casefold() == "language" for b in hints)
+                    or bool(re.search(r"\blanguage\b", self._sentence_context(full_text, text), re.IGNORECASE)))
+
+        resolved_concepts = [c for c in resolved_concepts if language_allowed(c, c)]
+        for rc in resolved_concepts:
+            if rc.get("_backup_candidates"):
+                rc["_backup_candidates"] = [bc for bc in rc["_backup_candidates"] if language_allowed(bc, rc)]
 
         # Prefer RDFS label matches before SKOS preferred labels within each group.
         homonym_groups: dict[tuple[str, str], list[int]] = {}
@@ -376,8 +419,17 @@ class ResolutionStage(PipelineStage):
             concept for i, concept in enumerate(resolved_concepts) if i not in dropped_indices
         ]
 
+        # Score before coreference so rejected courts cannot supply an antecedent.
+        before_context_gate = len(resolved_concepts)
+        if full_text:
+            self._apply_embedding_context_scores(
+                resolved_concepts, full_text, ontology_id=job.ontology
+            )
+
+        dropped_forks = before_context_gate - len(resolved_concepts)
+
         # Resolve generic court mentions only from unambiguous courts in this job.
-        from app.services.folio.court_names import normalize_court_text
+        from app.services.folio.court_names import is_deictic_court, normalize_court_text
         court_types = {
             "district court": ("district court",),
             "court of appeals": ("ct. app.", "court of appeals"),
@@ -389,12 +441,14 @@ class ResolutionStage(PipelineStage):
         document_courts = list(resolved_concepts)
         for mention in unresolved_mentions:
             text = mention.get("concept_text", "")
-            types = court_types.get(normalize_court_text(text))
+            deictic = is_deictic_court(text)
+            types = ("court", "ct.", "circuit") if deictic else court_types.get(normalize_court_text(text))
             if not types or text.casefold() in resolved_texts:
                 continue
             candidates = {
                 c["folio_iri"]: c for c in document_courts
                 if any(t in c.get("folio_label", "").casefold() for t in types)
+                and (not deictic or {"Forums and Venues", "Governmental Body"}.intersection(c.get("branches", [])))
             }
             if len(candidates) != 1:
                 continue
@@ -404,7 +458,7 @@ class ResolutionStage(PipelineStage):
                 source=mention.get("source", "reconciled"),
             )
             if resolved and not any(b in EXCLUDED_BRANCHES for b in resolved.branches):
-                rd = self._to_resolved_dict(resolved)
+                rd = self._to_resolved_dict(resolved, mention.get("branches", []))
                 rd["_lineage_events"] = list(mention.get("_lineage_events", [])) + [{
                     "stage": "resolution", "action": "coreference",
                     "detail": f"Generic court mention linked to the document's {candidate['folio_label']}",
@@ -413,23 +467,19 @@ class ResolutionStage(PipelineStage):
                 resolved_concepts.append(rd)
                 resolved_texts.add(text.casefold())
 
-        # Apply embedding-based context scoring when available
-        full_text = ""
-        if job.result.canonical_text:
-            full_text = job.result.canonical_text.full_text
-        if full_text:
-            self._apply_embedding_context_scores(
-                resolved_concepts, full_text, ontology_id=job.ontology
-            )
-
         if job.ontology == "both":
             for rc in resolved_concepts:
                 rc.update(stamp_union_dict(rc, self.resolver.folio))
                 for backup in rc.get("_backup_candidates", []):
                     backup.update(stamp_union_dict(backup, self.resolver.folio))
+        # Context-gate inputs have no downstream use. Remove them here so even
+        # metadata serializers and demo slimming cannot expose private hints.
+        for rc in resolved_concepts:
+            rc.pop("_resolution_path", None)
+            rc.pop("_branch_hints", None)
         job.result.metadata["resolved_concepts"] = resolved_concepts
 
         log = job.result.metadata.setdefault("activity_log", [])
-        log.append({"ts": datetime.now(timezone.utc).isoformat(), "stage": self.name, "msg": f"Resolved {len(resolved_concepts)} concepts with FOLIO definitions; dropped {dropped_homonyms} same-branch homonyms"})
+        log.append({"ts": datetime.now(timezone.utc).isoformat(), "stage": self.name, "msg": f"Resolved {len(resolved_concepts)} concepts with FOLIO definitions; dropped {dropped_homonyms} same-branch homonyms; dropped {dropped_forks} fork context mismatches"})
         logger.info("Resolved %d concepts for job %s", len(resolved_concepts), job.id)
         return job

@@ -81,7 +81,7 @@ async def _init_services(ontology: str = "folio"):
 
 
 def _concept_summary(job) -> dict:
-    """Annotation identities and display counts for before/after comparison."""
+    """Annotation/link identities and display counts for before/after comparison."""
     agree_to = {}
     for a in job.result.annotations:
         txt = (a.span.text if a.span else "") or ""
@@ -99,6 +99,14 @@ def _concept_summary(job) -> dict:
         span_iris.setdefault((start, end), Counter())[iri] += count
     return {
         "annotation_keys": annotation_keys,
+        "class_links": tuple(sorted(
+            ((individual.name, individual.span.start, link.folio_iri,
+              link.folio_label, link.branch, link.relationship)
+             for individual in job.result.individuals
+             for link in individual.class_links),
+            # Unresolved links may have no IRI or label; preserve those values.
+            key=lambda row: tuple((value is not None, value) for value in row),
+        )),
         "span_iris": span_iris,
         "annotations": len(job.result.annotations),
         "individuals": len(job.result.individuals),
@@ -109,30 +117,62 @@ def _concept_summary(job) -> dict:
 
 
 def _remap_class_link_annotation_ids(job, old_annotations) -> None:
-    """Repair preserved class links because replay mints new annotation ids."""
+    """Re-derive annotation-backed links and drop labels for removed concepts."""
+    old_iris = {
+        concept.folio_iri
+        for annotation in old_annotations.values()
+        for concept in annotation.concepts
+    }
+    new_iris = {
+        concept.folio_iri
+        for annotation in job.result.annotations
+        for concept in annotation.concepts
+    }
     for individual in job.result.individuals:
+        links = []
+        seen_iris = set()
         for link in individual.class_links:
-            if link.annotation_id is None:
+            if link.annotation_id is not None:
+                old = old_annotations.get(link.annotation_id)
+                if old is None:
+                    continue
+                same_span = [
+                    a for a in job.result.annotations
+                    if a.concepts
+                    and (a.span.start, a.span.end) == (old.span.start, old.span.end)
+                ]
+                iri_matches = [
+                    a for a in job.result.annotations
+                    if a.concepts and link.folio_iri is not None
+                    and a.concepts[0].folio_iri == link.folio_iri
+                ]
+                match = next((a for a in same_span if a in iri_matches), None)
+                if match is None and same_span:
+                    match = same_span[0]
+                if match is None and iri_matches:
+                    match = min(iri_matches, key=lambda a: abs(a.span.start - old.span.start))
+                if match is None:
+                    continue
+                top = match.concepts[0]
+                link.annotation_id = match.id
+                link.folio_iri = top.folio_iri
+                link.folio_label = top.folio_label
+                link.branch = top.branches[0] if top.branches else ""
+            elif (
+                link.folio_iri is not None
+                and link.folio_iri in old_iris
+                and link.folio_iri not in new_iris
+            ):
+                # Label-only links can inherit concepts from the original document.
                 continue
-            old = old_annotations.get(link.annotation_id)
-            if old is None:
-                link.annotation_id = None
-                continue
-            same_span = [
-                a for a in job.result.annotations
-                if (a.span.start, a.span.end) == (old.span.start, old.span.end)
-            ]
-            iri_matches = [
-                a for a in job.result.annotations
-                if link.folio_iri is not None
-                and any(c.folio_iri == link.folio_iri for c in a.concepts)
-            ]
-            match = next((a for a in same_span if a in iri_matches), None)
-            if match is None and same_span:
-                match = same_span[0]
-            if match is None and iri_matches:
-                match = min(iri_matches, key=lambda a: abs(a.span.start - old.span.start))
-            link.annotation_id = match.id if match is not None else None
+
+            # Unresolved label-only links have no IRI to deduplicate yet.
+            if link.folio_iri is not None:
+                if link.folio_iri in seen_iris:
+                    continue
+                seen_iris.add(link.folio_iri)
+            links.append(link)
+        individual.class_links = links
 
 
 async def replay_one(slug: str, folio, emb, dry_run: bool, ontology: str = "folio") -> bool:
@@ -174,7 +214,14 @@ async def replay_one(slug: str, folio, emb, dry_run: bool, ontology: str = "foli
         logger.warning("  [%s] triple enrichment skipped", slug, exc_info=False)
 
     after = _concept_summary(job)
-    changed = before["annotation_keys"] != after["annotation_keys"]
+    changed = (before["annotation_keys"] != after["annotation_keys"]
+               or before["class_links"] != after["class_links"])
+    before_links = Counter(before["class_links"])
+    after_links = Counter(after["class_links"])
+    individuals_changed = len({
+        row[:2] for row in before_links.keys() | after_links.keys()
+        if before_links[row] != after_links[row]
+    })
     iri_changed = sum(before["span_iris"][span] != after["span_iris"][span]
                       for span in before["span_iris"].keys() & after["span_iris"].keys())
 
@@ -183,9 +230,10 @@ async def replay_one(slug: str, folio, emb, dry_run: bool, ontology: str = "foli
                 if before["agreement_spans"].get(k) != v)
     logger.info(
         "  [%s] annotations %d->%d | individuals %d (kept) | properties %d (kept) | "
-        "triples %d | agreement-spans changed: %d | IRI-spans changed: %d",
+        "triples %d | agreement-spans changed: %d | IRI-spans changed: %d | "
+        "individuals with changed links: %d",
         slug, before["annotations"], after["annotations"], after["individuals"],
-        after["properties"], after["triples"], fixed, iri_changed,
+        after["properties"], after["triples"], fixed, iri_changed, individuals_changed,
     )
 
     if changed and not dry_run:

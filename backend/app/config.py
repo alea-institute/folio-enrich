@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     app_name: str = "FOLIO Enrich"
     debug: bool = False
     resolution_fallback_min_score: float = 0.40
+    fork_context_gate_enabled: bool = True
+    fork_context_min_similarity: float = 0.15
+    fork_context_branch_gate_similarity: float = 0.30
 
     # Job storage
     jobs_dir: Path = Path(os.path.expanduser("~/.folio-enrich/jobs"))

@@ -9,6 +9,11 @@ def normalize_court_text(text: str) -> str:
     return " ".join(text.casefold().split()).removeprefix("the ")
 
 
+def is_deictic_court(text: str) -> bool:
+    """A court reference whose identity must come from document context."""
+    return bool(re.fullmatch(r"(?:this|the|that|said) court", " ".join(text.casefold().split())))
+
+
 def exact_label(text: str, preferred_labels: Iterable[str], aliases: Iterable[str] = ()) -> bool:
     """Gate exemption: preferred labels or aliases with at least two words."""
     query = normalize_court_text(text)
