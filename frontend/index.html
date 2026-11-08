@@ -7537,6 +7537,13 @@ function rerenderAnnotatedText() {
   });
 }
 
+// Preserve the POS layer whenever annotation state or streamed content rebuilds the text.
+function _renderAnnotatedTextWithPOS(text, annotations, individuals, properties) {
+  renderAnnotatedText(text, annotations, individuals, properties);
+  const meta = currentJob?.result?.metadata;
+  applyPOSTags(meta?.sentence_pos ? meta : (accumulatedPOS ? { sentence_pos: accumulatedPOS } : {}));
+}
+
 function _rerenderAnnotatedTextNow() {
   if (!currentJobId) return;
   // Build annotation objects compatible with renderAnnotatedText
@@ -7562,12 +7569,7 @@ function _rerenderAnnotatedTextNow() {
   if (text) {
     document.getElementById('emptyState').style.display = 'none';
     document.getElementById('annotatedText').style.display = 'block';
-    renderAnnotatedText(text, annotations, individuals, properties);
-
-    // Re-apply POS tags if layer is active (renderAnnotatedText wipes .pos-word spans)
-    if (_activeLayers.has('pos') && accumulatedPOS) {
-      applyPOSTags({ sentence_pos: accumulatedPOS });
-    }
+    _renderAnnotatedTextWithPOS(text, annotations, individuals, properties);
 
     // Show toolbar + header controls as soon as any content arrives (progressive rendering)
     const hasContent = annotations.length > 0 || individuals.length > 0 || properties.length > 0;
@@ -9387,7 +9389,7 @@ function _updateAnnotationSpanState(annId, newState) {
   if (annData) annData.state = newState;
   if (currentJob) {
     const result = currentJob.result || {};
-    renderAnnotatedText(result.canonical_text?.full_text || '', result.annotations || [], result.individuals || [], result.properties || []);
+    _renderAnnotatedTextWithPOS(result.canonical_text?.full_text || '', result.annotations || [], result.individuals || [], result.properties || []);
     renderConceptsList(result.annotations || [], result.individuals || []);
     renderMetadata(result.metadata || {}, currentJob);
   }

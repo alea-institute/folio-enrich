@@ -13,7 +13,7 @@ try { ({ chromium } = require(modulePath)); } catch (e) { console.error(e.messag
   const demo = JSON.parse(fs.readFileSync(path.join(frontend, 'demos/opinion.json')));
   const expectedCount = new Set(demo.cache.job.result.annotations.filter(a => a.state !== 'rejected' && a.concepts?.[0]?.folio_iri).map(a => a.concepts[0].folio_iri)).size;
   try {
-    for (const scenario of ['uncertain', 'confidence', 'counts', 'escape', 'close', 'remove', 'bulk', 'detail']) {
+    for (const scenario of ['uncertain', 'confidence', 'counts', 'escape', 'close', 'remove', 'bulk', 'detail', 'pos-remove']) {
       const context = await browser.newContext();
       const page = await context.newPage();
       const dismissals = [];
@@ -56,6 +56,13 @@ try { ({ chromium } = require(modulePath)); } catch (e) { console.error(e.messag
         const singleTags = page.locator('.annotation-span[data-multi-count="1"]:not([data-state="rejected"])').filter({ hasNot: page.locator('.individual-span, .property-span') });
         const tag = singleTags.first();
         const id = await tag.getAttribute('data-ann-id');
+        let posCount;
+        if (scenario === 'pos-remove') {
+          const toggle = page.locator('.layer-chip[data-layer="pos"]');
+          if (!(await toggle.getAttribute('class')).split(/\s+/).includes('active')) await toggle.click();
+          posCount = await page.locator('.pos-word').count();
+          assert.ok(posCount > 0, 'enabled POS layer must highlight words');
+        }
         const intact = async () => {
           assert.equal(dismissals.length, 0, 'close/cancel must not send a dismiss request');
           assert.ok(await page.locator(`.annotation-span[data-ann-id="${id}"]:not([data-state="rejected"])`).count(), 'annotation must remain');
@@ -121,6 +128,9 @@ try { ({ chromium } = require(modulePath)); } catch (e) { console.error(e.messag
             await page.waitForFunction(() => !document.querySelector('#tooltip.visible'));
             assert.equal(dismissals.length, 1, 'confirmed removal must send exactly one request');
             assert.ok(dismissals[0].includes(`/annotations/${id}/reject`));
+            if (scenario === 'pos-remove') {
+              assert.equal(await page.locator('.pos-word').count(), posCount, 'removing a tag must preserve POS words');
+            }
           }
         }
         results[scenario] = null;

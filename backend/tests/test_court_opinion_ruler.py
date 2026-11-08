@@ -41,18 +41,42 @@ def test_lemma_keys_preserve_hyphenated_labels():
 
 
 def test_roman_section_enumerators_are_not_suffixes():
-    text = 'III. ANALYSIS\n  IV Heading\nJohn Smith III, Esq.\nSee II) below\nJohn Smith iii'
+    text = 'III. ANALYSIS\n  IV) DISCUSSION\n  IV Heading\nJohn Smith III, Esq.\nSee II) below\nJohn Smith iii'
     matches = [EntityRulerMatch(m.group(), m.start(), m.end(), 'suffix', 'iri:suffix', 'alternative') for m in re.finditer(r'\b(?:III|IV|II|iii)\b', text)]
     stage = EntityRulerStage()
     stage._iri_to_branch = {}
     stage._iri_to_concept = {}
     annotations = stage._build_preliminary_annotations(matches, text)
-    expected = [text.index('III, Esq'), text.index('iii')]
+    expected = [text.index('IV Heading'), text.index('III, Esq'), text.index('II)'), text.index('iii')]
     assert [a.span.start for a in annotations] == expected
     with patch.object(stage, '_ensure_patterns_loaded'), patch.object(stage, '_find_matches', return_value=matches):
         filtered, _, concepts, _, annotations = stage._run_deterministic('folio', text)
     assert [m.start_char for m in filtered] == expected
-    assert len(concepts) == len(annotations) == 2
+    assert len(concepts) == len(annotations) == len(expected)
+
+
+@pytest.mark.parametrize(('text', 'surface'), [
+    ('Acme LLC.', 'LLC'),
+    ('XML data', 'XML'),
+    ('LLM systems', 'LLM'),
+    ('Consult the CDC.', 'CDC'),
+    ('John Smith III.', 'III'),
+    ('LLC. heading', 'LLC'),
+    ('XML. heading', 'XML'),
+    ('LLM. heading', 'LLM'),
+    ('CDC. heading', 'CDC'),
+])
+def test_roman_guard_preserves_acronyms_and_inline_suffixes(text, surface):
+    start = text.index(surface)
+    match = EntityRulerMatch(surface, start, start + len(surface), surface, 'iri:concept', 'preferred')
+    stage = EntityRulerStage()
+    stage._iri_to_branch = {}
+    stage._iri_to_concept = {}
+    assert [a.span.text for a in stage._build_preliminary_annotations([match], text)] == [surface]
+    with patch.object(stage, '_ensure_patterns_loaded'), patch.object(stage, '_find_matches', return_value=[match]):
+        filtered, _, concepts, _, annotations = stage._run_deterministic('folio', text)
+    assert filtered == [match]
+    assert len(concepts) == len(annotations) == 1
 
 
 def ann(text, surface, *, branch=None, state='confirmed', mt='preferred', source='entity_ruler'):

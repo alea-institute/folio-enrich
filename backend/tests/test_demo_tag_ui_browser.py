@@ -31,7 +31,7 @@ def demo_ui():
 
 
 @pytest.mark.timeout(150)
-@pytest.mark.parametrize("scenario", ["uncertain", "confidence", "counts", "escape", "close", "remove", "bulk", "detail"])
+@pytest.mark.parametrize("scenario", ["uncertain", "confidence", "counts", "escape", "close", "remove", "bulk", "detail", "pos-remove"])
 def test_demo_tag_ui(demo_ui, scenario):
     assert demo_ui["results"][scenario] is None, demo_ui["results"][scenario]
 
