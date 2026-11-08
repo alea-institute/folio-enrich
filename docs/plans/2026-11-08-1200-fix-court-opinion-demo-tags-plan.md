@@ -1,7 +1,7 @@
 ---
 title: "fix: Court Opinion demo tagging errors (root causes)"
 type: fix
-status: active
+status: completed
 date: 2026-11-08
 branch: fix/court-opinion-demo-tags
 requested_by: openlegalstandard.org FOLIO Tools showcase session, for Damien (2026-11-08)
@@ -105,3 +105,22 @@ opinion demo alone could not show. Each got its own fix and test:
   now passes the multi-word exemption. Worth upstreaming as an optional `labels` argument.
 - **Packaging.** `sentence-transformers` is still absent from `pyproject.toml`/`uv.lock`; the replay
   needs it whenever the label set changes (as here).
+
+## PROD deploy receipt (2026-11-08, `0e50843`)
+
+- **Shipped:** PR #70 merged as `0e50843` after green CI and an independent review (two P2 findings fixed:
+  the Roman guard dropped acronyms such as "LLC."; tag removal wiped the POS layer).
+- **Caches:** the FOLIO and Canon v2 lemma caches and both new label-embedding caches were built locally
+  under the same OWL hashes, copied ahead of restart, and checked by sha256. Startup loaded them with no
+  re-encode.
+- **Switch:** a dated `enrich-backup-<ts>-pre0e50843` holds HEAD (`29846fd`) and `.env`; `git merge --ff-only`;
+  no dependency changes; smoke import passed; restart reached `/health` 200 in 15 s. Mapper, OntoKit
+  (api, web) and Caddy stayed active.
+- **Live checks:** `?demo=opinion` in a browser shows U.S. Ct. App. - 7th Circuit and U.S. District Court -
+  C.D. Illinois ("district court" links to it), no "non"/"III"/rejected tags, 37 unique concepts on both
+  tabs, Escape closes the popover, 0 page errors. A fresh API job tags "COURT OF APPEALS FOR THE SEVENTH
+  CIRCUIT" correctly and leaves "III." untagged.
+- **Rollback:** `git checkout 29846fd` and restart (the old v1 caches remain on disk).
+- **Website:** openlegalstandard.org `feat/folio-tools-showcase` commit `685eb23` re-records the hub
+  Enrich media; proposed caption text for still 3 is in that repo's
+  `docs/handoffs/2026-11-08-enrich-demo-rerecorded.md`.
