@@ -40,7 +40,12 @@ jobs:
         run: uv sync --frozen --extra dev
       - name: Install pinned spaCy model
         # Same release wheel as backend/Dockerfile; avoids the compatibility lookup.
-        run: uv pip install --no-cache https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+        # GitHub release downloads intermittently 504; retry with backoff before failing.
+        run: |
+          curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 300 \
+            -o "$RUNNER_TEMP/en_core_web_sm-3.8.0-py3-none-any.whl" \
+            https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+          uv pip install --no-cache "$RUNNER_TEMP/en_core_web_sm-3.8.0-py3-none-any.whl"
       - name: Run backend suite
         # pyproject.toml excludes slow/demo_regen/eval tests requiring live OWL/models.
         # Leave Playwright optional: browser tests skip when it is unavailable.
