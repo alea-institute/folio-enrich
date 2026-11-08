@@ -1,7 +1,7 @@
 ---
 title: "fix: demo-tag accuracy pass (measure first)"
 type: fix
-status: active
+status: completed
 date: 2026-11-08
 branch: session/1108-1406
 requested_by: Damien (2026-11-08, "Yes, please do a demo-tag accuracy pass")
@@ -117,6 +117,22 @@ branch looks odd). Treat single verdicts as noisy; class-level numbers are the s
   "valuation procedures" → Asset Valuation; "Wockhardt Ltd." → Limited Company. Mostly generic
   root or parent classes, as the grid search predicted. Every class removed far more wrong tags
   than correct ones.
+
+### Individual class links (found in the browser check)
+
+The Concepts tab still showed "Delaware" under LANGUAGE after the tag fixes. Individuals (OWL entities)
+keep the class links baked from the original run, and replay only re-pointed their annotation ids. Replay
+now mirrors the live linker:
+- **Annotation-backed links:** re-derived from the surviving same-span annotation's top concept, or dropped.
+- **Label-only links:** dropped when they named a concept the replay removed.
+- **Change detection:** class-link changes count as demo changes.
+
+The demos were replayed once from the original bake. Tag precision is unchanged (0.71). Links such as
+Delaware → Lenape language, NEPA → Nepali, and Agreement → License (Agreement) are gone; Delaware links to
+the US state. Two LLM-chosen label-only links to Family Court remain ("UNITED STATES DISTRICT COURT",
+"The Court"). No tag ever backed them, so only an LLM re-bake can change them. The remaining LANGUAGE
+entry is the generic word "language" → Language, a one-word ruler match left for the deferred one-word
+class.
 
 ### Review (ce-code-review, 2026-11-08)
 
