@@ -109,30 +109,45 @@ def _concept_summary(job) -> dict:
 
 
 def _remap_class_link_annotation_ids(job, old_annotations) -> None:
-    """Repair preserved class links because replay mints new annotation ids."""
+    """Re-derive annotation-backed links from replay's surviving top concepts."""
     for individual in job.result.individuals:
+        links = []
+        seen_iris = set()
         for link in individual.class_links:
-            if link.annotation_id is None:
-                continue
-            old = old_annotations.get(link.annotation_id)
-            if old is None:
-                link.annotation_id = None
-                continue
-            same_span = [
-                a for a in job.result.annotations
-                if (a.span.start, a.span.end) == (old.span.start, old.span.end)
-            ]
-            iri_matches = [
-                a for a in job.result.annotations
-                if link.folio_iri is not None
-                and any(c.folio_iri == link.folio_iri for c in a.concepts)
-            ]
-            match = next((a for a in same_span if a in iri_matches), None)
-            if match is None and same_span:
-                match = same_span[0]
-            if match is None and iri_matches:
-                match = min(iri_matches, key=lambda a: abs(a.span.start - old.span.start))
-            link.annotation_id = match.id if match is not None else None
+            if link.annotation_id is not None:
+                old = old_annotations.get(link.annotation_id)
+                if old is None:
+                    continue
+                same_span = [
+                    a for a in job.result.annotations
+                    if a.concepts
+                    and (a.span.start, a.span.end) == (old.span.start, old.span.end)
+                ]
+                iri_matches = [
+                    a for a in job.result.annotations
+                    if a.concepts and link.folio_iri is not None
+                    and a.concepts[0].folio_iri == link.folio_iri
+                ]
+                match = next((a for a in same_span if a in iri_matches), None)
+                if match is None and same_span:
+                    match = same_span[0]
+                if match is None and iri_matches:
+                    match = min(iri_matches, key=lambda a: abs(a.span.start - old.span.start))
+                if match is None:
+                    continue
+                top = match.concepts[0]
+                link.annotation_id = match.id
+                link.folio_iri = top.folio_iri
+                link.folio_label = top.folio_label
+                link.branch = top.branches[0] if top.branches else ""
+
+            # Unresolved label-only links have no IRI to deduplicate yet.
+            if link.folio_iri is not None:
+                if link.folio_iri in seen_iris:
+                    continue
+                seen_iris.add(link.folio_iri)
+            links.append(link)
+        individual.class_links = links
 
 
 async def replay_one(slug: str, folio, emb, dry_run: bool, ontology: str = "folio") -> bool:
