@@ -144,11 +144,11 @@ class TestNupunktSentences:
     def test_legal_abbreviations_do_not_split(self):
         text = (
             "Under Minn. Stat. § 504B.178, the court in Smith v. Jones Corp. "
-            "held X. Then Y happened."
+            "held the lease void. Then the tenant appealed."
         )
         assert split_sentences(text) == [
-            "Under Minn. Stat. § 504B.178, the court in Smith v. Jones Corp. held X.",
-            "Then Y happened.",
+            "Under Minn. Stat. § 504B.178, the court in Smith v. Jones Corp. held the lease void.",
+            "Then the tenant appealed.",
         ]
 
     def test_us_reporter_citation_does_not_split(self):

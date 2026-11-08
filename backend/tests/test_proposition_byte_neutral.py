@@ -182,7 +182,19 @@ async def test_pipeline_is_byte_neutral_when_propositions_are_disabled() -> None
 
     assert FIXTURE_DIR.is_dir(), "regenerate the proposition baseline fixtures"
     for fmt, content in exports.items():
-        assert content == (FIXTURE_DIR / f"export.{fmt}").read_bytes(), fmt
+        expected_content = (FIXTURE_DIR / f"export.{fmt}").read_bytes()
+        if fmt == "parquet":
+            import pyarrow.parquet as pq
+
+            # Writer versions change created_by; payload and metadata must match.
+            actual_table = pq.read_table(BytesIO(content), use_threads=False, pre_buffer=False)
+            expected_table = pq.read_table(BytesIO(expected_content), use_threads=False, pre_buffer=False)
+            assert actual_table.equals(expected_table, check_metadata=True), fmt
+            assert pq.read_metadata(BytesIO(content)).metadata == pq.read_metadata(
+                BytesIO(expected_content)
+            ).metadata, fmt
+        else:
+            assert content == expected_content, fmt
     assert sse == (FIXTURE_DIR / "sse.json").read_bytes()
 
     expected = json.loads((FIXTURE_DIR / "job.json").read_bytes())
