@@ -23,6 +23,7 @@ class ResolvedConcept:
     branch_color: str = ""
     hierarchy_path: list[str] = field(default_factory=list)
     iri_hash: str = ""
+    resolution_path: str = ""
 
 
 class _CanonSearchGraph:
@@ -92,12 +93,14 @@ class ConceptResolver:
 
         best_concept = None
         score = 0.0
+        resolution_path = ""
 
         # Fast path: direct IRI lookup (used by EntityRuler which already knows the IRI)
         if folio_iri:
             direct = self.folio.get_concept(folio_iri)
             if direct:
                 best_concept = direct
+                resolution_path = "direct"
                 score = confidence  # Trust the confidence from the caller
             else:
                 logger.warning("IRI lookup failed for %s, falling back to search", folio_iri)
@@ -107,8 +110,9 @@ class ConceptResolver:
             exact = self._exact_court_or_caption(concept_text)
             if exact:
                 best_concept, score = exact
+                resolution_path = "exact_court"
             elif not is_case_caption(concept_text):
-                best_concept, score = self._multi_strategy_resolve(concept_text, branch)
+                best_concept, score, resolution_path = self._multi_strategy_resolve(concept_text, branch)
             if best_concept is None:
                 self._cache[cache_key] = None
                 return None
@@ -153,6 +157,7 @@ class ConceptResolver:
             branch_color=branch_color,
             hierarchy_path=hierarchy_path,
             iri_hash=iri_hash,
+            resolution_path=resolution_path,
         )
         self._cache[cache_key] = resolved
         return resolved
@@ -169,7 +174,7 @@ class ConceptResolver:
         branch = branches[0] if branches else ""
         all_results = self._multi_strategy_resolve_all(concept_text, branch, max_candidates)
         resolved_list: list[ResolvedConcept] = []
-        for fc, score in all_results:
+        for fc, score, resolution_path in all_results:
             if any(b in EXCLUDED_BRANCHES for b in ([fc.branch] if fc.branch else [])):
                 continue
             iri_hash = fc.iri.rsplit("/", 1)[-1] if fc.iri else ""
@@ -191,6 +196,7 @@ class ConceptResolver:
                 branch_color=branch_color,
                 hierarchy_path=[],
                 iri_hash=iri_hash,
+                resolution_path=resolution_path,
             ))
         return resolved_list[:max_candidates]
 
@@ -291,22 +297,22 @@ class ConceptResolver:
 
     def _multi_strategy_resolve_all(
         self, concept_text: str, branch: str, top_n: int = 5
-    ) -> list[tuple[FOLIOConcept, float]]:
+    ) -> list[tuple[FOLIOConcept, float, str]]:
         """Return all scored candidates: library (primary) then search fork (recall fallback)."""
         exact = self._exact_court_or_caption(concept_text)
         if exact or is_case_caption(concept_text):
-            return [exact] if exact else []
-        merged: list[tuple[FOLIOConcept, float]] = []
+            return [(*exact, "exact_court")] if exact else []
+        merged: list[tuple[FOLIOConcept, float, str]] = []
         seen_iris: set[str] = set()
         for fc, score in self._library_resolve_all(concept_text, branch):
             if fc.iri and fc.iri not in seen_iris:
                 seen_iris.add(fc.iri)
-                merged.append((fc, score))
+                merged.append((fc, score, "library"))
 
         for fc, score in self._fork_resolve_all(concept_text, branch, top_n):
             if fc.iri and fc.iri not in seen_iris:
                 seen_iris.add(fc.iri)
-                merged.append((fc, score))
+                merged.append((fc, score, "fork"))
 
         return merged[:top_n]
 
@@ -382,7 +388,7 @@ class ConceptResolver:
 
     def _multi_strategy_resolve(
         self, concept_text: str, branch: str
-    ) -> tuple[FOLIOConcept | None, float]:
+    ) -> tuple[FOLIOConcept | None, float, str]:
         """Resolve to the single best concept: library (primary) then search fork (fallback)."""
         lib = self._library_resolve_all(concept_text, branch)
         if lib:
@@ -392,8 +398,9 @@ class ConceptResolver:
                     if fc.branch and branch.lower() in fc.branch.lower():
                         best_fc, best_score = fc, s
                         break
-            return best_fc, best_score
-        return self._fork_resolve(concept_text, branch)
+            return best_fc, best_score, "library"
+        fc, score = self._fork_resolve(concept_text, branch)
+        return fc, score, "fork"
 
     def _fork_resolve(
         self, concept_text: str, branch: str

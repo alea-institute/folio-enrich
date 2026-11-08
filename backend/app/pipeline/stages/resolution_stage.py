@@ -36,10 +36,12 @@ class ResolutionStage(PipelineStage):
         return "resolution"
 
     @staticmethod
-    def _to_resolved_dict(resolved) -> dict:
+    def _to_resolved_dict(resolved, branch_hints: list[str] | None = None) -> dict:
         """Convert a ResolvedConcept to a dict with enriched metadata."""
         fc = resolved.folio_concept
         result = {
+            "_resolution_path": resolved.resolution_path,
+            "_branch_hints": list(branch_hints or []),
             "concept_text": resolved.concept_text,
             "folio_iri": fc.iri,
             "folio_label": fc.preferred_label,
@@ -211,9 +213,17 @@ class ResolutionStage(PipelineStage):
         # Primary pairs precede their backups in `plan`, so rd["confidence"] is already
         # the blended value by the time we cap backups against it.
         survivors: dict[int, list[tuple[float, dict]]] = {}
+        dropped: set[int] = set()
         for (rd, kind, bc), sim in zip(plan, sims):
             sim = max(0.0, min(1.0, sim))  # clamp
             if kind == "primary":
+                hints = {b.casefold() for b in rd.get("_branch_hints", [])}
+                shares_hint = any(b.casefold() in hints for b in rd.get("branches", []))
+                if (settings.fork_context_gate_enabled and rd.get("_resolution_path") == "fork"
+                    and (sim < settings.fork_context_min_similarity
+                         or (sim < settings.fork_context_branch_gate_similarity and not shares_hint))):
+                    dropped.add(id(rd))
+                    continue
                 search_score = rd.get("confidence", 0.5)
                 blended = round(search_score * 0.6 + sim * 0.4, 4)
                 rd["confidence"] = blended
@@ -235,6 +245,9 @@ class ResolutionStage(PipelineStage):
                     # primary) — the branch bonus only influences keep/drop, not score.
                     rescored["confidence"] = min(sim, rd.get("confidence", 1.0))
                     survivors.setdefault(id(rd), []).append((sim, rescored))
+
+        # Mutate the list itself: StringMatch must never expand a dropped primary.
+        resolved_concepts[:] = [rd for rd in resolved_concepts if id(rd) not in dropped]
 
         if not filter_backups:
             return
@@ -285,7 +298,7 @@ class ResolutionStage(PipelineStage):
                 if resolved is None:
                     unresolved_mentions.append(concept_data)
                 if resolved and not any(b in EXCLUDED_BRANCHES for b in resolved.branches):
-                    rd = self._to_resolved_dict(resolved)
+                    rd = self._to_resolved_dict(resolved, concept_data.get("branches", []))
                     self._resolve_virtual_branches(rd, resolved.folio_concept.branch)
                     self._attach_backup_candidates(rd, concept_data)
                     # Carry forward upstream lineage events
@@ -310,7 +323,7 @@ class ResolutionStage(PipelineStage):
                     folio_iri=concept_data.get("folio_iri"),
                 )
                 if resolved and not any(b in EXCLUDED_BRANCHES for b in resolved.branches):
-                    rd = self._to_resolved_dict(resolved)
+                    rd = self._to_resolved_dict(resolved, concept_data.get("branches", []))
                     self._resolve_virtual_branches(rd, resolved.folio_concept.branch)
                     self._attach_backup_candidates(rd, concept_data)
                     resolved_concepts.append(rd)
@@ -334,7 +347,7 @@ class ResolutionStage(PipelineStage):
                     if resolved is None:
                         unresolved_mentions.append(dict(concept_data, source="llm"))
                     if resolved and not any(b in EXCLUDED_BRANCHES for b in resolved.branches):
-                        rd = self._to_resolved_dict(resolved)
+                        rd = self._to_resolved_dict(resolved, concept_data.get("branches", []))
                         self._resolve_virtual_branches(rd, resolved.folio_concept.branch)
                         self._attach_backup_candidates(rd, concept_data)
                         resolved_concepts.append(rd)
@@ -404,7 +417,7 @@ class ResolutionStage(PipelineStage):
                 source=mention.get("source", "reconciled"),
             )
             if resolved and not any(b in EXCLUDED_BRANCHES for b in resolved.branches):
-                rd = self._to_resolved_dict(resolved)
+                rd = self._to_resolved_dict(resolved, mention.get("branches", []))
                 rd["_lineage_events"] = list(mention.get("_lineage_events", [])) + [{
                     "stage": "resolution", "action": "coreference",
                     "detail": f"Generic court mention linked to the document's {candidate['folio_label']}",
@@ -417,19 +430,27 @@ class ResolutionStage(PipelineStage):
         full_text = ""
         if job.result.canonical_text:
             full_text = job.result.canonical_text.full_text
+        before_context_gate = len(resolved_concepts)
         if full_text:
             self._apply_embedding_context_scores(
                 resolved_concepts, full_text, ontology_id=job.ontology
             )
+
+        dropped_forks = before_context_gate - len(resolved_concepts)
 
         if job.ontology == "both":
             for rc in resolved_concepts:
                 rc.update(stamp_union_dict(rc, self.resolver.folio))
                 for backup in rc.get("_backup_candidates", []):
                     backup.update(stamp_union_dict(backup, self.resolver.folio))
+        # Context-gate inputs have no downstream use. Remove them here so even
+        # metadata serializers and demo slimming cannot expose private hints.
+        for rc in resolved_concepts:
+            rc.pop("_resolution_path", None)
+            rc.pop("_branch_hints", None)
         job.result.metadata["resolved_concepts"] = resolved_concepts
 
         log = job.result.metadata.setdefault("activity_log", [])
-        log.append({"ts": datetime.now(timezone.utc).isoformat(), "stage": self.name, "msg": f"Resolved {len(resolved_concepts)} concepts with FOLIO definitions; dropped {dropped_homonyms} same-branch homonyms"})
+        log.append({"ts": datetime.now(timezone.utc).isoformat(), "stage": self.name, "msg": f"Resolved {len(resolved_concepts)} concepts with FOLIO definitions; dropped {dropped_homonyms} same-branch homonyms; dropped {dropped_forks} fork context mismatches"})
         logger.info("Resolved %d concepts for job %s", len(resolved_concepts), job.id)
         return job

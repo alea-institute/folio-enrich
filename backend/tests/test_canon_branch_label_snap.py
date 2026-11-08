@@ -174,7 +174,7 @@ class TestResolverFallback:
             parent_iris=[],
         )
         monkeypatch.setattr(
-            resolver, "_multi_strategy_resolve", lambda text, branch: (branchless, 0.9)
+            resolver, "_multi_strategy_resolve", lambda text, branch: (branchless, 0.9, "fork")
         )
 
         resolved = resolver.resolve(
@@ -196,7 +196,7 @@ class TestResolverFallback:
             parent_iris=[],
         )
         monkeypatch.setattr(
-            resolver, "_multi_strategy_resolve", lambda text, branch: (branchless, 0.9)
+            resolver, "_multi_strategy_resolve", lambda text, branch: (branchless, 0.9, "fork")
         )
         # Two branches in, two branches out — only strings normalized.
         resolved = resolver.resolve(
@@ -220,7 +220,7 @@ class TestResolverFallback:
             parent_iris=[],
         )
         monkeypatch.setattr(
-            resolver, "_multi_strategy_resolve", lambda text, branch: (branchless, 0.9)
+            resolver, "_multi_strategy_resolve", lambda text, branch: (branchless, 0.9, "fork")
         )
         resolved = resolver.resolve(
             "some concept", branches=["Normative Concepts"], source="llm"

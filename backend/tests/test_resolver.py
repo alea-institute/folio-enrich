@@ -150,7 +150,7 @@ class TestMultiSearchCache:
         b = r._multi_strategy_resolve_all("foo bar", "", 5)
 
         assert calls["n"] == 1  # second call served from cache
-        assert [(c.iri, round(s, 4)) for c, s in a] == [(c.iri, round(s, 4)) for c, s in b]
+        assert [(c.iri, round(s, 4)) for c, s, _ in a] == [(c.iri, round(s, 4)) for c, s, _ in b]
 
     def test_cache_returns_copy_safe_against_inplace_sort(self, monkeypatch):
         """_multi_strategy_resolve_all sorts results in place when a branch hint is
@@ -168,4 +168,4 @@ class TestMultiSearchCache:
         # branch hint triggers in-place sort of the returned list
         first = r._multi_strategy_resolve_all("q", "Objectives", 5)
         second = r._multi_strategy_resolve_all("q", "Objectives", 5)
-        assert [c.iri for c, _ in first] == [c.iri for c, _ in second]
+        assert [c.iri for c, _, _ in first] == [c.iri for c, _, _ in second]
