@@ -97,6 +97,35 @@ def test_label_only_links_are_untouched(iri):
     assert links[0].model_dump() == before
 
 
+def test_label_only_link_dropped_when_old_concept_is_removed():
+    old = annotation("old", 10, 15, "urn:other")
+    old.concepts.append(ConceptMatch(concept_text="Nepali", folio_iri="urn:nepali"))
+    links = remap(
+        [IndividualClassLink(folio_iri="urn:nepali", folio_label="Nepali")],
+        [annotation("new", 10, 15, "urn:other")],
+        {old.id: old},
+    )
+    assert links == []
+
+
+def test_label_only_link_kept_when_concept_survives_elsewhere():
+    replacement = annotation("new", 30, 35, "urn:other")
+    replacement.concepts.append(ConceptMatch(concept_text="old", folio_iri="urn:old"))
+    link = IndividualClassLink(folio_iri="urn:old", folio_label="Label", confidence=0.7)
+    before = link.model_dump()
+    links = remap([link], [replacement])
+    assert len(links) == 1
+    assert links[0].model_dump() == before
+
+
+def test_label_only_link_kept_when_iri_never_appeared_in_old_annotations():
+    link = IndividualClassLink(folio_iri="urn:ontology-only", folio_label="Ontology lookup")
+    before = link.model_dump()
+    links = remap([link], [annotation("new", 10, 15, "urn:new")])
+    assert len(links) == 1
+    assert links[0].model_dump() == before
+
+
 def test_duplicate_iris_collapse_after_rederivation():
     links = remap(
         [IndividualClassLink(annotation_id="old", folio_iri="urn:old"),

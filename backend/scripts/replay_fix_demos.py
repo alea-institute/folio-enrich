@@ -117,7 +117,17 @@ def _concept_summary(job) -> dict:
 
 
 def _remap_class_link_annotation_ids(job, old_annotations) -> None:
-    """Re-derive annotation-backed links from replay's surviving top concepts."""
+    """Re-derive annotation-backed links and drop labels for removed concepts."""
+    old_iris = {
+        concept.folio_iri
+        for annotation in old_annotations.values()
+        for concept in annotation.concepts
+    }
+    new_iris = {
+        concept.folio_iri
+        for annotation in job.result.annotations
+        for concept in annotation.concepts
+    }
     for individual in job.result.individuals:
         links = []
         seen_iris = set()
@@ -148,6 +158,13 @@ def _remap_class_link_annotation_ids(job, old_annotations) -> None:
                 link.folio_iri = top.folio_iri
                 link.folio_label = top.folio_label
                 link.branch = top.branches[0] if top.branches else ""
+            elif (
+                link.folio_iri is not None
+                and link.folio_iri in old_iris
+                and link.folio_iri not in new_iris
+            ):
+                # Label-only links can inherit concepts from the original document.
+                continue
 
             # Unresolved label-only links have no IRI to deduplicate yet.
             if link.folio_iri is not None:
