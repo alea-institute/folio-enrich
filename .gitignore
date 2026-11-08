@@ -13,3 +13,6 @@ legal-citation-tools-memo.md
 # Generated Python bytecode
 __pycache__/
 *.py[cod]
+
+# Label-search pool measurement output (~43 MB); regenerate with backend/scripts/measure_label_search_pool.py
+backend/eval/results/label_search_pool_*.json
