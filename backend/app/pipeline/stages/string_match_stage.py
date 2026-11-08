@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 
 from app.models.annotation import Annotation, ConceptMatch, stamp_union_concept, stamp_union_dict, Span, StageEvent
@@ -59,6 +60,7 @@ class StringMatchStage(PipelineStage):
 
         resolved_concepts = job.result.metadata.get("resolved_concepts", [])
         if not resolved_concepts:
+            job.result.annotations = self._filter_precision(job, job.result.annotations)
             return job
 
         # Build Aho-Corasick automaton from resolved concept texts
@@ -275,6 +277,8 @@ class StringMatchStage(PipelineStage):
         # Sort by span start
         new_annotations.sort(key=lambda a: a.span.start)
 
+        new_annotations = self._filter_precision(job, new_annotations)
+
         # Dedup overlapping/contained spans with the same IRI
         new_annotations = self._dedup_overlapping_same_iri(new_annotations)
 
@@ -285,6 +289,46 @@ class StringMatchStage(PipelineStage):
 
         job.result.annotations = new_annotations
         return job
+
+    def _filter_precision(self, job: Job, annotations: list[Annotation]) -> list[Annotation]:
+        """Suppress nested fragments and unreliable rejected ruler alternatives."""
+        containers = []
+        for ann in annotations:
+            primary = ann.concepts[0] if ann.concepts else None
+            if (ann.state == "confirmed" and primary
+                    and {"Forums and Venues", "Governmental Body"}.intersection(primary.branches)
+                    and any(term in (primary.folio_label or "") for term in ("Court", "Ct.", "Circuit"))):
+                containers.append((ann.span, ann))
+        for individual in job.result.individuals:
+            if (individual.individual_type == "named_entity"
+                    and re.search(r"\bv\.?\s| vs\.? ", individual.name)):
+                containers.append((individual.span, individual))
+
+        kept = []
+        nested_count = rejected_count = 0
+        for ann in annotations:
+            primary = ann.concepts[0] if ann.concepts else None
+            if (ann.state == "rejected" and primary and primary.source == "entity_ruler"
+                    and primary.match_type in {"alternative", "lemma_alternative"}
+                    and len(ann.span.text.split()) == 1):
+                rejected_count += 1
+                continue
+            container = next((owner for span, owner in containers
+                              if span.start <= ann.span.start and ann.span.end <= span.end
+                              and (span.start, span.end) != (ann.span.start, ann.span.end)), None)
+            if container is not None:
+                nested_count += 1
+                record_lineage(container, self.name, "nested_fragments_removed",
+                               detail=f"Removed nested fragment [{ann.span.start},{ann.span.end}]")
+                continue
+            kept.append(ann)
+        log = job.result.metadata.setdefault("activity_log", [])
+        for count, description in ((nested_count, "nested fragments"),
+                                   (rejected_count, "rejected single-word ruler alternatives")):
+            if count:
+                log.append({"ts": datetime.now(timezone.utc).isoformat(), "stage": self.name,
+                            "msg": f"Dropped {count} {description}"})
+        return kept
 
     @staticmethod
     def _dedup_overlapping_same_iri(annotations: list[Annotation]) -> list[Annotation]:

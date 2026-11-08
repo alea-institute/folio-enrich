@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Bump when the lemma rules or denylist change, so the disk cache (keyed by
 # owl_hash + label digest + this version) is not served stale after a logic change.
-LEMMA_VERSION = "1"
+LEMMA_VERSION = "2"
 _LEMMA_CACHE_DIR = Path.home() / ".folio-enrich" / "cache" / "lemmas"
 
 # Back-compat alias: the legal terms-of-art lemma denylist now lives per-ontology
@@ -546,7 +546,7 @@ class FolioService:
         """Map single-word label (lowercased) -> its lemma, for reachability.
 
         Disk-cached by owl_hash, label digest, and LEMMA_VERSION, and memoized
-        in-process. Only single-word labels (>3 chars, lemma >2 chars,
+        in-process. Only single-word labels (>3 chars, lemma >3 chars,
         not on the legal terms-of-art denylist) whose lemma differs are included.
         This is what lets the singular surface form "Agreement" reach the
         plural-labelled concept "Agreements".
@@ -591,8 +591,13 @@ class FolioService:
                 return {}
             for doc in nlp.pipe(labels, batch_size=512):
                 original = doc.text.lower()
-                lemma = (doc[0].lemma_.lower() if len(doc) else original)
-                if lemma != original and len(lemma) > 2 and lemma not in denylist:
+                # Preserve the prefix of tokenized compounds (non-billables ->
+                # non-billable), rather than indexing only their first token.
+                if len(doc) > 1:
+                    lemma = original[:doc[-1].idx] + doc[-1].lemma_.lower()
+                else:
+                    lemma = doc[0].lemma_.lower() if len(doc) else original
+                if lemma != original and len(lemma) > 3 and lemma not in denylist:
                     lemma_map[original] = lemma
         except Exception:
             logger.warning("Lemma normalization failed; proceeding without lemma keys", exc_info=True)

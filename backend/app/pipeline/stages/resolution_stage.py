@@ -271,6 +271,7 @@ class ResolutionStage(PipelineStage):
         # Prefer reconciled concepts (merged ruler + LLM); fall back to individual sources
         reconciled = job.result.metadata.get("reconciled_concepts", [])
         resolved_concepts: list[dict] = []
+        unresolved_mentions: list[dict] = []
 
         if reconciled:
             for concept_data in reconciled:
@@ -281,6 +282,8 @@ class ResolutionStage(PipelineStage):
                     source=concept_data.get("source", "reconciled"),
                     folio_iri=concept_data.get("folio_iri"),
                 )
+                if resolved is None:
+                    unresolved_mentions.append(concept_data)
                 if resolved and not any(b in EXCLUDED_BRANCHES for b in resolved.branches):
                     rd = self._to_resolved_dict(resolved)
                     self._resolve_virtual_branches(rd, resolved.folio_concept.branch)
@@ -328,11 +331,87 @@ class ResolutionStage(PipelineStage):
                         source="llm",
                         folio_iri=concept_data.get("folio_iri"),
                     )
+                    if resolved is None:
+                        unresolved_mentions.append(dict(concept_data, source="llm"))
                     if resolved and not any(b in EXCLUDED_BRANCHES for b in resolved.branches):
                         rd = self._to_resolved_dict(resolved)
                         self._resolve_virtual_branches(rd, resolved.folio_concept.branch)
                         self._attach_backup_candidates(rd, concept_data)
                         resolved_concepts.append(rd)
+
+        # Prefer RDFS label matches before SKOS preferred labels within each group.
+        homonym_groups: dict[tuple[str, str], list[int]] = {}
+        for index, concept in enumerate(resolved_concepts):
+            branches = concept.get("branches") or []
+            key = (concept["concept_text"].casefold(), branches[0] if branches else "")
+            homonym_groups.setdefault(key, []).append(index)
+        dropped_indices: set[int] = set()
+        for indices in homonym_groups.values():
+            if len({resolved_concepts[i]["folio_iri"] for i in indices}) <= 1:
+                continue
+            rdfs_iris = set()
+            preferred_iris = set()
+            for i in indices:
+                concept = resolved_concepts[i]
+                text = " ".join(concept["concept_text"].split()).casefold()
+                if text == " ".join(concept["folio_label"].split()).casefold():
+                    rdfs_iris.add(concept["folio_iri"])
+                    continue
+                get_concept = getattr(self.resolver.folio, "get_concept", None)
+                fc = get_concept(concept["folio_iri"]) if get_concept else None
+                if fc:
+                    if text == " ".join((fc.preferred_label or "").split()).casefold():
+                        rdfs_iris.add(concept["folio_iri"])
+                    elif text == " ".join((fc.folio_pref_label or "").split()).casefold():
+                        preferred_iris.add(concept["folio_iri"])
+            preferred_iris.update(rdfs_iris)
+            exact_iris = rdfs_iris if len(rdfs_iris) == 1 else preferred_iris
+            if len(exact_iris) == 1:
+                dropped_indices.update(
+                    i for i in indices
+                    if resolved_concepts[i]["folio_iri"] not in exact_iris
+                )
+        dropped_homonyms = len(dropped_indices)
+        resolved_concepts = [
+            concept for i, concept in enumerate(resolved_concepts) if i not in dropped_indices
+        ]
+
+        # Resolve generic court mentions only from unambiguous courts in this job.
+        from app.services.folio.court_names import normalize_court_text
+        court_types = {
+            "district court": ("district court",),
+            "court of appeals": ("ct. app.", "court of appeals"),
+            "appellate court": ("ct. app.", "court of appeals"),
+            "circuit court": ("ct. app.", "court of appeals"),
+            "bankruptcy court": ("bankruptcy court",),
+        }
+        resolved_texts = {c["concept_text"].casefold() for c in resolved_concepts}
+        document_courts = list(resolved_concepts)
+        for mention in unresolved_mentions:
+            text = mention.get("concept_text", "")
+            types = court_types.get(normalize_court_text(text))
+            if not types or text.casefold() in resolved_texts:
+                continue
+            candidates = {
+                c["folio_iri"]: c for c in document_courts
+                if any(t in c.get("folio_label", "").casefold() for t in types)
+            }
+            if len(candidates) != 1:
+                continue
+            iri, candidate = next(iter(candidates.items()))
+            resolved = self.resolver.resolve(
+                text, folio_iri=iri, confidence=mention.get("confidence", 0.0),
+                source=mention.get("source", "reconciled"),
+            )
+            if resolved and not any(b in EXCLUDED_BRANCHES for b in resolved.branches):
+                rd = self._to_resolved_dict(resolved)
+                rd["_lineage_events"] = list(mention.get("_lineage_events", [])) + [{
+                    "stage": "resolution", "action": "coreference",
+                    "detail": f"Generic court mention linked to the document's {candidate['folio_label']}",
+                    "confidence": resolved.confidence,
+                }]
+                resolved_concepts.append(rd)
+                resolved_texts.add(text.casefold())
 
         # Apply embedding-based context scoring when available
         full_text = ""
@@ -351,6 +430,6 @@ class ResolutionStage(PipelineStage):
         job.result.metadata["resolved_concepts"] = resolved_concepts
 
         log = job.result.metadata.setdefault("activity_log", [])
-        log.append({"ts": datetime.now(timezone.utc).isoformat(), "stage": self.name, "msg": f"Resolved {len(resolved_concepts)} concepts with FOLIO definitions"})
+        log.append({"ts": datetime.now(timezone.utc).isoformat(), "stage": self.name, "msg": f"Resolved {len(resolved_concepts)} concepts with FOLIO definitions; dropped {dropped_homonyms} same-branch homonyms"})
         logger.info("Resolved %d concepts for job %s", len(resolved_concepts), job.id)
         return job

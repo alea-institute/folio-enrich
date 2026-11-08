@@ -121,18 +121,27 @@ class TestMultiStrategySearch:
         folio = FakeFOLIO([
             FakeOWLClass(
                 iri="https://folio.openlegalstandard.org/PLACE01",
-                label="U.S. Dept. of Justice",
+                label="U.S. Department of Justice",
                 definition="A federal executive department",
-                alt_labels=["justice"],
+                alt_labels=["DOJ", "Department of Justice"],
             ),
         ])
-        # With a branch resolver marking it a Governmental Body, the surface term "justice"
-        # (!= the label) must be vetoed rather than returned as a mis-map.
+        # Exact preferred or multi-word alternative/hidden labels skip the gate; one-word alternatives stay gated.
         results = multi_strategy_search(
             folio, "justice", top_n=5,
             get_branch_fn=lambda _f, _h: "Governmental Body",
         )
         assert all(r["iri_hash"] != "PLACE01" for r in results)
+        exact_results = multi_strategy_search(
+            folio, "Department of Justice", top_n=5,
+            get_branch_fn=lambda _f, _h: "Governmental Body",
+        )
+        assert any(r["iri_hash"] == "PLACE01" for r in exact_results)
+        one_word_alt_results = multi_strategy_search(
+            folio, "DOJ", top_n=5,
+            get_branch_fn=lambda _f, _h: "Governmental Body",
+        )
+        assert all(r["iri_hash"] != "PLACE01" for r in one_word_alt_results)
 
 
 class TestCandidateVetoed:

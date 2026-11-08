@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -38,6 +39,15 @@ def _match_confidence(match: EntityRulerMatch) -> float:
     """Compute confidence score based on match type and word count."""
     is_multi_word = len(match.text.split()) > 1
     return _CONFIDENCE.get((match.match_type, is_multi_word), 0.50)
+
+
+def _is_roman_enumerator(match: EntityRulerMatch, text: str) -> bool:
+    surface = text[match.start_char:match.end_char]
+    if not re.fullmatch(r"[IVXLCDM]{1,6}", surface):
+        return False
+    line_start = text.rfind("\n", 0, match.start_char) + 1
+    return (not text[line_start:match.start_char].strip()
+            or text[match.end_char:match.end_char + 1] in {".", ")"})
 
 
 @dataclass
@@ -406,7 +416,8 @@ class EntityRulerStage(PipelineStage):
         """Synchronous exact-match pass; runs on a worker thread."""
         self._ensure_patterns_loaded(ontology_id)
         sentence_index = build_sentence_index(full_text)
-        matches = self._find_matches(full_text)
+        matches = [m for m in self._find_matches(full_text)
+                   if not _is_roman_enumerator(m, full_text)]
 
         ruler_concepts = []
         match_types = {}
@@ -576,6 +587,8 @@ class EntityRulerStage(PipelineStage):
         """Build preliminary Annotation objects from EntityRuler matches."""
         annotations: list[Annotation] = []
         for match in matches:
+            if _is_roman_enumerator(match, full_text):
+                continue
             confidence = _match_confidence(match)
             branch = self._iri_to_branch.get(match.entity_id, "")
             is_multi = "multi-word" if len(match.text.split()) > 1 else "single-word"
