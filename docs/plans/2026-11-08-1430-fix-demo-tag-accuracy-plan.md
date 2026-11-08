@@ -40,10 +40,13 @@ Myasthenia Gravis) are real but smaller classes.
 
 ## Units
 
-- **U1 eval set (measurement):** a script that exports every confirmed demo tag with its provenance
-  features (first stage, match detail, embedding similarity, LLM branch hint, resolved branch), a
-  committed label file of (text, IRI) → correct/wrong verdicts, and a scorer that reports precision
-  overall and per provenance class plus the false-positive list. Labels come from LLM-assisted
+- **U1 eval set (measurement):** a committed label file of (text, IRI) → correct/wrong verdicts
+  (`backend/eval/demo_tags/labels.json`) and a stdlib scorer (`backend/scripts/demo_tag_eval.py`)
+  that reports precision overall and per origin plus the false-positive and unlabeled lists.
+  *Narrowed 2026-11-08:* the finer provenance classes in the baseline table (fork vs library path,
+  embedding similarity, LLM branch hint) came from one-off analysis that re-ran the resolver against
+  a loaded FOLIO; they are recorded here, not reproduced by committed code. Re-tuning the gate
+  thresholds needs that analysis rebuilt as a script first. Labels come from LLM-assisted
   annotation, spot-checked by the orchestrator.
 - **U2 fixes, largest false-positive class first:** each fix is deterministic, gated by a setting,
   and carries regression tests; candidates are set by the U1 numbers, not guessed.
@@ -83,6 +86,50 @@ branch looks odd). Treat single verdicts as noisy; class-level numbers are the s
   Location, "compliance" → Compliance).
 - **Delaware:** Location must beat Language; Language needs an explicit hint or the word "language".
 - **Deictic courts:** "this Court" links only to the document's own court.
+
+### After the fixes (replay `e3bbdf0`, embeddings active)
+
+| Measure | Before | After |
+|---|---|---|
+| Precision, unique labeled pairs | 0.61 | 0.71 |
+| Wrong tag occurrences | 1,491 | 989 (−34%) |
+| Correct tag occurrences | 2,769 | 2,786 |
+| Unique pairs: wrong / correct | 532 / 845 | 341 / 828 |
+
+- **Removed:** 202 wrong and 22 unsure pairs, including every reported example (CEO → Bananas,
+  NEPA → Nepali, SOP → Syriac, Wilmington facility → Jail, "This Court" → Family Court, and the 21
+  wrong patent-demo tags such as "wherein" → Incest). "Delaware" and "State of Delaware" now tag the
+  US state. "excessive force" → Excessive Force Claim is kept.
+- **New pairs:** 29, labeled by the orchestrator (16 correct, 11 wrong, 2 unsure); several are
+  multi-word ruler tags the StringMatch IRI-reuse fix unmasked ("requests for production",
+  "protective order").
+- **Lost true positives (33):** "21 CFR 211.68(a)" and "(b)" → U.S. Code of Federal Regulations;
+  "arbitrary" → Arbitrary and Capricious; "Case No. 2024-CV-01847" → Docket Number; "cGMP
+  compliance", "compliance deficiencies", "compliance provisions", "Data Integrity and Compliance
+  With Drug CGMP" → Compliance; "cGMP violations" → Violation; "Chicago, Illinois", "Greenwich,
+  Connecticut", "LA", "New York, NY", "Seattle, Washington" → Location; "compliance manual" → Manual;
+  "conflict-of-interest disclosures" → Conflict of Interest; "expert testimony" → Expert; "FACTUAL
+  ALLEGATIONS" → Factual Statement; "financial account information" → Financial Account; "impact
+  assessment", "liability assessment" → Assessment; "individual", "individual misconduct" →
+  Individual Person; "irreparable harm" → Injury; "judges" → Judge; "non-solicitation obligations" →
+  Solicitation; "object" → Objector; "obligations of confidentiality" → Obligation; "reasonable
+  attorneys' fees" → Attorney Fees; "surviving spouse" → Spouse; "Type A meeting" → Meeting;
+  "valuation procedures" → Asset Valuation; "Wockhardt Ltd." → Limited Company. Mostly generic
+  root or parent classes, as the grid search predicted. Every class removed far more wrong tags
+  than correct ones.
+
+### Review (ce-code-review, 2026-11-08)
+
+Verdict "Ready with fixes": no code defect survived; the two P1 items were this plan's missing
+results and the narrowed U1, both closed above. Residual items kept as follow-ups:
+
+- **Virtual branch hints:** `_branch_hints` keeps the literal "Document Metadata" hint, so such
+  forks must clear 0.30 instead of 0.15. Expand hints through `VIRTUAL_BRANCH_TARGETS`.
+- **Court coreference confidence:** coreference-linked courts now skip the 60/40 embedding blend.
+- **Tests:** cover the Language filter on backup candidates and overridden gate thresholds.
+- **Structure:** extract the Language/Location policy from `ResolutionStage.execute`, and split the
+  fork drop out of `_apply_embedding_context_scores`.
+- **DEV vs PROD:** DEV's image has no embeddings, so the fork gate runs on PROD only.
 
 ### Deferred classes (measured, no clean separator yet)
 
