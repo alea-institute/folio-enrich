@@ -80,3 +80,29 @@ for s in enrich-tag-still demo-doc-still enrich-panels-still; do
 - **enrich-panels.** Concepts (Objectives branch expanded), Individuals, Properties, Triples.
 - **demo-doc still** crops to the results pane, so it is 1920 wide but not 16:9.
 - Screen every re-shoot as described under "Screening".
+
+## Clip `insights` (FOLIO Insights)
+
+```bash
+node capture/insights.mjs      # INSIGHTS_URL defaults to http://127.0.0.1:8812
+ffmpeg -y -ss 0.5 -i media/insights-raw.webm -an -c:v libx264 -pix_fmt yuv420p -crf 28 \
+  -preset slow -movflags +faststart -vf scale=1920:1080 media/insights.mp4
+```
+
+- Needs `folio-insights serve --port 8812` over the corpus extracted from `demo-document.md`;
+  exact extraction and serve commands are in `evidence/insights.md`.
+- Read-only: All Units, then Objectives > Wrongful termination, Limitation of Liability,
+  Unfair Competition, selecting one proposition each so Source Context shows its memo line.
+
+## Clip `ontdyn` (ontology-dynamic)
+
+```bash
+node capture/ontdyn.mjs        # ONTDYN_URL defaults to http://127.0.0.1:8811
+ffmpeg -y -ss 0.6 -i media/ontdyn-raw.webm -an -c:v libx264 -pix_fmt yuv420p -crf 28 \
+  -preset slow -movflags +faststart -vf scale=1920:1080 media/ontdyn.mp4
+```
+
+- Needs an `ontdyn-viewer` built with the human QA mode (ontology-dynamic #36 or later) over a
+  scratch store with the memo ingested, tagged and proposed; see `evidence/ontology-dynamic.md`.
+- Read-only: QA annotated text, click "wrongful termination" (FOLIO's employment concept), QA
+  Review queue filtered to proposals, then the proposal page with its parent and evidence.
