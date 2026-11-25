@@ -11,7 +11,7 @@ Build a Claude Slides deck for Damien Riehl's 60-minute session, *Legal Data Tha
 | Decision | Choice |
 |---|---|
 | Format | New Claude Slides artifact, 16:9, English only |
-| Length | 60-minute slot including Q&A, so 36–40 slides and about 45 minutes of talk |
+| Length | 60-minute slot including Q&A, so 39 slides and about 44 minutes of talk |
 | Look | Reuse the "Agents' Lawful Good" deck's `deck.css`: ink `#15171D`, parchment `#F1E9DA`, brass `#C9A24A`, teal, ox and violet secondaries; Fraunces headings with Lato body; `anim-*` arrival utilities and fragment steps; footer and page numbers off |
 | Narrative | Bottom-up: start with FOLIO as it ships, tag, extract, fill the gaps, plug into AI, map legacy taxonomies, then collaborate. A brief persona tour follows |
 | Tools with their own slides | FOLIO Enrich, ALEA Intake, FOLIO Insights, ontology-dynamic, FOLIO MCP Server, FOLIO Python, FOLIO Mapper, OntoKit |
@@ -42,12 +42,12 @@ Build a Claude Slides deck for Damien Riehl's 60-minute session, *Legal Data Tha
 
 - **Sourced figures available now:** about 18,300 FOLIO concepts across 24 branches (folio-mapper README); translations on 31% of concepts in 10+ languages, including Spanish and Portuguese (folio-mcp README). Recheck both against the live ontology at build time and cite the date.
 
-## Slide outline (about 38 slides)
+## Slide outline (39 slides)
 
 Each act opens with a divider slide (eyebrow, title, pitch line), as in Lawful Good. Each line below is one slide. **Bold** marks a clip slide.
 
 ### Act 1: Problem (5 slides, about 5 minutes)
-1. **Cover:** title, subtitle, Damien's name and roles.
+1. **Cover:** title, subtitle, Damien's name and roles: attorney, SALI co-architect, FOLIO tools developer, and Solutions Champion at Clio.
 2. **Same matter, five labels:** one dispute as a firm, a court, an agency, a vendor, and a legal department each label it. The five labels pop in, then collapse into one FOLIO IRI on click.
 3. **Fragmentation cost:** data can't be shared, compared, or counted across organizations and borders.
 4. **AI inherits the mess:** inconsistent labels make retrieval miss and analytics wrong. A before/after card pair with an untagged query and a tagged query (illustrative, labeled as such).
@@ -81,18 +81,19 @@ Each act opens with a divider slide (eyebrow, title, pitch line), as in Lawful G
 28. **OntoKit, collaboration at scale:** a statement on how jurisdictions add their own law through review, not forks.
 29. **Loop recap:** the seven stops as a cycle diagram, the line drawing in with staged nodes. Takeaway 4.
 
-### Act 4: Persona tour (5 slides, about 6 minutes)
+### Act 4: Persona tour (6 slides, about 7 minutes)
 30. Divider: *What this means for you.*
 31. **Law firms:** matter intake, knowledge management, pricing analytics → Enrich, Mapper, MCP.
 32. **Legal departments:** contracts, spend, outside-counsel reporting → Enrich, Insights, Python.
 33. **Courts:** filings, dockets, access to justice → Intake, Enrich, Insights.
-34. **Government:** regulation, cross-agency data, public services → Intake, ontology-dynamic, OntoKit. (Legal tech gets one line here, or slide 34b if Damien keeps it.)
+34. **Government:** regulation, cross-agency data, public services → Intake, ontology-dynamic, OntoKit.
+35. **Legal tech, buy instead of build:** for attendees who would rather buy than build. What to ask a vendor: does it tag with SALI/FOLIO, export FOLIO IRIs, accept your mapped taxonomy, and connect through MCP? Names no vendors unless their support is publicly documented and cited.
 
 ### Act 5: First steps and close (4 slides, about 4 minutes)
-35. **Five first steps:** an ordinal list (pick one dataset, tag it with Enrich, map one taxonomy, connect MCP to your AI, join OntoKit review). Takeaway 5.
-36. **Every tool is open source:** names, repo links, and hosted URLs as a grid. A QR code to one landing page if one exists (verify; otherwise links only).
-37. **Ask:** an ask band for South American collaborators: translate labels, propose local concepts, pilot one dataset.
-38. **Thanks and Q&A.**
+36. **Five first steps:** an ordinal list (pick one dataset, tag it with Enrich, map one taxonomy, connect MCP to your AI, join OntoKit review). Takeaway 5.
+37. **Every tool is open source:** names, repo links, and hosted URLs as a grid. No QR code or landing page (Damien, 2026-11-25).
+38. **Ask:** an ask band for South American collaborators: translate labels, propose local concepts, pilot one dataset.
+39. **Thanks and Q&A.**
 
 ## Work steps (in order)
 
@@ -123,8 +124,8 @@ Each act opens with a divider slide (eyebrow, title, pitch line), as in Lawful G
 | A figure can't be sourced | Drop it or mark it `[confirm]` in the handoff; never estimate |
 | Real firm data leaks into the Mapper shots | Mapper is captured only with a synthetic taxonomy; the firm slide holds no data |
 
-## Open questions to settle after the build
+## Decisions after plan review (Damien, 2026-11-25)
 
-- **Legal tech in the persona tour:** keep it as its own slide or as one line?
-- **QR code target:** does one landing page exist for the QR code?
-- **Damien's title line:** confirm the cover's roles wording (attorney, SALI co-architect, FOLIO tools developer).
+- **Legal tech persona:** its own slide (35), framed as "buy instead of build."
+- **QR code:** none; no landing page needed.
+- **Cover roles:** attorney, SALI co-architect, FOLIO tools developer, plus his day-job title, Solutions Champion at Clio.
