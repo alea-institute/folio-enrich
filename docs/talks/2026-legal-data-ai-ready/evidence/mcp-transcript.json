@@ -1,0 +1,221 @@
+{
+  "server_url": "https://folio.openlegalstandard.org/mcp",
+  "recorded_at_utc": "2026-11-25T13:01:50.649962+00:00",
+  "client": "python mcp SDK (streamable_http_client + ClientSession)",
+  "calls": [
+    {
+      "method": "tools/list",
+      "result": [
+        {
+          "name": "search_concepts",
+          "description": "Find FOLIO concepts by name. START HERE for almost every question."
+        },
+        {
+          "name": "search_definitions",
+          "description": "Fuzzy search over concept DEFINITIONS. Fallback only — use search_concepts first."
+        },
+        {
+          "name": "get_concept",
+          "description": "Get the full record for one FOLIO concept: definition, synonyms,"
+        },
+        {
+          "name": "export_concept",
+          "description": "Export one FOLIO concept as Markdown, JSON-LD or OWL/XML (for documents or"
+        },
+        {
+          "name": "list_branches",
+          "description": "List the 24 top-level FOLIO taxonomy branches with their number of"
+        },
+        {
+          "name": "get_taxonomy_branch",
+          "description": "Browse the top-level concepts of a FOLIO taxonomy branch."
+        },
+        {
+          "name": "get_children",
+          "description": "Get the narrower (child) concepts of a FOLIO concept."
+        },
+        {
+          "name": "get_parents",
+          "description": "Get the broader (parent) concepts of a FOLIO concept. A concept can have"
+        },
+        {
+          "name": "get_properties",
+          "description": "List all FOLIO object properties (relationship types such as"
+        },
+        {
+          "name": "find_connections",
+          "description": "Find explicit property links (subject -> property -> object triples) from"
+        },
+        {
+          "name": "query_concepts",
+          "description": "Filter FOLIO concepts by exact field matches and structure (not ranked)."
+        },
+        {
+          "name": "query_properties",
+          "description": "Filter FOLIO object properties (relationship types), with full domain/range detail."
+        },
+        {
+          "name": "extract_concepts",
+          "description": "Tag a passage of text with the FOLIO concepts it mentions."
+        },
+        {
+          "name": "extract_citations",
+          "description": "Find legal citations in text and map each to FOLIO concepts."
+        },
+        {
+          "name": "search_expanded",
+          "description": "Search FOLIO with a plain-English question or fact pattern."
+        }
+      ]
+    },
+    {
+      "method": "tools/call",
+      "name": "search_concepts",
+      "arguments": {
+        "query": "arbitration",
+        "limit": 5
+      },
+      "latency_ms": 145,
+      "is_error": false,
+      "result": [
+        {
+          "iri": "https://folio.openlegalstandard.org/RXO2u2WBkUUcEG1jczLIcA",
+          "label": "Arbitration Practice",
+          "definition": "Arbitration, a form of alternative dispute resolution (ADR), is a way to resolve disputes outside the courts. The dispute will be decided by one or more persons (the \"arbitrators\", \"arbiters\" or \"arbitral tribunal\"), which renders the \"arbitration award\".",
+          "score": 100.0
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R8LtU1k4pyiSD639zaq4vrM",
+          "label": "Arbitration Forum",
+          "definition": "An Arbitration Forum is a specific type of Alternative Dispute Resolution (ADR) Forum where disputes are resolved outside of the court system by a neutral third party or panel of experts.",
+          "score": 81.48
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RC2LcVXjOZOiT3wqNc2SU5n",
+          "label": "Arbitration Event",
+          "definition": "Arbitration Event refers to a specific type of Alternative Dispute Resolution (ADR) Event where a neutral third party is appointed to resolve a dispute between two or more parties outside of the court system.",
+          "score": 81.48
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RBey1qPhJGDlP3xszUL2JDF",
+          "label": "Arbitration Award",
+          "definition": "An arbitration award is a decision made by an arbitrator or panel of arbitrators to resolve a dispute between parties, which is binding and enforceable by law.",
+          "score": 81.48
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RWQW185M6gqosVVQA1GE0A",
+          "label": "Arbitration Clause",
+          "definition": "An arbitration clause is a provision in a contract that requires any disputes arising from the contract to be resolved through arbitration rather than through the court system.",
+          "score": 79.45
+        }
+      ]
+    },
+    {
+      "method": "tools/call",
+      "name": "get_concept",
+      "arguments": {
+        "iri": "https://folio.openlegalstandard.org/RXO2u2WBkUUcEG1jczLIcA"
+      },
+      "latency_ms": 88,
+      "is_error": false,
+      "result": {
+        "iri": "https://folio.openlegalstandard.org/RXO2u2WBkUUcEG1jczLIcA",
+        "label": "Arbitration Practice",
+        "sub_class_of": [
+          "https://folio.openlegalstandard.org/R85H4hDZWq92xwwBFP7WCtM"
+        ],
+        "parent_class_of": [
+          "https://folio.openlegalstandard.org/RDKSHk0fleH3UJIiS4lfIzP"
+        ],
+        "see_also": [
+          "https://folio.openlegalstandard.org/R8LtU1k4pyiSD639zaq4vrM",
+          "https://folio.openlegalstandard.org/RC2LcVXjOZOiT3wqNc2SU5n"
+        ],
+        "alternative_labels": [
+          "Arbitration",
+          "Arbitration Practice",
+          "Pratique de l'arbitrage",
+          "Práctica de arbitraje",
+          "Prática de arbitragem",
+          "Schiedspraxis",
+          "מעשה בית דין פרטי",
+          "विवाद-समाधान अभ्यास",
+          "仲裁实践",
+          "仲裁実務",
+          "ARB"
+        ],
+        "translations": {
+          "en-gb": "Arbitration Practice",
+          "fr-fr": "Pratique de l'arbitrage",
+          "es-es": "Práctica de arbitraje",
+          "es-mx": "Práctica de arbitraje",
+          "pt-br": "Prática de arbitragem",
+          "de-de": "Schiedspraxis",
+          "he-il": "מעשה בית דין פרטי",
+          "hi-in": "विवाद-समाधान अभ्यास",
+          "zh-cn": "仲裁实践",
+          "ja-jp": "仲裁実務"
+        },
+        "hidden_label": "ARB",
+        "definition": "Arbitration, a form of alternative dispute resolution (ADR), is a way to resolve disputes outside the courts. The dispute will be decided by one or more persons (the \"arbitrators\", \"arbiters\" or \"arbitral tribunal\"), which renders the \"arbitration award\".",
+        "identifier": "D-ADR-ARB"
+      }
+    },
+    {
+      "method": "tools/call",
+      "name": "get_parents",
+      "arguments": {
+        "iri": "https://folio.openlegalstandard.org/RXO2u2WBkUUcEG1jczLIcA",
+        "max_depth": 2
+      },
+      "latency_ms": 88,
+      "is_error": false,
+      "result": [
+        {
+          "iri": "https://folio.openlegalstandard.org/R85H4hDZWq92xwwBFP7WCtM",
+          "label": "Alternative Dispute Resolution Practice",
+          "definition": "The use of methods such as mediation and arbitration to resolve a dispute instead of litigation."
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/R79LjWBKHCdmQKEW6zPY8Co",
+          "label": "Litigation Practice",
+          "definition": "Matters that include official proceedings (e.g., court case, arbitration, mediation)"
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RDigDgTiLFmt7iX3436yCOT",
+          "label": "Dispute Service",
+          "definition": "A process that describes a conflict/adversarial event potentially or actually involving a second party. This can include government entity or internal investigation"
+        },
+        {
+          "iri": "https://folio.openlegalstandard.org/RpNOHS1FAVVJkNXIN6L6y7",
+          "label": "Dispute Proceeding Type",
+          "definition": "Dispute Proceeding Type refers to the specific legal process used to resolve a conflict between parties, such as an investigation, alternative dispute resolution, administrative proceeding, civil court proceeding, or criminal court proceeding."
+        }
+      ]
+    },
+    {
+      "method": "tools/call",
+      "name": "get_children",
+      "arguments": {
+        "iri": "https://folio.openlegalstandard.org/RXO2u2WBkUUcEG1jczLIcA",
+        "max_depth": 1
+      },
+      "latency_ms": 83,
+      "is_error": false,
+      "result": [
+        {
+          "iri": "https://folio.openlegalstandard.org/RDKSHk0fleH3UJIiS4lfIzP",
+          "label": "Domain Name Dispute Resolution Practice",
+          "definition": "Domain Name Dispute Resolution Practice refers to the set of procedures and guidelines followed to resolve conflicts over domain name registrations. This practice typically involves arbitration or mediation processes under policies like the Uniform Domain-Name Dispute-Resolution Policy (UDRP) to…"
+        }
+      ]
+    }
+  ],
+  "initialize": {
+    "server_info": {
+      "name": "FOLIO Legal Ontology",
+      "version": "1.27.0"
+    },
+    "protocol_version": "2025-11-25"
+  }
+}
