@@ -1,6 +1,7 @@
 # Legal Data That's AI-Ready: Slides Deck Plan
 
 Created: 2026-11-25
+Execution: knowledge-work (deepened into build units 2026-11-25)
 
 ## Goal
 
@@ -95,28 +96,57 @@ Each act opens with a divider slide (eyebrow, title, pitch line), as in Lawful G
 38. **Ask:** an ask band for South American collaborators: translate labels, propose local concepts, pilot one dataset.
 39. **Thanks and Q&A.**
 
-## Work steps (in order)
+## Build units
 
-1. **Write the FOLIO-rich synthetic document.** A cross-border supply dispute or contract (for example, a Chilean supplier, a Brazilian distributor, ICC arbitration seated in a third country) of about 600–900 words. Draft it with FOLIO's labels in view so nearly every noun phrase matches a FOLIO concept. Use Enrich's synthetic generator as a seed if it helps. No real parties.
-2. **Verify tag density.** Run the document through Enrich and record the concept count, tag coverage (share of tokens inside a tag), individuals, properties, and triples. If coverage looks thin, revise the wording and rerun until nearly every phrase is tagged. These measured numbers become the figures on slides 12–14.
-3. **Run the document through each tool** (Intake with a short first-person version, Insights, ontology-dynamic, MCP, Python, Mapper with a synthetic taxonomy, OntoKit) and keep every output as evidence.
-4. **Capture media.** Playwright scripts per tool record 10–25-second clips (1920×1080, H.264, under 20 MB each; ffmpeg-trimmed) and one still each at deviceScaleFactor 2. Terminal clips are recorded and rendered to video. Inspect every frame set for keys, emails, or personal data before upload.
-5. **Create the deck.** Create a new Slides artifact titled "Legal Data That's AI-Ready." Install the Lawful Good `deck.css` (copied, plus new classes for the clip frame, code card, and loop diagram), the Fraunces and Lato faces, and the full `order` and `sections`.
-6. **Upload assets** (stills and clips) and write slides three per message, with speaker notes giving the talk track, timing, and a source for every figure.
-7. **Preview** clip slides, diagram slides, and fragment-heavy slides in the viewer; fix overflow and timing.
-8. **Hand off** the deck link, the list of bracketed placeholders, and any figures still to confirm.
+Execution: knowledge-work. The deliverable is a Slides artifact plus media. The repo keeps the plan, the demo document, measured evidence, and the capture tooling under `docs/talks/2026-legal-data-ai-ready/`, so the clips can be re-shot before the talk if a tool changes. Capture tooling is small and throwaway, but it is committed so a re-shoot is one command. Large media (clips, stills) stays out of git, in the deck's asset store and a local `media/` folder that git ignores.
+
+Spend rule: prefer routes that cost nothing: the Codex CLI subscription for Enrich (`--provider codex-cli`), local Ollama or a subscription CLI where a tool supports one. If a tool runs only on a paid API key, cap the run at US$2 (`--max-spend-usd` where offered), record the actual cost in the evidence file, and stop to ask before any run that would exceed it.
+
+### U1. FOLIO-rich demo document
+- **Files:** `docs/talks/2026-legal-data-ai-ready/demo-document.md`, `docs/talks/2026-legal-data-ai-ready/evidence/enrich-density.md`, `evidence/enrich-result.json`.
+- **Work:** write a 600–900-word synthetic cross-border document (Chilean supplier, Brazilian distributor, arbitration, governing law, remedies, payment, IP, data protection, a court filing) using FOLIO labels as its vocabulary. Run it through the Enrich pipeline locally from the main repo's venv (`~/Coding Projects/folio-enrich/backend/.venv`), with the Codex CLI provider. Measure the share of words (three letters or more) that fall inside an annotation span, as the baked-exemplar check does.
+- **Done:** word coverage at or above 70% (beating `rich_advisory` at 65% and `rich_contract` at 51%, measured the same way), with no real parties named. Record concept, individual, property, and triple counts and the run time in `enrich-density.md`. Revise and rerun at most four times; if coverage stays under 70%, keep the best version and note the measured figure.
+
+### U2. Tool runs and evidence
+- **Files:** one `evidence/<tool>.md` per tool, holding the command or URL, its output (trimmed), date, and cost.
+- **Enrich:** reuse U1's result; also load it into the local Enrich frontend (as a local exemplar or through a job import) so the capture shows the real UI without a key on screen.
+- **Intake:** the DEV site sits behind a sign-in (HTTP 401). Use the gate credential by reference if one exists for it; else run Intake locally (`docker compose up -d` per its README) and capture there. Input: a first-person, plain-language version of the dispute.
+- **Insights:** run `folio-insights extract` locally on the demo document (free provider first), then `serve` for the review viewer.
+- **ontology-dynamic:** `ontdyn ingest` → `tag` → `propose`, then `ontdyn-viewer`. Seed one or two local concepts if needed (a Chilean court, a Brazilian procedure).
+- **MCP Server:** call `folio.openlegalstandard.org/mcp` with a real client and record the tool calls and answers (search a concept, get its Spanish and Portuguese labels, walk its parents). The clip replays this real transcript in a chat-style page; it adds nothing the server didn't return.
+- **FOLIO Python:** run a five-line script (load FOLIO, search "arbitration", print the IRI, labels, and parents) and keep the real output.
+- **Grounded vs. ungrounded:** ask one LLM the same question twice, without and with FOLIO results in context; keep both answers verbatim. Use a subscription CLI (Claude or Codex), not a paid API.
+- **Mapper:** map a 15–20-term synthetic taxonomy (invented practice-area labels, no firm data) on `mapper.openlegalstandard.org`.
+- **OntoKit:** on `ontokit.openlegalstandard.org` (DEV fallback), show a suggestion, its review, and its merge. If that needs a sign-in, use the existing demo credential by reference; never record a sign-in screen.
+- **Public facts:** SALI's and noslegal's stewardship and scope, plus the FOLIO counts rechecked against the live API, saved with URLs and dates in `evidence/sources.md`.
+- **Done:** every lifecycle slide's claim and figure traces to an evidence file.
+
+### U3. Capture clips and stills
+- **Files:** `docs/talks/2026-legal-data-ai-ready/capture/*.mjs` (one Playwright script per clip), `capture/README.md` (how to re-shoot), `media/` (git-ignored output).
+- **Work:** Playwright's `recordVideo` at 1920×1080, one scripted flow per clip slide (13), paced for 10–25 seconds; ffmpeg trims and encodes to H.264 MP4 (`-crf 28`, `-movflags +faststart`, no audio). Take a still at the key frame for each clip (deviceScaleFactor 2). The two terminal clips (FOLIO Python, MCP) render their real recorded output in a terminal-styled page and record that, since no terminal recorder is installed.
+- **Screening:** before upload, extract one frame every 2 seconds and inspect it for keys, tokens, email addresses, or personal data; re-shoot any frame that shows one.
+- **Done:** 13 MP4s, each 20 MB or less, each with a matching still, all screened. A manifest (`media/manifest.json`) maps each slide id to its clip, still, duration, and size.
+
+### U4. Build the deck
+- **Work:** create a Slides artifact titled "Legal Data That's AI-Ready" from the Slides type. Copy Lawful Good's `deck.css` and add classes for the clip frame, code card, persona card, and loop diagram. Faces: Fraunces and Lato. Write `deck.json` with the 39-slide `order` and five `sections`. Upload each still and clip as assets; write slides three per publish with `data-video` frames. Speaker notes carry the talk track, the target minute, and a source for each figure.
+- **Done:** all 39 slides publish without a held or read-only slide; every clip slide plays its clip; no slide shows a figure without a source in its notes.
+
+### U5. Preview, QA, and handoff
+- **Work:** preview every slide in the Slides viewer. Check text overflow, the 824px content height, contrast, fragment order, and clip playback. Fix and republish once per issue batch.
+- **Done:** a QA log in `evidence/qa.md` (slide, issue, fix). Then hand off with the deck link, the bracketed placeholders still open, and the spend, if any.
 
 ## Resources needed
 
-- **LLM keys:** Damien's existing keys for Enrich (BYOK), ontology-dynamic, and the MCP session, used by reference only and never shown on screen.
-- **Live hosts:** the hosts in the capture table; DEV hosts checked before capture.
-- **Tooling:** Playwright (installed), ffmpeg, and a terminal recorder.
-- **Public facts:** SALI's and noslegal's stewardship and scope, from their public sites, cited in the notes.
+- **LLM access:** Codex CLI and Claude CLI subscriptions first, then local Ollama; paid keys only under the spend rule above, used by reference only and never shown on screen.
+- **Hosts:** the hosts in the capture table, checked on 2026-11-25: Enrich, Insights DEV, Mapper, OntoKit, and the FOLIO API docs return 200. Intake DEV returns 401 (gated). The MCP endpoint returns 406 to a plain GET, as expected for an MCP server.
+- **Tooling:** Playwright and ffmpeg (both installed). No asciinema, agg, or vhs.
 
 ## Risks and contingencies
 
 | Risk | Fallback |
 |---|---|
+| Intake DEV stays gated |  Run Intake locally with Docker Compose and capture there |
+| A tool needs a paid API key | Cap at US$2 and record the cost; ask before going higher |
 | A DEV host is down at capture time | Capture from a local run of that repo; else use a stepped-still sequence with fragments |
 | ontology-dynamic output is thin on the synthetic document | Seed the document with one or two concepts FOLIO lacks (a local institution or procedure) so a proposal appears |
 | Clip exceeds 20 MB | Shorten, cut the frame rate to 24 fps, or lower the bitrate |
